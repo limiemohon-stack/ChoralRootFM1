@@ -43,11 +43,12 @@
 #define CU_BIT(b) (1u << (b))
 
 /* layers (a button held): their screens and the job of the root keys and KNOB 1..4 */
-enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_RSV6, L_METRO, L_LOOP, L_VIEW, L_LOCK, L_N };   /* L_VIEW: HOME
-                                                   * held; L_LOCK: the key B3 held (no button: NB); L_RSV6: retired
-                                                   * (until 0.17 SAVE held: the loop slots' Save / Load / Delete map;
-                                                   * SAVE held is the global save now, cu_gsave: the numbers stay) */
-static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, NB, BT_METRO, BT_LOOP, BT_HOME, NB};
+enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_HARM, L_METRO, L_LOOP, L_VIEW, L_LOCK, L_N };   /* L_VIEW: HOME
+                                                   * held; L_LOCK: the key B3 held (no button: NB); L_HARM: LATCH
+                                                   * held (Harmony Preview, cr_harmony.h) -- was L_RSV6, retired since
+                                                   * 0.17 (SAVE held: the loop slots' Save / Load / Delete map; SAVE
+                                                   * held is the global save now, cu_gsave), free until this */
+static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, BT_LATCH, BT_METRO, BT_LOOP, BT_HOME, NB};
 static uint32_t cu_layer_of(uint32_t b)
 {
     uint32_t l;
@@ -1105,6 +1106,10 @@ static struct {
                                            * Keyboard; the first page whenever the layer opens */
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
                                            * the first page whenever the menu opens */
+    uint8_t harm_sel;                     /* the Harmony layer's highlighted slot (0 REST, 1 MOVE, 2 PULL): D4 E4 F4
+                                           * or SELECT move it; 0 whenever the layer opens. Selection only so far --
+                                           * no audition, no OCT+ confirm yet (cr_harmony.h's second integration
+                                           * step: a real played chord, the history feed) */
     uint8_t ledit;                        /* the loop editor is open (EDIT in the PLAY menu; cu_ledit_*) */
     uint16_t le_cell;                     /* .. its cursor: the first cell of the selected step */
     uint8_t le_page;                      /* .. its page (SELECT): 0 Step (Note len, Steps, Chance, Velocity), 1 Trig
@@ -2536,6 +2541,8 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu.kpage = 0;
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
+    if (l == L_HARM && was != L_HARM)             /* .. Harmony opens with REST highlighted */
+        cu.harm_sel = 0;
     if (l == L_PERF && was != L_PERF)             /* the perform layer opens on its picker (the mode's name) */
         cu.perf_t0 = cu_now();
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
@@ -3136,6 +3143,13 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             cr_post(CRE_LOOP, LP_CONF, LC_SIG, i);
         }
         break;
+    case L_HARM:                                   /* D4 E4 F4 (white roots 0..2) or SELECT: highlight that slot.
+                                                    * Selection only -- OCT+ does not confirm it yet */
+        if (i < 3) {
+            cu.harm_sel = (uint8_t)i;
+            cu_trace("harm: slot %d\n", (int)i);
+        }
+        break;
     default:
         break;
     }
@@ -3150,6 +3164,7 @@ static int32_t cu_layer_sel(uint32_t l)
     case L_LOOP: return cs.loop_len;
     case L_METRO: return cs.metro_sig;
     case L_VIEW: return cs.view;
+    case L_HARM: return cu.harm_sel;
     default: return 0;
     }
 }
@@ -3164,6 +3179,7 @@ static int32_t cu_layer_count(uint32_t l)
     case L_LOOP: return (int32_t)CRL_NSYNC;
     case L_METRO: return CRL_NSIG;
     case L_VIEW: return V_N;
+    case L_HARM: return 3;
     default: return 0;
     }
 }
@@ -5660,6 +5676,48 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         s->cell[0][0].pct = (uint8_t)(cs.metro_vol * 255u / 100u);
         cu_hot_row(s, L_METRO);
         cu_row_trace(s, "metro", seen, sizeof seen);
+        break;
+    }
+    case L_HARM: {                                 /* Harmony Preview (cr_harmony.h): REST / MOVE / PULL as a plain
+                                                    * picker list -- not yet the three-big-slot mock-up (that needs
+                                                    * its own drawing, not an existing primitive); no audible
+                                                    * preview and no real chord on OCT+ yet (both still to wire up).
+                                                    * Key: Key Mode's tonic/scale when it's on, else cr_harm_suggest's
+                                                    * own provisional per-chord tonic (no persistent history feed
+                                                    * yet, so inference never acquires a held key across chords) */
+        static const char *const TENS[3] = {"REST", "MOVE", "PULL"};
+        char buf[3][24];
+        const char *items[3];
+        cr_harm_key_t key;
+        cr_harm_result_t out[3];
+        uint32_t i;
+        if (cs.key_on)
+            cr_harm_key_explicit(&key, cs.tonic, cs.scale);
+        else
+            cr_harm_key_clear(&key);
+        if (!cr_harm_suggest(&key, &cr_snap.ci, cs.sixth_up, out)) {
+            static const char *const NONE[1] = {"Play a chord"};
+            cu_picker(s, NONE, 1, 0, CR_COL_WHITE, "harmony", "OCT- \267 HOME: back");
+            break;
+        }
+        for (i = 0; i < 3u; i++) {
+            char r[3], q[5], sup[CR_SUP_MAX];
+            buf[i][0] = 0;
+            cu_cat(buf[i], TENS[i], sizeof buf[i]);
+            cu_cat(buf[i], " \267 ", sizeof buf[i]);
+            if (out[i].kind == CR_HARM_UNAVAILABLE) {
+                cu_cat(buf[i], "unavailable", sizeof buf[i]);
+            } else {
+                cr_chord_name(out[i].root_pc, out[i].quality, out[i].ext, r, q, sup);
+                cu_cat(buf[i], r, sizeof buf[i]);
+                cu_cat(buf[i], q, sizeof buf[i]);
+                cu_cat(buf[i], sup, sizeof buf[i]);
+                if (out[i].kind == CR_HARM_VOICING)
+                    cu_cat(buf[i], " (voicing)", sizeof buf[i]);
+            }
+            items[i] = buf[i];
+        }
+        cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, "harmony", "D4 E4 F4: select \267 OCT- \267 HOME: back");
         break;
     }
     default:
