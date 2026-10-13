@@ -93,6 +93,9 @@
 #undef cr_param_t
 #include "../../firmware/src/cr_loop.h"
 #include "../../firmware/src/cr_loop.c"               /* the looper (ticked with the engine) */
+#include "../../firmware/src/cr_harmony.h"
+#include "../../firmware/src/cr_harmony.c"            /* Harmony Preview's pure suggestion engine (as
+                                                        * choralroot.c: not yet called from anywhere) */
 #include "../../firmware/src/cr_out.c"                /* streams -> parts 0 / 1 and MIDI; the engine's clock */
 static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block: the engine first, then the mix */
 {
