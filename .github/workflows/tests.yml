@@ -26,43 +26,43 @@ jobs:
       - uses: actions/checkout@v4
       - name: cr_bootguard_test
         run: |
-          cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_bootguard_test tests/cr_bootguard_test.c
+          clang -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_bootguard_test tests/cr_bootguard_test.c
           /tmp/cr_bootguard_test
       - name: cr_stub_test
         run: |
-          cc -std=c99 -Wall -Wextra -Wno-unused-function -Werror -pedantic -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -o /tmp/cr_stub_test tests/cr_stub_test.c
+          clang -std=c99 -Wall -Wextra -Wno-unused-function -Werror -pedantic -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -o /tmp/cr_stub_test tests/cr_stub_test.c
           /tmp/cr_stub_test
       - name: stub_pkg_test.py
         run: python3 tests/stub_pkg_test.py
       - name: cr_engine_test
         run: |
-          cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_engine_test tests/cr_engine_test.c firmware/src/cr_engine.c
+          clang -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_engine_test tests/cr_engine_test.c firmware/src/cr_engine.c
           /tmp/cr_engine_test
       - name: cr_loop_test
         run: |
-          cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
+          clang -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
           /tmp/cr_loop_test
       - name: cr_harmony_test
         run: |
-          cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_harmony_test tests/cr_harmony_test.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
+          clang -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_harmony_test tests/cr_harmony_test.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
           /tmp/cr_harmony_test
       - name: cr_settings_test
         run: |
-          cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c
+          clang -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c
           /tmp/cr_settings_test
       - name: cr_usbaudio_test
         run: |
-          cc -std=gnu11 -O2 -w -o /tmp/cr_usbaudio_test tests/cr_usbaudio_test.c
+          clang -std=gnu11 -O2 -w -o /tmp/cr_usbaudio_test tests/cr_usbaudio_test.c
           /tmp/cr_usbaudio_test
       - name: cr_usbaudio48_test
         run: |
-          cc -std=gnu11 -O2 -w -o /tmp/cr_usbaudio48_test tests/cr_usbaudio48_test.c -lm
+          clang -std=gnu11 -O2 -w -o /tmp/cr_usbaudio48_test tests/cr_usbaudio48_test.c -lm
           /tmp/cr_usbaudio48_test
       - name: cr_usbrate_test
         run: |
-          cc -std=gnu11 -O2 -w -o /tmp/cr_usbrate_test tests/cr_usbrate_test.c
+          clang -std=gnu11 -O2 -w -o /tmp/cr_usbrate_test tests/cr_usbrate_test.c
           /tmp/cr_usbrate_test
       - name: cr_midi_test
         run: |
-          cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_midi_test tests/cr_midi_test.c
+          clang -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o /tmp/cr_midi_test tests/cr_midi_test.c
           /tmp/cr_midi_test
