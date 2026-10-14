@@ -2052,7 +2052,7 @@ static void s_fixedchord(void)
     cr_set_transpose(&C, 0);
     cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
     cr_key_chord(&C, 62, 0, 100, 62, CR_Q_MIN, 0, DM, 3);
-    expect("+60/100 +64/100 +67/100 +62/100 +65/100 +69/100 -60 -64 -67", "given whole: the same key again replaces its chord (the new one first)");
+    expect("+60/100 +64/100 +67/100 -60 -64 -67 +62/100 +65/100 +69/100", "given whole: the same key again replaces its chord");
     R(62, 1); clear();
     cr_set_sticky(&C, 1);                           /* LATCH */
     cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
@@ -2060,7 +2060,7 @@ static void s_fixedchord(void)
     ok(sounding() == 3 && cr_voices(&C) == 1, "given whole + LATCH: it sounds on after its key comes up");
     clear();
     cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
-    expect("+57/100 -67", "given whole + LATCH: the next chord replaces the latched one; C4 and E4, shared, ring on (no cut, no new strike)");
+    expect("-67 +57/100", "given whole + LATCH: the next chord replaces the latched one: G4 leaves first (its synth voice free to glide), C4 and E4, shared, ring on");
     R(64, 1);
     cr_set_sticky(&C, 0);
     ok(sounding() == 0, "given whole: LATCH off releases it");

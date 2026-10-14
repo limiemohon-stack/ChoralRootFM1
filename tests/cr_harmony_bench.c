@@ -263,7 +263,7 @@ static void lanes_section(lanestats_t *ls)
             name_of(d->root_pc, d->quality, d->ext, nm, sizeof nm);
             for (st = 0; st < CR_HSTYLE_N; st++) {
                 uint8_t n[CR_CHORD_MAX], r;
-                notes_str(n, cr_harm_voice_style(d, st, 0, n, &r), v[st], sizeof v[st]);
+                notes_str(n, cr_harm_voice_style(d, st, 0, 0, n, &r), v[st], sizeof v[st]);
             }
             if (!json) printf("  %-4s %-10s%s  %-18s %-22s %s\n", i < CR_HMAP_W ? WK[i] : BK[i - CR_HMAP_W], nm,
                               d->home ? "*" : " ", v[0], v[1], v[2]);
@@ -282,7 +282,7 @@ static void lanes_section(lanestats_t *ls)
         line[0] = 0;
         for (i = 0; i < (int)(sizeof DEMO / sizeof DEMO[0]); i++) {
             uint8_t n[CR_CHORD_MAX], r;
-            int c = cr_harm_voice_style(&m.w[DEMO[i]], st, 0, n, &r);
+            int c = cr_harm_voice_style(&m.w[DEMO[i]], st, 0, 0, n, &r);
             char nn[8];
             notes_str(&n[c - 1], 1, nn, sizeof nn);
             o += (size_t)snprintf(line + o, sizeof line - o, "%s%s", i ? " " : "", nn);
@@ -299,7 +299,7 @@ static void lanes_section(lanestats_t *ls)
                 cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
                 for (i = 0; i < CR_HMAP_W + CR_HMAP_B; i++) {
                     uint8_t n[CR_CHORD_MAX], r;
-                    int c = cr_harm_voice_style(i < CR_HMAP_W ? &m.w[i] : &m.b[i - CR_HMAP_W], st, 0, n, &r);
+                    int c = cr_harm_voice_style(i < CR_HMAP_W ? &m.w[i] : &m.b[i - CR_HMAP_W], st, 0, 0, n, &r);
                     if (n[c - 1] < lo) lo = n[c - 1];
                     if (n[c - 1] > hi) hi = n[c - 1];
                 }
@@ -311,9 +311,9 @@ static void lanes_section(lanestats_t *ls)
         uint8_t a[CR_CHORD_MAX], b[CR_CHORD_MAX], r;
         int ca, cb;
         cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
-        ca = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, a, &r);
-        for (i = 0; i < CR_HMAP_W; i++) { uint8_t z[CR_CHORD_MAX]; cr_harm_voice_style(&m.w[i], CR_HSTYLE_COLOUR, 0, z, &r); }
-        cb = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, b, &r);
+        ca = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, 0, a, &r);
+        for (i = 0; i < CR_HMAP_W; i++) { uint8_t z[CR_CHORD_MAX]; cr_harm_voice_style(&m.w[i], CR_HSTYLE_COLOUR, 0, 0, z, &r); }
+        cb = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, 0, b, &r);
         if (ca != cb || memcmp(a, b, (size_t)ca)) ls->same = 0;
     }
     if (!json) printf("  top notes stay within %d (shell), %d (spread), %d (colour) semitones over every chord of every key;\n"

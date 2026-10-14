@@ -1251,6 +1251,7 @@ static struct {
     uint8_t inited;                /* colour and style set (the first time the mode opens) */
     uint8_t colour;                /* KNOB 1: 0 triads, 1 sevenths, 2 the palette as written (9ths) */
     uint8_t style;                 /* KNOB 2: CR_HSTYLE_* */
+    uint8_t hinted;                /* the "OCT+: home" hint shown since the mode opened */
     cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
                                     * engine's snapshot shows it), else the player's chord when something else struck
                                     * it (a chord key held, a pad, MIDI in: cu_hm_frame) */
@@ -1339,6 +1340,7 @@ static void cu_hm_enter(void)
     } else
         cu_hm_home_here();
     cu_hm.seen = *ci;
+    cu_hm.hinted = 0;
     cu_hm_layout();
     cu_hm_trace("mode on, on");
 }
@@ -1376,12 +1378,35 @@ static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on 
             return &cu_hm.map.b[i];
     return 0;
 }
-/* KNOB 1 / KNOB 2 in the mode: the colour and the voicing style, a step a detent, shown in a message */
-static void cu_hm_knob(int colour, int32_t s)
+static void cu_edited(uint32_t part);
+/* the chord you are on is not home (the OCT+ LED says so) */
+static int cu_hm_away(void)
+{
+    return cu_hm.cur.root_pc != cu_hm.home_pc ||
+           cu_hm.cur.quality != (cu_hm.home_scale == CR_SCALE_MINOR ? CR_Q_MIN : CR_Q_MAJ);
+}
+/* KNOB 1 / 2 / 3 in the mode: the colour, the voicing style, the chord sound's Glide (its MIX page's: each new note
+ * slides from the nearest free voice), a step a detent, shown in a message */
+static void cu_hm_knob(uint32_t knob, int32_t s)
 {
     static const char *const COL[3] = {"triads", "7ths", "9ths"}, *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
     int32_t v;
-    if (colour) {
+    if (knob == 2u) {
+        track_t *t = &trk[CR_PART_CHORD];
+        char b[12];
+        v = t->p[P_GLIDE] + (s > 0 ? 8 : -8);
+        v = v < 0 ? 0 : v > 127 ? 127 : v;
+        fm1_irq_off();
+        t->p[P_GLIDE] = (int16_t)v;
+        fm1_irq_on();
+        cu_edited(CR_PART_CHORD);
+        cu_cpy(b, "glide ", sizeof b);
+        cu_int(b + 6, v, 0, sizeof b - 6u);
+        cu_message(v ? b : "glide off", CR_COL_YELLOW);
+        cu_trace("harm: glide %d\n", (int)v);
+        return;
+    }
+    if (knob == 0u) {
         v = (int32_t)cu_hm.colour + (s > 0 ? 1 : -1);
         cu_hm.colour = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v);
         cu_message(COL[cu_hm.colour], CR_COL_YELLOW);
@@ -1394,7 +1419,10 @@ static void cu_hm_knob(int colour, int32_t s)
     }
 }
 /* a root key down in Harmony mode: its chord at the colour, in the style (the same notes every time), posted as a
- * chord given whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
+ * chord given whole. A chord key held with it flavours it: SUS a sus4, 6 the 6th for the 7th (6/9 with the 9th), m7
+ * a flat 7th, M7 a major 7th, 9 an added 9th (they stack); MAJ, MIN or DIM held: that root plays its own chord as
+ * ever (the way to jump anywhere). The Bass part on: rootless (it plays the root).
+ * The whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
  * the player's own chord. A chord type latched by LOCK does not count: the mode was opened on purpose, a latch may
  * be long forgotten) */
 static int cu_hm_play(uint32_t k, uint32_t n)
@@ -1403,11 +1431,11 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     cr_hmap_chord_t e;
     uint8_t notes[CR_CHORD_MAX], root_note;
     int nv;
-    uint32_t i, chord_keys = 0;
-    for (i = 0; i < CU_ROOT0; i++)              /* (the chord block less B3) */
-        if (CU_MOD_OF_KEY[i] != 0xFFu)
-            chord_keys |= 1u << i;
-    if (!cs.kbd_full && (cu.kheld & chord_keys))
+    uint32_t i, flav = 0;                       /* bit cr_mod_t: the chord keys held */
+    for (i = 0; i < CU_ROOT0 && !cs.kbd_full; i++)
+        if (CU_MOD_OF_KEY[i] != 0xFFu && ((cu.kheld >> i) & 1u))
+            flav |= 1u << CU_MOD_OF_KEY[i];
+    if (flav & ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MIN) | (1u << CR_MOD_DIM)))
         return 0;
     d = cu_hm_dest(k);
     if (!d)
@@ -1417,7 +1445,17 @@ static int cu_hm_play(uint32_t k, uint32_t n)
         e.ext = (uint8_t)(e.ext & ~CR_EXT_9);
     if (cu_hm.colour < 1)
         e.ext = 0;
-    nv = cr_harm_voice_style(&e, cu_hm.style, 12 * cu.octave, notes, &root_note);
+    if (flav & (1u << CR_MOD_SUS))              /* the flavours */
+        e.quality = CR_Q_SUS;
+    if (flav & (1u << CR_MOD_M7))
+        e.ext = (uint8_t)((e.ext & ~(CR_EXT_MAJ7 | CR_EXT_6)) | CR_EXT_M7);
+    if (flav & (1u << CR_MOD_MAJ7))
+        e.ext = (uint8_t)((e.ext & ~(CR_EXT_M7 | CR_EXT_6)) | CR_EXT_MAJ7);
+    if (flav & (1u << CR_MOD_6))
+        e.ext = (uint8_t)((e.ext & ~(CR_EXT_M7 | CR_EXT_MAJ7)) | CR_EXT_6);
+    if (flav & (1u << CR_MOD_9))
+        e.ext = (uint8_t)(e.ext | CR_EXT_9);
+    nv = cr_harm_voice_style(&e, cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note);
     if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
         return 0;
     cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)e.quality << 4) | e.ext), nv);
@@ -1425,6 +1463,10 @@ static int cu_hm_play(uint32_t k, uint32_t n)
         cr_post(CRE_HNOTE, i, notes[i], 0);
     cr_post(CRE_HKEY, n, cs.vel, 1);
     cu_hm_set_cur(e.root_pc, e.quality, e.ext, notes, (uint32_t)nv);
+    if (cu_hm_away() && !cu_hm.hinted) {         /* (the first time away from home: how to come back to it here) */
+        cu_hm.hinted = 1;
+        cu_message("OCT+: make home", CR_COL_YELLOW);
+    }
     cu_hm_trace("played, on");
     return 1;
 }
@@ -4254,8 +4296,8 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_layer_knob(l, 0, s);
         return;
     }
-    if (l == L_HARM && (role == EN_K1 || role == EN_K2)) {   /* Harmony mode: KNOB 1 the colour, KNOB 2 the style */
-        cu_hm_knob(role == EN_K1, s);
+    if (l == L_HARM && role >= EN_K1 && role <= EN_K3) {   /* Harmony mode: KNOB 1 the colour, 2 the style, 3 glide */
+        cu_hm_knob(role - EN_K1, s);
         return;
     }
     if (l && role >= EN_K1) {
@@ -4835,6 +4877,10 @@ static void cr_leds(void)
     if (sn->lcap == CRL_CAP_STEP && (!l || l == L_LOOP) && !cu.opt_open && cu.page == PG_NONE) {
         cu_led(nl, panel.btn[B_OCTDN], 1);               /* step entry: OCT- back, OCT+ a rest */
         cu_led(nl, panel.btn[B_OCTUP], 1);
+    } else if (l == L_HARM) {                            /* Harmony mode: OCT- leaves (lit); OCT+ lit while the chord
+                                                          * you are on is not home (it would make it home) */
+        cu_led(nl, panel.btn[B_OCTDN], 1);
+        cu_led(nl, panel.btn[B_OCTUP], cu_hm_away());
     } else if (cu_picker_ctx() || l) {                   /* a picker: OCT- back (lit), OCT+ OK / close (blinking) */
         cu_led(nl, panel.btn[B_OCTDN], 1);
         cu_led(nl, panel.btn[B_OCTUP], (int)blink);

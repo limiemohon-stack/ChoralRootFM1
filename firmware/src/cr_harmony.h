@@ -187,9 +187,10 @@ void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map);
  * The root sits in E2 .. D#3, the upper notes about C3 .. C5; shift (the player's octave, 12 an OCT step) moves
  * it all. Because every chord's top note lands in the same narrow band, moving between keys makes a line of small
  * steps on top. root_note is the root in the octave of the upper notes: what a looper records (it plays chords at
- * the live voicing). Returns the note count (3 .. 5). */
+ * the live voicing). rootless (the Bass part on: it plays the root): no low root -- Shell is the 3rd, 7th and the
+ * 9th (or 5th) above, Spread its three upper notes, Colour its four-note hand. Returns the note count (3 .. 5). */
 enum { CR_HSTYLE_SHELL, CR_HSTYLE_SPREAD, CR_HSTYLE_COLOUR, CR_HSTYLE_N };
-int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t notes[CR_CHORD_MAX],
+int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, int rootless, uint8_t notes[CR_CHORD_MAX],
                         uint8_t *root_note);
 
 #endif

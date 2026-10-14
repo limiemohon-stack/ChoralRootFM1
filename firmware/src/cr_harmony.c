@@ -554,7 +554,7 @@ static int crh_place(int root, int iv, int lo)
 }
 static int crh_abs(int x) { return x < 0 ? -x : x; }
 
-int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t notes[CR_CHORD_MAX],
+int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, int rootless, uint8_t notes[CR_CHORD_MAX],
                         uint8_t *root_note)
 {
     crh_shape_t sh = crh_shape(d->quality, d->ext);
@@ -563,7 +563,8 @@ int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t 
     if (shift < -24) shift = -24;
     if (shift > 24) shift = 24;
     bass = crh_place(r, 0, 40 + shift);                      /* E2 .. D#3 */
-    notes[n++] = (uint8_t)bass;
+    if (!rootless)
+        notes[n++] = (uint8_t)bass;
     if (style == CR_HSTYLE_SHELL) {                          /* the 3rd and 7th, the order that tops nearest E4 */
         int best = -1, ba = 0, bb = 0, o;
         for (o = 0; o < 2; o++) {
@@ -574,6 +575,8 @@ int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t 
         }
         notes[n++] = (uint8_t)ba;
         notes[n++] = (uint8_t)bb;
+        if (rootless)                                        /* (no root: the 9th, or the 5th, on top keeps 3) */
+            notes[n++] = (uint8_t)crh_place(r, sh.ninth >= 0 ? sh.ninth : sh.fifth, bb + 1);
     } else if (style == CR_HSTYLE_SPREAD) {                  /* 7th (or 5th), 3rd, then the 9th (or 5th) on top */
         int top = sh.ninth >= 0 ? sh.ninth : (guide2 == sh.fifth ? 0 : sh.fifth);
         int a = crh_place(r, guide2, (50 + shift > bass ? 50 + shift : bass + 1));

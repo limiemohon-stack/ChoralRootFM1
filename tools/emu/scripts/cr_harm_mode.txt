@@ -9,12 +9,14 @@
 #     note-ons, not 5); LATCH tapped (Sticky off: it ends)
 #  6. KNOB 1 -1 (7ths): D4 is Cmaj7; KNOB 1 -1 (triads): D4 is C; KNOB 1 +2 (9ths again); KNOB 2 -2 (Shell): D4 is
 #     C3 B3 E4; KNOB 2 +2 (Colour again)
-#  7. REC, F4 500 ms, C5 500 ms, REC: the loop plays the two chords back (3 s), LOOP tapped: it stops
-#  8. OCT+: the chord you are on (Abmaj9, C5's) is home (shot)
-#  9. MIN held + E4: E minor as ever (a chord key held: the player's own chord)
-# 10. KEY tapped: Key Mode on (C major) is home at once; KEY tapped again: Key Mode off, home stays C major
-# 11. OCT-: the mode ends; C5 alone plays its single note as ever (no chord key, Key Mode off)
-# 12. PANIC
+#  7. Chord keys flavour a key: 6 (F3) + D4 is C6/9; m7 (G3) + D4 is C9. ALGORITHM tapped (the bass on): D4 is
+#     rootless (B3 D4 E4 G4), the bass plays C; tapped again (off). KNOB 3 +1 / -1: the chord sound's Glide 8, off
+#  8. REC, F4 500 ms, C5 500 ms, REC: the loop plays the two chords back (3 s), LOOP tapped: it stops
+#  9. OCT+: the chord you are on (Abmaj9, C5's) is home (shot)
+# 10. MIN held + E4: E minor as ever (a chord key held: the player's own chord)
+# 11. KEY tapped: Key Mode on (C major) is home at once; KEY tapped again: Key Mode off, home stays C major
+# 12. OCT-: the mode ends; C5 alone plays its single note as ever (no chord key, Key Mode off)
+# 13. PANIC
 wait 500
 btn A#3 down
 wait 40
@@ -92,6 +94,35 @@ wait 100
 knob KNOB2 +1
 wait 100
 knob KNOB2 +1
+wait 300
+btn F3 down
+wait 40
+btn D4 down
+wait 300
+dump
+btn D4 up
+btn F3 up
+wait 100
+btn G3 down
+wait 40
+btn D4 down
+wait 300
+dump
+btn D4 up
+btn G3 up
+wait 100
+btn ENV
+wait 200
+btn D4 down
+wait 300
+dump
+btn D4 up
+wait 100
+btn ENV
+wait 200
+knob KNOB3 +1
+wait 100
+knob KNOB3 -1
 wait 300
 btn REC
 wait 300

@@ -492,7 +492,7 @@ static void t_lanes_voicing(void)
                 unsigned want = pcs_of(base, nb);
                 for (st = 0; st < CR_HSTYLE_N; st++) {
                     uint8_t n1[CR_CHORD_MAX], n2[CR_CHORD_MAX], r1, r2;
-                    int c1 = cr_harm_voice_style(d, st, 0, n1, &r1), c2 = cr_harm_voice_style(d, st, 0, n2, &r2), k;
+                    int c1 = cr_harm_voice_style(d, st, 0, 0, n1, &r1), c2 = cr_harm_voice_style(d, st, 0, 0, n2, &r2), k;
                     if (c1 != c2 || memcmp(n1, n2, (size_t)c1) || r1 != r2) same = 0;
                     if (n1[0] % 12u != d->root_pc || r1 % 12u != d->root_pc || (pcs_of(n1, c1) & ~want)) own = 0;
                     for (k = 1; k < c1; k++) if (n1[k] <= n1[k - 1]) asc = 0;
@@ -513,14 +513,34 @@ static void t_lanes_voicing(void)
         uint8_t n[CR_CHORD_MAX], r;
         int c, k, sh = 1;
         cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
-        c = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 12, n, &r);
+        c = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 12, 0, n, &r);
         {
             uint8_t z[CR_CHORD_MAX], rz;
-            int cz = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 0, z, &rz);
+            int cz = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 0, 0, z, &rz);
             if (cz != c || rz + 12 != r) sh = 0;
             for (k = 0; k < c && sh; k++) if (z[k] + 12 != n[k]) sh = 0;
         }
         ok(sh, "lane voicing: an octave up (shift 12) is the same voicing, 12 semitones higher");
+    }
+    {   /* rootless (the Bass part on): no low root, the upper notes as before, Shell keeps three */
+        int t, sc, i, st, rl = 1;
+        for (sc = 0; sc < 2; sc++)
+            for (t = 0; t < 12; t++) {
+                cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+                for (i = 0; i < 18; i++) {
+                    const cr_hmap_chord_t *d = i < 11 ? &m.w[i] : &m.b[i - 11];
+                    for (st = 0; st < CR_HSTYLE_N; st++) {
+                        uint8_t a[CR_CHORD_MAX], b[CR_CHORD_MAX], ra, rb;
+                        int ca = cr_harm_voice_style(d, st, 0, 0, a, &ra), cb = cr_harm_voice_style(d, st, 0, 1, b, &rb), k;
+                        if (b[0] < 50 || cb < 3 || ra != rb) rl = 0;
+                        if (st != CR_HSTYLE_SHELL) {
+                            if (cb != ca - 1) rl = 0;
+                            for (k = 0; k < cb; k++) if (b[k] != a[k + 1]) rl = 0;
+                        } else if (cb != 3 || b[0] != a[1] || b[1] != a[2]) rl = 0;
+                    }
+                }
+            }
+        ok(rl, "lane voicing: rootless drops the low root (C3 B3 D4 E4 G4 -> B3 D4 E4 G4), Shell adds the 9th on top");
     }
 }
 

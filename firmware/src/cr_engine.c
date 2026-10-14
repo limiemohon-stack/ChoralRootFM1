@@ -1032,9 +1032,9 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
     uint8_t bit;
     cr_voice_t *v;
     int vi, i, old;
-    uint32_t replace = 0;   /* bit i: voice i goes once the new chord sounds: the latched group (as cr_key_ex: the
-                             * next gesture replaces it), the same key's chord. Ended AFTER the new one starts, so
-                             * the notes they share are tied over, never cut and struck again */
+    uint32_t replace = 0;   /* bit i: voice i is replaced by the new chord: the latched group (as cr_key_ex: the next
+                             * gesture replaces it), the same key's chord. The notes they share are tied over, never
+                             * cut and struck again */
     if (note > 127 || root < 0 || root > 127 || !notes || n < 1 || n > CR_CHORD_MAX || q >= CR_Q_COUNT) return;
     for (i = 0; i < n; i++) if (notes[i] > 127) return;
     id &= 7u;
@@ -1067,10 +1067,26 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
     crx_sort(v->base, n);
     v->nbase = v->nnotes = (uint8_t)n;
     for (i = 0; i < n; i++) v->notes[i] = v->base[i];
-    c->tie = 1;                                                         /* (notes still sounding: tied over) */
-    crx_sound_voice(c, vi);
-    c->tie = 0;
-    for (i = 0; i < CR_MAX_VOICES; i++) if ((replace >> i) & 1u) crx_kill_voice(c, i);
+    {   /* the replaced chords end first, so the notes leaving free their synth voices before the new ones start (a
+         * sound with Glide set slides each new note from the nearest one); the notes the new chord shares with them
+         * are claimed for the moment, so they ring on through it, neither cut nor struck again */
+        uint8_t cl[2][CR_CHORD_MAX], ncl[2] = { 0, 0 };
+        static const uint8_t ST[2] = { CR_STREAM_MAIN, CR_STREAM_RAW };
+        int s;
+        if (replace)
+            for (s = 0; s < 2; s++)
+                for (i = 0; i < n; i++)
+                    if (c->reg[ST[s]][v->notes[i]] && c->reg[ST[s]][v->notes[i]] < 255u) {
+                        c->reg[ST[s]][v->notes[i]]++;
+                        cl[s][ncl[s]++] = v->notes[i];
+                    }
+        for (i = 0; i < CR_MAX_VOICES; i++) if ((replace >> i) & 1u) crx_kill_voice(c, i);
+        c->tie = 1;                                                     /* (notes still sounding: tied over) */
+        crx_sound_voice(c, vi);
+        c->tie = 0;
+        for (s = 0; s < 2; s++)                                         /* (the claims go: a note nobody owns now ends) */
+            for (i = 0; i < ncl[s]; i++) crx_note_end(c, ST[s], cl[s][i]);
+    }
     if (crx_bass_ok(c, v)) crx_bass_start(c, v);
     c->disp_vi = (uint8_t)vi;
     crx_gesture(c, vi, 1);
