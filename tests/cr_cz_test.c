@@ -168,7 +168,8 @@ static int32_t pop_render(track_t *t, uint32_t nb, int32_t *edge, int32_t *in, i
 int main(void)
 {
     static uint8_t frame[600];
-    uint8_t raw[CZ_BYTES], raw2[CZ_BYTES], b[CZ_BYTES], b2[CZ_BYTES];
+    uint8_t raw[CZ_BYTES], raw2[CZ_BYTES], b[600], b2[CZ_BYTES];   /* b: a tone, and later a whole SysEx frame
+                                                                     * (295 B) copied back from sx_out, as frame */
     track_t *t = &trk[0];
     uint32_t k, i, bad;
 
