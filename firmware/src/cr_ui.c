@@ -552,7 +552,25 @@ static void cu_pos_sync(void)
     cs.pool_pos[1][eng_rank(trk[CR_PART_BASS].eng_req % NENGINES)] = (uint8_t)p1;
 }
 
-static void cu_post_key(void) { cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale); }
+static cr_harm_key_t cu_harm_key;         /* Harmony Preview's held/inferred key (cr_harmony.h); mirrored from Key
+                                           * Mode below. Declared here, used from cu_layer_pick onward */
+static cr_harm_hist_t cu_harm_hist;       /* .. its chord history, fed only by confirmed suggestions so far
+                                           * (cr_harmony.h's second integration step: a feed from ordinary played
+                                           * chords too, not yet wired -- needs the same cr_snap ISR-publish
+                                           * pattern this file already uses for cr_chord_info) */
+static void cu_post_key(void)
+{
+    cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale);
+    if (cs.key_on)                        /* Key Mode on: its tonic/scale immediately, no hysteresis, no history */
+        cr_harm_key_explicit(&cu_harm_key, cs.tonic, cs.scale);
+    else {                                /* Key Mode off: inference starts cold (Edge Case Spec, "Key mode off") */
+        cr_harm_key_clear(&cu_harm_key);
+        cr_harm_hist_clear(&cu_harm_hist);
+    }
+}
+/* the current three suggestions, live: both the screen and OCT+ confirm call this, never duplicating the
+ * cr_harm_suggest call (so confirm always sounds exactly the chord the screen is showing) */
+static int cu_harm_compute(cr_harm_result_t out[3]) { return cr_harm_suggest(&cu_harm_key, &cr_snap.ci, cs.sixth_up, out); }
 static void cu_post_single(void)
 {
     cr_post(CRE_SINGLE, cs.single, 0, cs.split);
@@ -2665,6 +2683,21 @@ static void cu_oct_tap(uint32_t b)
         uint32_t l = cu_layer();
         if (l == L_EDIT) {                        /* the engine picker: OCT+ keeps the sound, OCT- cancels */
             cu_pick_end(b == B_OCTUP);
+            cu_layer_close();
+        } else if (l == L_HARM) {                 /* Harmony: OCT+ confirms the highlighted slot (an UNAVAILABLE
+                                                   * one confirms nothing), OCT- just closes; both close either way */
+            if (b == B_OCTUP) {
+                cr_harm_result_t out[3];
+                if (cu_harm_compute(out) && out[cu.harm_sel].kind != CR_HARM_UNAVAILABLE) {
+                    const cr_harm_result_t *r = &out[cu.harm_sel];
+                    cr_post(CRE_HARM_CONFIRM, r->root_note, (uint32_t)(((uint32_t)r->quality << 4) | r->ext),
+                            r->rotation);               /* a loop voice, not a key or a pad: cr_out.c's handler */
+                    cr_harm_hist_push(&cu_harm_hist, r->root_pc, r->quality, r->ext);
+                    if (!cs.key_on)                     /* Key Mode on: cu_harm_key stays cu_post_key's explicit one */
+                        cr_harm_key_infer(&cu_harm_key, &cu_harm_hist);
+                    cu_trace("harm: confirmed slot %d\n", (int)cu.harm_sel);
+                }
+            }
             cu_layer_close();
         } else if (cu.lock)                         /* KEY PERF FX BASS METRO, the PLAY menu (step entry: above), the
                                                    * view menu: nothing to confirm, both close (on / off is the
@@ -5680,22 +5713,18 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_HARM: {                                 /* Harmony Preview (cr_harmony.h): REST / MOVE / PULL as a plain
                                                     * picker list -- not yet the three-big-slot mock-up (that needs
-                                                    * its own drawing, not an existing primitive); no audible
-                                                    * preview and no real chord on OCT+ yet (both still to wire up).
-                                                    * Key: Key Mode's tonic/scale when it's on, else cr_harm_suggest's
-                                                    * own provisional per-chord tonic (no persistent history feed
-                                                    * yet, so inference never acquires a held key across chords) */
+                                                    * its own drawing, not an existing primitive). OCT+ confirms
+                                                    * the highlighted slot (cu_oct_tap); no audible preview while
+                                                    * just navigating, still -- that needs its own source-aware
+                                                    * audition adapter (cr_harmony.h), not wired up here. Key:
+                                                    * cu_harm_key, mirrored from Key Mode by cu_post_key, fed only
+                                                    * by confirmed suggestions so far (cu_harm_hist_push, below) */
         static const char *const TENS[3] = {"REST", "MOVE", "PULL"};
         char buf[3][24];
         const char *items[3];
-        cr_harm_key_t key;
         cr_harm_result_t out[3];
         uint32_t i;
-        if (cs.key_on)
-            cr_harm_key_explicit(&key, cs.tonic, cs.scale);
-        else
-            cr_harm_key_clear(&key);
-        if (!cr_harm_suggest(&key, &cr_snap.ci, cs.sixth_up, out)) {
+        if (!cu_harm_compute(out)) {
             static const char *const NONE[1] = {"Play a chord"};
             cu_picker(s, NONE, 1, 0, CR_COL_WHITE, "harmony", "OCT- \267 HOME: back");
             break;
@@ -5717,7 +5746,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             }
             items[i] = buf[i];
         }
-        cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, "harmony", "D4 E4 F4: select \267 OCT- \267 HOME: back");
+        cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, "harmony",
+                  "D4 E4 F4: select \267 OCT+: confirm \267 OCT-/HOME: back");
         break;
     }
     default:

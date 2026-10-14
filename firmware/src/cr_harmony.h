@@ -75,6 +75,12 @@ typedef struct {
     uint8_t tension;           /* cr_harm_tension_t; meaningful when kind == CR_HARM_SUGGEST */
     uint8_t root_pc, quality, ext;
     uint8_t nnotes, notes[CR_CHORD_MAX];    /* the chosen voicing, low to high (0 notes when kind == UNAVAILABLE) */
+    uint8_t root_note;         /* the absolute MIDI root cr_chord_base_ex was called at; with rotation, replays
+                                 * this exact voicing: cr_chord_base_ex(root_note, quality, ext, sixth_up, base)
+                                 * then cr_voice_apply(base, n, rotation, out) reproduces notes[] exactly. Meant
+                                 * for a confirm step that must sound precisely what's shown, not a re-derived
+                                 * approximation that could land on a different octave or rotation */
+    int8_t rotation;           /* the cr_voice_apply rotation used, -12..12 */
     uint8_t common;            /* common PITCH CLASSES with the source chord (0..12), voicing-independent */
     uint8_t added, removed;    /* voices gained / lost vs. the source chord's own voicing, under the chosen
                                  * alignment */

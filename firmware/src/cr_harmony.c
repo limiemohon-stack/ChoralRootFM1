@@ -243,13 +243,14 @@ static int crh_root_near(uint8_t root_pc, int anchor)
  * MIDI boundary (fewer notes than the unclipped shape) -- never accepts clipping as a valid voicing. Returns 0
  * if nothing unclipped exists anywhere in the search (out[] untouched); 1 otherwise. */
 static int crh_search_voicing(uint8_t root_pc, uint8_t quality, uint8_t ext, int sixth_up,
-                               const uint8_t *src_notes, int n_src, uint8_t out[CR_CHORD_MAX], int *out_n)
+                               const uint8_t *src_notes, int n_src, uint8_t out[CR_CHORD_MAX], int *out_n,
+                               uint8_t *out_root_note, int8_t *out_rotation)
 {
     uint8_t nominal_tmp[CR_CHORD_MAX];
     int nominal = cr_chord_base_ex(60, quality, ext, sixth_up, nominal_tmp);
     int anchor = n_src ? src_notes[0] : 60;
     int oct, k, found = 0;
-    int best_cost = 0, best_ar = 0, best_exact = 0, best_lowmove = 0;
+    int best_cost = 0, best_ar = 0, best_exact = 0, best_lowmove = 0, best_root = 0, best_rot = 0;
     uint8_t best_notes[CR_CHORD_MAX]; int best_n = 0;
     for (oct = -1; oct <= 1; oct++) {
         int root_note = crh_root_near(root_pc, anchor) + 12 * oct;
@@ -276,6 +277,7 @@ static int crh_search_voicing(uint8_t root_pc, uint8_t quality, uint8_t ext, int
                 int i;
                 best_cost = cost; best_ar = ar; best_exact = exact; best_lowmove = lowmove;
                 best_n = nv; for (i = 0; i < nv; i++) best_notes[i] = voiced[i];
+                best_root = root_note; best_rot = k;
                 found = 1;
             }
         }
@@ -283,6 +285,8 @@ static int crh_search_voicing(uint8_t root_pc, uint8_t quality, uint8_t ext, int
     if (!found) return 0;
     { int i; for (i = 0; i < best_n; i++) out[i] = best_notes[i]; }
     *out_n = best_n;
+    *out_root_note = (uint8_t)best_root;
+    *out_rotation = (int8_t)best_rot;
     return 1;
 }
 
@@ -331,8 +335,9 @@ int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int
             {
                 const crh_cand_t *c = &table[chosen];
                 uint8_t root_pc = (uint8_t)(((int)tonic + c->semi + 12) % 12);
-                uint8_t notes[CR_CHORD_MAX]; int nn;
-                if (crh_search_voicing(root_pc, c->quality, c->ext, sixth_up, source->notes, source->nnotes, notes, &nn)) {
+                uint8_t notes[CR_CHORD_MAX]; int nn; uint8_t voiced_root; int8_t rotation;
+                if (crh_search_voicing(root_pc, c->quality, c->ext, sixth_up, source->notes, source->nnotes, notes, &nn,
+                                        &voiced_root, &rotation)) {
                     int dup = 0, u;
                     for (u = 0; u < nused; u++) if (crh_same_notes(notes, nn, used[u], used_n[u])) { dup = 1; break; }
                     if (!dup) {
@@ -344,6 +349,7 @@ int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int
                         out[slot].root_pc = root_pc; out[slot].quality = c->quality; out[slot].ext = c->ext;
                         out[slot].nnotes = (uint8_t)nn;
                         { int z; for (z = 0; z < nn; z++) out[slot].notes[z] = notes[z]; }
+                        out[slot].root_note = voiced_root; out[slot].rotation = rotation;
                         out[slot].common = (uint8_t)crh_popcount12(pc_src & pc_tgt);
                         out[slot].added = (uint8_t)added; out[slot].removed = (uint8_t)removed;
                         out[slot].move = (uint16_t)move;
@@ -357,9 +363,9 @@ int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int
         }
         if (!placed) {
             /* fallback: a different rotation/octave of the CURRENT chord itself */
-            uint8_t notes[CR_CHORD_MAX]; int nn;
+            uint8_t notes[CR_CHORD_MAX]; int nn; uint8_t voiced_root; int8_t rotation;
             if (crh_search_voicing(source->root_pc, source->quality, source->ext, sixth_up,
-                                    source->notes, source->nnotes, notes, &nn) &&
+                                    source->notes, source->nnotes, notes, &nn, &voiced_root, &rotation) &&
                 !crh_same_notes(notes, nn, source->notes, source->nnotes)) {
                 int dup = 0, u;
                 for (u = 0; u < nused; u++) if (crh_same_notes(notes, nn, used[u], used_n[u])) { dup = 1; break; }
@@ -372,6 +378,7 @@ int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int
                     out[slot].root_pc = source->root_pc; out[slot].quality = source->quality; out[slot].ext = source->ext;
                     out[slot].nnotes = (uint8_t)nn;
                     { int z; for (z = 0; z < nn; z++) out[slot].notes[z] = notes[z]; }
+                    out[slot].root_note = voiced_root; out[slot].rotation = rotation;
                     out[slot].common = (uint8_t)crh_popcount12(pc_src & pc_tgt);
                     out[slot].added = (uint8_t)added; out[slot].removed = (uint8_t)removed;
                     out[slot].move = (uint16_t)move;

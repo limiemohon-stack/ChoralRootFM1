@@ -236,6 +236,30 @@ static void t_unequal_sizes(void)
     ok(out[0].nnotes >= 1, "unequal sizes: REST has at least one voice");
 }
 
+/* ------------------------------------------------- root_note/rotation replay --- */
+static void t_replay(void)
+{
+    /* A confirm step must sound EXACTLY what's shown, not a re-derived approximation that could land on a
+     * different octave or rotation: root_note + rotation through the engine's own cr_chord_base_ex /
+     * cr_voice_apply must reproduce notes[] exactly, for every filled slot. */
+    cr_chord_info_t src; cr_harm_key_t key; cr_harm_result_t out[3];
+    int t, all_ok = 1;
+    for (t = 0; t < 12; t++) {
+        int s;
+        make_source(&src, 60 + t, CR_Q_MIN, (uint8_t)(CR_EXT_M7 | CR_EXT_9));
+        cr_harm_key_explicit(&key, (uint8_t)t, CR_SCALE_MINOR);
+        cr_harm_suggest(&key, &src, 0, out);
+        for (s = 0; s < 3; s++) {
+            uint8_t base[CR_CHORD_MAX], voiced[CR_CHORD_MAX]; int nbase, nv;
+            if (out[s].kind == CR_HARM_UNAVAILABLE) continue;
+            nbase = cr_chord_base_ex(out[s].root_note, out[s].quality, out[s].ext, 0, base);
+            nv = cr_voice_apply(base, nbase, out[s].rotation, voiced);
+            if (nv != out[s].nnotes || memcmp(voiced, out[s].notes, (size_t)nv) != 0) all_ok = 0;
+        }
+    }
+    ok(all_ok, "replay: root_note + rotation reproduce notes[] exactly, every filled slot, all 12 transpositions");
+}
+
 int main(void)
 {
     t_worked_example();
@@ -249,6 +273,7 @@ int main(void)
     t_no_duplicate_slots();
     t_determinism();
     t_unequal_sizes();
+    t_replay();
     printf("\ncr_harmony: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

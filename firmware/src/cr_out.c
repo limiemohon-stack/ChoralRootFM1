@@ -375,6 +375,13 @@ enum {
     CRE_SINGLE,       /* a: cr_single_t, v: split point 0..11 */
     CRE_KEYPLAYS,     /* v: Key plays 0 Chords, 1 Notes */
     CRE_KEYBOARD,     /* a: 1 the Full keyboard, v: the split key's MIDI note */
+    CRE_HARM_CONFIRM, /* Harmony Preview's OCT+ confirm (cr_harmony.h, cr_ui.c's L_HARM): a: the exact root_note
+                       * cr_harm_result_t chose, b: quality << 4 | ext, v: the rotation -- replayed on a free loop
+                       * voice (not a key, not a pad: no physical key state and no saved pad slot touched) so it
+                       * sounds through normal routing and advances key-inference history exactly as shown on
+                       * screen. Sustains like a latched chord until PANIC, or until superseded by confirming
+                       * another suggestion (cr_loop_event_v already kills a slot's prior voice before reusing
+                       * it) -- no separate stop timer */
     CRE_LOOP          /* a: LP_*, b / v: its argument */
 };
 /* CRE_LOOP's operations */
@@ -514,6 +521,13 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_SINGLE: cr_set_single_notes(&cr, (cr_single_t)e->a, e->v); break;
     case CRE_KEYPLAYS: cr_set_key_plays(&cr, e->v); break;
     case CRE_KEYBOARD: cr_set_keyboard(&cr, e->a, e->v); break;
+    case CRE_HARM_CONFIRM:                       /* always the same dedicated slot: cr_loop_event_v kills that
+                                                   * slot's own prior voice before reusing it (its own first line),
+                                                   * so confirming again cleanly replaces the last confirmed chord
+                                                   * instead of stacking a second one across different free slots */
+        cr_loop_event_v(&cr, CR_MAX_LOOPV - 1, (int16_t)e->a, (uint8_t)(e->b >> 4), (uint8_t)(e->b & 15u), 100, 1,
+                         e->v);
+        break;
     case CRE_LOOP: cr_loop_op(e); break;
     default: break;
     }
