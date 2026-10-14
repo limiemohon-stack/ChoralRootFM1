@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-only
- * Host tests of Harmony Preview's pure suggestion engine (firmware/src/cr_harmony.c), against the real chord
+ * Host tests of Harmony's pure engine (firmware/src/cr_harmony.c: Harmony mode's map, the played-chord listener,
+ * the retired Harmony Preview's suggestion engine), against the real chord
  * engine (cr_engine.c) for cr_chord_base_ex / cr_voice_apply / cr_chord_info_t -- no audio, no UI, no device:
  *   cc -std=c99 -Wall -Wextra -Werror -pedantic -o build/host/cr_harmony_test tests/cr_harmony_test.c \
  *      firmware/src/cr_harmony.c firmware/src/cr_engine.c
@@ -419,8 +420,154 @@ static void t_listen_infers_key(void)
        "listen: Cm Fm Cm played on the keys -> history of 3 -> C minor held");
 }
 
+/* ------------------------------------------------------------- Harmony mode's map --- */
+static int map_has(const cr_hmap_t *m, uint8_t r, uint8_t q)
+{
+    int i;
+    for (i = 0; i < CR_HMAP_W; i++) if (m->w[i].root_pc == r && m->w[i].quality == q) return 1;
+    return 0;
+}
+
+static void t_map_shape(void)
+{
+    /* every home key, both scales, every chord you could be on: eleven distinct white chords, never the current
+     * one, left to right by tension, each black key the richer version of its white key, the way home marked once */
+    static const uint8_t Q[5] = { CR_Q_MAJ, CR_Q_MIN, CR_Q_DIM, CR_Q_SUS, CR_Q_NONE };
+    int t, s, r, qi, distinct = 1, notself = 1, ordered = 1, black = 1, home1 = 1;
+    for (t = 0; t < 12; t++) for (s = 0; s < 2; s++) for (r = 0; r < 12; r++) for (qi = 0; qi < 5; qi++) {
+        cr_hmap_t m; int i, j, homes = 0;
+        uint8_t cq = Q[qi] == CR_Q_NONE ? CR_Q_MAJ : Q[qi];
+        int on_home = r == t && cq == (s ? CR_Q_MIN : CR_Q_MAJ);
+        cr_harm_map((uint8_t)t, (uint8_t)s, (uint8_t)r, Q[qi], 0, &m);
+        for (i = 0; i < CR_HMAP_W; i++) {
+            for (j = i + 1; j < CR_HMAP_W; j++)
+                if (m.w[i].root_pc == m.w[j].root_pc && m.w[i].quality == m.w[j].quality) distinct = 0;
+            if (m.w[i].root_pc == r && m.w[i].quality == cq) notself = 0;
+            if (i && m.w[i].tension < m.w[i - 1].tension) ordered = 0;
+            homes += m.w[i].home;
+        }
+        for (i = 0; i < CR_HMAP_B; i++) {
+            const cr_hmap_chord_t *w = &m.w[CR_HMAP_BW[i]], *b = &m.b[i];
+            if (b->root_pc != w->root_pc || b->quality != w->quality || !b->ext) black = 0;
+        }
+        if (homes != (on_home ? 0 : 1)) home1 = 0;
+    }
+    ok(distinct, "map: 12 keys x 2 scales x 60 current chords: eleven distinct white chords every time");
+    ok(notself, "map: the chord you are on is never offered (it is where you are)");
+    ok(ordered, "map: white keys run from restful to pulling (tension never falls left to right)");
+    ok(black, "map: each black key plays the richer version of the white key just left of it");
+    ok(home1, "map: the home chord is on the keys exactly once (none while you are on it)");
+}
+
+static void t_map_context(void)
+{
+    cr_hmap_t m;
+    int i, j, sets = 0;
+    cr_hmap_t all[7];
+    static const struct { uint8_t r, q; } DIA[7] = { {0, CR_Q_MAJ}, {2, CR_Q_MIN}, {4, CR_Q_MIN}, {5, CR_Q_MAJ},
+                                                      {7, CR_Q_MAJ}, {9, CR_Q_MIN}, {11, CR_Q_DIM} };
+    cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_MAJ, 0, &m);
+    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, C major, on G: the leftmost key resolves home to C");
+    cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_MAJ, CR_EXT_M7, &m);
+    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, on G7: the same resolution");
+    cr_harm_map(0, CR_SCALE_MAJOR, 4, CR_Q_MAJ, 0, &m);
+    ok(m.w[0].root_pc == 9 && m.w[0].quality == CR_Q_MIN, "map, on E (V of vi): the leftmost key resolves to Am");
+    cr_harm_map(0, CR_SCALE_MAJOR, 11, CR_Q_DIM, 0, &m);
+    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, on Bdim: the leading-tone chord resolves to C");
+    {   /* a local resolution moves its chord toward the restful end, home staying the most restful of all: G sits
+         * further left from Gsus4 (its suspension) and from D (its secondary dominant) than from C */
+        int from_c = -1, from_sus = -1, from_d = -1, i;
+        cr_harm_map(0, CR_SCALE_MAJOR, 0, CR_Q_MAJ, 0, &m);
+        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_c = i;
+        cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_SUS, 0, &m);
+        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_sus = i;
+        cr_harm_map(0, CR_SCALE_MAJOR, 2, CR_Q_MAJ, 0, &m);
+        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_d = i;
+        ok(from_c >= 0 && from_sus >= 0 && from_d >= 0 && from_sus < from_c && from_d < from_c,
+           "map: G moves toward the restful end from Gsus4 and from D (its resolutions) compared with from C");
+    }
+    cr_harm_map(9, CR_SCALE_MINOR, 4, CR_Q_MAJ, 0, &m);
+    ok(m.w[0].root_pc == 9 && m.w[0].quality == CR_Q_MIN, "map, A minor, on E: the leftmost key resolves to Am");
+    cr_harm_map(9, CR_SCALE_MINOR, 9, CR_Q_MIN, 0, &m);
+    ok(m.w[CR_HMAP_W - 1].root_pc == 4 && m.w[CR_HMAP_W - 1].quality == CR_Q_MAJ,
+       "map, A minor, on Am: the rightmost key is E, the dominant");
+    ok(map_has(&m, 4, CR_Q_MAJ) && map_has(&m, 5, CR_Q_MAJ) && map_has(&m, 0, CR_Q_MAJ),
+       "map, A minor: its own chords are there (E, F, C ..)");
+    /* the function-blindness the benchmark found in cr_harm_suggest: here every chord of the key lays the keys out
+     * differently */
+    for (i = 0; i < 7; i++) {
+        int same = 0;
+        cr_harm_map(0, CR_SCALE_MAJOR, DIA[i].r, DIA[i].q, 0, &all[i]);
+        for (j = 0; j < i; j++) {
+            int k, eq = 1;
+            for (k = 0; k < CR_HMAP_W; k++)
+                if (all[i].w[k].root_pc != all[j].w[k].root_pc || all[i].w[k].quality != all[j].w[k].quality) eq = 0;
+            if (eq) same = 1;
+        }
+        sets += !same;
+    }
+    ok(sets == 7, "map, C major: each of the 7 diatonic chords lays the keys out differently");
+}
+
+static void t_map_transpose(void)
+{
+    /* the map is the same shape in every key: home t, chord r == home 0, chord r - t, moved up t */
+    int t, s, r, all_ok = 1;
+    for (t = 1; t < 12; t++) for (s = 0; s < 2; s++) for (r = 0; r < 12; r++) {
+        cr_hmap_t a, b; int i;
+        cr_harm_map((uint8_t)t, (uint8_t)s, (uint8_t)r, CR_Q_MIN, 0, &a);
+        cr_harm_map(0, (uint8_t)s, (uint8_t)((r - t + 12) % 12), CR_Q_MIN, 0, &b);
+        for (i = 0; i < CR_HMAP_W; i++)
+            if (a.w[i].root_pc != (b.w[i].root_pc + t) % 12 || a.w[i].quality != b.w[i].quality ||
+                a.w[i].tension != b.w[i].tension) all_ok = 0;
+    }
+    ok(all_ok, "map: every home key gives the same layout, transposed (11 keys x 2 scales x 12 chords)");
+}
+
+static void t_map_voice(void)
+{
+    /* a long walk over the keys (a fixed pseudo-random path): every chord voiced near the last, exactly its chord's
+     * notes (pitch classes and count), its root_note the chord's root near the voicing (what a looper records), and
+     * the lowest note never far from the middle */
+    uint8_t cur[CR_CHORD_MAX], base[CR_CHORD_MAX];
+    int n = cr_chord_base_ex(60, CR_Q_MAJ, 0, 0, cur), step, shape = 1, sizes = 1, near = 1, lo = 127, hi = 0, moved = 0;
+    uint8_t cr = 0, cq = CR_Q_MAJ, cx = 0;
+    uint32_t rng = 12345u;
+    for (step = 0; step < 400; step++) {
+        cr_hmap_t m; const cr_hmap_chord_t *d; uint8_t notes[CR_CHORD_MAX], root_note; int nv, nb, k, i;
+        unsigned want = 0, got = 0;
+        rng = rng * 1103515245u + 12345u;
+        k = (int)((rng >> 16) % (CR_HMAP_W + CR_HMAP_B));
+        cr_harm_map(0, CR_SCALE_MAJOR, cr, cq, cx, &m);
+        d = k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W];
+        nv = cr_harm_voice(d, cur, n, 0, 0, notes, &root_note);
+        nb = cr_chord_base_ex(root_note, d->quality, d->ext, 0, base);
+        for (i = 0; i < nb; i++) want |= 1u << (base[i] % 12u);
+        for (i = 0; i < nv; i++) got |= 1u << (notes[i] % 12u);
+        if (root_note % 12u != d->root_pc || want != got) shape = 0;
+        for (i = 1; i < nv; i++) if (notes[i] <= notes[i - 1]) shape = 0;
+        if (nv != cr_chord_base_ex(60, d->quality, d->ext, 0, base)) sizes = 0;
+        nb = cr_chord_base_ex(root_note, d->quality, d->ext, 0, base);
+        if (base[0] + 12 <= notes[0] || base[0] >= notes[0] + 12) near = 0;
+        if (notes[0] < lo) lo = notes[0];
+        if (notes[0] > hi) hi = notes[0];
+        moved += notes[0] > cur[0] ? notes[0] - cur[0] : cur[0] - notes[0];
+        memcpy(cur, notes, (size_t)nv); n = nv;
+        cr = d->root_pc; cq = d->quality; cx = d->ext;
+    }
+    ok(shape, "map voicing: every chord of a 400-chord walk is its own notes (pitch classes, root, ascending)");
+    ok(sizes, "map voicing: never a note clipped or dropped (triads 3 notes, the black keys' 4 or 5)");
+    ok(near, "map voicing: the root_note's plain chord starts within an octave of the voicing (a loop keeps the register)");
+    ok(lo >= 40 && hi <= 80, "map voicing: a 400-chord walk keeps its lowest note near the middle (40..80)");
+    ok(moved <= 400 * 4, "map voicing: the bass voice moves 4 semitones a chord or less on average (voice leading)");
+}
+
 int main(void)
 {
+    t_map_shape();
+    t_map_context();
+    t_map_transpose();
+    t_map_voice();
     t_listen_settle();
     t_listen_brush();
     t_listen_latched();

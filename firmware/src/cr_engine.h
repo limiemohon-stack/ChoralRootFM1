@@ -120,6 +120,9 @@ typedef struct {
     cr_own_t main;
     cr_rown_t raw;
     cr_bown_t bass;
+    uint8_t fixed;               /* 1: a chord given whole (cr_key_chord, Harmony mode): its notes, root, type and
+                                  * extensions were chosen for it -- Key Mode, the chord block (Advanced / Free, LOCK)
+                                  * and the voicing knob leave it as it is (in the struct's padding: no size change) */
     cr_clk_t clk;
 } cr_voice_t;
 
@@ -190,6 +193,15 @@ void cr_key(cr_t *c, uint8_t midi_note, uint8_t vel, int down);
 /* a root key with a press id 0..7 (grid: the velocity row): a second press on a held root retriggers it
  * at the new velocity and the earlier press's release is ignored (design.md 5.3). cr_key uses id 0. */
 void cr_key_ex(cr_t *c, uint8_t midi_note, uint8_t id, uint8_t vel, int down);
+/* A key goes down and sounds a chord given whole (Harmony mode, cr_ui.c): notes[0..n) exactly (1 .. CR_CHORD_MAX of
+ * them, 0 .. 127, any order), not the key's own pitch and the chord keys. root is the chord's absolute root note,
+ * q its CR_Q_* quality, ext its CR_EXT_* mask: what the looper records (it plays its chords at the live voicing),
+ * the gesture reports, the bass follows and the screen names. It is a keyed voice in every other way: its key's
+ * release ends it (cr_key_ex up with the same note), LATCH latches it, a performance mode plays it. Key Mode, the
+ * chord block and the voicing knob never change it afterwards (cr_voice_t.fixed). Refused: a root or a note out of
+ * 0 .. 127, n out of range */
+void cr_key_chord(cr_t *c, uint8_t midi_note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
+                  const uint8_t *notes, int n);
 void cr_mod(cr_t *c, cr_mod_t m, int down);        /* the chord block */
 /* LOCK (the UI's latch, cr_ui.c cu_mod_press): the chord keys down are a SET the UI owns: a latched key stays down
  * here after its release, a key leaves the set by an up. With cr_mod_lock on, the play styles differ only in who

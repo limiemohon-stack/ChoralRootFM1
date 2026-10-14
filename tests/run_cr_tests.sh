@@ -43,14 +43,15 @@ par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_engin
 t ./build/host/cr_engine_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
 t ./build/host/cr_loop_test
-# Harmony Preview's pure suggestion engine (firmware/src/cr_harmony.c, the Harmony Preview Edge Case Spec):
-# key inference and its hysteresis, the REST/MOVE/PULL candidate tables, the two-tier duplicate-collapse
-# fallback, the voice-leading cost function, and the played-chord listener (what counts as a chord played) --
-# the pure module alone: no UI, no audio (the emulator's cr_harm_*.txt scripts cover the wiring)
+# Harmony's pure engine (firmware/src/cr_harmony.c): Harmony mode's map (its shape, context, transposition, the
+# voicing of long walks), the played-chord listener (what counts as a chord played), and the retired Harmony
+# Preview's suggestion engine (key inference and its hysteresis, the REST/MOVE/PULL candidate tables, the two-tier
+# duplicate-collapse fallback, the voice-leading cost function) -- the pure module alone: no UI, no audio (the
+# emulator's cr_harm_*.txt scripts cover the wiring)
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmony_test tests/cr_harmony_test.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
 t ./build/host/cr_harmony_test
 # .. and its musical benchmark: not pass/fail, a scorecard (the full report: build/host/cr_harmony_bench.log, or run
-# build/host/cr_harmony_bench yourself; --json for the numbers) -- re-read it after any change to the suggestions
+# build/host/cr_harmony_bench yourself; --json for the numbers) -- re-read it after any change to the map
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmony_bench tests/cr_harmony_bench.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
 t logged_last cr_harmony_bench
 par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c

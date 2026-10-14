@@ -2005,6 +2005,82 @@ static void s_keyplays(void)
     cr_set_single_notes(&C, (cr_single_t)7, 5); ok(C.single == CR_SINGLE_FULL, "a Single out of range: Full Octave");
 }
 
+/* Harmony mode: a key that sounds a chord given whole (cr_key_chord: root, type, extensions and voicing chosen by the
+ * UI's map); everything else about it is a keyed voice's */
+static void s_fixedchord(void)
+{
+    static const uint8_t CM7[4] = {72, 64, 71, 67};   /* C maj7, E4 G4 B4 C5, given out of order */
+    static const uint8_t CM[3] = {60, 64, 67}, DM[3] = {62, 65, 69}, AM[3] = {57, 60, 64};
+    static const uint8_t BAD[3] = {60, 64, 130};
+    char b[64];
+    cr_chord_info_t ci;
+    fresh("chords given whole");
+    C.out.gesture = cb_gesture;
+    ngl = 0;
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, CR_EXT_MAJ7, CM7, 4);
+    on_notes_sorted(b, 0);
+    ok(!strcmp(b, "64 67 71 72"), "given whole: C maj7 as given (E4 G4 B4 C5) under the D4 key, not D's pitch");
+    cr_chord_info(&C, &ci);
+    ok(ci.sounding && ci.root_pc == 0 && ci.quality == CR_Q_MAJ && ci.ext == CR_EXT_MAJ7 && ci.nnotes == 4 &&
+       ci.notes[0] == 64 && ci.notes[3] == 72, "given whole: the chord shown is C maj7, its notes low to high");
+    ok(ngl == 1 && GL[0].on == 1 && GL[0].root == 60 && GL[0].q == CR_Q_MAJ && GL[0].ext == CR_EXT_MAJ7,
+       "given whole: it begins a gesture with its root (the looper and Harmony's history hear C maj7 at C4)");
+    clear();
+    cr_voicing_step(&C, 2);
+    ok(nlog == 0, "given whole: the voicing knob leaves it as voiced");
+    cr_voicing_step(&C, -2);
+    cr_set_playstyle(&C, CR_PS_ADVANCED);
+    MD(CR_MOD_MIN);
+    ok(nlog == 0, "given whole (Advanced): a chord key pressed over it does not turn it minor");
+    MU(CR_MOD_MIN);
+    cr_set_playstyle(&C, CR_PS_SIMPLE);
+    clear();
+    R(62, 1);
+    expect("-64 -67 -71 -72", "given whole: its key's release ends it");
+    ok(ngl == 2 && GL[1].on == 0, "given whole: .. and the gesture");
+    cr_set_key(&C, 1, 2, CR_SCALE_MAJOR);           /* Key Mode on (D major): no resolution, no root shift */
+    cr_key_chord(&C, 63, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
+    expect("+60/100 +64/100 +67/100", "given whole: Key Mode (D major) leaves C major as given, under a key out of the scale");
+    R(63, 1); clear();
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+    cr_set_transpose(&C, 3);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
+    expect("+60/100 +64/100 +67/100", "given whole: the notes are what sound (Transpose is not added again)");
+    cr_chord_info(&C, &ci);
+    ok(ci.root_pc == 0 && ci.transpose == 0, "given whole: .. and the name is C (its root as given)");
+    R(62, 1); clear();
+    cr_set_transpose(&C, 0);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
+    cr_key_chord(&C, 62, 0, 100, 62, CR_Q_MIN, 0, DM, 3);
+    expect("+60/100 +64/100 +67/100 -60 -64 -67 +62/100 +65/100 +69/100", "given whole: the same key again replaces its chord");
+    R(62, 1); clear();
+    cr_set_sticky(&C, 1);                           /* LATCH */
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
+    R(62, 1);
+    ok(sounding() == 3 && cr_voices(&C) == 1, "given whole + LATCH: it sounds on after its key comes up");
+    clear();
+    cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
+    expect("-60 -64 -67 +57/100 +60/100 +64/100", "given whole + LATCH: the next chord replaces the latched one");
+    R(64, 1);
+    cr_set_sticky(&C, 0);
+    ok(sounding() == 0, "given whole: LATCH off releases it");
+    clear();
+    cr_set_bass(&C, 1);
+    cr_key_chord(&C, 62, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
+    ok(count('+', 1) == 1, "given whole: the bass follows it");
+    R(62, 1);
+    cr_set_bass(&C, 0);
+    step(50); clear();
+    cr_key_chord(&C, 62, 0, 100, 200, CR_Q_MAJ, 0, CM, 3);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, BAD, 3);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 0);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, CR_CHORD_MAX + 1);
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_COUNT, 0, CM, 3);
+    ok(nlog == 0 && cr_voices(&C) == 0, "given whole: refused: a root or a note out of range, no notes, too many, no such type");
+    R(62, 1);
+    C.out.gesture = 0;
+}
+
 static void s_loopvoice(void)
 {
     fresh("loop voices");
@@ -2481,7 +2557,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
     s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_pattern(); s_live(); s_streams();
-    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_loopvoice(); s_queries(); s_limits(); s_torture();
+    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_fixedchord(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     fresh("end");
 }

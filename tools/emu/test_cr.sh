@@ -2773,24 +2773,55 @@ grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'CZ-1' value '64 presets'"
     || bad "the bass off in a layer: on $(gb 32) '$(gp 1 32)' layer $(gl 32)"
 differ cr_glo_knobs_key_pick cr_glo_knobs_key_pop "the picker in the KEY layer, then the pool read-out on GLO's release"
 
-echo "Harmony Preview (LATCH held): the layer, OCT+ confirm on its own loop voice (a second confirm replaces), PANIC"
+echo "Harmony mode (LATCH held): the roots play the map around the chord you are on, with their key, LATCH, the looper; OCT+ home"
 export EMU_UI_LOG=0
-run cr_harm_confirm
+run cr_harm_mode
 unset EMU_UI_LOG
-L="$OUT/cr_harm_confirm.log"
+L="$OUT/cr_harm_mode.log"
 hv() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/^  cr: //'; }   # hv N: the Nth dump's engine line
-LC_ALL=C grep -aq "label 'harmony . listening'" "$L" && LC_ALL=C grep -a '^ui: frame' "$L" | LC_ALL=C grep -aq "item 'REST . DM'" &&
-    ok "D major struck and released, LATCH held: REST . DM highlighted, 'harmony . listening' (one chord: no key yet): $OUT/cr_harm_layer.ppm" \
-    || bad "the layer over D major: $(LC_ALL=C grep -a -o "label 'harmony[^']*'" "$L" | head -1)"
-case "$(hv 2)" in "voices 1 "*"chord A7 sounding 1 notes 61 64 67 69") ok "F4 (PULL), OCT+: A7 sounds, C#4 E4 G4 A4, one voice, the layer closed";;
-    *) bad "PULL confirmed: $(hv 2)";; esac
-case "$(hv 3)" in "voices 1 "*"sounding 1"*) ok "a second confirm (REST over A7) replaces the first: still one voice ($(hv 3 | sed 's/.*chord //'))";;
-    *) bad "the second confirm: $(hv 3)";; esac
-case "$(hv 4)" in "voices 0 "*) ok "PANIC: the confirmed chord stops";; *) bad "after PANIC: $(hv 4)";; esac
-silent_end cr_harm_confirm
-has '^harm: confirmed: history DM A7 ' "$L" && ok "a confirmed suggestion is history: DM A7 .." || bad "confirmed chords not in history"
+hm() { LC_ALL=C grep -a '^harm: [a-z ]*, on ' "$L" | sed -n "${1}p" | sed 's/^harm: //'; }   # hm N: the Nth map line
+kl() { LC_ALL=C grep -a '^  key leds:' "$L" | sed -n "${1}p" | sed 's/^  key leds:[0-9]* \([0-9]*\).*/\1/'; }   # kl N: roots
+[ "$(hm 1)" = "mode on, on CM | home C major | keys Am FM Cm Em Gsus Dm Fm G#M GM Bdim EM" ] &&
+    ok "C major, LATCH held: home C major, the white roots restful to pulling: Am F Cm Em Gsus Dm Fm Ab G Bdim E: $OUT/cr_harm_mode.ppm" \
+    || bad "the mode over C major: '$(hm 1)'"
+[ "$(kl 1)" = "222112211211112221" ] && ok "the roots' LEDs: the home key's own chords glow low, the colour chords faint ($(kl 1))" \
+    || bad "the map's LEDs: $(kl 1)"
+case "$(hv 2)" in "voices 1 "*"chord Am sounding 1 notes 72 76 81") ok "D4 (the most restful): A minor, C5 E5 A5 (one note moved from C major)";;
+    *) bad "D4 held: $(hv 2)";; esac
+case "$(hv 3)" in "voices 0 "*) ok "D4 let go: silence (a keyed chord: it ends with its key)";; *) bad "D4 released: $(hv 3)";; esac
+case "$(hm 2)" in "played, on Am | home C major | keys CM* "*) ok "on A minor the map is laid out again: home (C) the most restful";;
+    *) bad "the map around Am: '$(hm 2)'";; esac
+case "$(hv 4)" in "voices 1 "*"chord EM sounding 1 notes 71 76 80") ok "G5 (the hardest pull from Am): E major, B4 E5 G#5";;
+    *) bad "G5 held: $(hv 4)";; esac
+case "$(hv 5)" in "voices 1 "*"chord Am7 9 sounding 1 notes 71 72 76 79 81") ok "D#4 (a black key): D4's chord, richer: Am9";;
+    *) bad "D#4 held: $(hv 5)";; esac
+case "$(hv 6)" in "voices 1 "*"chord Dm sounding 1"*) ok "Sticky on, A4 tapped 50 ms: D minor latched, it sounds on";;
+    *) bad "the latched tap: $(hv 6)";; esac
+case "$(hv 7)" in "voices 0 "*) ok "Sticky off: the latched chord ends";; *) bad "Sticky off: $(hv 7)";; esac
+pb=$(awk '/^loop: loop recorded/ { on = 1 } /^loop: stop/ { on = 0 } on && /^chord: FM/ { f++ } on && /^chord: G#M/ { g++ }
+          on && /^harm: followed/ { h++ } END { printf "%d %d %d", f + 0, g + 0, h + 0 }' "$L")
+has '^loop: loop recorded (state 2 layers 1 events 2 ' "$L" && [ "${pb%% *}" -ge 2 ] && [ "$(echo "$pb" | cut -d' ' -f2)" -ge 2 ] &&
+    [ "${pb##* }" = 0 ] &&
+    ok "REC, F4, C5, REC: the loop holds the two map chords (F, Ab) and plays them; the map does not follow the loop ($pb)" \
+    || bad "the loop of map chords: $(LC_ALL=C grep -a '^loop: loop recorded' "$L") ($pb)"
+lo=$(hv 8 | sed 's/.* notes //' | cut -d' ' -f1); lo9=$(hv 9 | sed 's/.* notes //' | cut -d' ' -f1)
+[ "${lo:-0}" -ge 60 ] && [ "${lo9:-0}" -ge 60 ] &&
+    ok "the loop plays them in the walk's register (lowest notes $lo, $lo9: the root the looper keeps is the nearest)" \
+    || bad "the loop's register: '$(hv 8)' / '$(hv 9)'"
+case "$(hm 8)" in "home, on G#M | home G# major | keys "*) ok "OCT+: the chord you are on (Ab) is home, the layer stays: $OUT/cr_harm_home.ppm";;
+    *) bad "OCT+: '$(hm 8)'";; esac
+case "$(hm 9)" in "followed, on Em | home G# major |"*) ok "MIN held + E4: E minor as ever, and the map follows it";;
+    *) bad "a chord key held: '$(hm 9)'";; esac
+case "$(hv 11)" in "voices 1 "*"chord Em sounding 1 notes 64 67 71") ok "  .. E minor at E4 G4 B4 (the ordinary chord)";;
+    *) bad "MIN + E4: $(hv 11)";; esac
+case "$(hm 10)" in "key mode, on Em | home C major |"*) [ "$(LC_ALL=C grep -ac '^harm: [a-z ]*, on ' "$L")" = 10 ] &&
+    ok "KEY tapped in the mode: Key Mode's C major is home at once; tapped off, home stays";; *) false;; esac ||
+    bad "Key Mode in the mode: '$(hm 10)'"
+has '^layer: close 6' "$L" && case "$(hv 13)" in "voices 1 "*"chord C sounding 1 notes 72") true;; *) false;; esac &&
+    ok "OCT-: the mode ends; C5 alone is its single note again (Key Mode off)" || bad "after OCT-: $(hv 13)"
+silent_end cr_harm_mode
 
-echo "Harmony Preview: the chords played are its history (Key Mode off); a brush and loop playback are not; a latched tap is"
+echo "Harmony: the chords played are its history (Key Mode off); a brush and loop playback are not; a latched tap is"
 run cr_harm_listen
 L="$OUT/cr_harm_listen.log"
 hl() { LC_ALL=C grep -a '^harm: heard: ' "$L" | sed -n "${1}p" | sed 's/^harm: heard: //'; }   # hl N: the Nth chord heard
@@ -2799,8 +2830,6 @@ hl() { LC_ALL=C grep -a '^harm: heard: ' "$L" | sed -n "${1}p" | sed 's/^harm: h
     || bad "the played chords: '$(hl 1)' / '$(hl 2)' / '$(hl 3)'"
 has '^chord: EM' "$L" && ! LC_ALL=C grep -a '^harm: heard: ' "$L" | grep -q ' EM' &&
     ok "a 50 ms brush of E major sounded (chord: EM) and is not history" || bad "the brush: $(LC_ALL=C grep -a '^harm: heard: ' "$L" | grep ' EM')"
-LC_ALL=C grep -aq "label 'harmony . C minor'" "$L" && ok "the layer names the key it hears: 'harmony . C minor': $OUT/cr_harm_layer_key.ppm" ||
-    bad "the layer's key: $(LC_ALL=C grep -a -o "label 'harmony[^']*'" "$L" | head -1)"
 [ "$(hl 4)" = "history Cm Fm Cm G#M | key C minor" ] && [ "$(hl 5)" = "history Fm Cm G#M A#M | key C minor" ] &&
     ok "the chords played into a loop's take are history (the player played them): .. G#M, .. A#M" || bad "the take: '$(hl 4)' / '$(hl 5)'"
 pb=$(awk '/^loop: loop recorded/ { on = 1; next } /^loop: stop/ { on = 0 } on && /^chord: [^-]/ { c++ } on && /^harm: heard/ { h++ }
@@ -2810,26 +2839,28 @@ pb=$(awk '/^loop: loop recorded/ { on = 1; next } /^loop: stop/ { on = 0 } on &&
     || bad "loop playback: ${pb% *} chords struck, ${pb#* } heard"
 case "$(hl 6)" in "history Cm G#M A#M Dm |"*) ok "Sticky on, Dm tapped 50 ms: latched, it sounds on, so it is history ($(hl 6))";;
     *) bad "the latched tap: '$(hl 6)'";; esac
-[ "$(LC_ALL=C grep -ac '^harm: heard: ' "$L")" = 6 ] && ok "six chords heard in all, no more" || bad "$(LC_ALL=C grep -ac '^harm: heard: ' "$L") chords heard (6)"
-has '^harm: confirmed: history G#M A#M Dm ' "$L" && ok "MOVE confirmed after them: history .. Dm and the suggestion" || bad "the confirm after the played chords"
+case "$(hl 7)" in "history G#M A#M Dm FM |"*) ok "a chord played in Harmony mode (E4 on the map over Dm: F) is history too";;
+    *) bad "the mode's chord: '$(hl 7)'";; esac
+[ "$(hl 8)" = "history CM | key none" ] && ok "KEY tapped on and off: the history starts again (C major alone in it)" \
+    || bad "after KEY on / off: '$(hl 8)'"
+[ "$(LC_ALL=C grep -ac '^harm: heard: ' "$L")" = 8 ] && ok "eight chords heard in all, no more" || bad "$(LC_ALL=C grep -ac '^harm: heard: ' "$L") chords heard (8)"
 silent_end cr_harm_listen
 
-echo "Harmony Preview's context benchmark (the handover's): the same G after two different pasts; KEY on/off starts it cold"
+echo "Harmony mode's context (the handover's same chord after different progressions): the map is home + the chord, never the way there"
 export EMU_UI_LOG=0
 run cr_harm_context
 unset EMU_UI_LOG
 L="$OUT/cr_harm_context.log"
-rest() { LC_ALL=C grep -a '^ui: frame' "$L" | LC_ALL=C grep -a -o "item 'REST[^']*'" | uniq | sed -n "${1}p"; }   # rest N
-hx() { LC_ALL=C grep -a '^harm: heard: ' "$L" | sed -n "${1}p" | sed 's/^harm: heard: //'; }
-[ "$(hx 4)" = "history CM FM Dm GM | key C major" ] && [ "$(hx 8)" = "history GM CM DM GM | key G major" ] &&
-    ok "C F Dm G is heard in C major, G C D G in G major (the musician's read of both)" || bad "the two pasts: '$(hx 4)' / '$(hx 8)'"
-[ "$(hx 5)" = "history GM | key none" ] && [ "$(hx 9)" = "history CM | key none" ] &&
-    ok "KEY tapped on and off between them: each progression starts with an empty history" || bad "the reset: '$(hx 5)' / '$(hx 9)'"
-a=$(rest 1); b=$(rest 2)
-[ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ] &&
-    ok "the same G, two pasts, two answers: $a after C F Dm, $b after G C D: $OUT/cr_harm_ctx_a.ppm, cr_harm_ctx_b.ppm" \
-    || bad "the same G after two pasts: '$a' / '$b'"
-hx 12 | sed 's/^/        (for the ear, not checked) C Am F G: /'
+hk() { LC_ALL=C grep -a '^harm: [a-z ]*, on ' "$L" | sed -n "${1}p" | sed 's/.*| keys //'; }   # hk N: the Nth map's keys
+hh() { LC_ALL=C grep -a '^harm: [a-z ]*, on ' "$L" | sed -n "${1}p" | sed 's/^harm: [a-z ]*, on \([^ ]*\) | home \([^|]*\) |.*/\1 \2/'; }
+[ "$(hh 2)" = "GM C major" ] && [ "$(hh 5)" = "GM C major" ] && [ "$(hh 6)" = "GM C major" ] &&
+    [ "$(hk 2)" = "$(hk 5)" ] && [ "$(hk 2)" = "$(hk 6)" ] &&
+    ok "G major three ways under home C (straight from C, by way of Am, by hand): the same keys ($(hk 2)): $OUT/cr_harm_ctx_a.ppm, cr_harm_ctx_b.ppm" \
+    || bad "the same G three ways: '$(hh 2)' '$(hk 2)' / '$(hh 5)' '$(hk 5)' / '$(hh 6)' '$(hk 6)'"
+case "$(hk 2)" in "CM* "*) ok "  .. from G under home C, the most restful place is home (V to I)";; *) bad "G's rest under C: '$(hk 2)'";; esac
+[ "$(hh 7)" = "GM G major" ] && [ "$(hk 7)" != "$(hk 2)" ] &&
+    ok "OCT+ on G: home G major, the same chord lays out anew ($(hk 7)): $OUT/cr_harm_ctx_c.ppm" || bad "G as home: '$(hh 7)' '$(hk 7)'"
+silent_end cr_harm_context
 
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"
 exit $fail

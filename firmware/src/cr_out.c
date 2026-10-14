@@ -345,7 +345,7 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
     cr_midi(0xB0u | (cr_route.ch[s] & 15u), 123, 0);   /* (always: the channel may hold another device's notes) */
 }
 
-/* ISR -> UI: Harmony Preview's played chords. Every gesture report the engine makes (below: keyed chords and chord
+/* ISR -> UI: Harmony's played chords. Every gesture report the engine makes (below: keyed chords and chord
  * pads; never a loop voice, so never loop playback and never Harmony's own confirm voice; never MIDI in, which does
  * not pass through the engine) is copied here as reported, stamped with fm1_ms. Nothing is judged in the ISR: the UI
  * drains the ring into cr_harmony.c's listener (cr_harm_listen_event / _tick), which decides what counts as a chord
@@ -385,7 +385,7 @@ static int cr_hev_take(cr_hev_t *e)              /* the UI */
     return 1;
 }
 
-/* a chord gesture began / ended: the looper's capture, and Harmony Preview's played chords (above) */
+/* a chord gesture began / ended: the looper's capture, and Harmony's played chords (above) */
 static void cr_cb_gesture(void *ud, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on)
 {
     (void)ud;
@@ -416,13 +416,12 @@ enum {
     CRE_SINGLE,       /* a: cr_single_t, v: split point 0..11 */
     CRE_KEYPLAYS,     /* v: Key plays 0 Chords, 1 Notes */
     CRE_KEYBOARD,     /* a: 1 the Full keyboard, v: the split key's MIDI note */
-    CRE_HARM_CONFIRM, /* Harmony Preview's OCT+ confirm (cr_harmony.h, cr_ui.c's L_HARM): a: the exact root_note
-                       * cr_harm_result_t chose, b: quality << 4 | ext, v: the rotation -- replayed on a free loop
-                       * voice (not a key, not a pad: no physical key state and no saved pad slot touched) so it
-                       * sounds through normal routing and advances key-inference history exactly as shown on
-                       * screen. Sustains like a latched chord until PANIC, or until superseded by confirming
-                       * another suggestion (cr_loop_event_v already kills a slot's prior voice before reusing
-                       * it) -- no separate stop timer */
+    CRE_HSPEC,        /* Harmony mode (cr_ui.c, LATCH held): the chord the next CRE_HKEY sounds, as the map voiced it:
+                       * a: its root note (the looper's), b: quality << 4 | ext, v: its note count; its notes follow */
+    CRE_HNOTE,        /* .. a: the note's place (0 ..), b: the note */
+    CRE_HKEY,         /* Harmony mode: a root key down sounding that chord (cr_key_chord: a keyed voice of a chord given
+                       * whole): a: the key's note, b: vel. Its release is an ordinary CRE_KEY up. The UI posts the
+                       * group only when the queue has room for all of it (cr_post_room) */
     CRE_LOOP          /* a: LP_*, b / v: its argument */
 };
 /* CRE_LOOP's operations */
@@ -432,6 +431,9 @@ enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL, LC_MODE, LC_RATE
 typedef struct { uint8_t op, a, b, rsv; int16_t v; } cr_ev_in_t;
 #define CR_EVQ 128u                              /* a power of two */
 static cr_ev_in_t cr_evq[CR_EVQ];
+static struct { uint8_t root, qx, n, got, note[CR_CHORD_MAX]; } cr_hspec;   /* CRE_HSPEC + CRE_HNOTE, for the CRE_HKEY
+                                                                             * after them (the ISR's); got: bit i =
+                                                                             * note i arrived */
 static volatile uint32_t cr_evq_w, cr_evq_r;
 static volatile uint32_t cr_evq_lost;
 
@@ -479,6 +481,7 @@ static __attribute__((noinline)) void cr_klat_applied(void)   /* the audio ISR: 
         cr_klat.eng = d;
 }
 
+static int cr_post_room(uint32_t n) { return CR_EVQ - (cr_evq_w - cr_evq_r) >= n; }   /* (the main loop's) */
 static int cr_post(uint32_t op, uint32_t a, uint32_t b, int32_t v)
 {
     cr_ev_in_t *e;
@@ -562,12 +565,21 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_SINGLE: cr_set_single_notes(&cr, (cr_single_t)e->a, e->v); break;
     case CRE_KEYPLAYS: cr_set_key_plays(&cr, e->v); break;
     case CRE_KEYBOARD: cr_set_keyboard(&cr, e->a, e->v); break;
-    case CRE_HARM_CONFIRM:                       /* always the same dedicated slot: cr_loop_event_v kills that
-                                                   * slot's own prior voice before reusing it (its own first line),
-                                                   * so confirming again cleanly replaces the last confirmed chord
-                                                   * instead of stacking a second one across different free slots */
-        cr_loop_event_v(&cr, CR_MAX_LOOPV - 1, (int16_t)e->a, (uint8_t)(e->b >> 4), (uint8_t)(e->b & 15u), 100, 1,
-                         e->v);
+    case CRE_HSPEC:
+        cr_hspec.root = e->a; cr_hspec.qx = e->b;
+        cr_hspec.n = (uint8_t)(e->v > 0 && e->v <= CR_CHORD_MAX ? e->v : 0);
+        cr_hspec.got = 0;
+        break;
+    case CRE_HNOTE:
+        if (e->a < CR_CHORD_MAX) { cr_hspec.note[e->a] = e->b; cr_hspec.got |= (uint8_t)(1u << e->a); }
+        break;
+    case CRE_HKEY:                               /* (no whole chord before it: the key plays as an ordinary key) */
+        if (cr_hspec.n && cr_hspec.got == (uint8_t)((1u << cr_hspec.n) - 1u))
+            cr_key_chord(&cr, e->a, 0, e->b, cr_hspec.root, (uint8_t)(cr_hspec.qx >> 4), (uint8_t)(cr_hspec.qx & 15u),
+                         cr_hspec.note, cr_hspec.n);
+        else
+            cr_key(&cr, e->a, e->b, 1);
+        cr_hspec.n = cr_hspec.got = 0;
         break;
     case CRE_LOOP: cr_loop_op(e); break;
     default: break;

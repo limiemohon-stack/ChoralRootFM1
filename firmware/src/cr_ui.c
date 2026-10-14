@@ -45,7 +45,7 @@
 /* layers (a button held): their screens and the job of the root keys and KNOB 1..4 */
 enum { L_NONE, L_KEY, L_PERF, L_FX, L_BASS, L_EDIT, L_HARM, L_METRO, L_LOOP, L_VIEW, L_LOCK, L_N };   /* L_VIEW: HOME
                                                    * held; L_LOCK: the key B3 held (no button: NB); L_HARM: LATCH
-                                                   * held (Harmony Preview, cr_harmony.h) -- was L_RSV6, retired since
+                                                   * held (Harmony mode, cr_harmony.h's map) -- was L_RSV6, retired since
                                                    * 0.17 (SAVE held: the loop slots' Save / Load / Delete map; SAVE
                                                    * held is the global save now, cu_gsave), free until this */
 static const uint8_t L_BTN[L_N] = {NB, BT_KEY, BT_PERF, BT_FX, BT_BASS, BT_EDIT, BT_LATCH, BT_METRO, BT_LOOP, BT_HOME, NB};
@@ -552,12 +552,13 @@ static void cu_pos_sync(void)
     cs.pool_pos[1][eng_rank(trk[CR_PART_BASS].eng_req % NENGINES)] = (uint8_t)p1;
 }
 
-static cr_harm_key_t cu_harm_key;         /* Harmony Preview's held/inferred key (cr_harmony.h); mirrored from Key
+static cr_harm_key_t cu_harm_key;         /* Harmony's held/inferred key (cr_harmony.h); mirrored from Key
                                            * Mode below. Declared here, used from cu_layer_pick onward */
 static cr_harm_hist_t cu_harm_hist;       /* .. its chord history: the chords the player plays (cu_harm_feed, below:
-                                           * the engine's gesture reports, judged by cu_harm_listen) and the
-                                           * suggestions confirmed with OCT+ */
+                                           * the engine's gesture reports, judged by cu_harm_listen), Harmony mode's
+                                           * among them (keyed chords: heard as any other) */
 static cr_harm_listen_t cu_harm_listen;   /* .. the played-chord listener (cr_harmony.h): which struck chords count */
+static void cu_hm_key_changed(void);
 static void cu_post_key(void)
 {
     cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale);
@@ -567,10 +568,8 @@ static void cu_post_key(void)
         cr_harm_key_clear(&cu_harm_key);
         cr_harm_hist_clear(&cu_harm_hist);
     }
+    cu_hm_key_changed();                  /* (Harmony mode open: Key Mode on is home at once) */
 }
-/* the current three suggestions, live: both the screen and OCT+ confirm call this, never duplicating the
- * cr_harm_suggest call (so confirm always sounds exactly the chord the screen is showing) */
-static int cu_harm_compute(cr_harm_result_t out[3]) { return cr_harm_suggest(&cu_harm_key, &cr_snap.ci, cs.sixth_up, out); }
 static void cu_post_single(void)
 {
     cr_post(CRE_SINGLE, cs.single, 0, cs.split);
@@ -1124,9 +1123,6 @@ static struct {
                                            * Keyboard; the first page whenever the layer opens */
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
                                            * the first page whenever the menu opens */
-    uint8_t harm_sel;                     /* the Harmony layer's highlighted slot (0 REST, 1 MOVE, 2 PULL): D4 E4 F4
-                                           * or SELECT move it; 0 whenever the layer opens; OCT+ plays it (no
-                                           * audition while browsing yet) */
     uint8_t ledit;                        /* the loop editor is open (EDIT in the PLAY menu; cu_ledit_*) */
     uint16_t le_cell;                     /* .. its cursor: the first cell of the selected step */
     uint8_t le_page;                      /* .. its page (SELECT): 0 Step (Note len, Steps, Chance, Velocity), 1 Trig
@@ -1220,7 +1216,7 @@ static void cu_harm_trace(const char *why)          /* the emulator's log: histo
 #else
 #define cu_harm_trace(why) ((void)0)
 #endif
-/* Harmony Preview's played chords, every frame whether the layer is open or not (the chords played before it opens
+/* Harmony's played chords, every frame whether the layer is open or not (the chords played before it opens
  * are the context it suggests from): the gesture reports the audio ISR queued (cr_out.c cr_hev_take) go through the
  * listener, then its settle clock; when a chord commits, key inference runs again (Key Mode on: its key is explicit,
  * history is kept but not consulted). UI side only: nothing here runs in or blocks the audio ISR */
@@ -1237,6 +1233,190 @@ static void cu_harm_feed(void)
     if (!cs.key_on)
         cr_harm_key_infer(&cu_harm_key, &cu_harm_hist);
     cu_harm_trace("heard");
+}
+
+/* Harmony mode (LATCH held: the L_HARM layer, open until OCT-, HOME or LATCH held again). The 18 root keys play
+ * places on cr_harmony.h's map around the chord you are on, from the most restful (D4) to the one that pulls hardest
+ * (G5), each black root the richer version of the white root left of it. Whatever plays becomes the chord you are
+ * on, and the map is laid out again around it. Home is the chord on screen when the mode opens (Key Mode on: its
+ * key, as it sounds: Transpose added); OCT+ makes the chord you are on home. A chord key held: that root plays its
+ * chord as ever (the way to jump anywhere), and the map follows it. The chords sound as keyed chords given whole
+ * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
+ * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
+ * voicing, so a loop of a walk keeps the walk's chords and register, not each inversion), heard by the history */
+static struct {
+    uint8_t home_pc, home_scale;   /* cr_scale_t */
+    uint8_t dirty;                 /* the map is to be laid out again */
+    cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
+                                    * engine's snapshot shows it), else the player's chord when something else struck
+                                    * it (a chord key held, a pad, MIDI in: cu_hm_frame) */
+    cr_chord_info_t seen;          /* the player's chord as the frames last saw it sounding (cu_hm_frame) */
+    cr_hmap_t map;
+} cu_hm;
+
+static uint8_t cu_hm_pc(int32_t pc) { return (uint8_t)(((pc % 12) + 12) % 12); }
+static int cu_ci_same(const cr_chord_info_t *a, const cr_chord_info_t *b)
+{
+    uint32_t i;
+    if (a->valid != b->valid || a->root_pc != b->root_pc || a->quality != b->quality || a->ext != b->ext ||
+        a->nnotes != b->nnotes)
+        return 0;
+    for (i = 0; i < a->nnotes; i++)
+        if (a->notes[i] != b->notes[i])
+            return 0;
+    return 1;
+}
+static void cu_hm_set_cur(uint8_t root_pc, uint8_t q, uint8_t ext, const uint8_t *notes, uint32_t n)
+{
+    cr_chord_info_t *c = &cu_hm.cur;
+    uint32_t i;
+    memset(c, 0, sizeof *c);
+    c->valid = 1;
+    c->sounding = 1;
+    c->root_pc = (uint8_t)(root_pc % 12u);
+    c->quality = q;
+    c->ext = q ? ext : 0;
+    c->secret = q >= CR_Q_AUG;
+    c->nnotes = (uint8_t)(n > CR_CHORD_MAX ? CR_CHORD_MAX : n);
+    for (i = 0; i < c->nnotes; i++)
+        c->notes[i] = notes[i];
+    cr_chord_name(c->root_pc, c->quality, c->ext, c->root, c->qual, c->sup);
+    cu_hm.dirty = 1;
+}
+#ifdef CR_TRACE
+static void cu_hm_trace(const char *what)        /* the emulator's log: the chord you are on and the white keys */
+{
+    uint32_t i;
+    cu_trace("harm: %s %s%s%s | home %s %s | keys", what, cu_hm.cur.root, cu_hm.cur.qual, cu_hm.cur.sup,
+             CU_NOTE[cu_hm.home_pc % 12u], cu_hm.home_scale == CR_SCALE_MINOR ? "minor" : "major");
+    for (i = 0; i < CR_HMAP_W; i++) {
+        char r[3], q[5], sup[CR_SUP_MAX];
+        cr_chord_name(cu_hm.map.w[i].root_pc, cu_hm.map.w[i].quality, 0, r, q, sup);
+        cu_trace(" %s%s%s", r, q, cu_hm.map.w[i].home ? "*" : "");
+    }
+    cu_trace("\n");
+}
+#else
+#define cu_hm_trace(what) ((void)0)
+#endif
+static void cu_hm_layout(void)
+{
+    if (!cu_hm.dirty)
+        return;
+    cr_harm_map(cu_hm.home_pc, cu_hm.home_scale, cu_hm.cur.root_pc, cu_hm.cur.quality, cu_hm.cur.ext, &cu_hm.map);
+    cu_hm.dirty = 0;
+}
+static void cu_hm_home_here(void)               /* the chord you are on becomes home (minor: a minor key) */
+{
+    cu_hm.home_pc = cu_hm.cur.root_pc;
+    cu_hm.home_scale = cu_hm.cur.quality == CR_Q_MIN ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+    cu_hm.dirty = 1;
+}
+static void cu_hm_enter(void)
+{
+    const cr_chord_info_t *ci = &cr_snap.ci;
+    if (ci->valid) {
+        cu_hm.cur = *ci;
+        cu_hm.dirty = 1;
+    } else {                                    /* nothing played yet: the home key's chord (Key Mode off: C's) from
+                                                 * C4, as the keys sound it (Transpose added) */
+        uint8_t base[CR_CHORD_MAX];
+        uint8_t t = cu_hm_pc((cs.key_on ? (int32_t)cs.tonic : 0) + cs.transpose);
+        uint8_t q = cs.key_on && cs.scale == CR_SCALE_MINOR ? CR_Q_MIN : CR_Q_MAJ;
+        int n = cr_chord_base_ex(60 + t, q, 0, cs.sixth_up, base);
+        cu_hm_set_cur(t, q, 0, base, (uint32_t)n);
+    }
+    if (cs.key_on) {                            /* (the engine's chords are named as they sound: home too) */
+        cu_hm.home_pc = cu_hm_pc((int32_t)cs.tonic + cs.transpose);
+        cu_hm.home_scale = cs.scale;
+    } else
+        cu_hm_home_here();
+    cu_hm.seen = *ci;
+    cu_hm_layout();
+    cu_hm_trace("mode on, on");
+}
+static void cu_hm_key_changed(void)              /* Key Mode changed (KEY tapped in the mode): on, its key is home;
+                                                 * off, home stays where it was */
+{
+    if (cu_layer() != L_HARM || !cs.key_on)
+        return;
+    cu_hm.home_pc = cu_hm_pc((int32_t)cs.tonic + cs.transpose);
+    cu_hm.home_scale = cs.scale;
+    cu_hm.dirty = 1;
+    cu_hm_layout();
+    cu_hm_trace("key mode, on");
+}
+static void cu_hm_rehome(void)                   /* OCT+ */
+{
+    cu_hm_home_here();
+    cu_hm_layout();
+    cu_message("home", CR_COL_YELLOW);
+    cu_hm_trace("home, on");
+}
+static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on the map (0: not a root) */
+{
+    int32_t wi, lw;
+    uint32_t i;
+    if (k < CU_ROOT0 || k >= CU_NKEY)
+        return 0;
+    cu_hm_layout();
+    wi = cu_white_idx(k);
+    if (wi >= 0)
+        return wi < CR_HMAP_W ? &cu_hm.map.w[wi] : 0;
+    lw = cu_white_idx(k - 1u);                  /* a black root: the white root left of it, enriched */
+    for (i = 0; lw >= 0 && i < CR_HMAP_B; i++)
+        if ((uint32_t)lw == CR_HMAP_BW[i])
+            return &cu_hm.map.b[i];
+    return 0;
+}
+/* a root key down in Harmony mode: its place on the map, voiced near the chord you are on, posted as a chord given
+ * whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
+ * the player's own chord. A chord type latched by LOCK does not count: the mode was opened on purpose, a latch may
+ * be long forgotten) */
+static int cu_hm_play(uint32_t k, uint32_t n)
+{
+    const cr_hmap_chord_t *d;
+    uint8_t notes[CR_CHORD_MAX], root_note;
+    int nv;
+    uint32_t i, chord_keys = 0;
+    for (i = 0; i < CU_ROOT0; i++)              /* (the chord block less B3) */
+        if (CU_MOD_OF_KEY[i] != 0xFFu)
+            chord_keys |= 1u << i;
+    if (!cs.kbd_full && (cu.kheld & chord_keys))
+        return 0;
+    d = cu_hm_dest(k);
+    if (!d)
+        return 0;
+    nv = cr_harm_voice(d, cu_hm.cur.notes, cu_hm.cur.nnotes, cs.sixth_up, 12 * cu.octave, notes, &root_note);
+    if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
+        return 0;
+    cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)d->quality << 4) | d->ext), nv);
+    for (i = 0; i < (uint32_t)nv; i++)
+        cr_post(CRE_HNOTE, i, notes[i], 0);
+    cr_post(CRE_HKEY, n, cs.vel, 1);
+    cu_hm_set_cur(d->root_pc, d->quality, d->ext, notes, (uint32_t)nv);
+    cu_hm_layout();
+    cu_hm_trace("played, on");
+    return 1;
+}
+/* every frame: in the mode, a chord of the player's the keys did not play (a chord key held, a pad, MIDI in) moves
+ * the map to it. Only the player's own chords, while they sound: never a loop's (the keys would change under the
+ * fingers as it plays), a single note, or the chord still shown after it ended. And only a change since the last
+ * one seen, so the keys' own chord, posted before the snapshot shows it, is not undone by the one before it */
+static void cu_hm_frame(void)
+{
+    const cr_chord_info_t *ci = &cr_snap.ci;
+    if (cu_layer() != L_HARM)
+        return;
+    if (!ci->valid || !ci->sounding || cr_snap.ldisp || ci->quality == CR_Q_NONE)
+        return;
+    if (!cu_ci_same(ci, &cu_hm.seen) && !cu_ci_same(ci, &cu_hm.cur)) {
+        cu_hm.cur = *ci;
+        cu_hm.dirty = 1;
+        cu_hm_layout();
+        cu_hm_trace("followed, on");
+    }
+    cu_hm.seen = *ci;
 }
 /* the Full keyboard's split point is a KEY: F4, the second F (key 12: F3..E4 left, F4..G5 right; the owner's,
  * 2026-10-11), fixed: the stored split point (cs.split, OPT + KNOB 1) is a pitch class and stays the Chords layout's,
@@ -2595,8 +2775,8 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu.kpage = 0;
     if (l == L_LOOP && was != L_LOOP)             /* .. the PLAY menu too */
         cu.lpage = 0;
-    if (l == L_HARM && was != L_HARM)             /* .. Harmony opens with REST highlighted */
-        cu.harm_sel = 0;
+    if (l == L_HARM && was != L_HARM)             /* .. Harmony mode: the chord on screen is home */
+        cu_hm_enter();
     if (l == L_PERF && was != L_PERF)             /* the perform layer opens on its picker (the mode's name) */
         cu.perf_t0 = cu_now();
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
@@ -2720,22 +2900,12 @@ static void cu_oct_tap(uint32_t b)
         if (l == L_EDIT) {                        /* the engine picker: OCT+ keeps the sound, OCT- cancels */
             cu_pick_end(b == B_OCTUP);
             cu_layer_close();
-        } else if (l == L_HARM) {                 /* Harmony: OCT+ confirms the highlighted slot (an UNAVAILABLE
-                                                   * one confirms nothing), OCT- just closes; both close either way */
-            if (b == B_OCTUP) {
-                cr_harm_result_t out[3];
-                if (cu_harm_compute(out) && out[cu.harm_sel].kind != CR_HARM_UNAVAILABLE) {
-                    const cr_harm_result_t *r = &out[cu.harm_sel];
-                    cr_post(CRE_HARM_CONFIRM, r->root_note, (uint32_t)(((uint32_t)r->quality << 4) | r->ext),
-                            r->rotation);               /* a loop voice, not a key or a pad: cr_out.c's handler */
-                    cr_harm_hist_push(&cu_harm_hist, r->root_pc, r->quality, r->ext);
-                    if (!cs.key_on)                     /* Key Mode on: cu_harm_key stays cu_post_key's explicit one */
-                        cr_harm_key_infer(&cu_harm_key, &cu_harm_hist);
-                    cu_trace("harm: confirmed slot %d\n", (int)cu.harm_sel);
-                    cu_harm_trace("confirmed");
-                }
-            }
-            cu_layer_close();
+        } else if (l == L_HARM) {                 /* Harmony mode: OCT+ makes the chord you are on home (the keys
+                                                   * lay out around it again, the layer stays); OCT- leaves */
+            if (b == B_OCTUP)
+                cu_hm_rehome();
+            else
+                cu_layer_close();
         } else if (cu.lock)                         /* KEY PERF FX BASS METRO, the PLAY menu (step entry: above), the
                                                    * view menu: nothing to confirm, both close (on / off is the
                                                    * layer's own button, tapped) */
@@ -3213,13 +3383,6 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             cr_post(CRE_LOOP, LP_CONF, LC_SIG, i);
         }
         break;
-    case L_HARM:                                   /* D4 E4 F4 (white roots 0..2) or SELECT: highlight that slot.
-                                                    * Selection only -- OCT+ does not confirm it yet */
-        if (i < 3) {
-            cu.harm_sel = (uint8_t)i;
-            cu_trace("harm: slot %d\n", (int)i);
-        }
-        break;
     default:
         break;
     }
@@ -3234,7 +3397,6 @@ static int32_t cu_layer_sel(uint32_t l)
     case L_LOOP: return cs.loop_len;
     case L_METRO: return cs.metro_sig;
     case L_VIEW: return cs.view;
-    case L_HARM: return cu.harm_sel;
     default: return 0;
     }
 }
@@ -3249,7 +3411,6 @@ static int32_t cu_layer_count(uint32_t l)
     case L_LOOP: return (int32_t)CRL_NSYNC;
     case L_METRO: return CRL_NSIG;
     case L_VIEW: return V_N;
-    case L_HARM: return 3;
     default: return 0;
     }
 }
@@ -3692,7 +3853,7 @@ static void cu_mod_release(uint32_t k)
  * (always, since 0.18: its roots chose engines until then) */
 static int cu_layer_keys(uint32_t l)
 {
-    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT &&
+    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT && l != L_HARM &&
            !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
 
@@ -3752,6 +3913,10 @@ static void cu_key_press(uint32_t k)
         int32_t n = 53 + (int32_t)k + 12 * cu.octave;
         n = n < 0 ? 0 : n > 127 ? 127 : n;
         cr_klat_post(CU_KEY_T0(k));                /* (78 PEAK: the key's way to the engine, timed) */
+        if (l == L_HARM && cu_hm_play(k, (uint32_t)n)) {   /* Harmony mode: the key plays its place on the map */
+            cu.key_note[k] = (uint8_t)(n + 1);
+            return;
+        }
         cr_post(CRE_KEY, (uint32_t)n, cs.vel, 1);
         cu.key_note[k] = (uint8_t)(n + 1);
     }
@@ -4108,7 +4273,8 @@ static void cu_knob(uint32_t role, int32_t s)
         }
         return;
     }
-    if (l && role == EN_SELECT && l != L_LOCK) {   /* a picker: SELECT moves (LOCK: the tempo; KEY: its page, above) */
+    if (l && role == EN_SELECT && l != L_LOCK && l != L_HARM) {   /* a picker: SELECT moves (LOCK, Harmony: the tempo;
+                                                                * KEY: its page, above) */
         v = cu_layer_sel(l) + s;
         v = v < 0 ? 0 : v >= cu_layer_count(l) ? cu_layer_count(l) - 1 : v;
         cu_layer_pick(l, v);
@@ -4699,6 +4865,22 @@ static void cr_leds(void)
             int32_t wi = cu_white_idx(k);
             if (wi >= 0 && wi < n)
                 cu_led(wi == sel ? own : nd, 14u + k, 1);
+        }
+    } else if (l == L_HARM) {                            /* Harmony mode: the map. The key that goes home at the
+                                                          * middle level, the home key's own chords glowing low, the
+                                                          * colour chords faint, the keys down lit */
+        for (k = CU_ROOT0; k < CU_NKEY; k++) {
+            const cr_hmap_chord_t *d = cu_hm_dest(k);
+            if (!d)
+                continue;
+            if (cu.key_note[k] && cu.key_note[k] != 0xFFu)
+                cu_led(nl, 14u + k, 1);
+            else if (d->home)
+                cu_led(nm, 14u + k, 1);
+            else if (d->cat == CR_HCAT_DIATONIC)
+                cu_led(nd, 14u + k, 1);
+            else
+                cu_led(nf, 14u + k, 1);
         }
     } else if (l == L_KEY && !cs.key_play) {             /* keys: pick: every root picks a tonic. Key Mode off: they
                                                           * all glow; on: the key as everywhere (below): its notes
@@ -5748,54 +5930,19 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         cu_row_trace(s, "metro", seen, sizeof seen);
         break;
     }
-    case L_HARM: {                                 /* Harmony Preview (cr_harmony.h): REST / MOVE / PULL as a plain
-                                                    * picker list -- not yet the three-big-slot mock-up (that needs
-                                                    * its own drawing, not an existing primitive). OCT+ confirms
-                                                    * the highlighted slot (cu_oct_tap); no audible preview while
-                                                    * just navigating, still -- that needs its own source-aware
-                                                    * audition adapter (cr_harmony.h), not wired up here. Key:
-                                                    * cu_harm_key, mirrored from Key Mode by cu_post_key, else
-                                                    * inferred from the chords played (cu_harm_feed) and confirmed */
-        static const char *const TENS[3] = {"REST", "MOVE", "PULL"};
-        char buf[3][24];
-        const char *items[3];
-        cr_harm_result_t out[3];
-        uint32_t i;
-        if (!cu_harm_compute(out)) {
-            static const char *const NONE[1] = {"Play a chord"};
-            cu_picker(s, NONE, 1, 0, CR_COL_WHITE, "harmony", "OCT- \267 HOME: back");
-            break;
-        }
-        for (i = 0; i < 3u; i++) {
-            char r[3], q[5], sup[CR_SUP_MAX];
-            buf[i][0] = 0;
-            cu_cat(buf[i], TENS[i], sizeof buf[i]);
-            cu_cat(buf[i], " \267 ", sizeof buf[i]);
-            if (out[i].kind == CR_HARM_UNAVAILABLE) {
-                cu_cat(buf[i], "unavailable", sizeof buf[i]);
-            } else {
-                cr_chord_name(out[i].root_pc, out[i].quality, out[i].ext, r, q, sup);
-                cu_cat(buf[i], r, sizeof buf[i]);
-                cu_cat(buf[i], q, sizeof buf[i]);
-                cu_cat(buf[i], sup, sizeof buf[i]);
-                if (out[i].kind == CR_HARM_VOICING)
-                    cu_cat(buf[i], " (voicing)", sizeof buf[i]);
-            }
-            items[i] = buf[i];
-        }
-        {                                           /* the line under the list: the key it hears (or is told, Key
-                                                     * Mode), "listening" until three chords have given it one --
-                                                     * the suggestions then take the sounding chord as home */
-            char lab[32];
-            cu_cpy(lab, "harmony \267 ", sizeof lab);
-            if (cu_harm_key.held) {
-                cu_cat(lab, CU_NOTE[cu_harm_key.tonic_pc % 12u], sizeof lab);
-                cu_cat(lab, cu_harm_key.scale == CR_SCALE_MINOR ? " minor" : " major", sizeof lab);
-            } else
-                cu_cat(lab, "listening", sizeof lab);
-            cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, lab,
-                      "D4 E4 F4: select \267 OCT+: confirm \267 OCT-/HOME: back");
-        }
+    case L_HARM: {                                 /* Harmony mode: the chord you are on (the map's centre), its
+                                                    * numeral against home above it, home on the top line */
+        cr_chord_info_t ci = cu_hm.cur;
+        s->kind = CR_K_CHORD;
+        cu_name(&s->name, &ci);
+        cu_notes(s, &ci);
+        cr_chord_numeral(ci.root_pc, ci.quality, cu_hm.home_pc, cu_hm.home_scale, s->numeral);
+        s->numeral_on = 1;
+        s->line_col = CR_COL_MID;
+        cu_cpy(s->mid, "Harmony \267 ", sizeof s->mid);
+        cu_cat(s->mid, CU_NOTE[cu_hm.home_pc % 12u], sizeof s->mid);
+        cu_cat(s->mid, cu_hm.home_scale == CR_SCALE_MINOR ? " minor" : " major", sizeof s->mid);
+        s->mid_col = CR_COL_YELLOW;
         break;
     }
     default:
@@ -6507,7 +6654,8 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
         cu_epk_commit();
     cu_midi_poll();
     cr_snapshot();
-    cu_harm_feed();                                /* Harmony Preview: the chords played since the last frame */
+    cu_harm_feed();                                /* Harmony: the chords played since the last frame */
+    cu_hm_frame();                                 /* Harmony mode: the chord you are on, the map around it */
 #ifdef CR_TRACE
     {                                              /* the emulator's log: the sounding chord as it changes */
         static char last[24];

@@ -1,16 +1,17 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
-/* ChoralRoot FM-1: Harmony Preview's pure suggestion engine (see the Harmony Preview Edge Case Spec, revised
- * 2026-10-13). Portable C99, integer only, no allocation, no libc (stdint.h + cr_engine.h for cr_chord_info_t,
- * cr_chord_base_ex, cr_voice_apply). Given the currently sounding chord and a short history of committed
- * chords, infers (or is told) a key, proposes one REST / MOVE / PULL destination each, and voice-leads every
- * candidate against the sounding chord by minimum-cost alignment, reusing the engine's own chord tables so a
- * "minor", "M7" or a voicing rotation here means exactly what it means everywhere else in ChoralRoot.
- *
- * No UI, no MIDI, no audio, and no notion of a UI-to-audio queue: this module only computes. The UI (cr_ui.c's
- * L_HARM layer, LATCH held) calls it; a confirmed chord reaches the engine through the UI-to-audio queue
- * (cr_out.c CRE_HARM_CONFIRM), and the chords the player strikes reach history through the listener below (fed
- * by cr_out.c's gesture ring, judged on the UI side). An audible audition while browsing is not wired yet. */
+/* ChoralRoot FM-1: Harmony's pure engine. Portable C99, integer only, no allocation, no libc (stdint.h +
+ * cr_engine.h for cr_chord_info_t, cr_chord_base_ex, cr_voice_apply), reusing the engine's own chord tables so a
+ * "minor", "M7" or a voicing rotation here means exactly what it means everywhere else in ChoralRoot. Three parts:
+ *  - the map (Harmony mode, the end of this file): the eleven white and seven black root keys laid out around the
+ *    chord you are on, restful to pulling, each voiced near the sounding chord. cr_ui.c's L_HARM layer (LATCH
+ *    held) plays it; a chord reaches the engine whole through the UI-to-audio queue (cr_out.c CRE_HSPEC, CRE_HNOTE,
+ *    CRE_HKEY: cr_engine.c cr_key_chord);
+ *  - the listener and the history: the chords the player strikes (cr_out.c's gesture ring, judged on the UI side);
+ *  - the suggestion engine of the retired Harmony Preview (one REST / MOVE / PULL destination each, the Harmony
+ *    Preview Edge Case Spec, revised 2026-10-13): kept with its tests and the musical benchmark
+ *    (tests/cr_harmony_bench.c) as the reference the map was measured against; the UI no longer calls it.
+ * No UI, no MIDI, no audio, and no notion of a UI-to-audio queue: this module only computes. */
 #ifndef CR_HARMONY_H
 #define CR_HARMONY_H
 
@@ -142,5 +143,54 @@ typedef struct {
  * threaded through to cr_chord_base_ex exactly as the engine itself does. Pure: no state is kept here between
  * calls (cr_harm_key_t is the caller's, updated separately by cr_harm_key_infer / cr_harm_key_explicit). */
 int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int sixth_up, cr_harm_result_t out[3]);
+
+/* ---------------------------------------------------------------- the map --- */
+/* Harmony mode (cr_ui.c's LATCH-held layer): the 18 root keys stop meaning C, D, E and mean "where could this chord
+ * go". cr_harm_map lays out, for a HOME key and the chord you are ON, eleven destinations on the white roots
+ * (D4 .. G5), ordered left to right from the most restful to the one that pulls hardest, and on each black root the
+ * richer version of the white key just left of it (D#4 is D4's chord with sevenths and ninths). Play any key and
+ * that chord becomes the one you are on: the map is laid out again around it, so the same key means "the most
+ * restful place from HERE", wherever here is.
+ *
+ * The eleven (deterministic, a pure function of the home key and the current chord's identity -- its voicing
+ * never changes which chords are offered, only how they are voiced):
+ *   - the key's own chords first (major: the seven diatonic triads; minor: the natural minor's seven and the
+ *     harmonic V), never the chord you are on;
+ *   - the rest from colour chords -- borrowed (iv, bVI, bVII, bIII, i in major; I, IV, vii0 in minor), secondary
+ *     dominants, bII, Vsus4, and the chord's own near neighbours (parallel, relative, leading-tone exchange,
+ *     major-third mediants) -- those that move the fewest semitones from where you are, first.
+ * Tension (the left-to-right order) is home-relative: notes shared with the home triad lower it; the leading tone,
+ * the dominant tritone, notes outside the scale, a dominant or secondary-dominant function and a suspension raise
+ * it. Context moves things: a chord that resolves the one you are on (V -> I, a secondary dominant -> its target,
+ * vii0 -> I, sus -> its major, bII -> I; IV -> I a little) is pulled toward the restful end. */
+#define CR_HMAP_W 11             /* white roots D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 */
+#define CR_HMAP_B 7              /* black roots D#4 F#4 G#4 A#4 C#5 D#5 F#5 */
+extern const uint8_t CR_HMAP_BW[CR_HMAP_B];   /* black root i plays the richer version of white root CR_HMAP_BW[i] */
+
+enum { CR_HCAT_DIATONIC, CR_HCAT_NEAR, CR_HCAT_BORROWED, CR_HCAT_SECDOM, CR_HCAT_CHROMATIC };
+typedef struct {
+    uint8_t root_pc, quality, ext;
+    uint8_t cat;                 /* CR_HCAT_*: why it is on the map (CR_HCAT_DIATONIC: one of the home key's own) */
+    int8_t tension;              /* the order's key, doubled units: lower = more restful (may be negative) */
+    uint8_t home;                /* 1: the home chord itself (the way home) */
+} cr_hmap_chord_t;
+typedef struct {
+    uint8_t home_pc, home_scale; /* cr_scale_t */
+    cr_hmap_chord_t w[CR_HMAP_W];   /* left to right: restful .. pulling */
+    cr_hmap_chord_t b[CR_HMAP_B];
+} cr_hmap_t;
+
+/* The map around the chord you are on (cur_quality CR_Q_NONE, a single note, is taken as its major triad).
+ * Never fails: eleven distinct white chords, none of them the current chord (same root and quality). */
+void cr_harm_map(uint8_t home_pc, uint8_t home_scale, uint8_t cur_pc, uint8_t cur_quality, uint8_t cur_ext,
+                 cr_hmap_t *map);
+/* Voice one map chord as close as possible to the sounding notes src[0..nsrc) (the minimum-movement alignment
+ * cr_harm_suggest uses, over the rotations of the chord's own shape), kept near the middle of the keyboard (lowest
+ * note 48..72, moved by shift semitones: the player's octave, 12 an OCT step) so a long walk does not drift out of
+ * range. Fills notes[] low to high and root_note: the chord's root in the octave whose plain chord lies nearest the
+ * voicing (a looper records the root and plays its chords at the live voicing: a loop of a walk keeps its
+ * register). Returns the note count (0: nothing unclipped exists). */
+int cr_harm_voice(const cr_hmap_chord_t *d, const uint8_t *src, int nsrc, int sixth_up, int shift,
+                  uint8_t notes[CR_CHORD_MAX], uint8_t *root_note);
 
 #endif

@@ -1,107 +1,51 @@
-# Harmony Preview's context benchmark on the real keys (the handover's: "two progressions ending on the same chord"):
-#  A. C F Dm G (G is V: home is C)  -> LATCH held: the layer over G, shot
-#  B. G C D G  (G is home)          -> LATCH held: the layer over G, shot
-#  C. C Am F G (I-vi-IV-V: home is C, G is V) -> the layer, shot
-# KEY tapped twice between them (Key Mode on, then off: history and key start cold, cr_ui.c cu_post_key).
-# Each chord: the chord key, the root 450 ms, 150 ms apart (MAJ = A#3, MIN = G#3). The emulator's log reads
-# "harm: heard: .." per chord and "item 'REST . ..'" per frame (EMU_UI_LOG=0); tools/emu/test_cr.sh compares them.
+# Harmony mode's context on the real keys (the handover's "the same chord after different progressions"): the map
+# around a chord is decided by home and the chord you are on, never by the way you came (predictable), and the same
+# chord under another home lays out differently (context). Key Mode off; each key held 400 ms, 150 ms apart.
+#  A. C major (MAJ + C5), LATCH held (home C major); E5: G major (straight from C)
+#  B. D4: back to C (G's most restful place under home C); D4: A minor; E5: G major (by way of A minor)
+#  C. MAJ + G4: G major played by hand (a chord key held: the map follows it)
+#  D. OCT+: G major is home: the same G, a new map; OCT-, PANIC
+# The emulator's log has one "harm: .." line per chord: tools/emu/test_cr.sh compares the keys of A, B, C and D.
 wait 500
 btn A#3 down
+wait 40
 btn C5 down
-wait 450
+wait 400
 btn C5 up
-btn A#3 up
-wait 150
-btn A#3 down
-btn F4 down
-wait 450
-btn F4 up
-btn A#3 up
-wait 150
-btn G#3 down
-btn D4 down
-wait 450
-btn D4 up
-btn G#3 up
-wait 150
-btn A#3 down
-btn G4 down
-wait 450
-btn G4 up
 btn A#3 up
 wait 300
 btn LFO 600
 wait 200
+btn E5 down
+wait 400
+btn E5 up
+wait 150
 shot build/emu/test/cr_harm_ctx_a.ppm
-dump
-btn OCT-
-wait 200
-btn SEL
-wait 200
-btn SEL
-wait 300
-btn A#3 down
-btn G4 down
-wait 450
-btn G4 up
-btn A#3 up
-wait 150
-btn A#3 down
-btn C5 down
-wait 450
-btn C5 up
-btn A#3 up
-wait 150
-btn A#3 down
 btn D4 down
-wait 450
+wait 400
 btn D4 up
-btn A#3 up
 wait 150
-btn A#3 down
-btn G4 down
-wait 450
-btn G4 up
-btn A#3 up
-wait 300
-btn LFO 600
-wait 200
+btn D4 down
+wait 400
+btn D4 up
+wait 150
+btn E5 down
+wait 400
+btn E5 up
+wait 150
 shot build/emu/test/cr_harm_ctx_b.ppm
-dump
-btn OCT-
-wait 200
-btn SEL
-wait 200
-btn SEL
-wait 300
 btn A#3 down
-btn C5 down
-wait 450
-btn C5 up
-btn A#3 up
-wait 150
-btn G#3 down
-btn A4 down
-wait 450
-btn A4 up
-btn G#3 up
-wait 150
-btn A#3 down
-btn F4 down
-wait 450
-btn F4 up
-btn A#3 up
-wait 150
-btn A#3 down
+wait 40
 btn G4 down
-wait 450
+wait 400
 btn G4 up
 btn A#3 up
 wait 300
-btn LFO 600
-wait 200
+btn OCT+
+wait 300
 shot build/emu/test/cr_harm_ctx_c.ppm
-dump
 btn OCT-
+wait 300
+key END 100
 wait 2000
 dump

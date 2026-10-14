@@ -851,7 +851,8 @@ static void crx_modifier_press(cr_t *c, int m)
     for (i = 0; i < CR_MAX_VOICES; i++) {
         cr_voice_t *v = &c->v[i];
         int s;
-        if (!v->used || v->zone) continue;   /* (a Full-keyboard / bass-side note has no chord to change) */
+        if (!v->used || v->zone || v->fixed) continue;   /* (a Full-keyboard / bass-side note has no chord to change;
+                                                          * a chord given whole keeps its own) */
         /* Advanced/Free: last quality wins (a Chord Type press re-strikes); an extension press TOGGLES */
         if (isq) v->sq = (uint8_t)q;
         else v->sx ^= (uint8_t)xb;
@@ -891,7 +892,7 @@ static void crx_lock_sync(cr_t *c, int reattack)
     for (i = 0; i < CR_MAX_VOICES; i++) {
         cr_voice_t *v = &c->v[i];
         int typed;
-        if (!v->used || v->zone || (v->sq == sq && v->sx == sx)) continue;
+        if (!v->used || v->zone || v->fixed || (v->sq == sq && v->sx == sx)) continue;
         typed = v->sq != sq;
         v->sq = sq; v->sx = sx;
         crx_transform_voice(c, i, reattack && typed);
@@ -1023,6 +1024,47 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
 
 void cr_key(cr_t *c, uint8_t midi_note, uint8_t vel, int down) { cr_key_ex(c, midi_note, 0, vel, down); }
 
+void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
+                  const uint8_t *notes, int n)
+{
+    uint8_t bit;
+    cr_voice_t *v;
+    int vi, i;
+    if (note > 127 || root < 0 || root > 127 || !notes || n < 1 || n > CR_CHORD_MAX || q >= CR_Q_COUNT) return;
+    for (i = 0; i < n; i++) if (notes[i] > 127) return;
+    id &= 7u;
+    bit = (uint8_t)(1u << id);
+    if (cr_latching(c) && c->phys_n == 0) crx_clear_manual_voices(c);   /* (as cr_key_ex: the next gesture replaces a
+                                                                         * latched group) */
+    if (!(c->phys[note] & bit)) { c->phys[note] |= bit; c->phys_n++; }
+    vi = crx_find_voice(c, note);
+    if (vi >= 0) crx_kill_voice(c, vi);                                 /* (the same key again: the new chord) */
+    for (vi = 0; vi < CR_MAX_VOICES; vi++) if (!c->v[vi].used) break;
+    if (vi >= CR_MAX_VOICES) return;
+    v = &c->v[vi];
+    crx_zero(v, sizeof *v);
+    v->used = 1;
+    v->fixed = 1;
+    v->key = note; v->id = id; v->vel = vel;
+    v->pc_pressed = (uint8_t)(note % 12u); v->note_pressed = note;
+    v->transpose = 0;                                                   /* (root is what sounds: no Transpose on top) */
+    v->sq = v->rq = q; v->sx = (uint8_t)(ext & 15u);
+    v->root = root;
+    v->pc = (uint8_t)crx_mod(root, 12);
+    v->serial = ++c->serial;
+    v->gid = ++c->gid;
+    for (i = 0; i < n; i++) v->base[i] = notes[i];
+    crx_sort(v->base, n);
+    v->nbase = v->nnotes = (uint8_t)n;
+    for (i = 0; i < n; i++) v->notes[i] = v->base[i];
+    crx_sound_voice(c, vi);
+    if (crx_bass_ok(c, v)) crx_bass_start(c, v);
+    c->disp_vi = (uint8_t)vi;
+    crx_gesture(c, vi, 1);
+    c->lp.valid = 1; c->lp.attached = 1; c->lp.vi = (uint8_t)vi; c->lp.serial = v->serial;
+    crx_note_last_chord(c, vi);
+}
+
 void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet)
 {
     int mi = (int)m, i;
@@ -1091,7 +1133,8 @@ void cr_voicing_step(cr_t *c, int d)
     c->voicing = (int8_t)nv;
     for (i = 0; i < CR_NVOICE; i++) {
         cr_voice_t *v = &c->v[i];
-        if (!v->used || v->zone || (v->loop & CR_LOOP_FIXV)) continue;   /* (a loop step with its own voicing) */
+        if (!v->used || v->zone || v->fixed || (v->loop & CR_LOOP_FIXV)) continue;   /* (a loop step with its own
+                                                                                        * voicing, a chord given whole) */
         crx_hush_voice(c, i);
         v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, nv, v->notes);
         crx_sound_voice(c, i);
