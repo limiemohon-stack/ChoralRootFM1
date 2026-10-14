@@ -49,6 +49,10 @@ t ./build/host/cr_loop_test
 # the pure module alone: no UI, no audio (the emulator's cr_harm_*.txt scripts cover the wiring)
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmony_test tests/cr_harmony_test.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
 t ./build/host/cr_harmony_test
+# .. and its musical benchmark: not pass/fail, a scorecard (the full report: build/host/cr_harmony_bench.log, or run
+# build/host/cr_harmony_bench yourself; --json for the numbers) -- re-read it after any change to the suggestions
+par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmony_bench tests/cr_harmony_bench.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
+t logged_last cr_harmony_bench
 par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c
 t ./build/host/cr_settings_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Ibuild/gen -o build/host/cr_va_test tests/cr_va_test.c -lm

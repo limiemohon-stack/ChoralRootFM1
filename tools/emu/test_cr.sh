@@ -2814,5 +2814,22 @@ case "$(hl 6)" in "history Cm G#M A#M Dm |"*) ok "Sticky on, Dm tapped 50 ms: la
 has '^harm: confirmed: history G#M A#M Dm ' "$L" && ok "MOVE confirmed after them: history .. Dm and the suggestion" || bad "the confirm after the played chords"
 silent_end cr_harm_listen
 
+echo "Harmony Preview's context benchmark (the handover's): the same G after two different pasts; KEY on/off starts it cold"
+export EMU_UI_LOG=0
+run cr_harm_context
+unset EMU_UI_LOG
+L="$OUT/cr_harm_context.log"
+rest() { LC_ALL=C grep -a '^ui: frame' "$L" | LC_ALL=C grep -a -o "item 'REST[^']*'" | uniq | sed -n "${1}p"; }   # rest N
+hx() { LC_ALL=C grep -a '^harm: heard: ' "$L" | sed -n "${1}p" | sed 's/^harm: heard: //'; }
+[ "$(hx 4)" = "history CM FM Dm GM | key C major" ] && [ "$(hx 8)" = "history GM CM DM GM | key G major" ] &&
+    ok "C F Dm G is heard in C major, G C D G in G major (the musician's read of both)" || bad "the two pasts: '$(hx 4)' / '$(hx 8)'"
+[ "$(hx 5)" = "history GM | key none" ] && [ "$(hx 9)" = "history CM | key none" ] &&
+    ok "KEY tapped on and off between them: each progression starts with an empty history" || bad "the reset: '$(hx 5)' / '$(hx 9)'"
+a=$(rest 1); b=$(rest 2)
+[ -n "$a" ] && [ -n "$b" ] && [ "$a" != "$b" ] &&
+    ok "the same G, two pasts, two answers: $a after C F Dm, $b after G C D: $OUT/cr_harm_ctx_a.ppm, cr_harm_ctx_b.ppm" \
+    || bad "the same G after two pasts: '$a' / '$b'"
+hx 12 | sed 's/^/        (for the ear, not checked) C Am F G: /'
+
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"
 exit $fail
