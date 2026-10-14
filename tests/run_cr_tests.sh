@@ -45,7 +45,8 @@ par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_loop_
 t ./build/host/cr_loop_test
 # Harmony Preview's pure suggestion engine (firmware/src/cr_harmony.c, the Harmony Preview Edge Case Spec):
 # key inference and its hysteresis, the REST/MOVE/PULL candidate tables, the two-tier duplicate-collapse
-# fallback, and the voice-leading cost function -- no UI, no audio, not yet wired into the device build
+# fallback, the voice-leading cost function, and the played-chord listener (what counts as a chord played) --
+# the pure module alone: no UI, no audio (the emulator's cr_harm_*.txt scripts cover the wiring)
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmony_test tests/cr_harmony_test.c firmware/src/cr_harmony.c firmware/src/cr_engine.c
 t ./build/host/cr_harmony_test
 par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c

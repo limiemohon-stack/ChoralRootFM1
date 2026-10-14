@@ -1,0 +1,92 @@
+# Harmony Preview: the chords played feed its history (cr_harmony.h listener; cr_out.c's gesture ring; cr_ui.c
+# cu_harm_feed). Key Mode off. Each "harm: heard:" log line is one chord committed (history oldest first, the key).
+#  1. Cm Fm Cm (MIN + C5 / F4 / C5), each held 400 ms: history Cm Fm Cm, the key C minor from the third chord
+#  2. a 50 ms brush of E major (MAJ + E4): it sounds, it is not history
+#  3. LATCH held: the layer's line under the list names the key it hears ("harmony . C minor"); OCT- closes it
+#  4. REC, Ab (MAJ + G#4) and Bb (MAJ + A#4) played (they are history: the player played them), REC: the loop plays
+#     6 s (three cycles, nobody touching a key): loop playback adds nothing; LOOP tap stops it
+#  5. LATCH tapped (Sticky on), Dm (MIN + D4) tapped 50 ms: latched, it sounds on, so it is history after 120 ms;
+#     LATCH tapped again (Sticky off: the latched chord ends)
+#  6. LATCH held, E4 (MOVE), OCT+: the confirmed suggestion is history too ("harm: confirmed:"); PANIC
+wait 500
+btn G#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn G#3 up
+wait 100
+btn G#3 down
+wait 40
+btn F4 down
+wait 400
+btn F4 up
+btn G#3 up
+wait 100
+btn G#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn G#3 up
+wait 300
+dump
+btn A#3 down
+wait 40
+btn E4 down
+wait 50
+btn E4 up
+btn A#3 up
+wait 400
+dump
+btn LFO 600
+wait 200
+shot build/emu/test/cr_harm_layer_key.ppm
+dump
+btn OCT-
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn G#4 down
+wait 500
+btn G#4 up
+btn A#3 up
+wait 500
+btn A#3 down
+btn A#4 down
+wait 500
+btn A#4 up
+btn A#3 up
+wait 300
+btn REC
+wait 200
+dump
+wait 6000
+dump
+btn PLAY
+wait 500
+btn LFO
+wait 200
+btn G#3 down
+wait 40
+btn D4 down
+wait 50
+btn D4 up
+btn G#3 up
+wait 400
+dump
+btn LFO
+wait 300
+btn LFO 600
+wait 200
+btn E4
+wait 100
+btn OCT+
+wait 300
+dump
+key END 100
+wait 300
+dump
+wait 2000
+dump

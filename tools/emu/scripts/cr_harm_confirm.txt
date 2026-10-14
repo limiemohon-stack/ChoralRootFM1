@@ -1,0 +1,34 @@
+# Harmony Preview's layer and OCT+ confirm (cr_ui.c L_HARM, cr_out.c CRE_HARM_CONFIRM), as verified by hand when it
+# was wired (198fc49): D major struck and released; LATCH held: the layer, REST highlighted, "listening" (one chord:
+# no key yet); F4: PULL; OCT+: A7 plays on Harmony's loop voice and the layer closes; LATCH held again (A7 is now the
+# chord it suggests from), D4: REST, OCT+: the second confirm replaces the first (one voice, not two); PANIC: silence
+wait 500
+btn A#3 down
+wait 40
+btn D4 down
+wait 400
+btn D4 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+shot build/emu/test/cr_harm_layer.ppm
+dump
+btn F4
+wait 100
+shot build/emu/test/cr_harm_pull.ppm
+btn OCT+
+wait 300
+dump
+btn LFO 600
+wait 200
+btn D4
+wait 100
+btn OCT+
+wait 300
+dump
+key END 100
+wait 300
+dump
+wait 2000
+dump

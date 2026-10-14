@@ -188,8 +188,8 @@
 #include "cr_loop.h"
 #include "cr_loop.c"             /* the looper: the engine's loop voices, ticked with it */
 #include "cr_harmony.h"
-#include "cr_harmony.c"          /* Harmony Preview's pure suggestion engine (not yet called from anywhere:
-                                  * no UI layer, no audition, no MIDI routing wired up -- see cr_harmony.h) */
+#include "cr_harmony.c"          /* Harmony Preview's pure suggestion engine and played-chord listener (called by
+                                  * cr_ui.c's LATCH-held layer; before cr_out.c, whose gesture ring feeds it) */
 #include "cr_out.c"              /* streams -> parts 0 / 1 and MIDI; the engine's clock and input queue */
 static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the engine first, then the mix */
 {

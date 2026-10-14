@@ -554,10 +554,10 @@ static void cu_pos_sync(void)
 
 static cr_harm_key_t cu_harm_key;         /* Harmony Preview's held/inferred key (cr_harmony.h); mirrored from Key
                                            * Mode below. Declared here, used from cu_layer_pick onward */
-static cr_harm_hist_t cu_harm_hist;       /* .. its chord history, fed only by confirmed suggestions so far
-                                           * (cr_harmony.h's second integration step: a feed from ordinary played
-                                           * chords too, not yet wired -- needs the same cr_snap ISR-publish
-                                           * pattern this file already uses for cr_chord_info) */
+static cr_harm_hist_t cu_harm_hist;       /* .. its chord history: the chords the player plays (cu_harm_feed, below:
+                                           * the engine's gesture reports, judged by cu_harm_listen) and the
+                                           * suggestions confirmed with OCT+ */
+static cr_harm_listen_t cu_harm_listen;   /* .. the played-chord listener (cr_harmony.h): which struck chords count */
 static void cu_post_key(void)
 {
     cr_post(CRE_KEYMODE, cs.key_on, cs.tonic, cs.scale);
@@ -1125,9 +1125,8 @@ static struct {
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
                                            * the first page whenever the menu opens */
     uint8_t harm_sel;                     /* the Harmony layer's highlighted slot (0 REST, 1 MOVE, 2 PULL): D4 E4 F4
-                                           * or SELECT move it; 0 whenever the layer opens. Selection only so far --
-                                           * no audition, no OCT+ confirm yet (cr_harmony.h's second integration
-                                           * step: a real played chord, the history feed) */
+                                           * or SELECT move it; 0 whenever the layer opens; OCT+ plays it (no
+                                           * audition while browsing yet) */
     uint8_t ledit;                        /* the loop editor is open (EDIT in the PLAY menu; cu_ledit_*) */
     uint16_t le_cell;                     /* .. its cursor: the first cell of the selected step */
     uint8_t le_page;                      /* .. its page (SELECT): 0 Step (Note len, Steps, Chance, Velocity), 1 Trig
@@ -1202,6 +1201,43 @@ static void cu_pick_end(int keep);
 static void cu_epk_commit(void);
 static uint32_t cu_layer(void);
 static uint32_t cu_now(void) { return fm1_ms; }
+#ifdef CR_TRACE
+static void cu_harm_trace(const char *why)          /* the emulator's log: history, oldest first, and the key */
+{
+    uint32_t i;
+    cu_trace("harm: %s: history", why);
+    for (i = 0; i < cu_harm_hist.n; i++) {
+        char r[3], q[5], sup[CR_SUP_MAX];
+        cr_chord_name(cu_harm_hist.e[i].root_pc, cu_harm_hist.e[i].quality, cu_harm_hist.e[i].ext, r, q, sup);
+        cu_trace(" %s%s%s", r, q, sup);
+    }
+    if (cu_harm_key.held)
+        cu_trace(" | key %s %s%s\n", CU_NOTE[cu_harm_key.tonic_pc % 12u],
+                 cu_harm_key.scale == CR_SCALE_MINOR ? "minor" : "major", cs.key_on ? " (Key Mode)" : "");
+    else
+        cu_trace(" | key none\n");
+}
+#else
+#define cu_harm_trace(why) ((void)0)
+#endif
+/* Harmony Preview's played chords, every frame whether the layer is open or not (the chords played before it opens
+ * are the context it suggests from): the gesture reports the audio ISR queued (cr_out.c cr_hev_take) go through the
+ * listener, then its settle clock; when a chord commits, key inference runs again (Key Mode on: its key is explicit,
+ * history is kept but not consulted). UI side only: nothing here runs in or blocks the audio ISR */
+static void cu_harm_feed(void)
+{
+    uint32_t now = cu_now();                        /* read before the drain (cr_harm_listen_tick) */
+    cr_hev_t e;
+    int n = 0;
+    while (cr_hev_take(&e))
+        n += cr_harm_listen_event(&cu_harm_listen, &cu_harm_hist, e.gid, e.root, e.q, e.ext, e.on, e.t);
+    n += cr_harm_listen_tick(&cu_harm_listen, &cu_harm_hist, now);
+    if (!n)
+        return;
+    if (!cs.key_on)
+        cr_harm_key_infer(&cu_harm_key, &cu_harm_hist);
+    cu_harm_trace("heard");
+}
 /* the Full keyboard's split point is a KEY: F4, the second F (key 12: F3..E4 left, F4..G5 right; the owner's,
  * 2026-10-11), fixed: the stored split point (cs.split, OPT + KNOB 1) is a pitch class and stays the Chords layout's,
  * untouched (Split Oct and Split Bass there: the roots whose pitch class is below it, in every octave). The engine
@@ -2696,6 +2732,7 @@ static void cu_oct_tap(uint32_t b)
                     if (!cs.key_on)                     /* Key Mode on: cu_harm_key stays cu_post_key's explicit one */
                         cr_harm_key_infer(&cu_harm_key, &cu_harm_hist);
                     cu_trace("harm: confirmed slot %d\n", (int)cu.harm_sel);
+                    cu_harm_trace("confirmed");
                 }
             }
             cu_layer_close();
@@ -5717,8 +5754,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
                                                     * the highlighted slot (cu_oct_tap); no audible preview while
                                                     * just navigating, still -- that needs its own source-aware
                                                     * audition adapter (cr_harmony.h), not wired up here. Key:
-                                                    * cu_harm_key, mirrored from Key Mode by cu_post_key, fed only
-                                                    * by confirmed suggestions so far (cu_harm_hist_push, below) */
+                                                    * cu_harm_key, mirrored from Key Mode by cu_post_key, else
+                                                    * inferred from the chords played (cu_harm_feed) and confirmed */
         static const char *const TENS[3] = {"REST", "MOVE", "PULL"};
         char buf[3][24];
         const char *items[3];
@@ -5746,8 +5783,19 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             }
             items[i] = buf[i];
         }
-        cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, "harmony",
-                  "D4 E4 F4: select \267 OCT+: confirm \267 OCT-/HOME: back");
+        {                                           /* the line under the list: the key it hears (or is told, Key
+                                                     * Mode), "listening" until three chords have given it one --
+                                                     * the suggestions then take the sounding chord as home */
+            char lab[32];
+            cu_cpy(lab, "harmony \267 ", sizeof lab);
+            if (cu_harm_key.held) {
+                cu_cat(lab, CU_NOTE[cu_harm_key.tonic_pc % 12u], sizeof lab);
+                cu_cat(lab, cu_harm_key.scale == CR_SCALE_MINOR ? " minor" : " major", sizeof lab);
+            } else
+                cu_cat(lab, "listening", sizeof lab);
+            cu_picker(s, items, 3, cu.harm_sel, CR_COL_WHITE, lab,
+                      "D4 E4 F4: select \267 OCT+: confirm \267 OCT-/HOME: back");
+        }
         break;
     }
     default:
@@ -6459,6 +6507,7 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
         cu_epk_commit();
     cu_midi_poll();
     cr_snapshot();
+    cu_harm_feed();                                /* Harmony Preview: the chords played since the last frame */
 #ifdef CR_TRACE
     {                                              /* the emulator's log: the sounding chord as it changes */
         static char last[24];

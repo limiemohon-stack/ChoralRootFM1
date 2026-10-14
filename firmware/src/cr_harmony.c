@@ -79,6 +79,99 @@ int cr_harm_hist_push(cr_harm_hist_t *h, uint8_t root_pc, uint8_t quality, uint8
     return 1;
 }
 
+/* ==================================================================== listener === */
+void cr_harm_listen_clear(cr_harm_listen_t *L)
+{
+    int i;
+    for (i = 0; i < CR_HARM_LISTEN_N; i++) L->f[i].live = 0;
+    L->next_ord = 0;
+}
+
+static int crh_same_id(const cr_harm_chord_t *a, const cr_harm_chord_t *b)
+{
+    return a->root_pc == b->root_pc && a->quality == b->quality && a->ext == b->ext;
+}
+
+/* sounded at least the settle time between t0 and t (a t stamped before t0 -- a report drained after the caller's
+ * clock was read -- counts as no time at all, never as a wrap-around eternity) */
+static int crh_settled(uint32_t t0, uint32_t t) { return (int32_t)(t - t0) >= (int32_t)CR_HARM_SETTLE_MS; }
+
+static int crh_commit(cr_harm_follow_t *f, cr_harm_hist_t *h)
+{
+    f->done = f->cur;
+    f->committed = 1;
+    return cr_harm_hist_push(h, f->cur.root_pc, f->cur.quality, f->cur.ext) ? 1 : 0;
+}
+
+static cr_harm_follow_t *crh_follow_find(cr_harm_listen_t *L, uint16_t gid)
+{
+    int i;
+    for (i = 0; i < CR_HARM_LISTEN_N; i++) if (L->f[i].live && L->f[i].gid == gid) return &L->f[i];
+    return 0;
+}
+
+/* a slot for a new gesture: a free one, else the oldest committed one (already in history: only its final-state
+ * check is lost), else the oldest of all (a chord that had not sounded long enough yet) */
+static cr_harm_follow_t *crh_follow_alloc(cr_harm_listen_t *L)
+{
+    int i, best = -1, pass;
+    for (i = 0; i < CR_HARM_LISTEN_N; i++) if (!L->f[i].live) return &L->f[i];
+    for (pass = 0; pass < 2 && best < 0; pass++)
+        for (i = 0; i < CR_HARM_LISTEN_N; i++) {
+            if (pass == 0 && !L->f[i].committed) continue;
+            if (best < 0 || (int16_t)(L->f[i].ord - L->f[best].ord) < 0) best = i;
+        }
+    return &L->f[best];
+}
+
+int cr_harm_listen_event(cr_harm_listen_t *L, cr_harm_hist_t *h, uint32_t gid, int16_t root, uint8_t quality,
+                         uint8_t ext, int on, uint32_t t_ms)
+{
+    cr_harm_follow_t *f;
+    cr_harm_chord_t id;
+    if (ext & CR_GX_BASS) return 0;                     /* a Split Bass bass-side note: not a chord */
+    id.root_pc = (uint8_t)(((int)root % 12 + 12) % 12);
+    id.quality = quality;
+    id.ext = ext;
+    if (on == 1) {
+        f = crh_follow_alloc(L);
+        f->live = 1; f->committed = 0;
+        f->gid = (uint16_t)gid; f->ord = L->next_ord++;
+        f->t0 = t_ms;
+        f->cur = id;
+        return 0;
+    }
+    f = crh_follow_find(L, (uint16_t)gid);
+    if (!f) return 0;                                   /* not followed (evicted, or begun before a clear) */
+    f->cur = id;                                        /* key-up / end: the chord as it is now (its final state) */
+    if (on == CR_G_KEYUP) {                             /* latched: it sounds on; only a changed chord commits now */
+        if (f->committed && !crh_same_id(&f->cur, &f->done)) return crh_commit(f, h);
+        return 0;
+    }
+    /* the end: commit what sounded long enough and is not already committed as it is */
+    {
+        int n = 0;
+        if (f->committed ? !crh_same_id(&f->cur, &f->done) : crh_settled(f->t0, t_ms)) n = crh_commit(f, h);
+        f->live = 0;
+        return n;
+    }
+}
+
+int cr_harm_listen_tick(cr_harm_listen_t *L, cr_harm_hist_t *h, uint32_t now_ms)
+{
+    int n = 0;
+    for (;;) {                                          /* the oldest settled, uncommitted gesture first */
+        int i, best = -1;
+        for (i = 0; i < CR_HARM_LISTEN_N; i++) {
+            const cr_harm_follow_t *f = &L->f[i];
+            if (!f->live || f->committed || !crh_settled(f->t0, now_ms)) continue;
+            if (best < 0 || (int16_t)(f->ord - L->f[best].ord) < 0) best = i;
+        }
+        if (best < 0) return n;
+        n += crh_commit(&L->f[best], h);
+    }
+}
+
 /* ========================================================================= key === */
 void cr_harm_key_clear(cr_harm_key_t *key) { key->held = 0; key->tonic_pc = 0; key->scale = 0; key->score = 0; }
 

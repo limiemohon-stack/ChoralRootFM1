@@ -7,10 +7,10 @@
  * candidate against the sounding chord by minimum-cost alignment, reusing the engine's own chord tables so a
  * "minor", "M7" or a voicing rotation here means exactly what it means everywhere else in ChoralRoot.
  *
- * No UI, no MIDI, no audio, and no notion of a UI-to-audio queue: this module only computes. It is not wired
- * into the device build yet (see LICENSING.md / BUILDING.md on registering a new translation unit) and not
- * reachable from the panel or from audio output. Staging a result through the existing UI-to-audio queue,
- * auditioning it, and routing a confirmed chord are the second, separately reviewed integration step. */
+ * No UI, no MIDI, no audio, and no notion of a UI-to-audio queue: this module only computes. The UI (cr_ui.c's
+ * L_HARM layer, LATCH held) calls it; a confirmed chord reaches the engine through the UI-to-audio queue
+ * (cr_out.c CRE_HARM_CONFIRM), and the chords the player strikes reach history through the listener below (fed
+ * by cr_out.c's gesture ring, judged on the UI side). An audible audition while browsing is not wired yet. */
 #ifndef CR_HARMONY_H
 #define CR_HARMONY_H
 
@@ -35,6 +35,51 @@ void cr_harm_hist_clear(cr_harm_hist_t *h);
  * is accepted but does not consume a new slot (returns 1, *h unchanged beyond that). Otherwise shifts the
  * oldest out past CR_HARM_HIST and appends (returns 1). */
 int cr_harm_hist_push(cr_harm_hist_t *h, uint8_t root_pc, uint8_t quality, uint8_t ext);
+
+/* ------------------------------------------------------------- listener --- */
+/* Played chords -> history. The engine reports every chord the player strikes as a gesture (cr_out_t.gesture:
+ * begin, end, and CR_G_KEYUP for a latched one) -- keyed chords and chord pads only: never a loop voice (so never
+ * loop playback, and never Harmony's own confirm voice, which plays on one), never MIDI in. cr_out.c copies those
+ * reports unjudged from the audio ISR into a lock-free ring; the UI drains them into the two calls below, so every
+ * decision here is made outside the audio path. Pure: no clock of its own (the caller's milliseconds, wrap-safe),
+ * no allocation.
+ *
+ * A gesture is committed (pushed with cr_harm_hist_push, whose own rules then apply: fewer than 3 pitch classes
+ * rejected, a repeat of the newest entry absorbed) once it has SOUNDED for CR_HARM_SETTLE_MS, held or latched:
+ *   - a brush or a corrected mis-press (begun and ended inside the window) never commits;
+ *   - a latched chord (Sticky, a Perform mode's Hold) commits after the window though its key came up at once;
+ *   - Advanced / Free can change a held chord after it began; the engine reports the final state at key-up / end,
+ *     and a final identity different from the one committed is committed too (the chord the player arrived at);
+ *   - a same-root retrigger is a new gesture of the same identity: history absorbs it as a repeat;
+ *   - a Split Bass bass-side note (ext & CR_GX_BASS) is not a chord: ignored outright.
+ * Up to CR_HARM_LISTEN_N gestures are followed at once (a chord struck while another still sounds: each settles on
+ * its own, committed in the order they began); past that, the oldest one is forgotten (a committed one first). */
+#define CR_HARM_SETTLE_MS 120
+#define CR_HARM_LISTEN_N 4
+
+typedef struct {
+    uint8_t live;                /* this slot follows a gesture */
+    uint8_t committed;           /* done holds the identity last committed for it */
+    uint16_t gid;                /* the gesture's id (cr_voice_t.gid, low 16 bits: only ever matched while live) */
+    uint16_t ord;                /* begin order (ties of t0 broken by it) */
+    uint32_t t0;                 /* when it began, the caller's ms */
+    cr_harm_chord_t cur, done;   /* its latest reported identity; the last one committed */
+} cr_harm_follow_t;
+typedef struct {
+    cr_harm_follow_t f[CR_HARM_LISTEN_N];
+    uint16_t next_ord;
+} cr_harm_listen_t;
+
+void cr_harm_listen_clear(cr_harm_listen_t *L);
+/* One gesture report: gid, root (absolute, transpose and Key Mode applied: only its pitch class is used), the
+ * resolved quality and extension mask, on (1 begin, 0 end, CR_G_KEYUP), and when it happened (t_ms). Returns the
+ * number of chords pushed into *h now (0..1; history's own rules may still absorb a repeat). */
+int cr_harm_listen_event(cr_harm_listen_t *L, cr_harm_hist_t *h, uint32_t gid, int16_t root, uint8_t quality,
+                         uint8_t ext, int on, uint32_t t_ms);
+/* The passage of time: commits every followed gesture that has sounded CR_HARM_SETTLE_MS by now_ms, oldest first;
+ * returns how many were pushed. Read now_ms BEFORE draining the reports that precede this call (a report stamped
+ * after it then never makes a chord look older than it is). */
+int cr_harm_listen_tick(cr_harm_listen_t *L, cr_harm_hist_t *h, uint32_t now_ms);
 
 /* ------------------------------------------------------------------ key --- */
 typedef struct {

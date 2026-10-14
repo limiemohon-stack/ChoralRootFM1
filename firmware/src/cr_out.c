@@ -345,11 +345,52 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
     cr_midi(0xB0u | (cr_route.ch[s] & 15u), 123, 0);   /* (always: the channel may hold another device's notes) */
 }
 
-/* a chord gesture began / ended: the looper's capture */
+/* ISR -> UI: Harmony Preview's played chords. Every gesture report the engine makes (below: keyed chords and chord
+ * pads; never a loop voice, so never loop playback and never Harmony's own confirm voice; never MIDI in, which does
+ * not pass through the engine) is copied here as reported, stamped with fm1_ms. Nothing is judged in the ISR: the UI
+ * drains the ring into cr_harmony.c's listener (cr_harm_listen_event / _tick), which decides what counts as a chord
+ * the player played. One producer (the audio ISR), one consumer (the UI); a full ring drops the newest report and
+ * counts it (a burst of 16 reports inside one UI frame: more chords ended at once than a hand can latch). No
+ * blocking, no allocation, a dozen stores per report. */
+typedef struct { uint32_t t; uint16_t gid; int16_t root; uint8_t q, ext, on, rsv; } cr_hev_t;
+#define CR_HEVQ 16u                              /* a power of two */
+static cr_hev_t cr_hevq[CR_HEVQ];
+static volatile uint32_t cr_hevq_w, cr_hevq_r;
+static volatile uint32_t cr_hevq_lost;
+static void cr_hev_post(uint32_t gid, int16_t root, uint8_t q, uint8_t ext, int on)
+{
+    cr_hev_t *e;
+    if (cr_hevq_w - cr_hevq_r >= CR_HEVQ) {
+        cr_hevq_lost++;
+        return;
+    }
+    e = &cr_hevq[cr_hevq_w % CR_HEVQ];
+    e->t = fm1_ms;
+    e->gid = (uint16_t)gid;
+    e->root = root;
+    e->q = q;
+    e->ext = ext;
+    e->on = (uint8_t)on;
+    e->rsv = 0;
+    RING_PUBLISH();
+    cr_hevq_w++;
+}
+static int cr_hev_take(cr_hev_t *e)              /* the UI */
+{
+    if (cr_hevq_r == cr_hevq_w)
+        return 0;
+    *e = cr_hevq[cr_hevq_r % CR_HEVQ];
+    RING_PUBLISH();
+    cr_hevq_r++;
+    return 1;
+}
+
+/* a chord gesture began / ended: the looper's capture, and Harmony Preview's played chords (above) */
 static void cr_cb_gesture(void *ud, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on)
 {
     (void)ud;
     cr_loop_gesture(&crl, gid, root, q, ext, vel, on);
+    cr_hev_post(gid, root, q, ext, on);
 }
 
 static const cr_out_t CR_OUT = {cr_cb_note_on, cr_cb_note_off, cr_cb_all_off, 0, cr_cb_gesture};

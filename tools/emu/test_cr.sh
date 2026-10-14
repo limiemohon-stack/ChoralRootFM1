@@ -2773,5 +2773,46 @@ grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'CZ-1' value '64 presets'"
     || bad "the bass off in a layer: on $(gb 32) '$(gp 1 32)' layer $(gl 32)"
 differ cr_glo_knobs_key_pick cr_glo_knobs_key_pop "the picker in the KEY layer, then the pool read-out on GLO's release"
 
+echo "Harmony Preview (LATCH held): the layer, OCT+ confirm on its own loop voice (a second confirm replaces), PANIC"
+export EMU_UI_LOG=0
+run cr_harm_confirm
+unset EMU_UI_LOG
+L="$OUT/cr_harm_confirm.log"
+hv() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/^  cr: //'; }   # hv N: the Nth dump's engine line
+LC_ALL=C grep -aq "label 'harmony . listening'" "$L" && LC_ALL=C grep -a '^ui: frame' "$L" | LC_ALL=C grep -aq "item 'REST . DM'" &&
+    ok "D major struck and released, LATCH held: REST . DM highlighted, 'harmony . listening' (one chord: no key yet): $OUT/cr_harm_layer.ppm" \
+    || bad "the layer over D major: $(LC_ALL=C grep -a -o "label 'harmony[^']*'" "$L" | head -1)"
+case "$(hv 2)" in "voices 1 "*"chord A7 sounding 1 notes 61 64 67 69") ok "F4 (PULL), OCT+: A7 sounds, C#4 E4 G4 A4, one voice, the layer closed";;
+    *) bad "PULL confirmed: $(hv 2)";; esac
+case "$(hv 3)" in "voices 1 "*"sounding 1"*) ok "a second confirm (REST over A7) replaces the first: still one voice ($(hv 3 | sed 's/.*chord //'))";;
+    *) bad "the second confirm: $(hv 3)";; esac
+case "$(hv 4)" in "voices 0 "*) ok "PANIC: the confirmed chord stops";; *) bad "after PANIC: $(hv 4)";; esac
+silent_end cr_harm_confirm
+has '^harm: confirmed: history DM A7 ' "$L" && ok "a confirmed suggestion is history: DM A7 .." || bad "confirmed chords not in history"
+
+echo "Harmony Preview: the chords played are its history (Key Mode off); a brush and loop playback are not; a latched tap is"
+run cr_harm_listen
+L="$OUT/cr_harm_listen.log"
+hl() { LC_ALL=C grep -a '^harm: heard: ' "$L" | sed -n "${1}p" | sed 's/^harm: heard: //'; }   # hl N: the Nth chord heard
+[ "$(hl 1)" = "history Cm | key none" ] && [ "$(hl 2)" = "history Cm Fm | key none" ] && [ "$(hl 3)" = "history Cm Fm Cm | key C minor" ] &&
+    ok "Cm Fm Cm played on the keys, 400 ms each: history Cm / Cm Fm / Cm Fm Cm, no key before the third chord, C minor from it" \
+    || bad "the played chords: '$(hl 1)' / '$(hl 2)' / '$(hl 3)'"
+has '^chord: EM' "$L" && ! LC_ALL=C grep -a '^harm: heard: ' "$L" | grep -q ' EM' &&
+    ok "a 50 ms brush of E major sounded (chord: EM) and is not history" || bad "the brush: $(LC_ALL=C grep -a '^harm: heard: ' "$L" | grep ' EM')"
+LC_ALL=C grep -aq "label 'harmony . C minor'" "$L" && ok "the layer names the key it hears: 'harmony . C minor': $OUT/cr_harm_layer_key.ppm" ||
+    bad "the layer's key: $(LC_ALL=C grep -a -o "label 'harmony[^']*'" "$L" | head -1)"
+[ "$(hl 4)" = "history Cm Fm Cm G#M | key C minor" ] && [ "$(hl 5)" = "history Fm Cm G#M A#M | key C minor" ] &&
+    ok "the chords played into a loop's take are history (the player played them): .. G#M, .. A#M" || bad "the take: '$(hl 4)' / '$(hl 5)'"
+pb=$(awk '/^loop: loop recorded/ { on = 1; next } /^loop: stop/ { on = 0 } on && /^chord: [^-]/ { c++ } on && /^harm: heard/ { h++ }
+          END { printf "%d %d", c + 0, h + 0 }' "$L")
+[ "${pb% *}" -ge 5 ] && [ "${pb#* }" = 0 ] &&
+    ok "the loop played 6 s, nobody at the keys: ${pb% *} chords struck by the loop, 0 heard (loop playback is never history)" \
+    || bad "loop playback: ${pb% *} chords struck, ${pb#* } heard"
+case "$(hl 6)" in "history Cm G#M A#M Dm |"*) ok "Sticky on, Dm tapped 50 ms: latched, it sounds on, so it is history ($(hl 6))";;
+    *) bad "the latched tap: '$(hl 6)'";; esac
+[ "$(LC_ALL=C grep -ac '^harm: heard: ' "$L")" = 6 ] && ok "six chords heard in all, no more" || bad "$(LC_ALL=C grep -ac '^harm: heard: ' "$L") chords heard (6)"
+has '^harm: confirmed: history G#M A#M Dm ' "$L" && ok "MOVE confirmed after them: history .. Dm and the suggestion" || bad "the confirm after the played chords"
+silent_end cr_harm_listen
+
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"
 exit $fail

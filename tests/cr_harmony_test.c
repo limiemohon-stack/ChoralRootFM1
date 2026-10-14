@@ -260,8 +260,176 @@ static void t_replay(void)
     ok(all_ok, "replay: root_note + rotation reproduce notes[] exactly, every filled slot, all 12 transpositions");
 }
 
+/* ------------------------------------------------- the played-chord listener --- */
+/* history's newest entry is (root_pc, quality, ext) */
+static int newest_is(const cr_harm_hist_t *h, uint8_t root_pc, uint8_t q, uint8_t x)
+{
+    return h->n > 0 && h->e[h->n - 1].root_pc == root_pc && h->e[h->n - 1].quality == q && h->e[h->n - 1].ext == x;
+}
+#define BEGIN 1
+#define END 0
+
+static void t_listen_settle(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h; int n;
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    ok(cr_harm_listen_event(&L, &h, 7, 60, CR_Q_MAJ, 0, BEGIN, 1000) == 0 && h.n == 0,
+       "listen: a chord just struck is not history yet");
+    n = cr_harm_listen_tick(&L, &h, 1000 + CR_HARM_SETTLE_MS - 1);
+    ok(n == 0 && h.n == 0, "listen: one ms short of the settle time, still nothing");
+    n = cr_harm_listen_tick(&L, &h, 1000 + CR_HARM_SETTLE_MS);
+    ok(n == 1 && h.n == 1 && newest_is(&h, 0, CR_Q_MAJ, 0), "listen: held for the settle time, C major is committed");
+    ok(cr_harm_listen_tick(&L, &h, 5000) == 0 && h.n == 1, "listen: a held chord commits once, not every tick");
+    ok(cr_harm_listen_event(&L, &h, 7, 60, CR_Q_MAJ, 0, END, 5000) == 0 && h.n == 1,
+       "listen: its release (unchanged) adds nothing");
+}
+
+static void t_listen_brush(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 1, 62, CR_Q_MIN, 0, BEGIN, 0);
+    ok(cr_harm_listen_event(&L, &h, 1, 62, CR_Q_MIN, 0, END, 60) == 0, "listen: a 60 ms brush, released: not committed");
+    ok(cr_harm_listen_tick(&L, &h, 10000) == 0 && h.n == 0, "listen: .. and never later either");
+    /* a release drained in the same frame as its strike, but after a long one: still judged by the sound's length */
+    cr_harm_listen_event(&L, &h, 2, 62, CR_Q_MIN, 0, BEGIN, 20000);
+    ok(cr_harm_listen_event(&L, &h, 2, 62, CR_Q_MIN, 0, END, 20000 + 300) == 1 && newest_is(&h, 2, CR_Q_MIN, 0),
+       "listen: struck and released before any tick, but it sounded 300 ms: committed at its end");
+}
+
+static void t_listen_latched(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 3, 64, CR_Q_MIN, 0, BEGIN, 0);
+    ok(cr_harm_listen_event(&L, &h, 3, 64, CR_Q_MIN, 0, CR_G_KEYUP, 30) == 0, "listen: Sticky: a 30 ms tap's key-up commits nothing yet");
+    ok(cr_harm_listen_tick(&L, &h, CR_HARM_SETTLE_MS) == 1 && newest_is(&h, 4, CR_Q_MIN, 0),
+       "listen: .. but the latched chord sounds on: committed at the settle time");
+    ok(cr_harm_listen_event(&L, &h, 3, 64, CR_Q_MIN, 0, END, 4000) == 0 && h.n == 1,
+       "listen: the latch's end (the next press, a panic) adds nothing");
+}
+
+static void t_listen_morph(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    /* Advanced / Free: C major held, a M7 added while it sounds -- the end reports Cmaj7: both chords were heard */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 4, 60, CR_Q_MAJ, 0, BEGIN, 0);
+    cr_harm_listen_tick(&L, &h, 200);
+    ok(cr_harm_listen_event(&L, &h, 4, 60, CR_Q_MAJ, CR_EXT_MAJ7, END, 900) == 1 && h.n == 2 &&
+       newest_is(&h, 0, CR_Q_MAJ, CR_EXT_MAJ7), "listen: a held chord changed after it committed: the final one is committed too");
+    /* changed (and latched) before it settled: only the chord the player arrived at is committed */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 5, 60, CR_Q_MAJ, 0, BEGIN, 0);
+    cr_harm_listen_event(&L, &h, 5, 60, CR_Q_MIN, CR_EXT_M7, CR_G_KEYUP, 50);
+    ok(cr_harm_listen_tick(&L, &h, 200) == 1 && h.n == 1 && newest_is(&h, 0, CR_Q_MIN, CR_EXT_M7),
+       "listen: changed before the settle time: only Cm7 is committed, not the C it began as");
+    /* latched, committed, then its final state at key-up differs: committed at once */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 6, 60, CR_Q_MIN, 0, BEGIN, 0);
+    cr_harm_listen_tick(&L, &h, 500);
+    ok(cr_harm_listen_event(&L, &h, 6, 60, CR_Q_MIN, CR_EXT_9, CR_G_KEYUP, 800) == 1 && newest_is(&h, 0, CR_Q_MIN, CR_EXT_9),
+       "listen: committed, then a 9 added before the key came up (latched): Cm add9 committed at the key-up");
+}
+
+static void t_listen_overlap(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    /* a chord held while a neighbouring root is brushed: the held one is not lost */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 10, 62, CR_Q_MAJ, 0, BEGIN, 0);
+    cr_harm_listen_event(&L, &h, 11, 64, CR_Q_MAJ, 0, BEGIN, 10);
+    cr_harm_listen_event(&L, &h, 11, 64, CR_Q_MAJ, 0, END, 50);
+    ok(cr_harm_listen_tick(&L, &h, 200) == 1 && h.n == 1 && newest_is(&h, 2, CR_Q_MAJ, 0),
+       "listen: D held, E brushed beside it: D is committed, the brush is not");
+    /* two chords held together: both, in the order they began, even struck in the same millisecond */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 12, 65, CR_Q_MAJ, 0, BEGIN, 0);
+    cr_harm_listen_event(&L, &h, 13, 69, CR_Q_MIN, 0, BEGIN, 0);
+    ok(cr_harm_listen_tick(&L, &h, 200) == 2 && h.n == 2 && h.e[0].root_pc == 5 && h.e[1].root_pc == 9,
+       "listen: F and Am struck in the same ms: both committed, F (first) then Am");
+}
+
+static void t_listen_retrigger_and_filters(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 20, 60, CR_Q_MAJ, 0, BEGIN, 0);
+    cr_harm_listen_tick(&L, &h, 150);
+    cr_harm_listen_event(&L, &h, 20, 60, CR_Q_MAJ, 0, END, 300);   /* the same root again: the engine ends .. */
+    cr_harm_listen_event(&L, &h, 21, 60, CR_Q_MAJ, 0, BEGIN, 300); /* .. one gesture and begins another */
+    cr_harm_listen_tick(&L, &h, 450);
+    ok(h.n == 1, "listen: the same chord struck again (a retrigger) is one history entry, not two");
+
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 22, 40, CR_Q_NONE, CR_GX_BASS, BEGIN, 0);
+    ok(cr_harm_listen_tick(&L, &h, 1000) == 0 && h.n == 0, "listen: a Split Bass bass-side note is ignored");
+    cr_harm_listen_event(&L, &h, 23, 62, CR_Q_NONE, 0, BEGIN, 0);
+    ok(cr_harm_listen_tick(&L, &h, 1000) == 0 && h.n == 0, "listen: a single note sounds but is no chord: history rejects it");
+    cr_harm_listen_event(&L, &h, 24, 62, CR_Q_POW, 0, BEGIN, 0);
+    ok(cr_harm_listen_tick(&L, &h, 1000) == 0 && h.n == 0, "listen: a power chord (2 pitch classes) is rejected too");
+    ok(cr_harm_listen_event(&L, &h, 99, 62, CR_Q_MAJ, 0, END, 1000) == 0 && h.n == 0,
+       "listen: the end of a gesture never followed changes nothing");
+}
+
+static void t_listen_clock(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h;
+    /* the UI reads its clock (1000), then drains a strike the ISR stamped 1001: it must not look 2^32 ms old */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 30, 67, CR_Q_MAJ, 0, BEGIN, 1001);
+    ok(cr_harm_listen_tick(&L, &h, 1000) == 0 && h.n == 0, "listen: a report stamped after the clock read is not ancient");
+    ok(cr_harm_listen_tick(&L, &h, 1001 + CR_HARM_SETTLE_MS) == 1, "listen: .. it settles on time");
+    /* fm1_ms wraps after 49.7 days of power-on: a chord across the wrap still settles at 120 ms, not before */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    cr_harm_listen_event(&L, &h, 31, 67, CR_Q_MAJ, 0, BEGIN, 0xFFFFFFC0u);
+    ok(cr_harm_listen_tick(&L, &h, 0x00000030u) == 0, "listen: across the clock's wrap, 112 ms is not yet settled");
+    ok(cr_harm_listen_tick(&L, &h, 0x00000038u) == 1, "listen: .. 120 ms is");
+}
+
+static void t_listen_capacity(void)
+{
+    cr_harm_listen_t L; cr_harm_hist_t h; int i;
+    /* more gestures at once than slots, none settled: the oldest is forgotten, the newest four commit in order */
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h);
+    for (i = 0; i < CR_HARM_LISTEN_N + 1; i++)
+        cr_harm_listen_event(&L, &h, (uint32_t)(40 + i), (int16_t)(60 + 2 * i), CR_Q_MAJ, 0, BEGIN, (uint32_t)i);
+    ok(cr_harm_listen_tick(&L, &h, 1000) == CR_HARM_LISTEN_N && h.n == CR_HARM_HIST && h.e[0].root_pc == 2 &&
+       h.e[CR_HARM_HIST - 1].root_pc == 8, "listen: five at once, four slots: the first is forgotten, D E F# G# commit in order");
+    /* slots full of committed gestures: a new one takes the oldest committed slot, and still settles */
+    cr_harm_listen_event(&L, &h, 50, 70, CR_Q_MIN, 0, BEGIN, 2000);
+    ok(cr_harm_listen_tick(&L, &h, 2200) == 1 && newest_is(&h, 10, CR_Q_MIN, 0),
+       "listen: with every slot following a committed chord, a new one still gets a slot and commits");
+}
+
+static void t_listen_infers_key(void)
+{
+    /* end to end on the pure side: a progression played (strike, hold 400 ms, release) through the listener gives
+     * the history key inference reads -- C minor's i-iv-i holds C minor, exactly as the history pushes did */
+    static const uint8_t roots[] = { 0, 5, 0 };
+    cr_harm_listen_t L; cr_harm_hist_t h; cr_harm_key_t key; int i; uint32_t t = 0;
+    cr_harm_listen_clear(&L); cr_harm_hist_clear(&h); cr_harm_key_clear(&key);
+    for (i = 0; i < 3; i++) {
+        cr_harm_listen_event(&L, &h, (uint32_t)(60 + i), (int16_t)(60 + roots[i]), CR_Q_MIN, 0, BEGIN, t);
+        if (cr_harm_listen_tick(&L, &h, t + 200)) cr_harm_key_infer(&key, &h);
+        cr_harm_listen_event(&L, &h, (uint32_t)(60 + i), (int16_t)(60 + roots[i]), CR_Q_MIN, 0, END, t + 400);
+        t += 500;
+    }
+    ok(h.n == 3 && key.held && key.tonic_pc == 0 && key.scale == CR_SCALE_MINOR,
+       "listen: Cm Fm Cm played on the keys -> history of 3 -> C minor held");
+}
+
 int main(void)
 {
+    t_listen_settle();
+    t_listen_brush();
+    t_listen_latched();
+    t_listen_morph();
+    t_listen_overlap();
+    t_listen_retrigger_and_filters();
+    t_listen_clock();
+    t_listen_capacity();
+    t_listen_infers_key();
     t_worked_example();
     t_transpositions();
     t_key_stability();
