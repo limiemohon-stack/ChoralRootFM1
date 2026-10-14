@@ -6,7 +6,7 @@
 #     6 s (three cycles, nobody touching a key): loop playback adds nothing; LOOP tap stops it
 #  4. LATCH tapped (Sticky on), Dm (MIN + D4) tapped 50 ms: latched, it sounds on, so it is history after 120 ms;
 #     LATCH tapped again (Sticky off: the latched chord ends)
-#  5. LATCH held (Harmony mode), E4 held 400 ms (a place on the map), OCT- (the mode ends): history too
+#  5. LATCH held (Harmony mode), E4 held 400 ms (a key of the palette), OCT- (the mode ends): history too
 #  6. KEY tapped twice (Key Mode on, off): history starts again; C major (MAJ + C5) 400 ms: alone in it; PANIC
 wait 500
 btn G#3 down

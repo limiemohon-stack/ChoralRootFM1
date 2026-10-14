@@ -420,154 +420,115 @@ static void t_listen_infers_key(void)
        "listen: Cm Fm Cm played on the keys -> history of 3 -> C minor held");
 }
 
-/* ------------------------------------------------------------- Harmony mode's map --- */
-static int map_has(const cr_hmap_t *m, uint8_t r, uint8_t q)
-{
-    int i;
-    for (i = 0; i < CR_HMAP_W; i++) if (m->w[i].root_pc == r && m->w[i].quality == q) return 1;
-    return 0;
-}
+/* ----------------------------------------------------------- Harmony mode's lanes --- */
 
-static void t_map_shape(void)
-{
-    /* every home key, both scales, every chord you could be on: eleven distinct white chords, never the current
-     * one, left to right by tension, each black key the richer version of its white key, the way home marked once */
-    static const uint8_t Q[5] = { CR_Q_MAJ, CR_Q_MIN, CR_Q_DIM, CR_Q_SUS, CR_Q_NONE };
-    int t, s, r, qi, distinct = 1, notself = 1, ordered = 1, black = 1, home1 = 1;
-    for (t = 0; t < 12; t++) for (s = 0; s < 2; s++) for (r = 0; r < 12; r++) for (qi = 0; qi < 5; qi++) {
-        cr_hmap_t m; int i, j, homes = 0;
-        uint8_t cq = Q[qi] == CR_Q_NONE ? CR_Q_MAJ : Q[qi];
-        int on_home = r == t && cq == (s ? CR_Q_MIN : CR_Q_MAJ);
-        cr_harm_map((uint8_t)t, (uint8_t)s, (uint8_t)r, Q[qi], 0, &m);
-        for (i = 0; i < CR_HMAP_W; i++) {
-            for (j = i + 1; j < CR_HMAP_W; j++)
-                if (m.w[i].root_pc == m.w[j].root_pc && m.w[i].quality == m.w[j].quality) distinct = 0;
-            if (m.w[i].root_pc == r && m.w[i].quality == cq) notself = 0;
-            if (i && m.w[i].tension < m.w[i - 1].tension) ordered = 0;
-            homes += m.w[i].home;
-        }
-        for (i = 0; i < CR_HMAP_B; i++) {
-            const cr_hmap_chord_t *w = &m.w[CR_HMAP_BW[i]], *b = &m.b[i];
-            if (b->root_pc != w->root_pc || b->quality != w->quality || !b->ext) black = 0;
-        }
-        if (homes != (on_home ? 0 : 1)) home1 = 0;
-    }
-    ok(distinct, "map: 12 keys x 2 scales x 60 current chords: eleven distinct white chords every time");
-    ok(notself, "map: the chord you are on is never offered (it is where you are)");
-    ok(ordered, "map: white keys run from restful to pulling (tension never falls left to right)");
-    ok(black, "map: each black key plays the richer version of the white key just left of it");
-    ok(home1, "map: the home chord is on the keys exactly once (none while you are on it)");
-}
+static unsigned pcs_of(const uint8_t *n, int c) { unsigned m = 0; int i; for (i = 0; i < c; i++) m |= 1u << (n[i] % 12u); return m; }
 
-static void t_map_context(void)
+static void t_lanes_shape(void)
 {
+    /* every home key, both scales: the palette as written (C major: Cmaj9 Am9 Em7 Fmaj9 Dm9 Fm9 Abmaj9 Bb9 G9sus
+     * G9 Db9; approach chords E7 C9 A9 Gbmaj7 F9 D9 Ab9), home marked once (D4), eleven distinct white chords */
+    static const uint8_t WR[11] = { 0, 9, 4, 5, 2, 5, 8, 10, 7, 7, 1 }, BR[7] = { 4, 0, 9, 6, 5, 2, 8 };
     cr_hmap_t m;
-    int i, j, sets = 0;
-    cr_hmap_t all[7];
-    static const struct { uint8_t r, q; } DIA[7] = { {0, CR_Q_MAJ}, {2, CR_Q_MIN}, {4, CR_Q_MIN}, {5, CR_Q_MAJ},
-                                                      {7, CR_Q_MAJ}, {9, CR_Q_MIN}, {11, CR_Q_DIM} };
-    cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_MAJ, 0, &m);
-    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, C major, on G: the leftmost key resolves home to C");
-    cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_MAJ, CR_EXT_M7, &m);
-    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, on G7: the same resolution");
-    cr_harm_map(0, CR_SCALE_MAJOR, 4, CR_Q_MAJ, 0, &m);
-    ok(m.w[0].root_pc == 9 && m.w[0].quality == CR_Q_MIN, "map, on E (V of vi): the leftmost key resolves to Am");
-    cr_harm_map(0, CR_SCALE_MAJOR, 11, CR_Q_DIM, 0, &m);
-    ok(m.w[0].root_pc == 0 && m.w[0].quality == CR_Q_MAJ, "map, on Bdim: the leading-tone chord resolves to C");
-    {   /* a local resolution moves its chord toward the restful end, home staying the most restful of all: G sits
-         * further left from Gsus4 (its suspension) and from D (its secondary dominant) than from C */
-        int from_c = -1, from_sus = -1, from_d = -1, i;
-        cr_harm_map(0, CR_SCALE_MAJOR, 0, CR_Q_MAJ, 0, &m);
-        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_c = i;
-        cr_harm_map(0, CR_SCALE_MAJOR, 7, CR_Q_SUS, 0, &m);
-        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_sus = i;
-        cr_harm_map(0, CR_SCALE_MAJOR, 2, CR_Q_MAJ, 0, &m);
-        for (i = 0; i < CR_HMAP_W; i++) if (m.w[i].root_pc == 7 && m.w[i].quality == CR_Q_MAJ) from_d = i;
-        ok(from_c >= 0 && from_sus >= 0 && from_d >= 0 && from_sus < from_c && from_d < from_c,
-           "map: G moves toward the restful end from Gsus4 and from D (its resolutions) compared with from C");
-    }
-    cr_harm_map(9, CR_SCALE_MINOR, 4, CR_Q_MAJ, 0, &m);
-    ok(m.w[0].root_pc == 9 && m.w[0].quality == CR_Q_MIN, "map, A minor, on E: the leftmost key resolves to Am");
-    cr_harm_map(9, CR_SCALE_MINOR, 9, CR_Q_MIN, 0, &m);
-    ok(m.w[CR_HMAP_W - 1].root_pc == 4 && m.w[CR_HMAP_W - 1].quality == CR_Q_MAJ,
-       "map, A minor, on Am: the rightmost key is E, the dominant");
-    ok(map_has(&m, 4, CR_Q_MAJ) && map_has(&m, 5, CR_Q_MAJ) && map_has(&m, 0, CR_Q_MAJ),
-       "map, A minor: its own chords are there (E, F, C ..)");
-    /* the function-blindness the benchmark found in cr_harm_suggest: here every chord of the key lays the keys out
-     * differently */
-    for (i = 0; i < 7; i++) {
-        int same = 0;
-        cr_harm_map(0, CR_SCALE_MAJOR, DIA[i].r, DIA[i].q, 0, &all[i]);
-        for (j = 0; j < i; j++) {
-            int k, eq = 1;
-            for (k = 0; k < CR_HMAP_W; k++)
-                if (all[i].w[k].root_pc != all[j].w[k].root_pc || all[i].w[k].quality != all[j].w[k].quality) eq = 0;
-            if (eq) same = 1;
+    int t, sc, i, j, ok_written = 1, ok_home = 1, ok_distinct = 1, ok_minor = 1;
+    cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+    for (i = 0; i < 11; i++) if (m.w[i].root_pc != WR[i]) ok_written = 0;
+    for (i = 0; i < 7; i++) if (m.b[i].root_pc != BR[i]) ok_written = 0;
+    if (m.w[0].quality != CR_Q_MAJ || m.w[0].ext != (CR_EXT_MAJ7 | CR_EXT_9) || m.w[5].quality != CR_Q_MIN ||
+        m.w[8].quality != CR_Q_SUS || m.w[9].quality != CR_Q_MAJ || m.b[3].ext != CR_EXT_MAJ7) ok_written = 0;
+    ok(ok_written, "lanes: C major plays Cmaj9 Am9 Em7 Fmaj9 Dm9 Fm9 Abmaj9 Bb9 G9sus G9 Db9, black E7 C9 A9 Gbmaj7 F9 D9 Ab9");
+    cr_harm_lanes(9, CR_SCALE_MINOR, &m);
+    if (m.w[0].root_pc != 9 || m.w[0].quality != CR_Q_MIN || m.w[6].quality != CR_Q_DIM || m.w[9].root_pc != 4 ||
+        m.w[9].ext != CR_EXT_M7 || m.b[6].root_pc != 6 || m.b[6].quality != CR_Q_DIM) ok_minor = 0;
+    ok(ok_minor, "lanes: A minor starts on Am9, has Bm7b5, E7, and F#m7b5 on F#5");
+    for (sc = 0; sc < 2; sc++)
+        for (t = 0; t < 12; t++) {
+            int homes = 0;
+            cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+            for (i = 0; i < 11; i++) homes += m.w[i].home;
+            for (i = 0; i < 7; i++) homes += m.b[i].home * 10;
+            if (homes != 1 || !m.w[0].home) ok_home = 0;
+            for (i = 0; i < 11; i++)
+                for (j = i + 1; j < 11; j++)
+                    if (m.w[i].root_pc == m.w[j].root_pc && m.w[i].quality == m.w[j].quality && m.w[i].ext == m.w[j].ext)
+                        ok_distinct = 0;
         }
-        sets += !same;
-    }
-    ok(sets == 7, "map, C major: each of the 7 diatonic chords lays the keys out differently");
+    ok(ok_home, "lanes: the home chord is D4 in every key, and only D4");
+    ok(ok_distinct, "lanes: eleven distinct white chords in every key, both scales");
 }
 
-static void t_map_transpose(void)
+static void t_lanes_transpose(void)
 {
-    /* the map is the same shape in every key: home t, chord r == home 0, chord r - t, moved up t */
-    int t, s, r, all_ok = 1;
-    for (t = 1; t < 12; t++) for (s = 0; s < 2; s++) for (r = 0; r < 12; r++) {
-        cr_hmap_t a, b; int i;
-        cr_harm_map((uint8_t)t, (uint8_t)s, (uint8_t)r, CR_Q_MIN, 0, &a);
-        cr_harm_map(0, (uint8_t)s, (uint8_t)((r - t + 12) % 12), CR_Q_MIN, 0, &b);
-        for (i = 0; i < CR_HMAP_W; i++)
-            if (a.w[i].root_pc != (b.w[i].root_pc + t) % 12 || a.w[i].quality != b.w[i].quality ||
-                a.w[i].tension != b.w[i].tension) all_ok = 0;
+    cr_hmap_t a, b;
+    int t, sc, i, all = 1;
+    for (sc = 0; sc < 2; sc++) {
+        cr_harm_lanes(0, (uint8_t)sc, &b);
+        for (t = 1; t < 12; t++) {
+            cr_harm_lanes((uint8_t)t, (uint8_t)sc, &a);
+            for (i = 0; i < 11; i++)
+                if (a.w[i].root_pc != (b.w[i].root_pc + t) % 12 || a.w[i].quality != b.w[i].quality ||
+                    a.w[i].ext != b.w[i].ext || a.w[i].cat != b.w[i].cat) all = 0;
+            for (i = 0; i < 7; i++)
+                if (a.b[i].root_pc != (b.b[i].root_pc + t) % 12 || a.b[i].quality != b.b[i].quality) all = 0;
+        }
     }
-    ok(all_ok, "map: every home key gives the same layout, transposed (11 keys x 2 scales x 12 chords)");
+    ok(all, "lanes: every home key lays out alike, transposed (12 keys x 2 scales)");
 }
 
-static void t_map_voice(void)
+static void t_lanes_voicing(void)
 {
-    /* a long walk over the keys (a fixed pseudo-random path): every chord voiced near the last, exactly its chord's
-     * notes (pitch classes and count), its root_note the chord's root near the voicing (what a looper records), and
-     * the lowest note never far from the middle */
-    uint8_t cur[CR_CHORD_MAX], base[CR_CHORD_MAX];
-    int n = cr_chord_base_ex(60, CR_Q_MAJ, 0, 0, cur), step, shape = 1, sizes = 1, near = 1, lo = 127, hi = 0, moved = 0;
-    uint8_t cr = 0, cq = CR_Q_MAJ, cx = 0;
-    uint32_t rng = 12345u;
-    for (step = 0; step < 400; step++) {
-        cr_hmap_t m; const cr_hmap_chord_t *d; uint8_t notes[CR_CHORD_MAX], root_note; int nv, nb, k, i;
-        unsigned want = 0, got = 0;
-        rng = rng * 1103515245u + 12345u;
-        k = (int)((rng >> 16) % (CR_HMAP_W + CR_HMAP_B));
-        cr_harm_map(0, CR_SCALE_MAJOR, cr, cq, cx, &m);
-        d = k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W];
-        nv = cr_harm_voice(d, cur, n, 0, 0, notes, &root_note);
-        nb = cr_chord_base_ex(root_note, d->quality, d->ext, 0, base);
-        for (i = 0; i < nb; i++) want |= 1u << (base[i] % 12u);
-        for (i = 0; i < nv; i++) got |= 1u << (notes[i] % 12u);
-        if (root_note % 12u != d->root_pc || want != got) shape = 0;
-        for (i = 1; i < nv; i++) if (notes[i] <= notes[i - 1]) shape = 0;
-        if (nv != cr_chord_base_ex(60, d->quality, d->ext, 0, base)) sizes = 0;
-        nb = cr_chord_base_ex(root_note, d->quality, d->ext, 0, base);
-        if (base[0] + 12 <= notes[0] || base[0] >= notes[0] + 12) near = 0;
-        if (notes[0] < lo) lo = notes[0];
-        if (notes[0] > hi) hi = notes[0];
-        moved += notes[0] > cur[0] ? notes[0] - cur[0] : cur[0] - notes[0];
-        memcpy(cur, notes, (size_t)nv); n = nv;
-        cr = d->root_pc; cq = d->quality; cx = d->ext;
+    /* every chord of every key, both scales, three styles: its own notes (root at the bottom, every pitch class the
+     * chord's, the shell's three the root + 3rd + 7th), ascending, the same notes every call, in range, and the
+     * top notes in a narrow band per style (the line on top moves by small steps) */
+    cr_hmap_t m;
+    int t, sc, st, i, own = 1, asc = 1, same = 1, range = 1, shell = 1, lo[3] = { 127, 127, 127 }, hi[3] = { 0, 0, 0 };
+    for (sc = 0; sc < 2; sc++)
+        for (t = 0; t < 12; t++) {
+            cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+            for (i = 0; i < 18; i++) {
+                const cr_hmap_chord_t *d = i < 11 ? &m.w[i] : &m.b[i - 11];
+                uint8_t base[CR_CHORD_MAX];
+                int nb = cr_chord_base_ex(60 + d->root_pc, d->quality, d->ext, 0, base);
+                unsigned want = pcs_of(base, nb);
+                for (st = 0; st < CR_HSTYLE_N; st++) {
+                    uint8_t n1[CR_CHORD_MAX], n2[CR_CHORD_MAX], r1, r2;
+                    int c1 = cr_harm_voice_style(d, st, 0, n1, &r1), c2 = cr_harm_voice_style(d, st, 0, n2, &r2), k;
+                    if (c1 != c2 || memcmp(n1, n2, (size_t)c1) || r1 != r2) same = 0;
+                    if (n1[0] % 12u != d->root_pc || r1 % 12u != d->root_pc || (pcs_of(n1, c1) & ~want)) own = 0;
+                    for (k = 1; k < c1; k++) if (n1[k] <= n1[k - 1]) asc = 0;
+                    if (n1[0] < 40 || n1[0] > 51 || n1[c1 - 1] > 76 || c1 < 3 || c1 > 5) range = 0;
+                    if (st == CR_HSTYLE_SHELL && c1 != 3) shell = 0;
+                    if (n1[c1 - 1] < lo[st]) lo[st] = n1[c1 - 1];
+                    if (n1[c1 - 1] > hi[st]) hi[st] = n1[c1 - 1];
+                }
+            }
+        }
+    ok(own, "lane voicing: every chord's notes are its own, root at the bottom (and the loop root its root)");
+    ok(asc, "lane voicing: notes ascending, no doubled pitch");
+    ok(same, "lane voicing: the same chord gives the same notes every time (nothing depends on the last chord)");
+    ok(range && shell, "lane voicing: root in E2..D#3, top at most E5, shell three notes, the others up to five");
+    ok(hi[CR_HSTYLE_SHELL] - lo[CR_HSTYLE_SHELL] <= 12 && hi[CR_HSTYLE_COLOUR] - lo[CR_HSTYLE_COLOUR] <= 12,
+       "lane voicing: shell and colour keep their top notes within an octave band, every key");
+    {
+        uint8_t n[CR_CHORD_MAX], r;
+        int c, k, sh = 1;
+        cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+        c = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 12, n, &r);
+        {
+            uint8_t z[CR_CHORD_MAX], rz;
+            int cz = cr_harm_voice_style(&m.w[0], CR_HSTYLE_COLOUR, 0, z, &rz);
+            if (cz != c || rz + 12 != r) sh = 0;
+            for (k = 0; k < c && sh; k++) if (z[k] + 12 != n[k]) sh = 0;
+        }
+        ok(sh, "lane voicing: an octave up (shift 12) is the same voicing, 12 semitones higher");
     }
-    ok(shape, "map voicing: every chord of a 400-chord walk is its own notes (pitch classes, root, ascending)");
-    ok(sizes, "map voicing: never a note clipped or dropped (triads 3 notes, the black keys' 4 or 5)");
-    ok(near, "map voicing: the root_note's plain chord starts within an octave of the voicing (a loop keeps the register)");
-    ok(lo >= 40 && hi <= 80, "map voicing: a 400-chord walk keeps its lowest note near the middle (40..80)");
-    ok(moved <= 400 * 4, "map voicing: the bass voice moves 4 semitones a chord or less on average (voice leading)");
 }
 
 int main(void)
 {
-    t_map_shape();
-    t_map_context();
-    t_map_transpose();
-    t_map_voice();
+    t_lanes_shape();
+    t_lanes_transpose();
+    t_lanes_voicing();
     t_listen_settle();
     t_listen_brush();
     t_listen_latched();

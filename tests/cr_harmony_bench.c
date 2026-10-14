@@ -17,9 +17,8 @@
  *   2. Function: one key held (Key Mode), each diatonic chord as the sounding chord
  *   3. Key reading: what key it hears after each chord of common progressions, against a musician's read
  *   4. Confirm feedback: play D, confirm PULL, confirm REST -- what it hears afterwards
- *   5. Harmony mode's map (what the UI plays now; 1-4 measure the retired Harmony Preview's suggestion engine): the
- *      layouts around each chord of a key, the same chord under other homes, where the left end and the right end
- *      lead when pressed again and again, and the voice leading of long walks
+ *   5. Harmony mode's lanes (what the UI plays now; 1-4 measure the retired Harmony Preview's suggestion engine): the
+ *      palette of each home key in its three voicing styles, the top line of a progression, the top notes' band
  *
  * The "musician's read" annotations are deliberately limited to progressions with an uncontroversial home; they
  * are expectations to argue with, not ground truth. */
@@ -228,183 +227,106 @@ static void print_sugg_json(const char *key, const sugg_t *s)
     printf("]");
 }
 
-/* ------------------------------------------------------------------ 5: the map --- */
-static void map_keys(uint8_t home, uint8_t scale, const chord_t *on, char *out, size_t n)   /* "Am F Cm .." (* home) */
-{
-    cr_hmap_t m;
-    int i;
-    size_t o = 0;
-    cr_harm_map(home, scale, on->pc, on->q, on->x, &m);
-    out[0] = 0;
-    for (i = 0; i < CR_HMAP_W && o + 12 < n; i++) {
-        char nm[24];
-        name_of(m.w[i].root_pc, m.w[i].quality, 0, nm, sizeof nm);
-        o += (size_t)snprintf(out + o, n - o, "%s%s%s", i ? " " : "", nm, m.w[i].home ? "*" : "");
-    }
-}
+/* ---------------------------------------------------------------- 5: the lanes --- */
 typedef struct {
-    int layouts[2];          /* different layouts across the 7 diatonic chords: C major, A minor */
-    int home_hist[9];        /* the left end pressed again and again: presses to reach home (8: not in 8) */
-    int home_max;
-    int right_distinct;      /* the right end pressed 24 times from C: different chords met */
-    int grad[CR_HMAP_W];     /* the white keys' mean tension (x10), over the 24 triads as the chord you are on */
-    double move;             /* walks: semitones a note moves per chord change */
-    int lo, hi, loop_lo, loop_hi;   /* walks: the lowest note's range; lowest note less the loop root's (range) */
-} mapstats_t;
+    double step[CR_HSTYLE_N];   /* the demo progression: semitones the top note moves a chord, by style */
+    int band[CR_HSTYLE_N];      /* every chord of every key: the top notes' spread (semitones), by style */
+    int same;                   /* 1: every key gives the same notes on a second press, whatever came between */
+} lanestats_t;
 
-static void map_section(mapstats_t *ms)
+static const char *const STYLE_NAME[CR_HSTYLE_N] = { "shell", "spread", "colour" };
+static void notes_str(const uint8_t *n, int c, char *out, size_t sz)
 {
-    static const char *const DIA[2][7] = { { "C", "Dm", "Em", "F", "G", "Am", "Bdim" },
-                                           { "Am", "Bdim", "C", "Dm", "Em", "F", "G" } };
-    static const uint8_t HOME[2] = { 0, 9 }, SCALE[2] = { CR_SCALE_MAJOR, CR_SCALE_MINOR };
-    char line[160], prev[160];
-    int s, j, i;
-    long moved = 0, changes = 0;
-    memset(ms, 0, sizeof *ms);
-    if (!json) printf("5. HARMONY MODE'S MAP: the white keys D4 .. G5 around the chord you are on, restful to pulling (* = home)\n\n");
-    else printf("\"map\":{\"layouts\":[");
-    for (s = 0; s < 2; s++) {
-        int nd = 0;
-        if (!json) printf("  home %s\n", s ? "A minor" : "C major");
-        for (j = 0; j < 7; j++) {
-            chord_t c;
-            parse_chord(DIA[s][j], &c);
-            map_keys(HOME[s], SCALE[s], &c, line, sizeof line);
-            if (j == 0 || strcmp(line, prev)) nd++;
-            if (!json) printf("  on %-5s %s\n", DIA[s][j], line);
-            else { printf("{"); jstr("home", s ? "Am" : "C", 1); jstr("on", DIA[s][j], 1); jstr("keys", line, 0);
-                   printf("}%s", s == 0 || j < 6 ? "," : ""); }
-            memcpy(prev, line, sizeof prev);
-        }
-        ms->layouts[s] = nd;
-        if (!json) printf("  -> %d different layouts across 7 chords\n\n", nd);
-    }
-    if (json) printf("],\"same_g\":[");
-    {   /* the same chord, G major, under the homes it belongs to */
-        static const struct { uint8_t home, scale; const char *name; } H[] = {
-            { 0, CR_SCALE_MAJOR, "C major (G = V)" }, { 7, CR_SCALE_MAJOR, "G major (G = I)" },
-            { 2, CR_SCALE_MAJOR, "D major (G = IV)" }, { 11, CR_SCALE_MINOR, "B minor (G = VI)" },
-            { 4, CR_SCALE_MINOR, "E minor (G = III)" }, { 0, CR_SCALE_MINOR, "C minor (G = V)" } };
-        chord_t g = { 7, CR_Q_MAJ, 0 };
-        if (!json) printf("  the same G major under six homes\n");
-        for (i = 0; i < (int)(sizeof H / sizeof H[0]); i++) {
-            map_keys(H[i].home, H[i].scale, &g, line, sizeof line);
-            if (!json) printf("  %-18s %s\n", H[i].name, line);
-            else { printf("{"); jstr("home", H[i].name, 1); jstr("keys", line, 0); printf("}%s", i < 5 ? "," : ""); }
+    static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    size_t o = 0;
+    int i;
+    out[0] = 0;
+    for (i = 0; i < c && o + 6 < sz; i++) o += (size_t)snprintf(out + o, sz - o, "%s%s%d", i ? " " : "", NN[n[i] % 12], n[i] / 12 - 1);
+}
+
+static void lanes_section(lanestats_t *ls)
+{
+    static const char *const WK[CR_HMAP_W] = { "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5", "F5", "G5" };
+    static const char *const BK[CR_HMAP_B] = { "D#4", "F#4", "G#4", "A#4", "C#5", "D#5", "F#5" };
+    static const int DEMO[] = { 3, 2, 1, 4, 8, 9, 0 };   /* Fmaj9 Em7 Am9 Dm9 G9sus G9 Cmaj9: G4 F4 E4 A4 E5 F5 D4 */
+    cr_hmap_t m;
+    int sc, i, st, t;
+    memset(ls, 0, sizeof *ls);
+    if (!json) printf("5. HARMONY MODE'S LANES: a fixed palette per home key, three voicing styles (* = home)\n\n");
+    else printf("\"lanes\":{\"keys\":[");
+    for (sc = 0; sc < 2; sc++) {
+        cr_harm_lanes(sc ? 9 : 0, (uint8_t)sc, &m);
+        if (!json) printf("  home %s            shell              spread                 colour\n", sc ? "A minor" : "C major");
+        for (i = 0; i < CR_HMAP_W + CR_HMAP_B; i++) {
+            const cr_hmap_chord_t *d = i < CR_HMAP_W ? &m.w[i] : &m.b[i - CR_HMAP_W];
+            char nm[24], v[CR_HSTYLE_N][40];
+            name_of(d->root_pc, d->quality, d->ext, nm, sizeof nm);
+            for (st = 0; st < CR_HSTYLE_N; st++) {
+                uint8_t n[CR_CHORD_MAX], r;
+                notes_str(n, cr_harm_voice_style(d, st, 0, n, &r), v[st], sizeof v[st]);
+            }
+            if (!json) printf("  %-4s %-10s%s  %-18s %-22s %s\n", i < CR_HMAP_W ? WK[i] : BK[i - CR_HMAP_W], nm,
+                              d->home ? "*" : " ", v[0], v[1], v[2]);
+            else { printf("{"); jstr("home", sc ? "Am" : "C", 1); jstr("key", i < CR_HMAP_W ? WK[i] : BK[i - CR_HMAP_W], 1);
+                   jstr("chord", nm, 1); jstr("shell", v[0], 1); jstr("spread", v[1], 1); jstr("colour", v[2], 0);
+                   printf("}%s", sc == 0 || i < CR_HMAP_W + CR_HMAP_B - 1 ? "," : ""); }
         }
         if (!json) printf("\n");
     }
-    {   /* the left end again and again: does it lead home? From each of the 24 major and minor triads, home C major */
-        int r, q;
-        ms->home_max = 0;
-        for (r = 0; r < 12; r++)
-            for (q = 0; q < 2; q++) {
-                uint8_t pc = (uint8_t)r, qq = q ? CR_Q_MIN : CR_Q_MAJ, x = 0;
-                int n = 0;
-                while (!(pc == 0 && qq == CR_Q_MAJ) && n < 8) {
-                    cr_hmap_t m;
-                    cr_harm_map(0, CR_SCALE_MAJOR, pc, qq, x, &m);
-                    pc = m.w[0].root_pc; qq = m.w[0].quality; x = 0;
-                    n++;
-                }
-                ms->home_hist[n]++;
-                if (n > ms->home_max) ms->home_max = n;
-            }
-        for (i = 0; i < CR_HMAP_W; i++) {   /* the white keys' tension, mean over the 24 triads (home C major) */
-            long t = 0;
-            for (r = 0; r < 24; r++) {
-                cr_hmap_t m;
-                cr_harm_map(0, CR_SCALE_MAJOR, (uint8_t)(r / 2), r & 1 ? CR_Q_MIN : CR_Q_MAJ, 0, &m);
-                t += m.w[i].tension;
-            }
-            ms->grad[i] = (int)(t * 10 / 24);
-        }
-    }
-    {   /* the right end again and again from C (home C major): where it wanders */
-        uint8_t pc = 0, q = CR_Q_MAJ, seen[24];
-        int n;
-        char walk[400];
+    cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+    if (!json) printf("  Fmaj9 Em7 Am9 Dm9 G9sus G9 Cmaj9 (G4 F4 E4 A4 E5 F5 D4), the top line by style:\n");
+    for (st = 0; st < CR_HSTYLE_N; st++) {
+        int prev = -1, moved = 0;
+        char line[160];
         size_t o = 0;
-        memset(seen, 0, sizeof seen);
-        walk[0] = 0;
-        for (n = 0; n < 24; n++) {
-            cr_hmap_t m; char nm[24];
-            cr_harm_map(0, CR_SCALE_MAJOR, pc, q, 0, &m);
-            pc = m.w[CR_HMAP_W - 1].root_pc; q = m.w[CR_HMAP_W - 1].quality;
-            if (q == CR_Q_MAJ || q == CR_Q_MIN) seen[pc * 2 + (q == CR_Q_MIN)] = 1;
-            name_of(pc, q, 0, nm, sizeof nm);
-            if (n < 12 && o + 8 < sizeof walk) o += (size_t)snprintf(walk + o, sizeof walk - o, " %s", nm);
+        line[0] = 0;
+        for (i = 0; i < (int)(sizeof DEMO / sizeof DEMO[0]); i++) {
+            uint8_t n[CR_CHORD_MAX], r;
+            int c = cr_harm_voice_style(&m.w[DEMO[i]], st, 0, n, &r);
+            char nn[8];
+            notes_str(&n[c - 1], 1, nn, sizeof nn);
+            o += (size_t)snprintf(line + o, sizeof line - o, "%s%s", i ? " " : "", nn);
+            if (prev >= 0) moved += n[c - 1] > prev ? n[c - 1] - prev : prev - n[c - 1];
+            prev = n[c - 1];
         }
-        for (n = 0; n < 24; n++) ms->right_distinct += seen[n];
-        if (!json) {
-            printf("  pressed again and again, home C major\n");
-            printf("  the left end (D4) from each of the 24 major / minor triads reaches home in:");
-            for (i = 0; i <= 8; i++) if (ms->home_hist[i]) printf(" %d press%s: %d,", i, i == 1 ? "" : "es", ms->home_hist[i]);
-            printf(" (8 = not within 8)\n");
-            printf("  the right end (G5) from C, 12 presses:%s .. (24 presses: %d different major / minor chords)\n", walk,
-                   ms->right_distinct);
-            printf("  the white keys' mean tension, left to right (x10):");
-            for (i = 0; i < CR_HMAP_W; i++) printf(" %d", ms->grad[i]);
-            printf("\n\n");
-        } else {
-            printf("],\"home_presses\":[");
-            for (i = 0; i <= 8; i++) printf("%d%s", ms->home_hist[i], i < 8 ? "," : "");
-            printf("],\"right_walk\":\"%s\",\"right_distinct\":%d,\"tension\":[", walk + 1, ms->right_distinct);
-            for (i = 0; i < CR_HMAP_W; i++) printf("%d%s", ms->grad[i], i < CR_HMAP_W - 1 ? "," : "");
-            printf("],");
-        }
+        ls->step[st] = (double)moved / (double)((int)(sizeof DEMO / sizeof DEMO[0]) - 1);
+        if (!json) printf("    %-7s %s  (%.1f semitones a chord)\n", STYLE_NAME[st], line, ls->step[st]);
     }
-    {   /* long walks: every key equally likely, every home and both scales, 6th with 7th both ways */
-        int t, six;
-        ms->lo = 127; ms->hi = 0; ms->loop_lo = 99; ms->loop_hi = -99;
-        for (six = 0; six <= 1; six++)
+    for (st = 0; st < CR_HSTYLE_N; st++) {      /* every chord of every key: the band the top notes stay in */
+        int lo = 127, hi = 0;
+        for (sc = 0; sc < 2; sc++)
             for (t = 0; t < 12; t++) {
-                uint8_t cur[CR_CHORD_MAX], pc = (uint8_t)t, q = CR_Q_MAJ, x = 0;
-                int n = cr_chord_base_ex(60 + t, CR_Q_MAJ, 0, six, cur), step;
-                uint32_t rng = 777u + (uint32_t)t;
-                for (step = 0; step < 2000; step++) {
-                    cr_hmap_t m; const cr_hmap_chord_t *d; uint8_t notes[CR_CHORD_MAX], base[CR_CHORD_MAX], root;
-                    int nv, k, a, b, dd;
-                    rng = rng * 1103515245u + 12345u;
-                    k = (int)((rng >> 16) % (CR_HMAP_W + CR_HMAP_B));
-                    cr_harm_map((uint8_t)t, (uint8_t)(step / 500 % 2), pc, q, x, &m);
-                    d = k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W];
-                    nv = cr_harm_voice(d, cur, n, six, 0, notes, &root);
-                    if (nv <= 0) continue;
-                    for (a = 0; a < nv; a++) {
-                        int best = 127;
-                        for (b = 0; b < n; b++) { int e = notes[a] > cur[b] ? notes[a] - cur[b] : cur[b] - notes[a]; if (e < best) best = e; }
-                        moved += best;
-                    }
-                    changes += nv;
-                    cr_chord_base_ex(root, d->quality, d->ext, six, base);
-                    dd = (int)notes[0] - (int)base[0];
-                    if (dd < ms->loop_lo) ms->loop_lo = dd;
-                    if (dd > ms->loop_hi) ms->loop_hi = dd;
-                    if (notes[0] < ms->lo) ms->lo = notes[0];
-                    if (notes[0] > ms->hi) ms->hi = notes[0];
-                    memcpy(cur, notes, (size_t)nv); n = nv;
-                    pc = d->root_pc; q = d->quality; x = d->ext;
+                cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+                for (i = 0; i < CR_HMAP_W + CR_HMAP_B; i++) {
+                    uint8_t n[CR_CHORD_MAX], r;
+                    int c = cr_harm_voice_style(i < CR_HMAP_W ? &m.w[i] : &m.b[i - CR_HMAP_W], st, 0, n, &r);
+                    if (n[c - 1] < lo) lo = n[c - 1];
+                    if (n[c - 1] > hi) hi = n[c - 1];
                 }
             }
-        ms->move = changes ? (double)moved / (double)changes : 0.0;
-        if (!json) {
-            printf("  long walks (48 000 chords, any key, every home): a note moves %.2f semitones a chord on average;\n", ms->move);
-            printf("  the lowest note stays in %d .. %d; a loop of the walk plays each chord from a root %+d .. %+d semitones\n",
-                   ms->lo, ms->hi, -ms->loop_hi, -ms->loop_lo);
-            printf("  from its lowest note (the looper keeps the root, not the inversion)\n\n");
-        } else {
-            printf("\"move\":%.3f,\"lo\":%d,\"hi\":%d,\"loop_lo\":%d,\"loop_hi\":%d},", ms->move, ms->lo, ms->hi, -ms->loop_hi,
-                   -ms->loop_lo);
-        }
+        ls->band[st] = hi - lo;
     }
+    ls->same = 1;                               /* (a pure function of the chord: checked, not assumed) */
+    {
+        uint8_t a[CR_CHORD_MAX], b[CR_CHORD_MAX], r;
+        int ca, cb;
+        cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+        ca = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, a, &r);
+        for (i = 0; i < CR_HMAP_W; i++) { uint8_t z[CR_CHORD_MAX]; cr_harm_voice_style(&m.w[i], CR_HSTYLE_COLOUR, 0, z, &r); }
+        cb = cr_harm_voice_style(&m.w[1], CR_HSTYLE_COLOUR, 0, b, &r);
+        if (ca != cb || memcmp(a, b, (size_t)ca)) ls->same = 0;
+    }
+    if (!json) printf("  top notes stay within %d (shell), %d (spread), %d (colour) semitones over every chord of every key;\n"
+                      "  a key gives the same notes every time: %s\n\n", ls->band[0], ls->band[1], ls->band[2], ls->same ? "yes" : "NO");
+    else printf("],\"step\":[%.2f,%.2f,%.2f],\"band\":[%d,%d,%d],\"same\":%d},", ls->step[0], ls->step[1], ls->step[2],
+                ls->band[0], ls->band[1], ls->band[2], ls->same);
 }
 
 int main(int argc, char **argv)
 {
     int i, differ = 0, differ_same_key = 0, same_key_pairs = 0, key_ok = 0, key_wrong_at3 = 0, self = 0, same_root = 0;
     int distinct[2] = { 0, 0 };
-    mapstats_t ms;
+    lanestats_t ms;
     json = argc > 1 && !strcmp(argv[1], "--json");
     if (json) printf("{");
 
@@ -522,7 +444,7 @@ int main(int argc, char **argv)
     }
 
     /* 5 ------------------------------------------------------------------------ */
-    map_section(&ms);
+    lanes_section(&ms);
 
     /* summary ------------------------------------------------------------------ */
     if (!json) {
@@ -535,19 +457,19 @@ int main(int argc, char **argv)
         printf("  progressions ending in the musician's key: %d of %d; first key held (after chord 3) wrong: %d of %d\n",
                key_ok, NCORPUS, key_wrong_at3, NCORPUS);
         /* the scorecard on one line (tests/run_cr_tests.sh shows it on every run) */
-        printf("  Harmony mode's map: %d of 7 layouts differ in C major, %d of 7 in A minor; the left end reaches home "
-               "from every triad within %d presses; a note moves %.2f semitones a chord\n", ms.layouts[0], ms.layouts[1],
-               ms.home_max, ms.move);
+        printf("  Harmony mode's lanes: top notes within %d / %d / %d semitones (shell / spread / colour), the demo's top "
+               "line moves %.1f / %.1f / %.1f a chord; the same notes every time: %s\n", ms.band[0], ms.band[1], ms.band[2],
+               ms.step[0], ms.step[1], ms.step[2], ms.same ? "yes" : "NO");
         printf("cr_harmony_bench: same-chord pairs differing %d/%d (same key %d/%d), function sets %d/7 + %d/7, "
-               "self %d/42 (same root %d), keys %d/%d; map layouts %d/7 + %d/7, home within %d, move %.2f\n", differ,
+               "self %d/42 (same root %d), keys %d/%d; lanes top band %d/%d/%d, repeatable %s\n", differ,
                NPAIRS, differ_same_key, same_key_pairs, distinct[0], distinct[1], self, same_root, key_ok, NCORPUS,
-               ms.layouts[0], ms.layouts[1], ms.home_max, ms.move);
+               ms.band[0], ms.band[1], ms.band[2], ms.same ? "yes" : "NO");
     } else {
         printf("\"summary\":{\"pairs\":%d,\"pairs_differ\":%d,\"same_key_pairs\":%d,\"same_key_differ\":%d,"
                "\"function_distinct\":%d,\"self\":%d,\"same_root\":%d,\"corpus\":%d,\"key_ok\":%d,\"wrong_at_3\":%d,"
-               "\"map_layouts\":%d,\"map_home_max\":%d}}\n",
+               "\"lanes_band_colour\":%d,\"lanes_same\":%d}}\n",
                NPAIRS, differ, same_key_pairs, differ_same_key, distinct[0] + distinct[1], self, same_root, NCORPUS, key_ok,
-               key_wrong_at3, ms.layouts[0] + ms.layouts[1], ms.home_max);
+               key_wrong_at3, ms.band[2], ms.same);
     }
     return 0;
 }

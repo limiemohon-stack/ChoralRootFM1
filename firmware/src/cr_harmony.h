@@ -3,14 +3,13 @@
 /* ChoralRoot FM-1: Harmony's pure engine. Portable C99, integer only, no allocation, no libc (stdint.h +
  * cr_engine.h for cr_chord_info_t, cr_chord_base_ex, cr_voice_apply), reusing the engine's own chord tables so a
  * "minor", "M7" or a voicing rotation here means exactly what it means everywhere else in ChoralRoot. Three parts:
- *  - the map (Harmony mode, the end of this file): the eleven white and seven black root keys laid out around the
- *    chord you are on, restful to pulling, each voiced near the sounding chord. cr_ui.c's L_HARM layer (LATCH
- *    held) plays it; a chord reaches the engine whole through the UI-to-audio queue (cr_out.c CRE_HSPEC, CRE_HNOTE,
+ *  - the lanes (Harmony mode, the end of this file): a fixed palette of jazz / neo-soul chords on the 18 root keys,
+ *    restful to pulling, in three voicing styles. cr_ui.c's L_HARM layer (LATCH held) plays it; a chord reaches the engine whole through the UI-to-audio queue (cr_out.c CRE_HSPEC, CRE_HNOTE,
  *    CRE_HKEY: cr_engine.c cr_key_chord);
  *  - the listener and the history: the chords the player strikes (cr_out.c's gesture ring, judged on the UI side);
  *  - the suggestion engine of the retired Harmony Preview (one REST / MOVE / PULL destination each, the Harmony
  *    Preview Edge Case Spec, revised 2026-10-13): kept with its tests and the musical benchmark
- *    (tests/cr_harmony_bench.c) as the reference the map was measured against; the UI no longer calls it.
+ *    (tests/cr_harmony_bench.c) as a reference; the UI no longer calls it.
  * No UI, no MIDI, no audio, and no notion of a UI-to-audio queue: this module only computes. */
 #ifndef CR_HARMONY_H
 #define CR_HARMONY_H
@@ -144,34 +143,33 @@ typedef struct {
  * calls (cr_harm_key_t is the caller's, updated separately by cr_harm_key_infer / cr_harm_key_explicit). */
 int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int sixth_up, cr_harm_result_t out[3]);
 
-/* ---------------------------------------------------------------- the map --- */
-/* Harmony mode (cr_ui.c's LATCH-held layer): the 18 root keys stop meaning C, D, E and mean "where could this chord
- * go". cr_harm_map lays out, for a HOME key and the chord you are ON, eleven destinations on the white roots
- * (D4 .. G5), ordered left to right from the most restful to the one that pulls hardest, and on each black root the
- * richer version of the white key just left of it (D#4 is D4's chord with sevenths and ninths). Play any key and
- * that chord becomes the one you are on: the map is laid out again around it, so the same key means "the most
- * restful place from HERE", wherever here is.
+/* --------------------------------------------------------------- the lanes --- */
+/* Harmony mode (cr_ui.c's LATCH-held layer): the 18 root keys stop meaning C, D, E and play a fixed palette of
+ * jazz / neo-soul chords on the HOME key. Fixed: a key plays the same chord, voiced the same way, every time, until
+ * home moves (OCT+ in the mode) or the voicing style changes (KNOB 1) -- so a chord you find is there when you
+ * come back to it, and the hands can learn where things are.
  *
- * The eleven (deterministic, a pure function of the home key and the current chord's identity -- its voicing
- * never changes which chords are offered, only how they are voiced):
- *   - the key's own chords first (major: the seven diatonic triads; minor: the natural minor's seven and the
- *     harmonic V), never the chord you are on;
- *   - the rest from colour chords -- borrowed (iv, bVI, bVII, bIII, i in major; I, IV, vii0 in minor), secondary
- *     dominants, bII, Vsus4, and the chord's own near neighbours (parallel, relative, leading-tone exchange,
- *     major-third mediants) -- those that move the fewest semitones from where you are, first.
- * Tension (the left-to-right order) is home-relative: notes shared with the home triad lower it; the leading tone,
- * the dominant tritone, notes outside the scale, a dominant or secondary-dominant function and a suspension raise
- * it. Context moves things: a chord that resolves the one you are on (V -> I, a secondary dominant -> its target,
- * vii0 -> I, sus -> its major, bII -> I; IV -> I a little) is pulled toward the restful end. */
+ * The eleven white roots (D4 .. G5) are the palette, restful on the left to pulling on the right. Major home (C):
+ *   Imaj9  vim9  iiim7  IVmaj9  iim9  ivm9  bVImaj9  bVII9  V9sus  V9  bII9
+ *   Cmaj9  Am9   Em7    Fmaj9   Dm9   Fm9   Abmaj9   Bb9    G9sus  G9  Db9
+ * Minor home (A):
+ *   im9  bVImaj9  bIIImaj9  ivm9  vm7  bVII9  iim7b5  IV9  V9sus  V7  bII9
+ *   Am9  Fmaj9    Cmaj9     Dm9   Em7  G9     Bm7b5   D9   E9sus  E7  Bb9
+ * The seven black roots are approach chords: each leans into the white root to its right (a secondary dominant,
+ * or a side-slip from a semitone above), so black then white is a move. Major (C): D#4 E7 (-> Am9), F#4 C9
+ * (-> Fmaj9), G#4 A9 (-> Dm9), A#4 Gbmaj7 (-> Fm9), C#5 F9 (-> Bb9), D#5 D9 (-> G9sus), F#5 Ab9 (-> Db9).
+ * Minor (A): C9, A9, B7, Abmaj7, Eb9, F9, F#m7b5.
+ *
+ * Every chord is one the engine names (no 13ths: cr_chord_name calls 6 + 7 + 9 "JAZZ"). */
 #define CR_HMAP_W 11             /* white roots D4 E4 F4 G4 A4 B4 C5 D5 E5 F5 G5 */
 #define CR_HMAP_B 7              /* black roots D#4 F#4 G#4 A#4 C#5 D#5 F#5 */
-extern const uint8_t CR_HMAP_BW[CR_HMAP_B];   /* black root i plays the richer version of white root CR_HMAP_BW[i] */
+extern const uint8_t CR_HMAP_BW[CR_HMAP_B];   /* black root i sits just right of white root CR_HMAP_BW[i] */
 
 enum { CR_HCAT_DIATONIC, CR_HCAT_NEAR, CR_HCAT_BORROWED, CR_HCAT_SECDOM, CR_HCAT_CHROMATIC };
 typedef struct {
     uint8_t root_pc, quality, ext;
-    uint8_t cat;                 /* CR_HCAT_*: why it is on the map (CR_HCAT_DIATONIC: one of the home key's own) */
-    int8_t tension;              /* the order's key, doubled units: lower = more restful (may be negative) */
+    uint8_t cat;                 /* CR_HCAT_DIATONIC: every note in the home scale; else CR_HCAT_CHROMATIC */
+    int8_t tension;              /* its place, 0 = the most restful (white) / the white root it leans into (black) */
     uint8_t home;                /* 1: the home chord itself (the way home) */
 } cr_hmap_chord_t;
 typedef struct {
@@ -180,17 +178,18 @@ typedef struct {
     cr_hmap_chord_t b[CR_HMAP_B];
 } cr_hmap_t;
 
-/* The map around the chord you are on (cur_quality CR_Q_NONE, a single note, is taken as its major triad).
- * Never fails: eleven distinct white chords, none of them the current chord (same root and quality). */
-void cr_harm_map(uint8_t home_pc, uint8_t home_scale, uint8_t cur_pc, uint8_t cur_quality, uint8_t cur_ext,
-                 cr_hmap_t *map);
-/* Voice one map chord as close as possible to the sounding notes src[0..nsrc) (the minimum-movement alignment
- * cr_harm_suggest uses, over the rotations of the chord's own shape), kept near the middle of the keyboard (lowest
- * note 48..72, moved by shift semitones: the player's octave, 12 an OCT step) so a long walk does not drift out of
- * range. Fills notes[] low to high and root_note: the chord's root in the octave whose plain chord lies nearest the
- * voicing (a looper records the root and plays its chords at the live voicing: a loop of a walk keeps its
- * register). Returns the note count (0: nothing unclipped exists). */
-int cr_harm_voice(const cr_hmap_chord_t *d, const uint8_t *src, int nsrc, int sixth_up, int shift,
-                  uint8_t notes[CR_CHORD_MAX], uint8_t *root_note);
+void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map);
+
+/* Voicing styles (KNOB 1 in the mode). Each is a pure function of the chord: no previous chord is consulted.
+ *   SHELL   root low, then the 3rd and 7th (the guide tones): three notes, the top near E4
+ *   SPREAD  root low, the 7th, the 3rd, the 9th (or the 5th) on top: open, about two octaves
+ *   COLOUR  root low, then the 3rd, 5th, 7th and 9th in close position as one hand would, the top near A4
+ * The root sits in E2 .. D#3, the upper notes about C3 .. C5; shift (the player's octave, 12 an OCT step) moves
+ * it all. Because every chord's top note lands in the same narrow band, moving between keys makes a line of small
+ * steps on top. root_note is the root in the octave of the upper notes: what a looper records (it plays chords at
+ * the live voicing). Returns the note count (3 .. 5). */
+enum { CR_HSTYLE_SHELL, CR_HSTYLE_SPREAD, CR_HSTYLE_COLOUR, CR_HSTYLE_N };
+int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t notes[CR_CHORD_MAX],
+                        uint8_t *root_note);
 
 #endif

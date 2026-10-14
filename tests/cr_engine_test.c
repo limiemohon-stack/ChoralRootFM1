@@ -2052,7 +2052,7 @@ static void s_fixedchord(void)
     cr_set_transpose(&C, 0);
     cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
     cr_key_chord(&C, 62, 0, 100, 62, CR_Q_MIN, 0, DM, 3);
-    expect("+60/100 +64/100 +67/100 -60 -64 -67 +62/100 +65/100 +69/100", "given whole: the same key again replaces its chord");
+    expect("+60/100 +64/100 +67/100 +62/100 +65/100 +69/100 -60 -64 -67", "given whole: the same key again replaces its chord (the new one first)");
     R(62, 1); clear();
     cr_set_sticky(&C, 1);                           /* LATCH */
     cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
@@ -2060,7 +2060,7 @@ static void s_fixedchord(void)
     ok(sounding() == 3 && cr_voices(&C) == 1, "given whole + LATCH: it sounds on after its key comes up");
     clear();
     cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
-    expect("-60 -64 -67 +57/100 +60/100 +64/100", "given whole + LATCH: the next chord replaces the latched one");
+    expect("+57/100 -67", "given whole + LATCH: the next chord replaces the latched one; C4 and E4, shared, ring on (no cut, no new strike)");
     R(64, 1);
     cr_set_sticky(&C, 0);
     ok(sounding() == 0, "given whole: LATCH off releases it");
@@ -2070,6 +2070,15 @@ static void s_fixedchord(void)
     ok(count('+', 1) == 1, "given whole: the bass follows it");
     R(62, 1);
     cr_set_bass(&C, 0);
+    step(50); clear();
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);          /* legato: Am given whole while C major is held */
+    clear();
+    cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
+    expect("+57/100", "given whole, legato: Am over a held C major strikes only A3 (C4, E4 tied over)");
+    R(62, 1);
+    expect("-67", "given whole, legato: C major let go: only G4 ends (C4, E4 are Am's too)");
+    R(64, 1);
+    expect("-57 -60 -64", "given whole, legato: Am let go: its three notes end");
     step(50); clear();
     cr_key_chord(&C, 62, 0, 100, 200, CR_Q_MAJ, 0, CM, 3);
     cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, BAD, 3);

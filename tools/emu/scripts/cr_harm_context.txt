@@ -1,11 +1,11 @@
-# Harmony mode's context on the real keys (the handover's "the same chord after different progressions"): the map
-# around a chord is decided by home and the chord you are on, never by the way you came (predictable), and the same
-# chord under another home lays out differently (context). Key Mode off; each key held 400 ms, 150 ms apart.
-#  A. C major (MAJ + C5), LATCH held (home C major); E5: G major (straight from C)
-#  B. D4: back to C (G's most restful place under home C); D4: A minor; E5: G major (by way of A minor)
-#  C. MAJ + G4: G major played by hand (a chord key held: the map follows it)
-#  D. OCT+: G major is home: the same G, a new map; OCT-, PANIC
-# The emulator's log has one "harm: .." line per chord: tools/emu/test_cr.sh compares the keys of A, B, C and D.
+# Harmony mode's context on the real keys (the handover's "the same chord after different progressions", and the
+# owner's "when I found something and went back, the notes would change"): a key plays the same notes whatever came
+# before it, and only moving home changes the palette. Key Mode off; each key held 400 ms, 150 ms apart.
+#  A. C major (MAJ + C5), LATCH held (home C major); A4 (Dm9), then F5 (G9): dump
+#  B. G#4 (A9), E4 (Am9), then F5 (G9) again: dump (the same notes as A)
+#  C. MAJ + G4 (G major by hand), then F5: dump (the same again)
+#  D. OCT+ on G9: home G major, a new palette: F5 is now D9; OCT-, PANIC
+# tools/emu/test_cr.sh compares the three F5 dumps and the keys before and after D.
 wait 500
 btn A#3 down
 wait 40
@@ -16,22 +16,28 @@ btn A#3 up
 wait 300
 btn LFO 600
 wait 200
-btn E5 down
+btn A4 down
 wait 400
-btn E5 up
+btn A4 up
+wait 150
+btn F5 down
+wait 400
+dump
+btn F5 up
 wait 150
 shot build/emu/test/cr_harm_ctx_a.ppm
-btn D4 down
+btn G#4 down
 wait 400
-btn D4 up
+btn G#4 up
 wait 150
-btn D4 down
+btn E4 down
 wait 400
-btn D4 up
+btn E4 up
 wait 150
-btn E5 down
+btn F5 down
 wait 400
-btn E5 up
+dump
+btn F5 up
 wait 150
 shot build/emu/test/cr_harm_ctx_b.ppm
 btn A#3 down
@@ -40,9 +46,19 @@ btn G4 down
 wait 400
 btn G4 up
 btn A#3 up
-wait 300
+wait 150
+btn F5 down
+wait 400
+dump
+btn F5 up
+wait 150
 btn OCT+
 wait 300
+btn F5 down
+wait 400
+dump
+btn F5 up
+wait 150
 shot build/emu/test/cr_harm_ctx_c.ppm
 btn OCT-
 wait 300

@@ -491,215 +491,116 @@ int cr_harm_suggest(const cr_harm_key_t *key, const cr_chord_info_t *source, int
     return 1;
 }
 
-/* ===================================================================== the map === */
-/* the black roots D#4 F#4 G#4 A#4 C#5 D#5 F#5: the white roots left of them, D4 F4 G4 A4 C5 D5 F5 */
-const uint8_t CR_HMAP_BW[CR_HMAP_B] = { 0, 2, 3, 4, 6, 7, 9 };
+/* =================================================================== the lanes === */
+const uint8_t CR_HMAP_BW[CR_HMAP_B] = { 0, 2, 3, 4, 6, 7, 9 };   /* D#4 F#4 G#4 A#4 C#5 D#5 F#5 */
 
-typedef struct { uint8_t semi, quality, cat; } crh_pool_t;      /* a chord on the home key, semitones above its tonic */
-static const crh_pool_t CRH_POOL_MAJOR[] = {
-    { 0, CR_Q_MAJ, CR_HCAT_DIATONIC }, { 2, CR_Q_MIN, CR_HCAT_DIATONIC }, { 4, CR_Q_MIN, CR_HCAT_DIATONIC },
-    { 5, CR_Q_MAJ, CR_HCAT_DIATONIC }, { 7, CR_Q_MAJ, CR_HCAT_DIATONIC }, { 9, CR_Q_MIN, CR_HCAT_DIATONIC },
-    { 11, CR_Q_DIM, CR_HCAT_DIATONIC },
-    { 5, CR_Q_MIN, CR_HCAT_BORROWED }, { 8, CR_Q_MAJ, CR_HCAT_BORROWED }, { 10, CR_Q_MAJ, CR_HCAT_BORROWED },
-    { 3, CR_Q_MAJ, CR_HCAT_BORROWED }, { 0, CR_Q_MIN, CR_HCAT_BORROWED },
-    { 2, CR_Q_MAJ, CR_HCAT_SECDOM }, { 4, CR_Q_MAJ, CR_HCAT_SECDOM }, { 9, CR_Q_MAJ, CR_HCAT_SECDOM },
-    { 11, CR_Q_MAJ, CR_HCAT_SECDOM },
-    { 1, CR_Q_MAJ, CR_HCAT_CHROMATIC }, { 7, CR_Q_SUS, CR_HCAT_CHROMATIC },
+typedef struct { uint8_t semi, quality, ext; } crh_lane_t;       /* a chord on the home key: semitones above it */
+#define CRH_MAJ9 (CR_EXT_MAJ7 | CR_EXT_9)
+#define CRH_DOM9 (CR_EXT_M7 | CR_EXT_9)
+static const crh_lane_t CRH_LANES[2][CR_HMAP_W] = {
+    { { 0, CR_Q_MAJ, CRH_MAJ9 }, { 9, CR_Q_MIN, CRH_DOM9 }, { 4, CR_Q_MIN, CR_EXT_M7 }, { 5, CR_Q_MAJ, CRH_MAJ9 },
+      { 2, CR_Q_MIN, CRH_DOM9 }, { 5, CR_Q_MIN, CRH_DOM9 }, { 8, CR_Q_MAJ, CRH_MAJ9 }, { 10, CR_Q_MAJ, CRH_DOM9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CRH_DOM9 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
+    { { 0, CR_Q_MIN, CRH_DOM9 }, { 8, CR_Q_MAJ, CRH_MAJ9 }, { 3, CR_Q_MAJ, CRH_MAJ9 }, { 5, CR_Q_MIN, CRH_DOM9 },
+      { 7, CR_Q_MIN, CR_EXT_M7 }, { 10, CR_Q_MAJ, CRH_DOM9 }, { 2, CR_Q_DIM, CR_EXT_M7 }, { 5, CR_Q_MAJ, CRH_DOM9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CR_EXT_M7 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
 };
-static const crh_pool_t CRH_POOL_MINOR[] = {
-    { 0, CR_Q_MIN, CR_HCAT_DIATONIC }, { 2, CR_Q_DIM, CR_HCAT_DIATONIC }, { 3, CR_Q_MAJ, CR_HCAT_DIATONIC },
-    { 5, CR_Q_MIN, CR_HCAT_DIATONIC }, { 7, CR_Q_MIN, CR_HCAT_DIATONIC }, { 8, CR_Q_MAJ, CR_HCAT_DIATONIC },
-    { 10, CR_Q_MAJ, CR_HCAT_DIATONIC }, { 7, CR_Q_MAJ, CR_HCAT_DIATONIC },          /* (V: the harmonic minor's) */
-    { 11, CR_Q_DIM, CR_HCAT_BORROWED }, { 0, CR_Q_MAJ, CR_HCAT_BORROWED }, { 5, CR_Q_MAJ, CR_HCAT_BORROWED },
-    { 2, CR_Q_MAJ, CR_HCAT_SECDOM },
-    { 1, CR_Q_MAJ, CR_HCAT_CHROMATIC }, { 7, CR_Q_SUS, CR_HCAT_CHROMATIC },
+static const crh_lane_t CRH_APPROACH[2][CR_HMAP_B] = {   /* each leans into the white root to its right */
+    { { 4, CR_Q_MAJ, CR_EXT_M7 }, { 0, CR_Q_MAJ, CRH_DOM9 }, { 9, CR_Q_MAJ, CRH_DOM9 }, { 6, CR_Q_MAJ, CR_EXT_MAJ7 },
+      { 5, CR_Q_MAJ, CRH_DOM9 }, { 2, CR_Q_MAJ, CRH_DOM9 }, { 8, CR_Q_MAJ, CRH_DOM9 } },
+    { { 3, CR_Q_MAJ, CRH_DOM9 }, { 0, CR_Q_MAJ, CRH_DOM9 }, { 2, CR_Q_MAJ, CR_EXT_M7 }, { 11, CR_Q_MAJ, CR_EXT_MAJ7 },
+      { 6, CR_Q_MAJ, CRH_DOM9 }, { 8, CR_Q_MAJ, CRH_DOM9 }, { 9, CR_Q_DIM, CR_EXT_M7 } },
 };
-#define CRH_NPOOL_MAJOR (int)(sizeof CRH_POOL_MAJOR / sizeof CRH_POOL_MAJOR[0])
-#define CRH_NPOOL_MINOR (int)(sizeof CRH_POOL_MINOR / sizeof CRH_POOL_MINOR[0])
 
-static int crh_pcdist(int a, int b) { int d = ((a - b) % 12 + 12) % 12; return d > 6 ? 12 - d : d; }
-/* semitones moved between two pitch-class sets: every note of each to the nearest note of the other, both ways (a
- * shared note moves 0). Voicing-free, so which chords are offered never depends on how the current one is voiced */
-static int crh_vl(unsigned a, unsigned b)
+/* the chord's intervals above its root by role */
+typedef struct { int third, fifth, seventh, ninth; } crh_shape_t;   /* seventh: 7th, or 6th, or -1; ninth: or -1 */
+static crh_shape_t crh_shape(uint8_t q, uint8_t ext)
 {
-    int s = 0, i, j;
-    for (i = 0; i < 12; i++) {
-        int ina = (int)((a >> i) & 1u), inb = (int)((b >> i) & 1u), best = 12;
-        if (!ina && !inb) continue;
-        for (j = 0; j < 12; j++)
-            if ((((ina ? b : a) >> j) & 1u) && crh_pcdist(i, j) < best) best = crh_pcdist(i, j);
-        s += (ina ? best : 0) + (inb ? best : 0);
-    }
+    crh_shape_t s;
+    s.third = q == CR_Q_MIN || q == CR_Q_DIM ? 3 : q == CR_Q_SUS ? 5 : 4;
+    s.fifth = q == CR_Q_DIM ? 6 : q == CR_Q_AUG ? 8 : 7;
+    s.seventh = (ext & CR_EXT_MAJ7) ? 11 : (ext & CR_EXT_M7) ? 10 : (ext & CR_EXT_6) ? 9 : -1;
+    s.ninth = (ext & CR_EXT_9) ? 14 : -1;
     return s;
 }
 
-/* a major chord with a chromatic third, a fifth above one of the home key's major or minor chords (not the tonic:
- * that is V itself) */
-static int crh_is_secdom(uint8_t t, uint8_t scale, unsigned smask, uint8_t root, uint8_t q)
+static void crh_lane_fill(uint8_t t, uint8_t s, const crh_lane_t *l, int place, cr_hmap_chord_t *d)
 {
-    static const uint8_t TG_MAJ[6] = { 0, 2, 4, 5, 7, 9 }, TG_MIN[6] = { 0, 3, 5, 7, 8, 10 };
-    const uint8_t *tg = scale == CR_SCALE_MINOR ? TG_MIN : TG_MAJ;
-    int i, target = (root + 5) % 12;
-    if (q != CR_Q_MAJ || ((smask >> ((root + 4) % 12)) & 1u)) return 0;
-    for (i = 1; i < 6; i++) if ((t + tg[i]) % 12 == target) return 1;
-    return 0;
+    unsigned scale = crh_scale_mask_at(t, s), pcs;
+    d->root_pc = (uint8_t)((t + l->semi) % 12);
+    d->quality = l->quality;
+    d->ext = l->ext;
+    pcs = crh_pcset_at(d->root_pc, d->quality, d->ext);
+    d->cat = (uint8_t)((pcs & ~scale) ? CR_HCAT_CHROMATIC : CR_HCAT_DIATONIC);
+    d->tension = (int8_t)place;
+    d->home = (uint8_t)(place == 0 && l->semi == 0 && l == &CRH_LANES[s == CR_SCALE_MINOR][0]);
 }
 
-/* home-relative tension, doubled units (see cr_harmony.h) */
-static int crh_tension(uint8_t t, uint8_t scale, unsigned smask, uint8_t root, uint8_t q)
+void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map)
 {
-    unsigned pcs = crh_pcset_at(root, q, 0), tri = crh_pcset_at(t, scale == CR_SCALE_MINOR ? CR_Q_MIN : CR_Q_MAJ, 0);
-    unsigned lt = 1u << ((t + 11u) % 12u), f4 = 1u << ((t + 5u) % 12u);
-    int x = 2 * (3 - crh_popcount12(pcs & tri));
-    if (x < 0) x = 0;
-    if (pcs & lt) x += 4;                                       /* the leading tone */
-    if ((pcs & lt) && (pcs & f4)) x += 4;                       /* .. with the 4th: the dominant tritone */
-    x += 3 * crh_popcount12(pcs & ~smask);                      /* notes outside the scale */
-    if (q == CR_Q_MAJ && root == (t + 7) % 12) x += 4;          /* the home dominant */
-    if (crh_is_secdom(t, scale, smask, root, q)) x += 4;        /* a secondary dominant */
-    if (q == CR_Q_SUS) x += 4;                                  /* a suspension */
-    return x;
-}
-
-/* how strongly destination d resolves the chord you are on: subtracted from d's tension */
-static int crh_resolves(uint8_t t, uint8_t scale, unsigned smask, uint8_t cr, uint8_t cq, uint8_t cx, uint8_t dr,
-                        uint8_t dq)
-{
-    int dominant = cq == CR_Q_MAJ && ((cx & CR_EXT_M7) || cr == (t + 7) % 12 || crh_is_secdom(t, scale, smask, cr, cq));
-    if (cq == CR_Q_DIM && dr == (cr + 1) % 12 && dq != CR_Q_DIM) return 6;      /* vii0 -> its tonic */
-    if (cq == CR_Q_SUS && dr == cr && dq == CR_Q_MAJ) return 6;                /* a sus -> its own major */
-    if (dominant && dr == (cr + 5) % 12 && dq != CR_Q_DIM) return 6;           /* V -> I, V/x -> x */
-    if (cq == CR_Q_MAJ && cr == (t + 1) % 12 && dr == t) return 4;             /* bII -> I */
-    if (cr == (t + 5) % 12 && (cq == CR_Q_MAJ || cq == CR_Q_MIN) && dr == t) return 2;   /* IV / iv -> I (plagal) */
-    return 0;
-}
-
-typedef struct { uint8_t root, rel, q, cat; int16_t ten, vl; } crh_cand_map_t;   /* rel: root above the home tonic */
-
-/* a before b in the final left-to-right order */
-static int crh_map_before(const crh_cand_map_t *a, const crh_cand_map_t *b)
-{
-    if (a->ten != b->ten) return a->ten < b->ten;
-    if (a->vl != b->vl) return a->vl < b->vl;
-    if (a->rel != b->rel) return a->rel < b->rel;   /* (relative to home: every key lays out alike) */
-    return a->q < b->q;
-}
-/* a before b in the colour chords' selection: the nearest first */
-static int crh_pick_before(const crh_cand_map_t *a, const crh_cand_map_t *b)
-{
-    if (a->vl != b->vl) return a->vl < b->vl;
-    if (a->cat != b->cat) return a->cat < b->cat;
-    return crh_map_before(a, b);
-}
-
-static void crh_enrich(uint8_t t, uint8_t scale, unsigned smask, const cr_hmap_chord_t *w, cr_hmap_chord_t *b)
-{
-    *b = *w;
-    switch (w->quality) {
-    case CR_Q_MAJ:                                  /* dominant function: a 9th chord; otherwise maj9 */
-        b->ext = (uint8_t)((w->root_pc == (t + 7) % 12 || crh_is_secdom(t, scale, smask, w->root_pc, CR_Q_MAJ))
-                           ? (CR_EXT_M7 | CR_EXT_9) : (CR_EXT_MAJ7 | CR_EXT_9));
-        break;
-    case CR_Q_MIN: b->ext = (uint8_t)(CR_EXT_M7 | CR_EXT_9); break;   /* m9 */
-    case CR_Q_DIM: b->ext = CR_EXT_M7; break;                         /* half-diminished */
-    case CR_Q_SUS: b->ext = (uint8_t)(CR_EXT_M7 | CR_EXT_9); break;   /* 9sus4 */
-    default: b->ext = CR_EXT_9; break;
-    }
-}
-
-void cr_harm_map(uint8_t home_pc, uint8_t home_scale, uint8_t cur_pc, uint8_t cur_quality, uint8_t cur_ext,
-                 cr_hmap_t *map)
-{
-    crh_cand_map_t c[32], sel[CR_HMAP_W];
-    int nc = 0, ns = 0, i, j, npool;
-    const crh_pool_t *pool;
     uint8_t t = (uint8_t)(home_pc % 12u), s = home_scale == CR_SCALE_MINOR ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
-    uint8_t cr = (uint8_t)(cur_pc % 12u), cq = cur_quality == CR_Q_NONE ? CR_Q_MAJ : cur_quality;
-    unsigned smask = crh_scale_mask_at(t, s), cur_pcs = crh_pcset_at(cr, cq, cur_quality == CR_Q_NONE ? 0 : cur_ext);
-    uint8_t near_r[5], near_q[5];
-    int nnear = 0;
-    if (s == CR_SCALE_MINOR) { pool = CRH_POOL_MINOR; npool = CRH_NPOOL_MINOR; }
-    else { pool = CRH_POOL_MAJOR; npool = CRH_NPOOL_MAJOR; }
-    if (cq == CR_Q_MAJ) {               /* the chord's own neighbours: P, R, L, the major-third mediants */
-        near_r[0] = cr; near_q[0] = CR_Q_MIN;
-        near_r[1] = (uint8_t)((cr + 9) % 12); near_q[1] = CR_Q_MIN;
-        near_r[2] = (uint8_t)((cr + 4) % 12); near_q[2] = CR_Q_MIN;
-        near_r[3] = (uint8_t)((cr + 4) % 12); near_q[3] = CR_Q_MAJ;
-        near_r[4] = (uint8_t)((cr + 8) % 12); near_q[4] = CR_Q_MAJ;
-        nnear = 5;
-    } else if (cq == CR_Q_MIN) {
-        near_r[0] = cr; near_q[0] = CR_Q_MAJ;
-        near_r[1] = (uint8_t)((cr + 3) % 12); near_q[1] = CR_Q_MAJ;
-        near_r[2] = (uint8_t)((cr + 8) % 12); near_q[2] = CR_Q_MAJ;
-        near_r[3] = (uint8_t)((cr + 4) % 12); near_q[3] = CR_Q_MIN;
-        near_r[4] = (uint8_t)((cr + 8) % 12); near_q[4] = CR_Q_MIN;
-        nnear = 5;
-    }
-    for (i = 0; i < npool + nnear; i++) {      /* the candidates: the pool, then the neighbours; a repeat keeps the
-                                                  * first category it was seen under (the pool's: more specific) */
-        uint8_t r = i < npool ? (uint8_t)((t + pool[i].semi) % 12) : near_r[i - npool];
-        uint8_t q = i < npool ? pool[i].quality : near_q[i - npool];
-        uint8_t cat = i < npool ? pool[i].cat : (uint8_t)CR_HCAT_NEAR;
-        int dup = 0;
-        if (r == cr && q == cq) continue;      /* never the chord you are on */
-        for (j = 0; j < nc; j++) if (c[j].root == r && c[j].q == q) { dup = 1; break; }
-        if (dup) continue;
-        c[nc].root = r; c[nc].rel = (uint8_t)((r + 12 - t) % 12); c[nc].q = q; c[nc].cat = cat;
-        c[nc].ten = (int16_t)(crh_tension(t, s, smask, r, q) - crh_resolves(t, s, smask, cr, cq, cur_ext, r, q));
-        c[nc].vl = (int16_t)crh_vl(cur_pcs, crh_pcset_at(r, q, 0));
-        nc++;
-    }
-    for (i = 0; i < nc && ns < CR_HMAP_W; i++)  /* the home key's own chords, all of them */
-        if (c[i].cat == CR_HCAT_DIATONIC) sel[ns++] = c[i];
-    while (ns < CR_HMAP_W) {                    /* the colour chords, nearest first */
-        int best = -1;
-        for (i = 0; i < nc; i++) {
-            if (c[i].cat == CR_HCAT_DIATONIC || c[i].cat == 0xFF) continue;
-            if (best < 0 || crh_pick_before(&c[i], &c[best])) best = i;
-        }
-        if (best < 0) break;                    /* (cannot happen: the pools hold more than eleven) */
-        sel[ns++] = c[best];
-        c[best].cat = 0xFF;                     /* (taken) */
-    }
-    for (i = 1; i < ns; i++)                    /* left to right: restful .. pulling */
-        for (j = i; j > 0 && crh_map_before(&sel[j], &sel[j - 1]); j--) {
-            crh_cand_map_t x = sel[j]; sel[j] = sel[j - 1]; sel[j - 1] = x;
-        }
+    int i;
     map->home_pc = t;
     map->home_scale = s;
-    for (i = 0; i < CR_HMAP_W; i++) {
-        cr_hmap_chord_t *w = &map->w[i];
-        w->root_pc = sel[i].root; w->quality = sel[i].q; w->ext = 0;
-        w->cat = sel[i].cat == 0xFF ? (uint8_t)CR_HCAT_NEAR : sel[i].cat;
-        w->tension = (int8_t)sel[i].ten;
-        w->home = (uint8_t)(sel[i].root == t && sel[i].q == (s == CR_SCALE_MINOR ? CR_Q_MIN : CR_Q_MAJ));
-    }
-    for (i = 0; i < CR_HMAP_B; i++) crh_enrich(t, s, smask, &map->w[CR_HMAP_BW[i]], &map->b[i]);
+    for (i = 0; i < CR_HMAP_W; i++) crh_lane_fill(t, s, &CRH_LANES[s][i], i, &map->w[i]);
+    for (i = 0; i < CR_HMAP_B; i++) crh_lane_fill(t, s, &CRH_APPROACH[s][i], CR_HMAP_BW[i] + 1, &map->b[i]);
 }
 
-int cr_harm_voice(const cr_hmap_chord_t *d, const uint8_t *src, int nsrc, int sixth_up, int shift,
-                  uint8_t notes[CR_CHORD_MAX], uint8_t *root_note)
+/* the lowest note at or above lo with the pitch class of root + iv */
+static int crh_place(int root, int iv, int lo)
 {
-    int n = 0, j, best_cost = -1;
-    int8_t rot;
-    if (shift < -36) shift = -36;
-    if (shift > 36) shift = 36;
-    if (!crh_search_voicing(d->root_pc, d->quality, d->ext, sixth_up, src, nsrc, 48 + shift, 72 + shift, notes, &n,
-                            root_note, &rot))
-        return 0;
-    /* the root the looper records: the octave whose plain chord is nearest the voicing (the search's own root can be
-     * an octave or more away from it: a spread shape reached by a long rotation) */
-    for (j = -1; j <= 1; j++) {
-        uint8_t base[CR_CHORD_MAX];
-        int r = crh_root_near(d->root_pc, notes[0]) + 12 * j, nb, cost, e, a, rm, mv;
-        if (r < 0 || r > 127) continue;
-        nb = cr_chord_base_ex(r, d->quality, d->ext, sixth_up, base);
-        if (nb != n) continue;                      /* (clipped at this octave) */
-        cost = crh_align(notes, n, base, nb, &e, &a, &rm, &mv);
-        if (best_cost < 0 || cost < best_cost) {
-            best_cost = cost;
-            *root_note = (uint8_t)r;
+    int pc = (root + iv) % 12, n = lo + ((pc - lo % 12) % 12 + 12) % 12;
+    return n;
+}
+static int crh_abs(int x) { return x < 0 ? -x : x; }
+
+int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, uint8_t notes[CR_CHORD_MAX],
+                        uint8_t *root_note)
+{
+    crh_shape_t sh = crh_shape(d->quality, d->ext);
+    int r = d->root_pc, n = 0, i, bass, up[4], nu = 0;
+    int guide2 = sh.seventh >= 0 ? sh.seventh : sh.fifth;
+    if (shift < -24) shift = -24;
+    if (shift > 24) shift = 24;
+    bass = crh_place(r, 0, 40 + shift);                      /* E2 .. D#3 */
+    notes[n++] = (uint8_t)bass;
+    if (style == CR_HSTYLE_SHELL) {                          /* the 3rd and 7th, the order that tops nearest E4 */
+        int best = -1, ba = 0, bb = 0, o;
+        for (o = 0; o < 2; o++) {
+            int a = crh_place(r, o ? sh.third : guide2, 52 + shift);
+            int b = crh_place(r, o ? guide2 : sh.third, a + 1);
+            int cost = crh_abs(b - (64 + shift));
+            if (best < 0 || cost < best) { best = cost; ba = a; bb = b; }
         }
+        notes[n++] = (uint8_t)ba;
+        notes[n++] = (uint8_t)bb;
+    } else if (style == CR_HSTYLE_SPREAD) {                  /* 7th (or 5th), 3rd, then the 9th (or 5th) on top */
+        int top = sh.ninth >= 0 ? sh.ninth : (guide2 == sh.fifth ? 0 : sh.fifth);
+        int a = crh_place(r, guide2, (50 + shift > bass ? 50 + shift : bass + 1));
+        int b = crh_place(r, sh.third, a + 1);
+        int c = crh_place(r, top, b + 1 > 64 + shift ? b + 1 : 64 + shift);   /* (the top at least E4: open, not low) */
+        if (c > 74 + shift) {                                /* (too high: the colour tone tucks under the 3rd) */
+            int c2 = crh_place(r, top, a + 1);
+            if (c2 < b) { c = b; b = c2; }
+        }
+        notes[n++] = (uint8_t)a;
+        notes[n++] = (uint8_t)b;
+        notes[n++] = (uint8_t)c;
+    } else {                                                 /* close position, the top nearest A4 */
+        int best = -1, bl = 0, k, ivs[4];
+        ivs[nu++] = sh.third;
+        ivs[nu++] = sh.fifth;
+        if (sh.seventh >= 0) ivs[nu++] = sh.seventh;
+        ivs[nu++] = sh.ninth >= 0 ? sh.ninth : 12;           /* (no 9th: the root again, on top) */
+        for (k = 0; k < nu; k++) {                           /* each member as the lowest of the stack */
+            int lo = crh_place(r, ivs[k], 55 + shift), top = lo, m;
+            for (m = 1; m < nu; m++) top = crh_place(r, ivs[(k + m) % nu], top + 1);
+            if (best < 0 || crh_abs(top - (69 + shift)) < best) { best = crh_abs(top - (69 + shift)); bl = k; }
+        }
+        up[0] = crh_place(r, ivs[bl], 55 + shift);
+        for (i = 1; i < nu; i++) up[i] = crh_place(r, ivs[(bl + i) % nu], up[i - 1] + 1);
+        for (i = 0; i < nu; i++) notes[n++] = (uint8_t)up[i];
     }
+    *root_note = (uint8_t)crh_place(r, 0, 52 + shift);       /* (the root an octave up: a loop's chord sits there) */
     return n;
 }

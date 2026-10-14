@@ -176,6 +176,8 @@ typedef struct {
     cr_ev_t ev[CR_MAX_EV];
     uint16_t nev;
     uint16_t ev_overflow;            /* events refused because the pool was full (diagnostic) */
+    uint8_t tie;                     /* 1 while cr_key_chord sounds a chord: a note already sounding is kept
+                                      * (tied over), not retriggered */
     cr_lastplayed_t lp;              /* Free play style: the last real voice */
     cr_chord_t pads[CR_MAX_PADS];
     int8_t rec_slot;

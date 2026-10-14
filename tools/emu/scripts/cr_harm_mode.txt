@@ -1,16 +1,20 @@
-# Harmony mode (LATCH held): the root keys play places on the map around the chord you are on (cr_ui.c cu_hm_*,
-# cr_harmony.h cr_harm_map / cr_harm_voice, cr_out.c CRE_HSPEC + CRE_HKEY, cr_engine.c cr_key_chord). Key Mode off.
-# Each "harm: .." log line is the chord you are on, home, and the eleven white keys left to right (* = goes home).
+# Harmony mode (LATCH held): the root keys play a fixed jazz / neo-soul palette on the home key (cr_ui.c cu_hm_*,
+# cr_harmony.h cr_harm_lanes / cr_harm_voice_style, cr_out.c CRE_HSPEC + CRE_HNOTE + CRE_HKEY, cr_engine.c
+# cr_key_chord). Key Mode off. Each "harm: .." log line is the chord you are on, home, and the eleven white keys.
 #  1. C major (MAJ + C5) struck and released; LATCH held: the mode, home C major (the chord on screen), shot
-#  2. D4 (the most restful place) held 400 ms: its chord sounds while the key is down, released: silence
-#  3. G5 (the hardest pull) 400 ms, then D#4 (a black key: the chord of the white key left of it, richer) 400 ms
-#  4. LATCH tapped (Sticky on): A4 tapped 50 ms: latched, it sounds on; LATCH tapped (Sticky off: it ends)
-#  5. REC, F4 500 ms, C5 500 ms, REC: the loop plays the two map chords back (3 s), LOOP tapped: it stops
-#  6. OCT+: the chord you are on is home, the layer stays (shot)
-#  7. MIN held + E4: E minor as ever (a chord key held: the player's own chord), the map follows it
-#  8. KEY tapped: Key Mode on (C major) is home at once; KEY tapped again: Key Mode off, home stays C major
-#  9. OCT-: the mode ends; C5 alone plays its single note as ever (no chord key, Key Mode off)
-# 10. PANIC
+#  2. D4 held 400 ms: Cmaj9 (Colour voicing) while the key is down; released: silence
+#  3. E4 (Am9), then D4 again: the same Cmaj9, the same notes (nothing depends on the chord before)
+#  4. G#4 (a black key: A9, the approach chord into Dm9 on A4) 400 ms
+#  5. LATCH tapped (Sticky on): D4 tapped, then E4 tapped: Am9 replaces Cmaj9, the two notes they share ring on (3
+#     note-ons, not 5); LATCH tapped (Sticky off: it ends)
+#  6. KNOB 1 -1 (7ths): D4 is Cmaj7; KNOB 1 -1 (triads): D4 is C; KNOB 1 +2 (9ths again); KNOB 2 -2 (Shell): D4 is
+#     C3 B3 E4; KNOB 2 +2 (Colour again)
+#  7. REC, F4 500 ms, C5 500 ms, REC: the loop plays the two chords back (3 s), LOOP tapped: it stops
+#  8. OCT+: the chord you are on (Abmaj9, C5's) is home (shot)
+#  9. MIN held + E4: E minor as ever (a chord key held: the player's own chord)
+# 10. KEY tapped: Key Mode on (C major) is home at once; KEY tapped again: Key Mode off, home stays C major
+# 11. OCT-: the mode ends; C5 alone plays its single note as ever (no chord key, Key Mode off)
+# 12. PANIC
 wait 500
 btn A#3 down
 wait 40
@@ -29,26 +33,66 @@ dump
 btn D4 up
 wait 300
 dump
-btn G5 down
+btn E4 down
+wait 300
+btn E4 up
+wait 100
+btn D4 down
+wait 300
+dump
+btn D4 up
+wait 100
+btn G#4 down
 wait 400
 dump
-btn G5 up
-wait 200
-btn D#4 down
-wait 400
-dump
-btn D#4 up
+btn G#4 up
 wait 300
 btn LFO
 wait 200
-btn A4 down
+btn D4 down
 wait 50
-btn A4 up
-wait 400
+btn D4 up
+wait 300
+dump
+btn E4 down
+wait 50
+btn E4 up
+wait 300
 dump
 btn LFO
 wait 300
 dump
+knob KNOB1 -1
+wait 100
+btn D4 down
+wait 200
+dump
+btn D4 up
+wait 100
+knob KNOB1 -1
+wait 100
+btn D4 down
+wait 200
+dump
+btn D4 up
+wait 100
+knob KNOB1 +1
+wait 100
+knob KNOB1 +1
+wait 100
+knob KNOB2 -1
+wait 100
+knob KNOB2 -1
+wait 100
+btn D4 down
+wait 200
+dump
+btn D4 up
+wait 100
+knob KNOB2 +1
+wait 100
+knob KNOB2 +1
+wait 300
 btn REC
 wait 300
 btn F4 down

@@ -1236,17 +1236,21 @@ static void cu_harm_feed(void)
 }
 
 /* Harmony mode (LATCH held: the L_HARM layer, open until OCT-, HOME or LATCH held again). The 18 root keys play
- * places on cr_harmony.h's map around the chord you are on, from the most restful (D4) to the one that pulls hardest
- * (G5), each black root the richer version of the white root left of it. Whatever plays becomes the chord you are
- * on, and the map is laid out again around it. Home is the chord on screen when the mode opens (Key Mode on: its
- * key, as it sounds: Transpose added); OCT+ makes the chord you are on home. A chord key held: that root plays its
- * chord as ever (the way to jump anywhere), and the map follows it. The chords sound as keyed chords given whole
+ * cr_harmony.h's lanes: a fixed jazz / neo-soul palette on the home key, restful (D4) to pulling (G5), each black
+ * root an approach chord leaning into the white root to its right. Fixed: a key plays the same chord, voiced the
+ * same way, every time, until home moves. Home is the chord on screen when the mode opens (Key Mode on: its key, as
+ * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour (triads, 7ths, the full
+ * palette's 9ths); KNOB 2: the voicing style (Shell, Spread, Colour). A chord key held: that root plays its chord
+ * as ever (the way to jump anywhere). The chords sound as keyed chords given whole
  * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
  * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
  * voicing, so a loop of a walk keeps the walk's chords and register, not each inversion), heard by the history */
 static struct {
     uint8_t home_pc, home_scale;   /* cr_scale_t */
-    uint8_t dirty;                 /* the map is to be laid out again */
+    uint8_t dirty;                 /* the map is to be laid out again (home moved) */
+    uint8_t inited;                /* colour and style set (the first time the mode opens) */
+    uint8_t colour;                /* KNOB 1: 0 triads, 1 sevenths, 2 the palette as written (9ths) */
+    uint8_t style;                 /* KNOB 2: CR_HSTYLE_* */
     cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
                                     * engine's snapshot shows it), else the player's chord when something else struck
                                     * it (a chord key held, a pad, MIDI in: cu_hm_frame) */
@@ -1281,7 +1285,6 @@ static void cu_hm_set_cur(uint8_t root_pc, uint8_t q, uint8_t ext, const uint8_t
     for (i = 0; i < c->nnotes; i++)
         c->notes[i] = notes[i];
     cr_chord_name(c->root_pc, c->quality, c->ext, c->root, c->qual, c->sup);
-    cu_hm.dirty = 1;
 }
 #ifdef CR_TRACE
 static void cu_hm_trace(const char *what)        /* the emulator's log: the chord you are on and the white keys */
@@ -1303,7 +1306,7 @@ static void cu_hm_layout(void)
 {
     if (!cu_hm.dirty)
         return;
-    cr_harm_map(cu_hm.home_pc, cu_hm.home_scale, cu_hm.cur.root_pc, cu_hm.cur.quality, cu_hm.cur.ext, &cu_hm.map);
+    cr_harm_lanes(cu_hm.home_pc, cu_hm.home_scale, &cu_hm.map);
     cu_hm.dirty = 0;
 }
 static void cu_hm_home_here(void)               /* the chord you are on becomes home (minor: a minor key) */
@@ -1315,9 +1318,13 @@ static void cu_hm_home_here(void)               /* the chord you are on becomes 
 static void cu_hm_enter(void)
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
+    if (!cu_hm.inited) {
+        cu_hm.inited = 1;
+        cu_hm.colour = 2;
+        cu_hm.style = CR_HSTYLE_COLOUR;
+    }
     if (ci->valid) {
         cu_hm.cur = *ci;
-        cu_hm.dirty = 1;
     } else {                                    /* nothing played yet: the home key's chord (Key Mode off: C's) from
                                                  * C4, as the keys sound it (Transpose added) */
         uint8_t base[CR_CHORD_MAX];
@@ -1363,19 +1370,37 @@ static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on 
     wi = cu_white_idx(k);
     if (wi >= 0)
         return wi < CR_HMAP_W ? &cu_hm.map.w[wi] : 0;
-    lw = cu_white_idx(k - 1u);                  /* a black root: the white root left of it, enriched */
+    lw = cu_white_idx(k - 1u);                  /* a black root: its place is just right of a white root */
     for (i = 0; lw >= 0 && i < CR_HMAP_B; i++)
         if ((uint32_t)lw == CR_HMAP_BW[i])
             return &cu_hm.map.b[i];
     return 0;
 }
-/* a root key down in Harmony mode: its place on the map, voiced near the chord you are on, posted as a chord given
- * whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
+/* KNOB 1 / KNOB 2 in the mode: the colour and the voicing style, a step a detent, shown in a message */
+static void cu_hm_knob(int colour, int32_t s)
+{
+    static const char *const COL[3] = {"triads", "7ths", "9ths"}, *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
+    int32_t v;
+    if (colour) {
+        v = (int32_t)cu_hm.colour + (s > 0 ? 1 : -1);
+        cu_hm.colour = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v);
+        cu_message(COL[cu_hm.colour], CR_COL_YELLOW);
+        cu_trace("harm: colour %s\n", COL[cu_hm.colour]);
+    } else {
+        v = (int32_t)cu_hm.style + (s > 0 ? 1 : -1);
+        cu_hm.style = (uint8_t)(v < 0 ? 0 : v >= CR_HSTYLE_N ? CR_HSTYLE_N - 1 : v);
+        cu_message(STY[cu_hm.style], CR_COL_YELLOW);
+        cu_trace("harm: style %s\n", STY[cu_hm.style]);
+    }
+}
+/* a root key down in Harmony mode: its chord at the colour, in the style (the same notes every time), posted as a
+ * chord given whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
  * the player's own chord. A chord type latched by LOCK does not count: the mode was opened on purpose, a latch may
  * be long forgotten) */
 static int cu_hm_play(uint32_t k, uint32_t n)
 {
     const cr_hmap_chord_t *d;
+    cr_hmap_chord_t e;
     uint8_t notes[CR_CHORD_MAX], root_note;
     int nv;
     uint32_t i, chord_keys = 0;
@@ -1387,22 +1412,26 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     d = cu_hm_dest(k);
     if (!d)
         return 0;
-    nv = cr_harm_voice(d, cu_hm.cur.notes, cu_hm.cur.nnotes, cs.sixth_up, 12 * cu.octave, notes, &root_note);
+    e = *d;                                     /* the colour: 9ths off (7ths), or 7ths and 9ths off (triads) */
+    if (cu_hm.colour < 2)
+        e.ext = (uint8_t)(e.ext & ~CR_EXT_9);
+    if (cu_hm.colour < 1)
+        e.ext = 0;
+    nv = cr_harm_voice_style(&e, cu_hm.style, 12 * cu.octave, notes, &root_note);
     if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
         return 0;
-    cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)d->quality << 4) | d->ext), nv);
+    cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)e.quality << 4) | e.ext), nv);
     for (i = 0; i < (uint32_t)nv; i++)
         cr_post(CRE_HNOTE, i, notes[i], 0);
     cr_post(CRE_HKEY, n, cs.vel, 1);
-    cu_hm_set_cur(d->root_pc, d->quality, d->ext, notes, (uint32_t)nv);
-    cu_hm_layout();
+    cu_hm_set_cur(e.root_pc, e.quality, e.ext, notes, (uint32_t)nv);
     cu_hm_trace("played, on");
     return 1;
 }
-/* every frame: in the mode, a chord of the player's the keys did not play (a chord key held, a pad, MIDI in) moves
- * the map to it. Only the player's own chords, while they sound: never a loop's (the keys would change under the
- * fingers as it plays), a single note, or the chord still shown after it ended. And only a change since the last
- * one seen, so the keys' own chord, posted before the snapshot shows it, is not undone by the one before it */
+/* every frame: in the mode, a chord of the player's the keys did not play (a chord key held, a pad, MIDI in) becomes
+ * the chord you are on (the screen; OCT+ would make it home). Only the player's own chords, while they sound: never a
+ * loop's, a single note, or the chord still shown after it ended. And only a change since the last one seen, so the
+ * keys' own chord, posted before the snapshot shows it, is not undone by the one before it */
 static void cu_hm_frame(void)
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
@@ -1412,8 +1441,6 @@ static void cu_hm_frame(void)
         return;
     if (!cu_ci_same(ci, &cu_hm.seen) && !cu_ci_same(ci, &cu_hm.cur)) {
         cu_hm.cur = *ci;
-        cu_hm.dirty = 1;
-        cu_hm_layout();
         cu_hm_trace("followed, on");
     }
     cu_hm.seen = *ci;
@@ -4225,6 +4252,10 @@ static void cu_knob(uint32_t role, int32_t s)
 #endif
     if (l == L_EDIT && role == EN_PRESET) {        /* .. in the picker: its presets, as KNOB 1 */
         cu_layer_knob(l, 0, s);
+        return;
+    }
+    if (l == L_HARM && (role == EN_K1 || role == EN_K2)) {   /* Harmony mode: KNOB 1 the colour, KNOB 2 the style */
+        cu_hm_knob(role == EN_K1, s);
         return;
     }
     if (l && role >= EN_K1) {
