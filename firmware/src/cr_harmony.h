@@ -175,12 +175,30 @@ typedef struct {
     uint8_t flav;                /* the chord keys held with it, bit cr_mod_t (cr_harm_flavour; 0 from the map) */
 } cr_hmap_chord_t;
 typedef struct {
-    uint8_t home_pc, home_scale; /* cr_scale_t */
+    uint8_t home_pc, home_scale; /* cr_scale_t: the mode's family (major: Lydian, Ionian, Mixolydian; else minor) */
+    uint8_t mode;                /* CR_HMODE_* */
     cr_hmap_chord_t w[CR_HMAP_W];   /* left to right: restful .. pulling */
     cr_hmap_chord_t b[CR_HMAP_B];
 } cr_hmap_t;
 
-void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map);
+void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map);   /* = Ionian / Aeolian below */
+
+/* Modes: one home, six colours, bright to dark (the SELECT knob in the mode). Ionian and Aeolian are the major and
+ * minor palettes above, unchanged. The others keep the palette's shape -- home on D4, the mode's own chords to its
+ * right, then colour borrowed from outside it, and the same pull home at the right end (V9sus, V, bII9) -- with the
+ * mode's signature chords where the hand looks first. In C:
+ *   LYDIAN      Cmaj9 D9 Bm7 Em9 Gmaj9 Am9 F#m7b5 | Fmaj9      (II9: the raised 4th)
+ *   MIXOLYDIAN  C9 Bbmaj9 Gm9 Fmaj9 Dm9 Am7 Em7b5 | Abmaj9      (a dominant home: the blues; bVII, v minor)
+ *   DORIAN      Cm9 F9 Ebmaj9 Dm7 Gm9 Bbmaj9 Am7b5 | Abmaj9     (IV9: the raised 6th)
+ *   PHRYGIAN    Cm7 Dbmaj9 Bbm9 Abmaj9 Fm9 Eb9 Gm7b5 | Bb9      (bII: the lowered 2nd)
+ * Their black keys are approach chords made the same way as the palettes': the dominant of the white key to the right
+ * (a 7th into a minor one), or when that chord is already on the keys its tritone substitute, or the major 7th a
+ * semitone above; A#4's is the semitone-above major 7th, as in the major palette. */
+enum { CR_HMODE_LYDIAN, CR_HMODE_IONIAN, CR_HMODE_MIXO, CR_HMODE_DORIAN, CR_HMODE_AEOLIAN, CR_HMODE_PHRYGIAN,
+       CR_HMODE_N };
+void cr_harm_lanes_mode(uint8_t home_pc, int mode, cr_hmap_t *map);
+const char *cr_harm_mode_name(int mode);         /* "lydian", "major", "mixolydian", "dorian", "minor", "phrygian" */
+int cr_harm_mode_family(int mode);               /* CR_SCALE_MAJOR (Lydian, Ionian, Mixolydian) or CR_SCALE_MINOR */
 
 /* Voicing styles (KNOB 1 in the mode). Each is a pure function of the chord: no previous chord is consulted.
  *   SHELL   root low, then the 3rd and 7th (the guide tones): three notes, the top near E4

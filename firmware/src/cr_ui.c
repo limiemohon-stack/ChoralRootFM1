@@ -1241,12 +1241,14 @@ static void cu_harm_feed(void)
  * same way, every time, until home moves. Home is the chord on screen when the mode opens (Key Mode on: its key, as
  * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour world (bare, triads, jazz:
  * the palette as written, lush, quartal, altered, upper structure: cr_harmony.h); KNOB 2: the voicing style (Shell, Spread, Colour); ALGORITHM: the motion (a perform mode, or
- * off); KNOB 3: its time; KNOB 4: glide. A chord key held: a flavour, or (MAJ, MIN, DIM) that root's own chord. The chords sound as keyed chords given whole
+ * off); KNOB 3: its time; KNOB 4: glide; SELECT (the tempo outside the mode): the mode, bright to dark -- Lydian,
+ * major, Mixolydian, Dorian, minor, Phrygian -- on the same home (cr_harm_lanes_mode). A chord key held: a flavour, or (MAJ, MIN, DIM) that root's own chord. The chords sound as keyed chords given whole
  * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
  * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
  * voicing, so a loop of a walk keeps the walk's chords and register, not each inversion), heard by the history */
 static struct {
-    uint8_t home_pc, home_scale;   /* cr_scale_t */
+    uint8_t home_pc, home_scale;   /* cr_scale_t: the mode's family (numerals, "away from home") */
+    uint8_t mode;                  /* SELECT: CR_HMODE_* (home_scale follows it) */
     uint8_t dirty;                 /* the map is to be laid out again (home moved) */
     uint8_t inited;                /* colour and style set (the first time the mode opens) */
     uint8_t colour;                /* KNOB 1: the colour world, CR_HCOL_* (CR_HCOL_JAZZ: the palette as written) */
@@ -1292,7 +1294,7 @@ static void cu_hm_trace(const char *what)        /* the emulator's log: the chor
 {
     uint32_t i;
     cu_trace("harm: %s %s%s%s | home %s %s | keys", what, cu_hm.cur.root, cu_hm.cur.qual, cu_hm.cur.sup,
-             CU_NOTE[cu_hm.home_pc % 12u], cu_hm.home_scale == CR_SCALE_MINOR ? "minor" : "major");
+             CU_NOTE[cu_hm.home_pc % 12u], cr_harm_mode_name(cu_hm.mode));
     for (i = 0; i < CR_HMAP_W; i++) {
         char r[3], q[5], sup[CR_SUP_MAX];
         cr_chord_name(cu_hm.map.w[i].root_pc, cu_hm.map.w[i].quality, 0, r, q, sup);
@@ -1307,13 +1309,20 @@ static void cu_hm_layout(void)
 {
     if (!cu_hm.dirty)
         return;
-    cr_harm_lanes(cu_hm.home_pc, cu_hm.home_scale, &cu_hm.map);
+    cr_harm_lanes_mode(cu_hm.home_pc, cu_hm.mode, &cu_hm.map);
     cu_hm.dirty = 0;
+}
+static void cu_hm_set_scale(uint8_t scale)      /* home's family: the mode kept when it is of it (a minor chord
+                                                 * made home in Dorian: Dorian there), else plain major / minor */
+{
+    cu_hm.home_scale = scale == CR_SCALE_MINOR ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+    if (cr_harm_mode_family(cu_hm.mode) != cu_hm.home_scale)
+        cu_hm.mode = cu_hm.home_scale == CR_SCALE_MINOR ? CR_HMODE_AEOLIAN : CR_HMODE_IONIAN;
 }
 static void cu_hm_home_here(void)               /* the chord you are on becomes home (minor: a minor key) */
 {
     cu_hm.home_pc = cu_hm.cur.root_pc;
-    cu_hm.home_scale = cu_hm.cur.quality == CR_Q_MIN ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+    cu_hm_set_scale(cu_hm.cur.quality == CR_Q_MIN ? CR_SCALE_MINOR : CR_SCALE_MAJOR);
     cu_hm.dirty = 1;
 }
 static void cu_hm_enter(void)
@@ -1323,6 +1332,7 @@ static void cu_hm_enter(void)
         cu_hm.inited = 1;
         cu_hm.colour = CR_HCOL_JAZZ;
         cu_hm.style = CR_HSTYLE_COLOUR;
+        cu_hm.mode = CR_HMODE_IONIAN;
     }
     if (ci->valid) {
         cu_hm.cur = *ci;
@@ -1336,7 +1346,8 @@ static void cu_hm_enter(void)
     }
     if (cs.key_on) {                            /* (the engine's chords are named as they sound: home too) */
         cu_hm.home_pc = cu_hm_pc((int32_t)cs.tonic + cs.transpose);
-        cu_hm.home_scale = cs.scale;
+        cu_hm_set_scale(cs.scale);
+        cu_hm.dirty = 1;
     } else
         cu_hm_home_here();
     cu_hm.seen = *ci;
@@ -1350,7 +1361,7 @@ static void cu_hm_key_changed(void)              /* Key Mode changed (KEY tapped
     if (cu_layer() != L_HARM || !cs.key_on)
         return;
     cu_hm.home_pc = cu_hm_pc((int32_t)cs.tonic + cs.transpose);
-    cu_hm.home_scale = cs.scale;
+    cu_hm_set_scale(cs.scale);
     cu_hm.dirty = 1;
     cu_hm_layout();
     cu_hm_trace("key mode, on");
@@ -1361,6 +1372,24 @@ static void cu_hm_rehome(void)                   /* OCT+ */
     cu_hm_layout();
     cu_message("home", CR_COL_YELLOW);
     cu_hm_trace("home, on");
+}
+/* SELECT in the mode: brighter (clockwise) or darker, a mode a detent, home where it is; the keys show it at once */
+static void cu_hm_bright(int32_t s)
+{
+    char b[24];
+    int32_t v = (int32_t)cu_hm.mode + (s > 0 ? -1 : 1);
+    v = v < 0 ? 0 : v >= CR_HMODE_N ? CR_HMODE_N - 1 : v;
+    if ((uint8_t)v == cu_hm.mode)
+        return;
+    cu_hm.mode = (uint8_t)v;
+    cu_hm.home_scale = (uint8_t)cr_harm_mode_family(v);
+    cu_hm.dirty = 1;
+    cu_hm_layout();
+    cu_cpy(b, CU_NOTE[cu_hm.home_pc % 12u], sizeof b);
+    cu_cat(b, " ", sizeof b);
+    cu_cat(b, cr_harm_mode_name(v), sizeof b);
+    cu_message(b, CR_COL_YELLOW);
+    cu_hm_trace("mode, on");
 }
 static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on the map (0: not a root) */
 {
@@ -4329,6 +4358,10 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_hm_motion(s);
         return;
     }
+    if (l == L_HARM && role == EN_SELECT) {         /* .. SELECT the mode (the tempo outside it) */
+        cu_hm_bright(s);
+        return;
+    }
     if (l && role >= EN_K1) {
         cu_layer_knob(l, role - EN_K1, s);
         return;
@@ -4375,8 +4408,8 @@ static void cu_knob(uint32_t role, int32_t s)
         }
         return;
     }
-    if (l && role == EN_SELECT && l != L_LOCK && l != L_HARM) {   /* a picker: SELECT moves (LOCK, Harmony: the tempo;
-                                                                * KEY: its page, above) */
+    if (l && role == EN_SELECT && l != L_LOCK && l != L_HARM) {   /* a picker: SELECT moves (LOCK: the tempo; Harmony:
+                                                                * the mode, KEY: its page, above) */
         v = cu_layer_sel(l) + s;
         v = v < 0 ? 0 : v >= cu_layer_count(l) ? cu_layer_count(l) - 1 : v;
         cu_layer_pick(l, v);
@@ -6047,7 +6080,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         s->line_col = CR_COL_MID;
         cu_cpy(s->mid, "Harmony \267 ", sizeof s->mid);
         cu_cat(s->mid, CU_NOTE[cu_hm.home_pc % 12u], sizeof s->mid);
-        cu_cat(s->mid, cu_hm.home_scale == CR_SCALE_MINOR ? " minor" : " major", sizeof s->mid);
+        cu_cat(s->mid, " ", sizeof s->mid);
+        cu_cat(s->mid, cr_harm_mode_name(cu_hm.mode), sizeof s->mid);
         s->mid_col = CR_COL_YELLOW;
         break;
     }

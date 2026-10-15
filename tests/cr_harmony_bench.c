@@ -20,7 +20,7 @@
  *   5. Harmony mode's lanes (what the UI plays now; 1-4 measure the retired Harmony Preview's suggestion engine): the
  *      palette of each home key in its three voicing styles, the top line of a progression, the top notes' band
  *   6. The research pack's 40 phrases (docs/research/harmony_presets.json, tests/cr_harmony_pack.h): which ones the
- *      palette plays as written, home C major or C minor, any key, colour world and chord keys held -- in one world,
+ *      palette plays as written, home C in any mode, any key, colour world and chord keys held -- in one world,
  *      only with a KNOB 1 turn, only with a bass of its own (slash chords, pedals), or not (a chord it can't reach)
  *
  * The "musician's read" annotations are deliberately limited to progressions with an uncontroversial home; they
@@ -326,12 +326,12 @@ static void lanes_section(lanestats_t *ls)
                 ls->band[0], ls->band[1], ls->band[2], ls->same);
 }
 
-/* 6: every chord the palette's keys can play (home C major / minor, 18 keys, 7 worlds, 32 sets of chord keys held:
+/* 6: every chord the palette's keys can play (home C in each of the six modes, 18 keys, 7 worlds, 32 sets of chord keys held:
  * SUS m7 M7 6 9) against each chord of each phrase: 3 the same notes, 2 the same chord (an inessential note left out,
  * or a 5th added), 1 the same chord over the wrong bass, 0 not it */
 typedef struct { unsigned char sc, key, world, fl, nfl, root, bass; unsigned short pcs; } pal_t;
 typedef struct { int one, change, bass, missing, playable; char miss[512]; } packstats_t;
-static pal_t PAL[2 * 18 * CR_HCOL_N * 32];
+static pal_t PAL[CR_HMODE_N * 18 * CR_HCOL_N * 32];
 static const char *const WNAME[CR_HCOL_N] = { "bare", "triads", "jazz", "lush", "quartal", "altered", "upper" };
 static const int WORDER[CR_HCOL_N] = { CR_HCOL_JAZZ, CR_HCOL_LUSH, CR_HCOL_TRIAD, CR_HCOL_BARE, CR_HCOL_QUARTAL,
                                        CR_HCOL_ALTERED, CR_HCOL_UPPER };
@@ -344,8 +344,8 @@ static void pal_build(void)
     static const cr_mod_t FM[5] = { CR_MOD_SUS, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_6, CR_MOD_9 };
     cr_hmap_t m;
     int sc, k, w, f, b, c, i;
-    for (sc = 0; sc < 2; sc++) {
-        cr_harm_lanes(0, (uint8_t)sc, &m);
+    for (sc = 0; sc < CR_HMODE_N; sc++) {
+        cr_harm_lanes_mode(0, sc, &m);
         for (k = 0; k < 18; k++)
             for (w = 0; w < CR_HCOL_N; w++)
                 for (f = 0; f < 32; f++) {
@@ -386,17 +386,21 @@ static void pack_section(packstats_t *ps)
     int mcount[64], nm = 0;
     memset(ps, 0, sizeof *ps);
     pal_build();
-    if (!json) printf("6. THE RESEARCH PACK'S 40 PHRASES on the palette (home C; key world [+chord keys held]; ~ the same chord, "
-                      "not every note; (bass!) needs a bass of its own)\n\n");
+    if (!json) printf("6. THE RESEARCH PACK'S 40 PHRASES on the palette (home C in any of the six modes; key world [+chord keys "
+                      "held]; ~ the same chord, not every note; (bass!) needs a bass of its own)\n\n");
     else printf("\"pack\":[");
     for (i = 0; i < NPACK; i++) {
         const pk_phrase_t *ph = &PACK[i];
         int brank = 9, bmiss = 99, bsc = 0, bw = -1;
         const pal_t *bpick[PK_MAXEV];
         int blev[PK_MAXEV];
-        for (sc = 0; sc < 2; sc++) {
+        static const int MORDER[CR_HMODE_N] = { CR_HMODE_IONIAN, CR_HMODE_AEOLIAN, CR_HMODE_DORIAN, CR_HMODE_MIXO,
+                                                CR_HMODE_LYDIAN, CR_HMODE_PHRYGIAN };   /* (a tie: the plainer home) */
+        int mi;
+        for (mi = 0; mi < CR_HMODE_N; mi++) {
             const pal_t *any[PK_MAXEV], *one[PK_MAXEV];
             int alev[PK_MAXEV], olev[PK_MAXEV], rank, miss = 0, onew = -1, onenf = 99, allsame = 1, allright = 1;
+            sc = MORDER[mi];
             for (j = 0; j < ph->n; j++) {
                 any[j] = 0; alev[j] = 0;
                 for (x = 0; x < npal; x++) {
@@ -437,7 +441,7 @@ static void pack_section(packstats_t *ps)
         if (!json) {
             static const char *const V[5] = { "one world", "", "playable with a KNOB 1 turn", "needs its own bass",
                                               "a chord missing" };
-            printf("  %s %-8s %-28s %s: %s%s%s\n    ", ph->id, ph->bank, ph->name, bsc ? "C minor" : "C major", V[brank],
+            printf("  %s %-8s %-28s C %-10s %s%s%s\n    ", ph->id, ph->bank, ph->name, cr_harm_mode_name(bsc), V[brank],
                    brank == 0 ? " " : "", brank == 0 ? WNAME[bw] : "");
             for (j = 0; j < ph->n; j++) {
                 const pal_t *p = bpick[j];
@@ -450,7 +454,7 @@ static void pack_section(packstats_t *ps)
             printf("\n");
         } else {
             static const char *const VJ[5] = { "one_world", "", "world_change", "needs_bass", "missing" };
-            printf("{\"id\":\"%s\",\"home\":\"%s\",\"verdict\":\"%s\"}%s", ph->id, bsc ? "C minor" : "C major", VJ[brank],
+            printf("{\"id\":\"%s\",\"home\":\"C %s\",\"verdict\":\"%s\"}%s", ph->id, cr_harm_mode_name(bsc), VJ[brank],
                    i < NPACK - 1 ? "," : "");
         }
         for (j = 0; j < ph->n; j++)

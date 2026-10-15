@@ -524,31 +524,98 @@ static crh_shape_t crh_shape(uint8_t q, uint8_t ext)
     return s;
 }
 
-static void crh_lane_fill(uint8_t t, uint8_t s, const crh_lane_t *l, int place, cr_hmap_chord_t *d)
+/* the modes other than Ionian and Aeolian (CRH_LANES): Lydian, Mixolydian, Dorian, Phrygian (cr_harmony.h) */
+static const crh_lane_t CRH_MODE_LANES[4][CR_HMAP_W] = {
+    { { 0, CR_Q_MAJ, CRH_MAJ9 }, { 2, CR_Q_MAJ, CRH_DOM9 }, { 11, CR_Q_MIN, CR_EXT_M7 }, { 4, CR_Q_MIN, CRH_DOM9 },
+      { 7, CR_Q_MAJ, CRH_MAJ9 }, { 9, CR_Q_MIN, CRH_DOM9 }, { 6, CR_Q_DIM, CR_EXT_M7 }, { 5, CR_Q_MAJ, CRH_MAJ9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CRH_DOM9 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
+    { { 0, CR_Q_MAJ, CRH_DOM9 }, { 10, CR_Q_MAJ, CRH_MAJ9 }, { 7, CR_Q_MIN, CRH_DOM9 }, { 5, CR_Q_MAJ, CRH_MAJ9 },
+      { 2, CR_Q_MIN, CRH_DOM9 }, { 9, CR_Q_MIN, CR_EXT_M7 }, { 4, CR_Q_DIM, CR_EXT_M7 }, { 8, CR_Q_MAJ, CRH_MAJ9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CRH_DOM9 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
+    { { 0, CR_Q_MIN, CRH_DOM9 }, { 5, CR_Q_MAJ, CRH_DOM9 }, { 3, CR_Q_MAJ, CRH_MAJ9 }, { 2, CR_Q_MIN, CR_EXT_M7 },
+      { 7, CR_Q_MIN, CRH_DOM9 }, { 10, CR_Q_MAJ, CRH_MAJ9 }, { 9, CR_Q_DIM, CR_EXT_M7 }, { 8, CR_Q_MAJ, CRH_MAJ9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CR_EXT_M7 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
+    { { 0, CR_Q_MIN, CR_EXT_M7 }, { 1, CR_Q_MAJ, CRH_MAJ9 }, { 10, CR_Q_MIN, CRH_DOM9 }, { 8, CR_Q_MAJ, CRH_MAJ9 },
+      { 5, CR_Q_MIN, CRH_DOM9 }, { 3, CR_Q_MAJ, CRH_DOM9 }, { 7, CR_Q_DIM, CR_EXT_M7 }, { 10, CR_Q_MAJ, CRH_DOM9 },
+      { 7, CR_Q_SUS, CRH_DOM9 }, { 7, CR_Q_MAJ, CR_EXT_M7 }, { 1, CR_Q_MAJ, CRH_DOM9 } },
+};
+static const uint16_t CRH_MODE_MASK[CR_HMODE_N] = {   /* the mode's notes above home, bit semitone */
+    0xAD5, 0xAB5, 0x6B5, 0x6AD, 0x5AD, 0x5AB };
+
+static void crh_lane_fill(uint8_t t, unsigned scale, const crh_lane_t *l, int place, int home, cr_hmap_chord_t *d)
 {
-    unsigned scale = crh_scale_mask_at(t, s), pcs;
+    unsigned pcs;
     d->root_pc = (uint8_t)((t + l->semi) % 12);
     d->quality = l->quality;
     d->ext = l->ext;
     pcs = crh_pcset_at(d->root_pc, d->quality, d->ext);
     d->cat = (uint8_t)((pcs & ~scale) ? CR_HCAT_CHROMATIC : CR_HCAT_DIATONIC);
     d->tension = (int8_t)place;
-    d->home = (uint8_t)(place == 0 && l->semi == 0 && l == &CRH_LANES[s == CR_SCALE_MINOR][0]);
+    d->home = (uint8_t)home;
     d->approach = 0;
     d->flav = 0;
 }
 
+const char *cr_harm_mode_name(int mode)
+{
+    static const char *const N[CR_HMODE_N] = { "lydian", "major", "mixolydian", "dorian", "minor", "phrygian" };
+    return mode >= 0 && mode < CR_HMODE_N ? N[mode] : N[CR_HMODE_IONIAN];
+}
+int cr_harm_mode_family(int mode) { return mode >= CR_HMODE_DORIAN && mode < CR_HMODE_N ? CR_SCALE_MINOR : CR_SCALE_MAJOR; }
+
+static int crh_lane_same(const crh_lane_t *a, const crh_lane_t *b)   /* the same chord, give or take its 9th */
+{
+    return a->semi % 12 == b->semi % 12 && a->quality == b->quality &&
+           (a->ext & (CR_EXT_M7 | CR_EXT_MAJ7)) == (b->ext & (CR_EXT_M7 | CR_EXT_MAJ7));
+}
+void cr_harm_lanes_mode(uint8_t home_pc, int mode, cr_hmap_t *map)
+{
+    uint8_t t = (uint8_t)(home_pc % 12u);
+    int i, j, k;
+    if (mode < 0 || mode >= CR_HMODE_N) mode = CR_HMODE_IONIAN;
+    map->home_pc = t;
+    map->home_scale = (uint8_t)cr_harm_mode_family(mode);
+    map->mode = (uint8_t)mode;
+    if (mode == CR_HMODE_IONIAN || mode == CR_HMODE_AEOLIAN) {   /* the palettes as they always were */
+        uint8_t s = mode == CR_HMODE_AEOLIAN ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+        unsigned scale = crh_scale_mask_at(t, s);
+        for (i = 0; i < CR_HMAP_W; i++) crh_lane_fill(t, scale, &CRH_LANES[s][i], i, i == 0, &map->w[i]);
+        for (i = 0; i < CR_HMAP_B; i++) {
+            crh_lane_fill(t, scale, &CRH_APPROACH[s][i], CR_HMAP_BW[i] + 1, 0, &map->b[i]);
+            map->b[i].approach = 1;
+        }
+        return;
+    }
+    {
+        const crh_lane_t *W = CRH_MODE_LANES[mode == CR_HMODE_LYDIAN ? 0 : mode == CR_HMODE_MIXO ? 1 :
+                                             mode == CR_HMODE_DORIAN ? 2 : 3];
+        unsigned m = CRH_MODE_MASK[mode], scale = ((m << t) | (m >> (12u - t))) & 0x0FFFu;
+        crh_lane_t B[CR_HMAP_B];
+        for (i = 0; i < CR_HMAP_W; i++) crh_lane_fill(t, scale, &W[i], i, i == 0, &map->w[i]);
+        for (i = 0; i < CR_HMAP_B; i++) {            /* the approach into the white key to the right */
+            const crh_lane_t *to = &W[CR_HMAP_BW[i] + 1];
+            int minor = to->quality == CR_Q_MIN || to->quality == CR_Q_DIM;
+            crh_lane_t c[3];
+            c[0].semi = (uint8_t)((to->semi + 7) % 12); c[0].quality = CR_Q_MAJ; c[0].ext = minor ? CR_EXT_M7 : CRH_DOM9;
+            c[1].semi = (uint8_t)((to->semi + 1) % 12); c[1].quality = CR_Q_MAJ; c[1].ext = CRH_DOM9;
+            c[2].semi = (uint8_t)((to->semi + 1) % 12); c[2].quality = CR_Q_MAJ; c[2].ext = CR_EXT_MAJ7;
+            B[i] = i == 3 ? c[2] : c[0];
+            for (k = 0; k < 3; k++) {                /* the first not already on the keys (A#4: the major 7th first) */
+                const crh_lane_t *x = &c[i == 3 ? (k + 2) % 3 : k];
+                int dup = 0;
+                for (j = 0; j < CR_HMAP_W && !dup; j++) dup = crh_lane_same(x, &W[j]);
+                for (j = 0; j < i && !dup; j++) dup = crh_lane_same(x, &B[j]);
+                if (!dup) { B[i] = *x; break; }
+            }
+            crh_lane_fill(t, scale, &B[i], CR_HMAP_BW[i] + 1, 0, &map->b[i]);
+            map->b[i].approach = 1;
+        }
+    }
+}
+
 void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map)
 {
-    uint8_t t = (uint8_t)(home_pc % 12u), s = home_scale == CR_SCALE_MINOR ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
-    int i;
-    map->home_pc = t;
-    map->home_scale = s;
-    for (i = 0; i < CR_HMAP_W; i++) crh_lane_fill(t, s, &CRH_LANES[s][i], i, &map->w[i]);
-    for (i = 0; i < CR_HMAP_B; i++) {
-        crh_lane_fill(t, s, &CRH_APPROACH[s][i], CR_HMAP_BW[i] + 1, &map->b[i]);
-        map->b[i].approach = 1;
-    }
+    cr_harm_lanes_mode(home_pc, home_scale == CR_SCALE_MINOR ? CR_HMODE_AEOLIAN : CR_HMODE_IONIAN, map);
 }
 
 static uint8_t crh_flav_ext(unsigned flav, uint8_t ext)     /* the chord keys' 7th / 6th / 9th over ext */

@@ -1,0 +1,85 @@
+# Harmony mode's modes: SELECT (the tempo outside the mode) turns the palette bright to dark on the same home --
+# Lydian, major, Mixolydian, Dorian, minor, Phrygian (cr_harmony.h cr_harm_lanes_mode, cr_ui.c cu_hm_bright). Key
+# Mode off; each key held 300 ms. tools/emu/test_cr.sh checks the dumps and the "harm: .." map lines.
+#  A. C major (MAJ + C5), LATCH held: home C major. SELECT -1: C mixolydian, D4 is C9 (a dominant home)
+#  B. SELECT -1: C dorian: D4 is Cm9, E4 F9 (IV9: the raised 6th)
+#  C. SELECT -2: C minor, then C phrygian: E4 is Dbmaj9 (bII). SELECT -1 more: still phrygian (the dark end)
+#  D. SELECT +5: C lydian: E4 is D9 (II9: the raised 4th). The tempo never moved (120)
+#  E. F4 (Bm7) then OCT+: a minor chord made home leaves Lydian (a major mode): home B minor
+#  F. SELECT +1: B dorian; G4 (C#m7) then OCT+: a minor chord made home keeps Dorian: home C# dorian; OCT-, PANIC
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+knob SELECT -1
+wait 100
+btn D4 down
+wait 300
+dump
+btn D4 up
+wait 100
+knob SELECT -1
+wait 100
+btn D4 down
+wait 300
+dump
+btn D4 up
+wait 100
+btn E4 down
+wait 300
+dump
+btn E4 up
+wait 100
+knob SELECT -1
+wait 50
+knob SELECT -1
+wait 100
+btn E4 down
+wait 300
+dump
+btn E4 up
+wait 100
+shot build/emu/test/cr_harm_phrygian.ppm
+knob SELECT -1
+wait 100
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 100
+btn E4 down
+wait 300
+dump
+btn E4 up
+wait 100
+shot build/emu/test/cr_harm_lydian.ppm
+btn F4 down
+wait 300
+btn F4 up
+wait 100
+btn OCT+
+wait 200
+knob SELECT +1
+wait 100
+btn G4 down
+wait 300
+btn G4 up
+wait 100
+btn OCT+
+wait 200
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump

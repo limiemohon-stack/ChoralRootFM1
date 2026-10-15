@@ -607,9 +607,81 @@ static void t_worlds(void)
              "keys: C6 Cmaj7 C7 Am7 C6/9; altered approach keys: A7b9 (A7#9 with 9, the #9 over the 3rd), E7b9");
 }
 
+static int chord_eq(const cr_hmap_chord_t *a, const cr_hmap_chord_t *b)
+{
+    return a->root_pc == b->root_pc && a->quality == b->quality && a->ext == b->ext && a->cat == b->cat &&
+           a->tension == b->tension && a->home == b->home && a->approach == b->approach;
+}
+static void t_modes(void)
+{
+    /* the six modes on every home: Ionian / Aeolian are the palettes as they were; every mode's home on D4, its
+     * first seven white keys in the mode, the pull home at the right end the same in all; no chord twice; the
+     * signature chords in C; transposing moves it all */
+    cr_hmap_t a, b;
+    int t, m, i, j, same = 1, shape = 1, pull = 1, uniq = 1, tr = 1, fam = 1;
+    for (t = 0; t < 12; t++) {
+        cr_harm_lanes((uint8_t)t, CR_SCALE_MAJOR, &a); cr_harm_lanes_mode((uint8_t)t, CR_HMODE_IONIAN, &b);
+        for (i = 0; i < 18; i++) if (!chord_eq(i < 11 ? &a.w[i] : &a.b[i - 11], i < 11 ? &b.w[i] : &b.b[i - 11])) same = 0;
+        cr_harm_lanes((uint8_t)t, CR_SCALE_MINOR, &a); cr_harm_lanes_mode((uint8_t)t, CR_HMODE_AEOLIAN, &b);
+        for (i = 0; i < 18; i++) if (!chord_eq(i < 11 ? &a.w[i] : &a.b[i - 11], i < 11 ? &b.w[i] : &b.b[i - 11])) same = 0;
+        if (a.mode != CR_HMODE_AEOLIAN || a.home_scale != CR_SCALE_MINOR) same = 0;
+    }
+    ok(same, "modes: Ionian and Aeolian are the major and minor palettes exactly, every home");
+    for (m = 0; m < CR_HMODE_N; m++) {
+        cr_hmap_t c0;
+        cr_harm_lanes_mode(0, m, &c0);
+        if (c0.home_scale != cr_harm_mode_family(m) || c0.mode != m) fam = 0;
+        if (!c0.w[0].home || c0.w[0].root_pc != 0) shape = 0;
+        for (i = 1; i < 11; i++) if (c0.w[i].home) shape = 0;
+        for (i = 0; i < (m == CR_HMODE_IONIAN || m == CR_HMODE_AEOLIAN ? 5 : 7); i++)   /* (major: Fm9 borrowed on B4) */
+            if (c0.w[i].cat != CR_HCAT_DIATONIC) shape = 0;
+        for (i = 0; i < 7; i++) if (!c0.b[i].approach || c0.w[i].approach) shape = 0;
+        if (c0.w[8].root_pc != 7 || c0.w[8].quality != CR_Q_SUS || c0.w[9].root_pc != 7 || c0.w[9].quality != CR_Q_MAJ ||
+            c0.w[10].root_pc != 1 || c0.w[10].quality != CR_Q_MAJ) pull = 0;
+        for (i = 0; i < 18; i++)
+            for (j = i + 1; j < 18; j++) {
+                const cr_hmap_chord_t *x = i < 11 ? &c0.w[i] : &c0.b[i - 11], *y = j < 11 ? &c0.w[j] : &c0.b[j - 11];
+                if (x->root_pc == y->root_pc && x->quality == y->quality &&
+                    (x->ext & (CR_EXT_M7 | CR_EXT_MAJ7)) == (y->ext & (CR_EXT_M7 | CR_EXT_MAJ7))) uniq = 0;
+            }
+        for (t = 1; t < 12; t++) {
+            cr_harm_lanes_mode((uint8_t)t, m, &a);
+            for (i = 0; i < 18; i++) {
+                const cr_hmap_chord_t *x = i < 11 ? &c0.w[i] : &c0.b[i - 11], *y = i < 11 ? &a.w[i] : &a.b[i - 11];
+                if (y->root_pc != (x->root_pc + t) % 12 || y->quality != x->quality || y->ext != x->ext ||
+                    y->cat != x->cat) tr = 0;
+            }
+        }
+    }
+    ok(fam, "modes: the family (major: Lydian Ionian Mixolydian; minor: Dorian Aeolian Phrygian) and the mode recorded");
+    ok(shape, "modes: home on D4 alone, the first white keys in the mode (seven; major and minor five), the black keys approach chords");
+    ok(pull, "modes: the right end pulls home the same way in every mode (V9sus, V, bII9)");
+    ok(uniq, "modes: no chord on two keys (give or take a 9th: an approach is never a white key again)");
+    ok(tr, "modes: every home is the C palette transposed");
+    {   /* the signatures in C */
+        static const struct { int mode, key; const char *name; } S[] = {
+            { CR_HMODE_LYDIAN, 1, "D7 9" }, { CR_HMODE_LYDIAN, 6, "F#dim7" }, { CR_HMODE_MIXO, 0, "C7 9" },
+            { CR_HMODE_MIXO, 1, "A#M7 9" }, { CR_HMODE_MIXO, 2, "Gm7 9" }, { CR_HMODE_DORIAN, 0, "Cm7 9" },
+            { CR_HMODE_DORIAN, 1, "F7 9" }, { CR_HMODE_PHRYGIAN, 0, "Cm7" }, { CR_HMODE_PHRYGIAN, 1, "C#M7 9" },
+            { CR_HMODE_PHRYGIAN, 2, "A#m7 9" } };
+        int ok_s = 1;
+        for (i = 0; i < (int)(sizeof S / sizeof S[0]); i++) {
+            char r[3], q[5], su[CR_SUP_MAX], nm[24];
+            cr_harm_lanes_mode(0, S[i].mode, &a);
+            cr_chord_name(a.w[S[i].key].root_pc, a.w[S[i].key].quality, a.w[S[i].key].ext, r, q, su);
+            snprintf(nm, sizeof nm, "%s%s%s", r, q, su);
+            if (strcmp(nm, S[i].name)) { printf("     mode %d key %d: %s, want %s\n", S[i].mode, S[i].key, nm, S[i].name); ok_s = 0; }
+        }
+        ok(ok_s, "modes in C: Lydian D9 and F#m7b5, Mixolydian C9 Bbmaj9 Gm9, Dorian Cm9 F9, Phrygian Cm7 Dbmaj9 Bbm9");
+    }
+    ok(!strcmp(cr_harm_mode_name(CR_HMODE_MIXO), "mixolydian") && !strcmp(cr_harm_mode_name(99), "major"),
+       "modes: names (an unknown mode is major)");
+}
+
 int main(void)
 {
     t_lanes_shape();
+    t_modes();
     t_lanes_transpose();
     t_lanes_voicing();
     t_worlds();

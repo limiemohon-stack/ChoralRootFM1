@@ -2867,5 +2867,28 @@ case "$(cv 4)" in "D7 9 sounding 1"*) LC_ALL=C grep -aq '^harm: home, on G7 9 | 
     bad "home G: '$(cv 4)'"
 silent_end cr_harm_context
 
+echo "Harmony mode's modes: SELECT turns the palette bright to dark on the same home"
+export EMU_UI_LOG=0
+run cr_harm_modes
+unset EMU_UI_LOG
+L="$OUT/cr_harm_modes.log"
+mm() { LC_ALL=C grep -aq "^harm: $1" "$L"; }
+[ "$(cv 1)" = "C7 9 sounding 1 notes 48 62 64 67 70" ] && mm 'mode, on CM | home C mixolydian | keys CM\* A#M Gm FM Dm Am Edim ' &&
+    ok "SELECT -1: C mixolydian, D4 is C9 (a dominant home), Bbmaj9 and Gm9 beside it" || bad "mixolydian: '$(cv 1)'"
+[ "$(cv 2)" = "Cm7 9 sounding 1 notes 48 62 63 67 70" ] && [ "$(cv 3)" = "F7 9 sounding 1 notes 41 60 63 67 69" ] &&
+    ok "SELECT -1: C dorian, D4 Cm9, E4 F9 (the raised 6th)" || bad "dorian: '$(cv 2)' / '$(cv 3)'"
+[ "$(cv 4)" = "C#M7 9 sounding 1 notes 49 60 63 65 68" ] && mm 'mode, on F7 9 | home C phrygian | keys Cm\* C#M A#m G#M Fm D#M Gdim ' &&
+    [ "$(LC_ALL=C grep -ac '^harm: mode, on C#M7 9 | home C phrygian' "$L")" = 0 ] &&
+    ok "SELECT -2: C minor, C phrygian: E4 is Dbmaj9 (bII); one more: still phrygian, the dark end: $OUT/cr_harm_phrygian.ppm" ||
+    bad "phrygian: '$(cv 4)'"
+[ "$(cv 5)" = "D7 9 sounding 1 notes 50 60 64 66 69" ] && mm 'mode, on C#M7 9 | home C lydian | keys CM\* DM Bm Em GM Am F#dim FM ' &&
+    [ "$(LC_ALL=C grep -a '^  cr: key ' "$L" | grep -avc ' bpm 120 ')" = 0 ] &&
+    ok "SELECT +5: through minor, dorian, mixolydian, major to C lydian: E4 is D9 (the raised 4th); the tempo stays 120: $OUT/cr_harm_lydian.ppm" ||
+    bad "lydian / tempo: '$(cv 5)'"
+mm 'home, on Bm7 | home B minor | keys Bm\* GM DM ' && mm 'home, on C#m7 | home C# dorian | keys C#m\* F#M EM ' &&
+    ok "OCT+ on a minor chord: Lydian (a major mode) gives way to B minor; in Dorian, Dorian stays (C# dorian)" ||
+    bad "OCT+ and the mode: $(LC_ALL=C grep -a '^harm: home' "$L" | tr '\n' '/')"
+silent_end cr_harm_modes
+
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"
 exit $fail
