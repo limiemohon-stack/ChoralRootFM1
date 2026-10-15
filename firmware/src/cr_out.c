@@ -423,9 +423,9 @@ enum {
                        * whole): a: the key's note, b: vel. Its release is an ordinary CRE_KEY up. The UI posts the
                        * group only when the queue has room for all of it (cr_post_room) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
-    CRE_PERFORM_LATER, CRE_PERFORM_MODE_LATER,   /* as CRE_PERFORM / _MODE / CRE_PARAM, "later" (cr_set_perform_later:
-                       * Harmony mode's motion: the next chord, or the next beat) */
-    CRE_PARAM_LATER   /* a: mode, b: param, v: value */
+    CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM, quietly (cr_set_perform_quiet:
+                       * a knob or picker turning them: nothing sounding re-performed, the next chord has them) */
+    CRE_PARAM_QUIET   /* a: mode, b: param, v: value */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
@@ -562,9 +562,9 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_PERFORM: cr_set_perform(&cr, e->v); break;
     case CRE_PERFORM_MODE: cr_set_perform_mode(&cr, (cr_pmode_t)e->v); break;
     case CRE_PARAM: cr_set_param(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
-    case CRE_PERFORM_LATER: cr_set_perform_later(&cr, e->v); break;
-    case CRE_PERFORM_MODE_LATER: cr_set_perform_mode_later(&cr, (cr_pmode_t)e->v); break;
-    case CRE_PARAM_LATER: cr_set_param_later(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
+    case CRE_PERFORM_QUIET: cr_set_perform_quiet(&cr, e->v); break;
+    case CRE_PERFORM_MODE_QUIET: cr_set_perform_mode_quiet(&cr, (cr_pmode_t)e->v); break;
+    case CRE_PARAM_QUIET: cr_set_param_quiet(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
     case CRE_STICKY: cr_set_sticky(&cr, e->v); break;
     case CRE_TEMPO: cr_set_tempo(&cr, e->v); cr_out_bpm = (uint16_t)e->v; break;
     case CRE_STREAM: cr_set_stream(&cr, (cr_stream_t)e->a, e->v); break;

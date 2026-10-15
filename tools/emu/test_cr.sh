@@ -2890,21 +2890,22 @@ mm 'home, on Bm7 | home B minor | keys Bm\* GM DM ' && mm 'home, on C#m7 | home 
     bad "OCT+ and the mode: $(LC_ALL=C grep -a '^harm: home' "$L" | tr '\n' '/')"
 silent_end cr_harm_modes
 
-echo "Harmony mode's motion: turned, it waits for the next chord or the next beat (not heard as it turns)"
+echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0
 run cr_harm_motion
 unset EMU_UI_LOG
 L="$OUT/cr_harm_motion.log"
 no() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.* notes-out \([0-9]*\) .*/\1/'; }   # no N: notes out at dump N
 pm() { LC_ALL=C grep -a '^  cr: key ' "$L" | sed -n "${1}p" | sed 's/.* perform \([01]\) mode \([0-9]\) .*/\1 \2/'; }
-[ -n "$(no 1)" ] && [ "$(no 2)" = "$(no 1)" ] && [ "$(pm 2)" = "0 0" ] &&
-    ok "ALGORITHM through Strum, Strum 2 Octaves, Slop to Arp over a latched Cmaj9: not a note re-played as it turns" ||
-    bad "turning the motion: notes out $(no 1) -> $(no 2), perform '$(pm 2)'"
-[ "$(pm 3)" = "1 2" ] && [ "$(no 3)" -gt "$(no 2)" ] &&
-    ok "on the next beat the latched chord takes on the last of them, Arp, and runs ($(no 2) -> $(no 3) notes out)" ||
-    bad "the beat: perform '$(pm 3)', notes out $(no 2) -> $(no 3)"
-[ "$(pm 4)" = "1 2" ] && [ "$(pm 5)" = "0 0" ] &&
-    ok "turned back to off: the arp runs on until the beat, then the chord is plain" || bad "motion off: '$(pm 4)' / '$(pm 5)'"
+[ -n "$(no 1)" ] && [ "$(no 2)" = "$(no 1)" ] && [ "$(no 3)" = "$(no 1)" ] && [ "$(pm 3)" = "1 2" ] &&
+    ok "ALGORITHM through Strum, Strum 2 Octaves, Slop to Arp over a latched Cmaj9: not a note, then or 1.2 s later (Arp kept)" ||
+    bad "turning the motion: notes out $(no 1) -> $(no 2) -> $(no 3), perform '$(pm 3)'"
+[ "$(no 4)" -gt "$(no 3)" ] && case "$(LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n 4p)" in *"chord Am7 9 "*) true;; *) false;; esac &&
+    ok "the next chord, Am9, has it: arpeggiated ($(no 3) -> $(no 4) notes out)" || bad "the next chord: $(no 3) -> $(no 4)"
+[ "$(pm 5)" = "0 0" ] && [ "$(no 5)" -gt "$(no 4)" ] && case "$(LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n 6p)" in
+    *"chord Em7 sounding 1"*) true;; *) false;; esac &&
+    ok "turned back to off: the running arp is left to run (nothing cut), and the next chord, Em7, is plain" ||
+    bad "motion off: '$(pm 5)', $(no 4) -> $(no 5)"
 silent_end cr_harm_motion
 
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"

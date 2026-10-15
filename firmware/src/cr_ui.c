@@ -921,15 +921,17 @@ static void cu_bass_go(uint32_t v)                /* ALGORITHM: 0 OFF, 1.. the b
     cs.bass_on = cs.bass_sound != 0u;
     cr_post(CRE_BASS, 0, 0, cs.bass_on);
 }
-static uint8_t cu_later;                          /* 1: perform changes wait for the next chord / beat (Harmony mode's
-                                                   * motion: cr_set_perform_later) */
+static uint8_t cu_pquiet;                          /* 1: Perform on / off quietly (Harmony mode's motion picker) */
+/* a perform mode picked (the PERF layer's picker, Harmony mode's ALGORITHM), quietly: nothing sounding is re-performed
+ * by it, the next chord has it (cr_set_perform_mode_quiet; the owner, 2026-10-15: a setting turning must not be heard
+ * playing over the chord) */
 static void cu_perf_pick(uint32_t i)
 {
     cs.perf_sel = (uint8_t)(i % 7u);
-    cr_post(cu_later ? CRE_PERFORM_MODE_LATER : CRE_PERFORM_MODE, 0, 0, CU_PERF[cs.perf_sel].mode);
+    cr_post(CRE_PERFORM_MODE_QUIET, 0, 0, CU_PERF[cs.perf_sel].mode);
     if (CU_PERF[cs.perf_sel].range) {
         cs.par[CU_PERF[cs.perf_sel].mode][CR_P_RANGE] = CU_PERF[cs.perf_sel].range;
-        cr_post(cu_later ? CRE_PARAM_LATER : CRE_PARAM, CU_PERF[cs.perf_sel].mode, CR_P_RANGE, CU_PERF[cs.perf_sel].range);
+        cr_post(CRE_PARAM_QUIET, CU_PERF[cs.perf_sel].mode, CR_P_RANGE, CU_PERF[cs.perf_sel].range);
     }
 }
 static void cu_route(void)                        /* Options > MIDI: channels and the RAW stream */
@@ -1414,16 +1416,15 @@ static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop);
 static uint32_t cu_perf_mode(void);
 static void cu_perf_toggle(void);
 /* ALGORITHM in the mode: the motion -- off, or one of the perform modes (CU_PERF: Strum, Strum 2 Octaves, Slop, Arp,
- * Arp 2 Octaves, Pattern, Harp) -- picked and switched on in one turn, no menu; KNOB 3 is then its time. Both "later"
- * (cu_later; the owner, 2026-10-15: twisting through them should not be heard as it goes): the next chord plays with
- * where they stopped, and a chord still sounding (held, latched) takes it on the next beat -- a motion you twist and
- * ride, as an SP-404's */
+ * Arp 2 Octaves, Pattern, Harp) -- picked and switched on in one turn, no menu; KNOB 3 is then its time. Both quietly
+ * (the owner, 2026-10-15: turning them must not be heard playing over the chord): the next chord plays with where they
+ * stopped; a running arp or pattern follows its time as it runs, nothing is struck again */
 static void cu_hm_motion_turn(int32_t s);
 static void cu_hm_motion(int32_t s)
 {
-    cu_later = 1;
+    cu_pquiet = 1;
     cu_hm_motion_turn(s);
-    cu_later = 0;
+    cu_pquiet = 0;
 }
 static void cu_hm_motion_turn(int32_t s)
 {
@@ -1460,9 +1461,7 @@ static void cu_hm_knob(uint32_t knob, int32_t s)
     int32_t v;
     if (knob == 2u) {
         int32_t p = CU_PERF_KNOB[cu_perf_mode()][0];
-        cu_later = 1;                             /* (as the motion: the next chord, or the next beat) */
-        cu_param_turn(cu_perf_mode(), p, s, 1);
-        cu_later = 0;
+        cu_param_turn(cu_perf_mode(), p, s, 1);   /* (quietly, as every perform knob) */
         cu_trace("harm: motion %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name,
                  (int)cs.par[cu_perf_mode()][p]);
         return;
@@ -1797,7 +1796,7 @@ static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop
     v = cs.par[mode][p] + s * CU_PAR[p].step;
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
     cs.par[mode][p] = (int16_t)v;
-    cr_post(cu_later ? CRE_PARAM_LATER : CRE_PARAM, mode, (uint32_t)p, v);
+    cr_post(CRE_PARAM_QUIET, mode, (uint32_t)p, v);   /* (quietly: a running arp follows, nothing re-struck) */
     if (!pop) {
         cu_trace("perf: knob %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name, (int)v);
         return;
@@ -2788,7 +2787,7 @@ static void cu_revert(void)
 static void cu_perf_toggle(void)
 {
     cs.perform_on ^= 1u;
-    cr_post(cu_later ? CRE_PERFORM_LATER : CRE_PERFORM, 0, 0, cs.perform_on);
+    cr_post(cu_pquiet ? CRE_PERFORM_QUIET : CRE_PERFORM, 0, 0, cs.perform_on);
     cu_trace("perf: %s\n", cs.perform_on ? "on" : "off");
 }
 static void cu_fx_toggle(void)
@@ -3458,7 +3457,7 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             cu_perf_pick((uint32_t)i);
             if (!cs.perform_on) {
                 cs.perform_on = 1;
-                cr_post(CRE_PERFORM, 0, 0, 1);
+                cr_post(CRE_PERFORM_QUIET, 0, 0, 1);
             }
         }
         break;
