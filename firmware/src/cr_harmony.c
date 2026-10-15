@@ -534,6 +534,8 @@ static void crh_lane_fill(uint8_t t, uint8_t s, const crh_lane_t *l, int place, 
     d->cat = (uint8_t)((pcs & ~scale) ? CR_HCAT_CHROMATIC : CR_HCAT_DIATONIC);
     d->tension = (int8_t)place;
     d->home = (uint8_t)(place == 0 && l->semi == 0 && l == &CRH_LANES[s == CR_SCALE_MINOR][0]);
+    d->approach = 0;
+    d->flav = 0;
 }
 
 void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map)
@@ -543,7 +545,27 @@ void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map)
     map->home_pc = t;
     map->home_scale = s;
     for (i = 0; i < CR_HMAP_W; i++) crh_lane_fill(t, s, &CRH_LANES[s][i], i, &map->w[i]);
-    for (i = 0; i < CR_HMAP_B; i++) crh_lane_fill(t, s, &CRH_APPROACH[s][i], CR_HMAP_BW[i] + 1, &map->b[i]);
+    for (i = 0; i < CR_HMAP_B; i++) {
+        crh_lane_fill(t, s, &CRH_APPROACH[s][i], CR_HMAP_BW[i] + 1, &map->b[i]);
+        map->b[i].approach = 1;
+    }
+}
+
+static uint8_t crh_flav_ext(unsigned flav, uint8_t ext)     /* the chord keys' 7th / 6th / 9th over ext */
+{
+    if (flav & (1u << CR_MOD_M7)) ext = (uint8_t)((ext & ~(CR_EXT_MAJ7 | CR_EXT_6)) | CR_EXT_M7);
+    if (flav & (1u << CR_MOD_MAJ7)) ext = (uint8_t)((ext & ~(CR_EXT_M7 | CR_EXT_6)) | CR_EXT_MAJ7);
+    if (flav & (1u << CR_MOD_6)) ext = (uint8_t)((ext & ~(CR_EXT_M7 | CR_EXT_MAJ7)) | CR_EXT_6);
+    if (flav & (1u << CR_MOD_9)) ext = (uint8_t)(ext | CR_EXT_9);
+    return ext;
+}
+void cr_harm_flavour(const cr_hmap_chord_t *d, unsigned flav, cr_hmap_chord_t *out)
+{
+    *out = *d;
+    if (flav & (1u << CR_MOD_SUS))
+        out->quality = CR_Q_SUS;
+    out->ext = crh_flav_ext(flav, d->ext);
+    out->flav = (uint8_t)flav;
 }
 
 /* the lowest note at or above lo with the pitch class of root + iv */
@@ -631,7 +653,7 @@ static const crh_world_t CRH_WORLDS[4][CRH_NCL] = {
         { { 5, 10, 15, 19 }, 4, 0, -1, "m", "11" },     { { 7, 12, 17, 22 }, 4, 0, -1, "sus", "7" },
         { { 6, 10, 15, 20 }, 4, 0, -1, "m", "7 b5" } },
     {   /* ALTERED */
-        { { 4, 8, 11, 14 }, 4, 0, -1, "+", "M7" },      { { 4, 10, 15, 20 }, 4, 0, -1, "", "7 alt" },
+        { { 4, 8, 11, 14 }, 4, 0, -1, "+", "M7" },      { { 4, 10, 13, 20 }, 4, 0, -1, "", "7 b9b13" },
         { { 3, 7, 11, 14 }, 4, 0, -1, "m", "M9" },      { { 5, 7, 10, 13 }, 4, 0, -1, "sus", "7 b9" },
         { { 3, 6, 9, 15 }, 4, 0, -1, "\260", "7" } },
     {   /* UPPER: (under) + a major triad on top, named triad / bass */
@@ -654,7 +676,8 @@ int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shif
     if (shift > 24) shift = 24;
     *loop_q = d->quality;
     *loop_x = d->ext;
-    if (world == CR_HCOL_TRIAD || world == CR_HCOL_BARE) e.ext = 0;
+    if (world == CR_HCOL_BARE) e.ext = 0;
+    if (world == CR_HCOL_TRIAD) e.ext = crh_flav_ext(d->flav, 0);   /* (the palette's colour off, the keys' kept) */
     if (world == CR_HCOL_BARE) {                             /* root, 5th, root */
         int b = crh_place(r, 0, 40 + shift), f = crh_place(r, 7, rootless ? 50 + shift : b + 1);
         if (!rootless) notes[n++] = (uint8_t)b;
@@ -675,6 +698,12 @@ int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shif
     }
     cl = crh_class(d->quality, d->ext);
     w = &CRH_WORLDS[world - CR_HCOL_LUSH][cl];
+    if (world == CR_HCOL_ALTERED && cl == CRH_CL_DOM) {      /* an approach: 7b9 (the 5th kept); the 9 key: #9 */
+        static const crh_world_t ALT[2][2] = {
+            { { { 4, 10, 13, 20 }, 4, 0, -1, "", "7 b9b13" }, { { 4, 10, 15, 20 }, 4, 0, -1, "", "7 #9b13" } },
+            { { { 4, 7, 10, 13 }, 4, 0, -1, "", "7 b9" },     { { 4, 7, 10, 15 }, 4, 0, -1, "", "7 #9" } } };
+        w = &ALT[d->approach ? 1 : 0][(d->flav >> CR_MOD_9) & 1u];
+    }
     *root_note = (uint8_t)crh_place(r, 0, 52 + shift);
     if (!rootless) notes[n++] = (uint8_t)crh_place(r, 0, 40 + shift);
     nu = w->n;
@@ -697,16 +726,27 @@ int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shif
         up[2] = crh_place(r, w->iv[1 + (bk + 1) % 3], up[1] + 1);
         up[3] = crh_place(r, w->iv[1 + (bk + 2) % 3], up[2] + 1);
     } else {                                                 /* close position, the top nearest A4 */
-        int iv[4] = { 0, 0, 0, 0 }, m;
-        for (i = 0; i < nu; i++) iv[i] = w->iv[i] % 12;      /* (in pitch order: a close stack is a rotation) */
+        int iv[4] = { 0, 0, 0, 0 }, ex[4] = { 0, 0, 0, 0 }, m, rub;
+        for (i = 0; i < nu; i++) { iv[i] = w->iv[i] % 12; ex[i] = w->iv[i] == 15; }  /* (in pitch order: a close
+                                                                                       * stack is a rotation) */
         for (i = 1; i < nu; i++)
-            for (m = i; m > 0 && iv[m] < iv[m - 1]; m--) { int x = iv[m]; iv[m] = iv[m - 1]; iv[m - 1] = x; }
+            for (m = i; m > 0 && iv[m] < iv[m - 1]; m--) {
+                int x = iv[m]; iv[m] = iv[m - 1]; iv[m - 1] = x;
+                x = ex[m]; ex[m] = ex[m - 1]; ex[m - 1] = x;
+            }
         best = -1; bk = 0;
-        for (k = 0; k < nu; k++) {
-            int top = crh_place(r, iv[k], 55 + shift);
-            for (m = 1; m < nu; m++) top = crh_place(r, iv[(k + m) % nu], top + 1);
-            if (best < 0 || crh_abs(top - (69 + shift)) < best) { best = crh_abs(top - (69 + shift)); bk = k; }
-        }
+        for (rub = 0; rub < 2 && best < 0; rub++)            /* (first without the #9 just under the 3rd: under
+                                                              * it is mud, over it the sound) */
+            for (k = 0; k < nu; k++) {
+                int top = crh_place(r, iv[k], 55 + shift), bad = 0;
+                for (m = 1; m < nu; m++) {
+                    int nx = crh_place(r, iv[(k + m) % nu], top + 1);
+                    if (nx - top == 1 && ex[(k + m - 1) % nu] && !ex[(k + m) % nu]) bad = 1;
+                    top = nx;
+                }
+                if (bad && !rub) continue;
+                if (best < 0 || crh_abs(top - (69 + shift)) < best) { best = crh_abs(top - (69 + shift)); bk = k; }
+            }
         up[0] = crh_place(r, iv[bk], 55 + shift);
         for (i = 1; i < nu; i++) up[i] = crh_place(r, iv[(bk + i) % nu], up[i - 1] + 1);
     }

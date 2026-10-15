@@ -1474,17 +1474,7 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     d = cu_hm_dest(k);
     if (!d)
         return 0;
-    e = *d;
-    if (flav & (1u << CR_MOD_SUS))              /* the flavours */
-        e.quality = CR_Q_SUS;
-    if (flav & (1u << CR_MOD_M7))
-        e.ext = (uint8_t)((e.ext & ~(CR_EXT_MAJ7 | CR_EXT_6)) | CR_EXT_M7);
-    if (flav & (1u << CR_MOD_MAJ7))
-        e.ext = (uint8_t)((e.ext & ~(CR_EXT_M7 | CR_EXT_6)) | CR_EXT_MAJ7);
-    if (flav & (1u << CR_MOD_6))
-        e.ext = (uint8_t)((e.ext & ~(CR_EXT_M7 | CR_EXT_MAJ7)) | CR_EXT_6);
-    if (flav & (1u << CR_MOD_9))
-        e.ext = (uint8_t)(e.ext | CR_EXT_9);
+    cr_harm_flavour(d, flav, &e);               /* the flavours */
     nv = cr_harm_voice_world(&e, cu_hm.colour, cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note, nm_r, nm_q,
                              nm_s, &lq, &lx);
     if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
@@ -1494,7 +1484,7 @@ static int cu_hm_play(uint32_t k, uint32_t n)
         cr_post(CRE_HNOTE, i, notes[i], 0);
     cr_post(CRE_HKEY, n, cs.vel, 1);
     cu_hm_set_cur(e.root_pc, lq, lx, notes, (uint32_t)nv);
-    cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 alt, D/C ..) */
+    cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 b9, D/C ..) */
     cu_cpy(cu_hm.cur.qual, nm_q, sizeof cu_hm.cur.qual);
     cu_cpy(cu_hm.cur.sup, nm_s, sizeof cu_hm.cur.sup);
     if (cu_hm_away() && !cu_hm.hinted) {         /* (the first time away from home: how to come back to it here) */

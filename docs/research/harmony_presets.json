@@ -1,0 +1,4546 @@
+{
+  "schema_version": "1.0.0",
+  "title": "Harmony Engine research seed library",
+  "created": "2026-10-15",
+  "status": "Research and proposed design data; not integrated with the existing repository.",
+  "conventions": {
+    "tuning": "12-tone equal temperament",
+    "pitch_class_C": 0,
+    "middle_C_midi": 60,
+    "root_offsets": "Chromatic semitones relative to Home, even in minor. No double lowering of b3/b6/b7.",
+    "formula_intervals": "Semitones above chord root; retains compound extension identity before modulo 12.",
+    "bass_offsets": "Independent semitone offsets relative to Home; may be a non-chord pedal.",
+    "essential_intervals": "Across total harmony including bass, not necessarily all in the upper hand. Small voice budgets may require a simpler labelled variant.",
+    "quality_templates": "Curated realizations, not claims that every voicing must include every listed extension.",
+    "target_null": "No automatic target assignment. A runtime movement operator must supply target identity where applicable.",
+    "audition_timing": "Optional quarter-note beat lengths; do not auto-quantize manual playing."
+  },
+  "chord_templates": {
+    "maj": {
+      "intervals": [
+        0,
+        4,
+        7
+      ],
+      "essential_intervals": [
+        0,
+        4
+      ]
+    },
+    "min": {
+      "intervals": [
+        0,
+        3,
+        7
+      ],
+      "essential_intervals": [
+        0,
+        3
+      ]
+    },
+    "maj7": {
+      "intervals": [
+        0,
+        4,
+        7,
+        11
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        11
+      ]
+    },
+    "maj9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        11,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        11,
+        14
+      ]
+    },
+    "maj9#11": {
+      "intervals": [
+        0,
+        4,
+        7,
+        11,
+        14,
+        18
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        11,
+        14,
+        18
+      ]
+    },
+    "6": {
+      "intervals": [
+        0,
+        4,
+        7,
+        9
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        9
+      ]
+    },
+    "6/9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        9,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        9,
+        14
+      ]
+    },
+    "m7": {
+      "intervals": [
+        0,
+        3,
+        7,
+        10
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        10
+      ]
+    },
+    "m9": {
+      "intervals": [
+        0,
+        3,
+        7,
+        10,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        10,
+        14
+      ]
+    },
+    "m11": {
+      "intervals": [
+        0,
+        3,
+        7,
+        10,
+        14,
+        17
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        10,
+        17
+      ]
+    },
+    "m6": {
+      "intervals": [
+        0,
+        3,
+        7,
+        9
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        9
+      ]
+    },
+    "m6/9": {
+      "intervals": [
+        0,
+        3,
+        7,
+        9,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        9,
+        14
+      ]
+    },
+    "mMaj7": {
+      "intervals": [
+        0,
+        3,
+        7,
+        11
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        11
+      ]
+    },
+    "mMaj9": {
+      "intervals": [
+        0,
+        3,
+        7,
+        11,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        11,
+        14
+      ]
+    },
+    "m7b5": {
+      "intervals": [
+        0,
+        3,
+        6,
+        10
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        6,
+        10
+      ]
+    },
+    "dim7": {
+      "intervals": [
+        0,
+        3,
+        6,
+        9
+      ],
+      "essential_intervals": [
+        0,
+        3,
+        6,
+        9
+      ]
+    },
+    "7": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10
+      ]
+    },
+    "9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        14
+      ]
+    },
+    "13": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        14,
+        21
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        21
+      ]
+    },
+    "7b9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        13
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        13
+      ]
+    },
+    "7#9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        15
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        15
+      ]
+    },
+    "7b9b13": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        13,
+        20
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        13,
+        20
+      ]
+    },
+    "7#9b13": {
+      "intervals": [
+        0,
+        4,
+        10,
+        15,
+        20
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        15,
+        20
+      ]
+    },
+    "13#11": {
+      "intervals": [
+        0,
+        4,
+        7,
+        10,
+        14,
+        18,
+        21
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        10,
+        18,
+        21
+      ]
+    },
+    "9sus4": {
+      "intervals": [
+        0,
+        5,
+        7,
+        10,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        5,
+        10,
+        14
+      ]
+    },
+    "13sus4": {
+      "intervals": [
+        0,
+        5,
+        7,
+        10,
+        14,
+        21
+      ],
+      "essential_intervals": [
+        0,
+        5,
+        10,
+        21
+      ]
+    },
+    "7sus4b9": {
+      "intervals": [
+        0,
+        5,
+        7,
+        10,
+        13
+      ],
+      "essential_intervals": [
+        0,
+        5,
+        10,
+        13
+      ]
+    },
+    "7#5": {
+      "intervals": [
+        0,
+        4,
+        8,
+        10
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        8,
+        10
+      ]
+    },
+    "add9": {
+      "intervals": [
+        0,
+        4,
+        7,
+        14
+      ],
+      "essential_intervals": [
+        0,
+        4,
+        14
+      ]
+    },
+    "quartal3": {
+      "intervals": [
+        0,
+        5,
+        10
+      ],
+      "essential_intervals": [
+        0,
+        5,
+        10
+      ]
+    },
+    "quartal4": {
+      "intervals": [
+        0,
+        5,
+        10,
+        15
+      ],
+      "essential_intervals": [
+        0,
+        5,
+        10,
+        15
+      ]
+    },
+    "cluster025": {
+      "intervals": [
+        0,
+        2,
+        5
+      ],
+      "essential_intervals": [
+        0,
+        2,
+        5
+      ]
+    }
+  },
+  "movement_rules": [
+    {
+      "id": "R01",
+      "name": "Revoice in place",
+      "default_zone": "REST",
+      "precondition": "same harmonic identity",
+      "operation": "Keep root and bass. Invert or respread upper voices; retain locked melody.",
+      "guardrail": "Do not interpret an inversion as a new key."
+    },
+    {
+      "id": "R02",
+      "name": "Extend in place",
+      "default_zone": "REST",
+      "precondition": "same harmonic identity",
+      "operation": "Add or replace one allowed colour tone while preserving defining tones.",
+      "guardrail": "Extra notes do not imply greater directional pull."
+    },
+    {
+      "id": "R03",
+      "name": "Diatonic step",
+      "default_zone": "MOVE",
+      "precondition": "current home collection",
+      "operation": "Choose adjacent degree roots and match appropriate qualities.",
+      "guardrail": "Check whole voicings, not root membership alone."
+    },
+    {
+      "id": "R04",
+      "name": "Third relation",
+      "default_zone": "MOVE",
+      "precondition": "shared tones",
+      "operation": "Try roots a diatonic third apart; retain shared upper notes.",
+      "guardrail": "Do not always choose the closest bass inversion."
+    },
+    {
+      "id": "R05",
+      "name": "Dominant of target",
+      "default_zone": "PULL",
+      "precondition": "explicit target root t",
+      "operation": "Construct dominant root (t + 7) mod 12; resolve toward t.",
+      "guardrail": "Require a target; a dominant quality alone does not define function."
+    },
+    {
+      "id": "R06",
+      "name": "Related two five",
+      "default_zone": "PULL",
+      "precondition": "explicit major or minor target t",
+      "operation": "Prepend ii at (t+2) then V at (t+7); choose m7 or m7b5 from target context.",
+      "guardrail": "Offer as an optional gesture sequence; do not auto-play extra events."
+    },
+    {
+      "id": "R07",
+      "name": "Tritone substitution",
+      "default_zone": "PULL",
+      "precondition": "a dominant candidate targeting t",
+      "operation": "Replace dominant root with (t+1) mod 12; spell its guide tones correctly.",
+      "guardrail": "Only substitute a functionally appropriate dominant; recheck melody."
+    },
+    {
+      "id": "R08",
+      "name": "Leading diminished",
+      "default_zone": "PULL",
+      "precondition": "major or minor target t",
+      "operation": "Use dim7 at (t-1) mod 12, leading into target.",
+      "guardrail": "Fully diminished and half diminished are distinct qualities."
+    },
+    {
+      "id": "R09",
+      "name": "Common tone diminished",
+      "default_zone": "REST",
+      "precondition": "an ornamented stable chord",
+      "operation": "Find a dim7 containing a stable target tone and resolve neighbour voices back.",
+      "guardrail": "This is not automatically a leading-tone diminished resolution."
+    },
+    {
+      "id": "R10",
+      "name": "Minor plagal",
+      "default_zone": "MOVE",
+      "precondition": "major tonic t",
+      "operation": "Move IV to iv6 then I, prioritising scale-degree 6 to b6 to 5.",
+      "guardrail": "D in Fm6 is natural; this is not Fm7."
+    },
+    {
+      "id": "R11",
+      "name": "Backdoor",
+      "default_zone": "PULL",
+      "precondition": "major tonic t",
+      "operation": "Offer ivm7/9 then bVII7/9/13 then I.",
+      "guardrail": "Backdoor bVII and tritone-sub bII are different mechanisms."
+    },
+    {
+      "id": "R12",
+      "name": "Suspension release",
+      "default_zone": "PULL",
+      "precondition": "dominant target context",
+      "operation": "Move chord fourth down to third before target arrival; preserve bass.",
+      "guardrail": "A sus chord may also stay suspended in a modal setting."
+    },
+    {
+      "id": "R13",
+      "name": "Chromatic approach shape",
+      "default_zone": "MOVE",
+      "precondition": "known destination voicing",
+      "operation": "Transpose upper voicing +/-1 semitone, then land on original target.",
+      "guardrail": "Preserve a clear exit; may clash with a held melody."
+    },
+    {
+      "id": "R14",
+      "name": "Pedal transformation",
+      "default_zone": "REST",
+      "precondition": "fixed bass pitch",
+      "operation": "Keep bass while changing upper harmony or an inner voice.",
+      "guardrail": "Chord root and bass must be distinct data fields."
+    },
+    {
+      "id": "R15",
+      "name": "Line cliche",
+      "default_zone": "REST",
+      "precondition": "minor tonic region",
+      "operation": "Track root/major7/minor7/6 as one moving line against a stable minor foundation.",
+      "guardrail": "Prefer one moving strand; do not unnecessarily revoice everything."
+    },
+    {
+      "id": "R16",
+      "name": "Sixth diminished",
+      "default_zone": "REST",
+      "precondition": "sixth chord family",
+      "operation": "Alternate inversions of major/minor6 and dim7 built a whole tone above.",
+      "guardrail": "State is a tonic-region ornament; avoid silent Home changes."
+    },
+    {
+      "id": "R17",
+      "name": "Modal colour",
+      "default_zone": "MOVE",
+      "precondition": "explicit modal centre",
+      "operation": "Use characteristic modal tones with tonic bass reinforcement.",
+      "guardrail": "The same collection can imply different centres."
+    },
+    {
+      "id": "R18",
+      "name": "Diatonic planing",
+      "default_zone": "MOVE",
+      "precondition": "fixed degree shape in collection",
+      "operation": "Translate the shape by scale steps; interval sizes may change.",
+      "guardrail": "Do not confuse with constant-semitone transposition."
+    },
+    {
+      "id": "R19",
+      "name": "Chromatic planing",
+      "default_zone": "MOVE",
+      "precondition": "exact voicing shape",
+      "operation": "Translate all voices by the same semitone distance.",
+      "guardrail": "Parallel voices are intentional; preserve shape instead of minimising motion."
+    },
+    {
+      "id": "R20",
+      "name": "Chromatic mediant",
+      "default_zone": "MOVE",
+      "precondition": "major or minor identity",
+      "operation": "Try same-quality triadic cores a major or minor third apart; manage extensions separately.",
+      "guardrail": "Common tones must be recomputed after extensions."
+    },
+    {
+      "id": "R21",
+      "name": "Upper structure",
+      "default_zone": "PULL",
+      "precondition": "dominant shell",
+      "operation": "Add a chosen triad over third and seventh; derive actual resulting tensions.",
+      "guardrail": "An upper triad does not replace the shell or define the bass."
+    },
+    {
+      "id": "R22",
+      "name": "Symmetric collection",
+      "default_zone": "MOVE",
+      "precondition": "explicit whole-tone or octatonic collection",
+      "operation": "Choose subsets and transformations within the selected collection.",
+      "guardrail": "Symmetry weakens unique tonic information; retain user Home separately."
+    },
+    {
+      "id": "R23",
+      "name": "Deceptive arrival",
+      "default_zone": "MOVE",
+      "precondition": "dominant approaching tonic",
+      "operation": "Offer a context-compatible alternate target such as vi in major.",
+      "guardrail": "Not every dominant must resolve to I; preserve melody."
+    },
+    {
+      "id": "R24",
+      "name": "Common tone modulation",
+      "default_zone": "MOVE",
+      "precondition": "explicit exploration setting",
+      "operation": "Retain a common pitch, introduce a new region, and confirm Home only on user action.",
+      "guardrail": "Local target is not global Home; no silent re-anchoring."
+    }
+  ],
+  "phrase_presets": [
+    {
+      "id": "P01",
+      "bank": "Soul",
+      "name": "Descending thirds",
+      "roman_description": "Imaj9 vi9 IVmaj9 ii9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Am9 → Fmaj9 → Dm9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "m9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Am9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Keep the top line nearly stationary while bass roots descend by thirds. The loop closes without a dominant.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S01",
+        "S02"
+      ]
+    },
+    {
+      "id": "P02",
+      "bank": "Soul",
+      "name": "Four three six two",
+      "roman_description": "IVmaj9 iii7 vi9 ii9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Fmaj9 → Em7 → Am9 → Dm9",
+      "events": [
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "m7",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "Em7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "m9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Am9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Start away from tonic; sing over the repeated loop before adding connectors.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "P03",
+      "bank": "Soul",
+      "name": "Dorian two chord space",
+      "roman_description": "i9 IV13",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → F13",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "13",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "F13",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "The natural sixth in IV13 distinguishes this from natural minor.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S06"
+      ]
+    },
+    {
+      "id": "P04",
+      "bank": "Soul",
+      "name": "Minor open circuit",
+      "roman_description": "i9 bVImaj9 bIIImaj9 bVII9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → Abmaj9 → Ebmaj9 → Bb9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b6",
+          "root_offset": 8,
+          "quality": "maj9",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Abmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b3",
+          "root_offset": 3,
+          "quality": "maj9",
+          "bass_degree": "b3",
+          "bass_offset": 3,
+          "example_symbol_C": "Ebmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            3,
+            5,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b7",
+          "root_offset": 10,
+          "quality": "9",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "Bb9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            8,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "An Aeolian-compatible loop with no leading-tone dominant.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S07"
+      ]
+    },
+    {
+      "id": "P05",
+      "bank": "Soul",
+      "name": "Six nine home",
+      "roman_description": "I6/9 IVmaj9 I6/9 over 3 ii9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C6/9 → Fmaj9 → C6/9/E → Dm9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6/9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "C6/9/E",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Compare the settled sixth with a more pointed major seventh; preserve the bass inversion.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "P06",
+      "bank": "Soul",
+      "name": "Borrowed flat seven",
+      "roman_description": "Imaj9 bVIImaj9 IVmaj9 I6/9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Bbmaj9 → Fmaj9 → C6/9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "b7",
+          "root_offset": 10,
+          "quality": "maj9",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "Bbmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6/9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Borrow the flat-seven region without forcing a full key change.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08"
+      ]
+    },
+    {
+      "id": "P07",
+      "bank": "Soul",
+      "name": "Minor descending return",
+      "roman_description": "i9 bVII9 bVImaj9 V7 b9 b13",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → Bb9 → Abmaj9 → G7(b9,b13)",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b7",
+          "root_offset": 10,
+          "quality": "9",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "Bb9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b6",
+          "root_offset": 8,
+          "quality": "maj9",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Abmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "7b9b13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G7(b9,b13)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            3,
+            5,
+            7,
+            8,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Descending roots lead to an altered dominant and then the loop tonic.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08",
+        "S09"
+      ]
+    },
+    {
+      "id": "P08",
+      "bank": "Soul",
+      "name": "Suspended turnaround",
+      "roman_description": "Imaj9 vi9 ii11 V13sus4",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Am9 → Dm11 → G13sus4",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "m9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Am9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m11",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm11",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13sus4",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13sus4",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Let the suspended dominant remain open; release to tonic on the next gesture.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03",
+        "S04"
+      ]
+    },
+    {
+      "id": "P09",
+      "bank": "Soul",
+      "name": "Colour around one root",
+      "roman_description": "i9 iMaj9 i6/9 i9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → CmMaj9 → Cm6/9 → Cm9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "mMaj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "CmMaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm6/9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Compare Bb, B and A against the same C minor foundation; keep other voices still.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S07"
+      ]
+    },
+    {
+      "id": "P10",
+      "bank": "Soul",
+      "name": "Major minor hinge",
+      "roman_description": "Imaj9 i9 bVImaj9 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Cm9 → Abmaj9 → Cmaj9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b6",
+          "root_offset": 8,
+          "quality": "maj9",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Abmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Change major to minor quality deliberately, then return through a common-tone connection.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08",
+        "S14"
+      ]
+    },
+    {
+      "id": "P11",
+      "bank": "Gospel",
+      "name": "Major to minor plagal",
+      "roman_description": "IVmaj9 iv6 I6/9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Fmaj9 → Fm6 → C6/9",
+      "events": [
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "m6",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fm6",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6/9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Track A to Ab to G in C; the natural sixth of iv6 is D.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08"
+      ]
+    },
+    {
+      "id": "P12",
+      "bank": "Gospel",
+      "name": "Backdoor home",
+      "roman_description": "iv9 bVII13 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Fm9 → Bb13 → Cmaj9",
+      "events": [
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "m9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            5,
+            7,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "b7",
+          "root_offset": 10,
+          "quality": "13",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "Bb13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            7,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "An alternative arrival through minor subdominant and flat-seven dominant.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S10"
+      ]
+    },
+    {
+      "id": "P13",
+      "bank": "Gospel",
+      "name": "Diminished approach to two",
+      "roman_description": "I6 #io7 ii9 V13",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C6 → C#dim7 → Dm9 → G13",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "#1",
+          "root_offset": 1,
+          "quality": "dim7",
+          "bass_degree": "#1",
+          "bass_offset": 1,
+          "example_symbol_C": "C#dim7",
+          "duration_beats": 1,
+          "pitch_classes_C": [
+            1,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "A brief diminished connector supplies chromatic bass motion into ii.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S05",
+        "S11"
+      ]
+    },
+    {
+      "id": "P14",
+      "bank": "Gospel",
+      "name": "Gospel rising bass",
+      "roman_description": "IVmaj9 #ivo7 I over 5 VI7 b9 ii9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Fmaj9 → F#dim7 → C/G → A7(b9) → Dm9",
+      "events": [
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "#4",
+          "root_offset": 6,
+          "quality": "dim7",
+          "bass_degree": "#4",
+          "bass_offset": 6,
+          "example_symbol_C": "F#dim7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            3,
+            6,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "C/G",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            4,
+            7
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "7b9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "A7(b9)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            1,
+            4,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "A gospel-oriented ascent to I over 5 followed by an applied dominant into ii; label the final target accurately.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S05",
+        "S08"
+      ]
+    },
+    {
+      "id": "P15",
+      "bank": "Gospel",
+      "name": "Applied dominant chain",
+      "roman_description": "III7 b9 VI7 b9 II9 V13 I6/9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "E7(b9) → A7(b9) → D9 → G13 → C6/9",
+      "events": [
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "7b9",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "E7(b9)",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "7b9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "A7(b9)",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            1,
+            4,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "D9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            6,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6/9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Each dominant prepares the next root a fifth below until home.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08"
+      ]
+    },
+    {
+      "id": "P16",
+      "bank": "Gospel",
+      "name": "Walk into four",
+      "roman_description": "Imaj9 I7 over b7 IVmaj9 over 6 iv6 over b6 I over 5",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → C7/Bb → Fmaj9/A → Fm6/Ab → C/G",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "7",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "C7/Bb",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Fmaj9/A",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "m6",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Fm6/Ab",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "C/G",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            4,
+            7
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Follow bass C Bb A Ab G; preserve the upper chord identities through slash basses.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S04",
+        "S08"
+      ]
+    },
+    {
+      "id": "P17",
+      "bank": "Gospel",
+      "name": "Common tone diminished",
+      "roman_description": "I6 io7 I6",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C6 → Cdim7 → C6",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "dim7",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cdim7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            3,
+            6,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "C and A can remain while E and G move to Eb and Gb and back; ornament tonic.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S05"
+      ]
+    },
+    {
+      "id": "P18",
+      "bank": "Gospel",
+      "name": "Sixth diminished motion",
+      "roman_description": "I6 iio7 I6 over 3 iio7 over 4 I6 over 5",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C6 → Ddim7 → C6/E → Ddim7/F → C6/G",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "dim7",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Ddim7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "C6/E",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "dim7",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Ddim7/F",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "C6/G",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Alternate inversions of C6 and Ddim7; this is motion inside a tonic area.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S11"
+      ]
+    },
+    {
+      "id": "P19",
+      "bank": "Gospel",
+      "name": "Minor sixth diminished",
+      "roman_description": "i6 iio7 i6 over b3 iio7 over 4 i6 over 5",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm6 → Ddim7 → Cm6/Eb → Ddim7/F → Cm6/G",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm6",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "dim7",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Ddim7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6",
+          "bass_degree": "b3",
+          "bass_offset": 3,
+          "example_symbol_C": "Cm6/Eb",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "dim7",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Ddim7/F",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "Cm6/G",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Alternate Cm6 with Ddim7; do not substitute Cm7 for Cm6.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S11"
+      ]
+    },
+    {
+      "id": "P20",
+      "bank": "Gospel",
+      "name": "Delayed dominant release",
+      "roman_description": "ii9 V13sus4 V7 b9 I6/9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm9 → G13sus4 → G7(b9) → C6/9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13sus4",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13sus4",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "7b9",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G7(b9)",
+          "duration_beats": 1,
+          "pitch_classes_C": [
+            2,
+            5,
+            7,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C6/9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Keep suspension, release its fourth to the third, then resolve home.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S04",
+        "S09"
+      ]
+    },
+    {
+      "id": "P21",
+      "bank": "Jazz",
+      "name": "Major two five one",
+      "roman_description": "ii9 V13 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm9 → G13 → Cmaj9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Use F and C to F and B to E and B as the middle guide-tone pair.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03",
+        "S04"
+      ]
+    },
+    {
+      "id": "P22",
+      "bank": "Jazz",
+      "name": "Minor two five one",
+      "roman_description": "ii half diminished V7 b9 b13 i6/9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm7b5 → G7(b9,b13) → Cm6/9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m7b5",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm7b5",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            5,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "7b9b13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G7(b9,b13)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            3,
+            5,
+            7,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6/9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm6/9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Let Ab and B from G7 lead into G and C; choose a minor sixth tonic.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08",
+        "S09"
+      ]
+    },
+    {
+      "id": "P23",
+      "bank": "Jazz",
+      "name": "Three six two five",
+      "roman_description": "iii7 VI7 b9 ii9 V13",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Em7 → A7(b9) → Dm9 → G13",
+      "events": [
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "m7",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "Em7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "7b9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "A7(b9)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            1,
+            4,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "The VI7 is V of ii; this progression is the iii VI ii V turnaround.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03",
+        "S08"
+      ]
+    },
+    {
+      "id": "P24",
+      "bank": "Jazz",
+      "name": "Tritone descent",
+      "roman_description": "ii9 bII13 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm9 → Db13 → Cmaj9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "b2",
+          "root_offset": 1,
+          "quality": "13",
+          "bass_degree": "b2",
+          "bass_offset": 1,
+          "example_symbol_C": "Db13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            1,
+            3,
+            5,
+            8,
+            10,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "D Db C bass; Db13 replaces G7 while retaining its guide-tone tritone enharmonically.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08"
+      ]
+    },
+    {
+      "id": "P25",
+      "bank": "Jazz",
+      "name": "Tonicize the four",
+      "roman_description": "Imaj9 v9 I13 IVmaj9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Gm9 → C13 → Fmaj9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "m9",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "Gm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            5,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "13",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C13",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "maj9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "Fmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Gm9 C13 briefly makes F the target without changing global Home.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S05"
+      ]
+    },
+    {
+      "id": "P26",
+      "bank": "Jazz",
+      "name": "Deceptive ending",
+      "roman_description": "ii9 V7 b9 vi9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm9 → G7(b9) → Am9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "7b9",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G7(b9)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            2,
+            5,
+            7,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "m9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Am9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "A dominant approach resolves to vi rather than I; preserve the intended melody.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03"
+      ]
+    },
+    {
+      "id": "P27",
+      "bank": "Jazz",
+      "name": "Minor line cliche",
+      "roman_description": "i iMaj7 i7 i6",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm → CmMaj7 → Cm7 → Cm6",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "min",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "mMaj7",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "CmMaj7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m7",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m6",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm6",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            9
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Use an upper line C B Bb A over the minor triad foundation.",
+      "suggested_voicing": "fixed_minor_triad_descending_inner_or_top_line",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S07"
+      ]
+    },
+    {
+      "id": "P28",
+      "bank": "Jazz",
+      "name": "Related two five",
+      "roman_description": "ii9 V13 iii7 VI7 b9 ii9 V13 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Dm9 → G13 → Em7 → A7(b9) → Dm9 → G13 → Cmaj9",
+      "events": [
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "m7",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "Em7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "7b9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "A7(b9)",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            1,
+            4,
+            7,
+            9,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "m9",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dm9",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            5,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "13",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G13",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            4,
+            5,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Extend a phrase by passing through iii VI before the final cadence.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S03",
+        "S05"
+      ]
+    },
+    {
+      "id": "P29",
+      "bank": "Jazz",
+      "name": "Blues tonic colour",
+      "roman_description": "I9 IV9 I9 V7 sharp9 IV9 I9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C9 → F9 → C9 → G7(#9) → F9 → C9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "F9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "5",
+          "root_offset": 7,
+          "quality": "7#9",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "G7(#9)",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            5,
+            7,
+            10,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "4",
+          "root_offset": 5,
+          "quality": "9",
+          "bass_degree": "4",
+          "bass_offset": 5,
+          "example_symbol_C": "F9",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            0,
+            3,
+            5,
+            7,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "A short blues-derived teaching phrase, not a full twelve-bar form; I9 is home.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S12"
+      ]
+    },
+    {
+      "id": "P30",
+      "bank": "Jazz",
+      "name": "Substituted dominant chain",
+      "roman_description": "III7 bIII7 II7 bII7 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "E7 → Eb7 → D7 → Db7 → Cmaj9",
+      "events": [
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "7",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "E7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            2,
+            4,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "b3",
+          "root_offset": 3,
+          "quality": "7",
+          "bass_degree": "b3",
+          "bass_offset": 3,
+          "example_symbol_C": "Eb7",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            1,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "7",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "D7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            6,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "b2",
+          "root_offset": 1,
+          "quality": "7",
+          "bass_degree": "b2",
+          "bass_offset": 1,
+          "example_symbol_C": "Db7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            1,
+            5,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "E7 Eb7 D7 Db7 Cmaj9 substitutes Eb7 for A7 and Db7 for G7 in a dominant chain.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S08"
+      ]
+    },
+    {
+      "id": "P31",
+      "bank": "Explore",
+      "name": "Chromatic side slip",
+      "roman_description": "i9 bii9 i9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → Dbm9 → Cm9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b2",
+          "root_offset": 1,
+          "quality": "m9",
+          "bass_degree": "b2",
+          "bass_offset": 1,
+          "example_symbol_C": "Dbm9",
+          "duration_beats": 2,
+          "pitch_classes_C": [
+            1,
+            3,
+            4,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 8,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Move the voicing up one semitone and return; keep the home identity in memory.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S13"
+      ]
+    },
+    {
+      "id": "P32",
+      "bank": "Explore",
+      "name": "Lydian pedal",
+      "roman_description": "Imaj9 sharp11 II triad over 1 Imaj9 sharp11",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9(#11) → D/C → Cmaj9(#11)",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9#11",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9(#11)",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            6,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "maj",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "D/C",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            6,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9#11",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9(#11)",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            6,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "The fixed C bass supports F sharp colour; D over C lacks an explicit E third.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S06"
+      ]
+    },
+    {
+      "id": "P33",
+      "bank": "Explore",
+      "name": "Chromatic mediants",
+      "roman_description": "Imaj9 bVImaj9 IIImaj9 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Abmaj9 → Emaj9 → Cmaj9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "b6",
+          "root_offset": 8,
+          "quality": "maj9",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Abmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "maj9",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "Emaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            3,
+            4,
+            6,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Common tones and semitone movements join distant major sonorities.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S14"
+      ]
+    },
+    {
+      "id": "P34",
+      "bank": "Explore",
+      "name": "Major third tonic cycle",
+      "roman_description": "Imaj7 IIImaj7 bVImaj7 Imaj7",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj7 → Emaj7 → Abmaj7 → Cmaj7",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj7",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "maj7",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "Emaj7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            3,
+            4,
+            8,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "b6",
+          "root_offset": 8,
+          "quality": "maj7",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "Abmaj7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            3,
+            7,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj7",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj7",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Three equal root divisions; this is a teaching cycle, not Giant Steps changes.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S14",
+        "S17"
+      ]
+    },
+    {
+      "id": "P35",
+      "bank": "Explore",
+      "name": "Tonic triad bass descent",
+      "roman_description": "I over 1 I over b7 I over b6 I over 5",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "C → C/Bb → C/Ab → C/G",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "b7",
+          "bass_offset": 10,
+          "example_symbol_C": "C/Bb",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "b6",
+          "bass_offset": 8,
+          "example_symbol_C": "C/Ab",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj",
+          "bass_degree": "5",
+          "bass_offset": 7,
+          "example_symbol_C": "C/G",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            7
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Hold C E G in the upper register while changing the bass.",
+      "suggested_voicing": "fixed_upper_triad_changing_bass",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "P36",
+      "bank": "Explore",
+      "name": "Quartal parallel shapes",
+      "roman_description": "C quartal D quartal Eb quartal C quartal",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "Cquartal3 → Dquartal3 → Ebquartal3 → Cquartal3",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "quartal3",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cquartal3",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            5,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "quartal3",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "Dquartal3",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            7
+          ],
+          "target": null
+        },
+        {
+          "degree": "b3",
+          "root_offset": 3,
+          "quality": "quartal3",
+          "bass_degree": "b3",
+          "bass_offset": 3,
+          "example_symbol_C": "Ebquartal3",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            1,
+            3,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "quartal3",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cquartal3",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            5,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Move three-note fourth stacks as shapes; root labels are construction anchors.",
+      "suggested_voicing": "exact_quartal_shape",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S06",
+        "S13"
+      ]
+    },
+    {
+      "id": "P37",
+      "bank": "Explore",
+      "name": "Whole tone dominant colour",
+      "roman_description": "I7 sharp5 II7 sharp5 III7 sharp5 I7 sharp5",
+      "home_reference": "C",
+      "tonal_character": "contextual",
+      "example": "C7(#5) → D7(#5) → E7(#5) → C7(#5)",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "7#5",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C7(#5)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            8,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "2",
+          "root_offset": 2,
+          "quality": "7#5",
+          "bass_degree": "2",
+          "bass_offset": 2,
+          "example_symbol_C": "D7(#5)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            6,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "3",
+          "root_offset": 4,
+          "quality": "7#5",
+          "bass_degree": "3",
+          "bass_offset": 4,
+          "example_symbol_C": "E7(#5)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "7#5",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "C7(#5)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            4,
+            8,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "All pitch classes fit one whole-tone collection; no obligatory tonal cadence.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S17"
+      ]
+    },
+    {
+      "id": "P38",
+      "bank": "Explore",
+      "name": "Phrygian suspended return",
+      "roman_description": "i11 bIImaj9 i11",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm11 → Dbmaj9 → Cm11",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m11",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm11",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            5,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b2",
+          "root_offset": 1,
+          "quality": "maj9",
+          "bass_degree": "b2",
+          "bass_offset": 1,
+          "example_symbol_C": "Dbmaj9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            1,
+            3,
+            5,
+            8
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m11",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm11",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            5,
+            7,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Flat second against a minor centre; keep C as an explicit home reference.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S06",
+        "S07"
+      ]
+    },
+    {
+      "id": "P39",
+      "bank": "Explore",
+      "name": "One semitone inner change",
+      "roman_description": "Imaj9 Imaj9 sharp11 Imaj9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cmaj9 → Cmaj9(#11) → Cmaj9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9#11",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9(#11)",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            6,
+            7,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "maj9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cmaj9",
+          "duration_beats": 6,
+          "pitch_classes_C": [
+            0,
+            2,
+            4,
+            7,
+            11
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Hold bass and top; replace a G inner voice with F sharp, then restore G.",
+      "suggested_voicing": "fixed_bass_and_top_single_inner_voice_change",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S02"
+      ]
+    },
+    {
+      "id": "P40",
+      "bank": "Explore",
+      "name": "Minor third colour cycle",
+      "roman_description": "i9 biii9 bv9 vi9 i9",
+      "home_reference": "C",
+      "tonal_character": "minor",
+      "example": "Cm9 → Ebm9 → Gbm9 → Am9 → Cm9",
+      "events": [
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 4,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b3",
+          "root_offset": 3,
+          "quality": "m9",
+          "bass_degree": "b3",
+          "bass_offset": 3,
+          "example_symbol_C": "Ebm9",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            1,
+            3,
+            5,
+            6,
+            10
+          ],
+          "target": null
+        },
+        {
+          "degree": "b5",
+          "root_offset": 6,
+          "quality": "m9",
+          "bass_degree": "b5",
+          "bass_offset": 6,
+          "example_symbol_C": "Gbm9",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            1,
+            4,
+            6,
+            8,
+            9
+          ],
+          "target": null
+        },
+        {
+          "degree": "6",
+          "root_offset": 9,
+          "quality": "m9",
+          "bass_degree": "6",
+          "bass_offset": 9,
+          "example_symbol_C": "Am9",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            4,
+            7,
+            9,
+            11
+          ],
+          "target": null
+        },
+        {
+          "degree": "1",
+          "root_offset": 0,
+          "quality": "m9",
+          "bass_degree": "1",
+          "bass_offset": 0,
+          "example_symbol_C": "Cm9",
+          "duration_beats": 3,
+          "pitch_classes_C": [
+            0,
+            2,
+            3,
+            7,
+            10
+          ],
+          "target": null
+        }
+      ],
+      "listen_for": "Roots C Eb Gb A C divide the octave by minor thirds; label Gb as b5, not b6.",
+      "suggested_voicing": "guide_tone_with_extensions",
+      "timing_note": "Quarter-note beats for optional audition only; manual mode follows the player.",
+      "origin": "Author-created illustration of established harmonic devices; not a transcription.",
+      "concept_sources": [
+        "S17"
+      ]
+    }
+  ],
+  "voicing_examples": [
+    {
+      "id": "V01",
+      "name": "Major cadence with descending top",
+      "symbols": [
+        "Dm9",
+        "G13",
+        "Cmaj9"
+      ],
+      "bass_midi": [
+        38,
+        43,
+        36
+      ],
+      "upper_midi": [
+        [
+          53,
+          57,
+          60,
+          64
+        ],
+        [
+          53,
+          57,
+          59,
+          64
+        ],
+        [
+          52,
+          55,
+          59,
+          62
+        ]
+      ],
+      "note_names": [
+        [
+          "F3",
+          "A3",
+          "C4",
+          "E4"
+        ],
+        [
+          "F3",
+          "A3",
+          "B3",
+          "E4"
+        ],
+        [
+          "E3",
+          "G3",
+          "B3",
+          "D4"
+        ]
+      ],
+      "note": "C4=MIDI60. G13 omits the fifth. Hear C to B, then F to E."
+    },
+    {
+      "id": "V02",
+      "name": "Minor plagal upper descent",
+      "symbols": [
+        "Fmaj9",
+        "Fm6",
+        "C6/9"
+      ],
+      "bass_midi": [
+        41,
+        41,
+        36
+      ],
+      "upper_midi": [
+        [
+          57,
+          60,
+          64,
+          67
+        ],
+        [
+          56,
+          60,
+          62,
+          65
+        ],
+        [
+          55,
+          57,
+          62,
+          64
+        ]
+      ],
+      "note_names": [
+        [
+          "A3",
+          "C4",
+          "E4",
+          "G4"
+        ],
+        [
+          "Ab3",
+          "C4",
+          "D4",
+          "F4"
+        ],
+        [
+          "G3",
+          "A3",
+          "D4",
+          "E4"
+        ]
+      ],
+      "note": "Fm6 contains D; C6/9 omits a repeated root above the bass."
+    },
+    {
+      "id": "V03",
+      "name": "Borrowed flat six with common inner tone",
+      "symbols": [
+        "Cmaj9",
+        "Abmaj9"
+      ],
+      "bass_midi": [
+        36,
+        44
+      ],
+      "upper_midi": [
+        [
+          52,
+          55,
+          59,
+          62
+        ],
+        [
+          51,
+          55,
+          58,
+          60
+        ]
+      ],
+      "note_names": [
+        [
+          "E3",
+          "G3",
+          "B3",
+          "D4"
+        ],
+        [
+          "Eb3",
+          "G3",
+          "Bb3",
+          "C4"
+        ]
+      ],
+      "note": "G is retained internally; the top descends D to C. Name refers to shared pitch, not a top-note lock."
+    },
+    {
+      "id": "V04",
+      "name": "C minor line cliche",
+      "symbols": [
+        "Cm",
+        "CmMaj7",
+        "Cm7",
+        "Cm6"
+      ],
+      "bass_midi": [
+        36,
+        36,
+        36,
+        36
+      ],
+      "upper_midi": [
+        [
+          51,
+          55,
+          60
+        ],
+        [
+          51,
+          55,
+          59
+        ],
+        [
+          51,
+          55,
+          58
+        ],
+        [
+          51,
+          55,
+          57
+        ]
+      ],
+      "note_names": [
+        [
+          "Eb3",
+          "G3",
+          "C4"
+        ],
+        [
+          "Eb3",
+          "G3",
+          "B3"
+        ],
+        [
+          "Eb3",
+          "G3",
+          "Bb3"
+        ],
+        [
+          "Eb3",
+          "G3",
+          "A3"
+        ]
+      ],
+      "note": "One line changes; other voices stay fixed."
+    },
+    {
+      "id": "V05",
+      "name": "Top locked harmonic opening",
+      "symbols": [
+        "Cmaj9",
+        "Abmaj9"
+      ],
+      "bass_midi": [
+        36,
+        44
+      ],
+      "upper_midi": [
+        [
+          52,
+          59,
+          62,
+          67
+        ],
+        [
+          51,
+          58,
+          60,
+          67
+        ]
+      ],
+      "note_names": [
+        [
+          "E3",
+          "B3",
+          "D4",
+          "G4"
+        ],
+        [
+          "Eb3",
+          "Bb3",
+          "C4",
+          "G4"
+        ]
+      ],
+      "note": "G4 stays fixed, changing from fifth to major seventh."
+    },
+    {
+      "id": "V06",
+      "name": "C pedal quartal motion",
+      "symbols": [
+        "F-G quartal shapes over C"
+      ],
+      "bass_midi": [
+        36,
+        36,
+        36
+      ],
+      "upper_midi": [
+        [
+          53,
+          58,
+          63
+        ],
+        [
+          55,
+          60,
+          65
+        ],
+        [
+          53,
+          58,
+          63
+        ]
+      ],
+      "note_names": [
+        [
+          "F3",
+          "Bb3",
+          "Eb4"
+        ],
+        [
+          "G3",
+          "C4",
+          "F4"
+        ],
+        [
+          "F3",
+          "Bb3",
+          "Eb4"
+        ]
+      ],
+      "note": "Exact upper fourth shapes move over fixed C. Use explicit notes rather than force an inaccurate chord symbol."
+    }
+  ],
+  "sources": [
+    {
+      "id": "S01",
+      "author": "Ben Baker",
+      "title": "A Cyclic Approach to Harmony in Robert Glasper’s Music",
+      "date": "2019",
+      "url": "https://societymusictheory.org/sites/default/files/events/programs/2019-program.pdf",
+      "use": "Conference abstract on printed page 53; abstract evidence only. Published article: Theory and Practice 44, 39–82, https://www.jstor.org/stable/27031385"
+    },
+    {
+      "id": "S02",
+      "author": "Rich Pellegrin",
+      "title": "Harmony versus Voicing",
+      "date": "2022",
+      "url": "https://www.gmth.de/zeitschrift/artikel/1162.aspx",
+      "use": "Research article separating implied harmony from performed voicing."
+    },
+    {
+      "id": "S03",
+      "author": "Robert Hutchinson",
+      "title": "Standard Chord Progressions",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/StandardChordProgressions.html",
+      "use": "University textbook on ii V I, turnaround and blues."
+    },
+    {
+      "id": "S04",
+      "author": "Randy Felts / Berklee Online",
+      "title": "Piano Voicing Techniques",
+      "date": "2015",
+      "url": "https://online.berklee.edu/takenote/basic-piano-voicing-techniques/",
+      "use": "Authorised textbook excerpt on chord identity and voice leading."
+    },
+    {
+      "id": "S05",
+      "author": "Open Music Theory",
+      "title": "Embellishing Chords",
+      "date": "accessed 2026-10-15",
+      "url": "https://human.libretexts.org/Bookshelves/Music/Music_Theory/Open_Music_Theory_2e_(Gotham_et_al.)/06%3A_Jazz/6.05%3A_Embellishing_Chords",
+      "use": "Textbook chapter on applied ii and common-tone diminished."
+    },
+    {
+      "id": "S06",
+      "author": "Ted Pease / Berklee Online",
+      "title": "Modal Harmony in Jazz Composition",
+      "date": "2015",
+      "url": "https://online.berklee.edu/takenote/harmonic-considerations-modal-harmony/",
+      "use": "Modal centres and fourth-based voicings."
+    },
+    {
+      "id": "S07",
+      "author": "Open Music Theory",
+      "title": "Chord Scale Theory",
+      "date": "accessed 2026-10-15",
+      "url": "https://human.libretexts.org/Bookshelves/Music/Music_Theory/Open_Music_Theory_2e_(Gotham_et_al.)/06%3A_Jazz/6.07%3A_Chord-Scale_Theory",
+      "use": "Chord-scale relationship and limitations; specific examples in this pack are new."
+    },
+    {
+      "id": "S08",
+      "author": "Open Music Theory",
+      "title": "Substitutions",
+      "date": "accessed 2026-10-15",
+      "url": "https://human.libretexts.org/Bookshelves/Music/Music_Theory/Open_Music_Theory_2e_(Gotham_et_al.)/06%3A_Jazz/6.06%3A_Substitutions",
+      "use": "Applied dominants, mixture and tritone substitution."
+    },
+    {
+      "id": "S09",
+      "author": "Robert Hutchinson",
+      "title": "Altered Dominant Seventh Chords",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/AlteredDominantSeventhChords.html",
+      "use": "Alterations and the ambiguity of alt symbols."
+    },
+    {
+      "id": "S10",
+      "author": "Learn Jazz Standards",
+      "title": "Backdoor Progression Masterclass",
+      "date": "accessed 2026-10-15",
+      "url": "https://www.learnjazzstandards.com/blog/learning-jazz/jazz-theory/backdoor-progression/",
+      "use": "Original educator lesson on iv bVII I."
+    },
+    {
+      "id": "S11",
+      "author": "Fiona Bicket with Barry Harris",
+      "title": "The Barry Harris Approach to Improvised Lines and Harmony",
+      "date": "2001",
+      "url": "https://www.samplekings.com/pdfs/prot_JazzTutorial.pdf",
+      "use": "Primary teaching document hosted as a mirror; especially Part III. No score excerpts reproduced."
+    },
+    {
+      "id": "S12",
+      "author": "Open Music Theory",
+      "title": "Blues Harmony",
+      "date": "accessed 2026-10-15",
+      "url": "https://human.libretexts.org/Bookshelves/Music/Music_Theory/Open_Music_Theory_2e_(Gotham_et_al.)/06%3A_Jazz/6.08%3A_Blues_Harmony",
+      "use": "Dominant chord quality can serve tonic function."
+    },
+    {
+      "id": "S13",
+      "author": "Robert Hutchinson",
+      "title": "Impressionism",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/Impressionism.html",
+      "use": "Modes, extended harmonies and planing."
+    },
+    {
+      "id": "S14",
+      "author": "Robert Hutchinson",
+      "title": "Modulations Without Pivot Chords",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/ModulationsWithoutPivotChords.html",
+      "use": "Common-tone connections, mediants and key changes."
+    },
+    {
+      "id": "S15",
+      "author": "The Jazz Piano Site",
+      "title": "Upper Structures",
+      "date": "accessed 2026-10-15",
+      "url": "https://www.thejazzpianosite.com/jazz-piano-lessons/jazz-chord-voicings/upper-structures/?amp=1",
+      "use": "Original educator lesson on triads over dominant shells."
+    },
+    {
+      "id": "S16",
+      "author": "Robert Hutchinson",
+      "title": "Polychords",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/polychords.html",
+      "use": "Distinguishing compound chords and slash notation."
+    },
+    {
+      "id": "S17",
+      "author": "Open Music Theory",
+      "title": "Collections and Scales",
+      "date": "accessed 2026-10-15",
+      "url": "https://openmusictheory.github.io/scales2.html",
+      "use": "Whole-tone and octatonic symmetry; pitch sets in this pack checked independently."
+    },
+    {
+      "id": "S18",
+      "author": "Megan Lavengood / Open Music Theory",
+      "title": "Jazz Voicings",
+      "date": "accessed 2026-10-15",
+      "url": "https://human.libretexts.org/Bookshelves/Music/Music_Theory/Open_Music_Theory_2e_(Gotham_et_al.)/06%3A_Jazz/6.03%3A_Jazz_Voicings",
+      "use": "Register, omissions and voice-leading guidance."
+    },
+    {
+      "id": "S19",
+      "author": "D’Angelo and Questlove with Nelson George",
+      "title": "D’Angelo Red Bull Music Academy Lecture",
+      "date": "2014",
+      "url": "https://www.redbullmusicacademy.com/lectures/dangelo/",
+      "use": "Primary artist discussion of rhythmic placement and collaboration."
+    },
+    {
+      "id": "S20",
+      "author": "Robert Hutchinson",
+      "title": "Jazz Chord Basics",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/JazzChordBasics.html",
+      "use": "Extension symbols, sixth chords and omitted elevenths."
+    },
+    {
+      "id": "S21",
+      "author": "Robert Hutchinson",
+      "title": "Secondary Diminished Chords",
+      "date": "accessed 2026-10-15",
+      "url": "https://musictheory.pugetsound.edu/mt21c/SecondaryDiminishedChordSection.html",
+      "use": "Leading-tone approach chords and tonicization."
+    }
+  ]
+}

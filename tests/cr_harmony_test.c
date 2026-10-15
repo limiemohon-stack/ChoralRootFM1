@@ -571,16 +571,27 @@ static void t_worlds(void)
         }
     ok(ok_all, "worlds: every chord, key, world, style, rooted and rootless: 3..5 notes, ascending, in range, named");
     {
-        static const struct { int key, world; const char *name, *notes; } X[] = {
-            { 0, CR_HCOL_BARE, "C5", "48 55 60 67" },          { 0, CR_HCOL_TRIAD, "CM", "48 60 64 67" },
-            { 0, CR_HCOL_LUSH, "CM9 #11", "48 62 64 66 71" },  { 1, CR_HCOL_LUSH, "Am11", "45 59 60 62 67" },
-            { 9, CR_HCOL_ALTERED, "G7 alt", "43 59 63 65 70" }, { 1, CR_HCOL_QUARTAL, "Am11", "45 50 55 60 64" },
-            { 0, CR_HCOL_UPPER, "D/C", "48 52 62 66 69" },     { 9, CR_HCOL_UPPER, "A/G7", "43 53 61 64 69" } };
+        /* key: 0..10 white, 11..17 black (D#4 F#4 G#4 ..); fl: the chord keys held (bit cr_mod_t) */
+#define F_(m) (1u << CR_MOD_##m)
+        static const struct { int key, world; unsigned fl; const char *name, *notes; } X[] = {
+            { 0, CR_HCOL_BARE, 0, "C5", "48 55 60 67" },          { 0, CR_HCOL_TRIAD, 0, "CM", "48 60 64 67" },
+            { 0, CR_HCOL_LUSH, 0, "CM9 #11", "48 62 64 66 71" },  { 1, CR_HCOL_LUSH, 0, "Am11", "45 59 60 62 67" },
+            { 9, CR_HCOL_ALTERED, 0, "G7 b9b13", "43 59 63 65 68" }, { 1, CR_HCOL_QUARTAL, 0, "Am11", "45 50 55 60 64" },
+            { 0, CR_HCOL_UPPER, 0, "D/C", "48 52 62 66 69" },     { 9, CR_HCOL_UPPER, 0, "A/G7", "43 53 61 64 69" },
+            { 0, CR_HCOL_TRIAD, F_(6), "C6", "48 60 64 67 69" },  { 0, CR_HCOL_TRIAD, F_(MAJ7), "CM7", "48 59 60 64 67" },
+            { 0, CR_HCOL_TRIAD, F_(M7), "C7", "48 60 64 67 70" }, { 1, CR_HCOL_TRIAD, F_(M7), "Am7", "45 60 64 67 69" },
+            { 0, CR_HCOL_TRIAD, F_(6) | F_(9), "C6 9", "48 62 64 67 69" }, { 0, CR_HCOL_JAZZ, F_(6), "C6 9", "48 62 64 67 69" },
+            { 13, CR_HCOL_ALTERED, 0, "A7 b9", "45 61 64 67 70" }, { 13, CR_HCOL_ALTERED, F_(9), "A7 #9", "45 61 64 67 72" },
+            { 9, CR_HCOL_ALTERED, F_(9), "G7 #9b13", "43 59 63 65 70" }, { 11, CR_HCOL_ALTERED, 0, "E7 b9", "40 59 62 65 68" } };
+#undef F_
         cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
         for (i = 0; i < (int)(sizeof X / sizeof X[0]); i++) {
             uint8_t n[CR_CHORD_MAX], r, lq, lx;
             char a[3], q[5], su[CR_SUP_MAX], nm[24], ns[32];
-            int c = cr_harm_voice_world(&m.w[X[i].key], X[i].world, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx), k;
+            cr_hmap_chord_t e;
+            int c, k;
+            cr_harm_flavour(X[i].key < 11 ? &m.w[X[i].key] : &m.b[X[i].key - 11], X[i].fl, &e);
+            c = cr_harm_voice_world(&e, X[i].world, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx);
             size_t o = 0;
             snprintf(nm, sizeof nm, "%s%s%s", a, q, su);
             ns[0] = 0;
@@ -592,7 +603,8 @@ static void t_worlds(void)
         }
         (void)NN;
     }
-    ok(ok_c, "worlds in C: C5, C, Cmaj9#11, Am11, G7alt (#9 b13), quartal Am11 (A D G C E), D/C, A/G7");
+    ok(ok_c, "worlds in C: C5, C, Cmaj9#11, Am11, G7b9b13, quartal Am11 (A D G C E), D/C, A/G7; triads with chord "
+             "keys: C6 Cmaj7 C7 Am7 C6/9; altered approach keys: A7b9 (A7#9 with 9, the #9 over the 3rd), E7b9");
 }
 
 int main(void)

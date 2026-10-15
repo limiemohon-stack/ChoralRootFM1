@@ -19,6 +19,9 @@
  *   4. Confirm feedback: play D, confirm PULL, confirm REST -- what it hears afterwards
  *   5. Harmony mode's lanes (what the UI plays now; 1-4 measure the retired Harmony Preview's suggestion engine): the
  *      palette of each home key in its three voicing styles, the top line of a progression, the top notes' band
+ *   6. The research pack's 40 phrases (docs/research/harmony_presets.json, tests/cr_harmony_pack.h): which ones the
+ *      palette plays as written, home C major or C minor, any key, colour world and chord keys held -- in one world,
+ *      only with a KNOB 1 turn, only with a bass of its own (slash chords, pedals), or not (a chord it can't reach)
  *
  * The "musician's read" annotations are deliberately limited to progressions with an uncontroversial home; they
  * are expectations to argue with, not ground truth. */
@@ -26,6 +29,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include "../firmware/src/cr_harmony.h"
+#include "cr_harmony_pack.h"
 
 static int json;
 
@@ -322,8 +326,155 @@ static void lanes_section(lanestats_t *ls)
                 ls->band[0], ls->band[1], ls->band[2], ls->same);
 }
 
+/* 6: every chord the palette's keys can play (home C major / minor, 18 keys, 7 worlds, 32 sets of chord keys held:
+ * SUS m7 M7 6 9) against each chord of each phrase: 3 the same notes, 2 the same chord (an inessential note left out,
+ * or a 5th added), 1 the same chord over the wrong bass, 0 not it */
+typedef struct { unsigned char sc, key, world, fl, nfl, root, bass; unsigned short pcs; } pal_t;
+typedef struct { int one, change, bass, missing, playable; char miss[512]; } packstats_t;
+static pal_t PAL[2 * 18 * CR_HCOL_N * 32];
+static const char *const WNAME[CR_HCOL_N] = { "bare", "triads", "jazz", "lush", "quartal", "altered", "upper" };
+static const int WORDER[CR_HCOL_N] = { CR_HCOL_JAZZ, CR_HCOL_LUSH, CR_HCOL_TRIAD, CR_HCOL_BARE, CR_HCOL_QUARTAL,
+                                       CR_HCOL_ALTERED, CR_HCOL_UPPER };
+static const char *const FLN[5] = { "SUS", "m7", "M7", "6", "9" };
+static const char *const KEYN[18] = { "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5", "F5", "G5",
+                                      "D#4", "F#4", "G#4", "A#4", "C#5", "D#5", "F#5" };
+static int npal;
+static void pal_build(void)
+{
+    static const cr_mod_t FM[5] = { CR_MOD_SUS, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_6, CR_MOD_9 };
+    cr_hmap_t m;
+    int sc, k, w, f, b, c, i;
+    for (sc = 0; sc < 2; sc++) {
+        cr_harm_lanes(0, (uint8_t)sc, &m);
+        for (k = 0; k < 18; k++)
+            for (w = 0; w < CR_HCOL_N; w++)
+                for (f = 0; f < 32; f++) {
+                    cr_hmap_chord_t e;
+                    uint8_t n[CR_CHORD_MAX], r, lq, lx;
+                    char a[3], q[5], su[CR_SUP_MAX];
+                    unsigned fl = 0;
+                    pal_t *p = &PAL[npal++];
+                    for (b = 0; b < 5; b++) if (f >> b & 1) fl |= 1u << FM[b];
+                    cr_harm_flavour(k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W], fl, &e);
+                    c = cr_harm_voice_world(&e, w, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx);
+                    p->sc = (unsigned char)sc; p->key = (unsigned char)k; p->world = (unsigned char)w;
+                    p->fl = (unsigned char)f; p->root = e.root_pc; p->bass = (unsigned char)(n[0] % 12);
+                    p->nfl = 0; for (b = 0; b < 5; b++) p->nfl = (unsigned char)(p->nfl + (f >> b & 1));
+                    p->pcs = 0; for (i = 0; i < c; i++) p->pcs = (unsigned short)(p->pcs | 1u << (n[i] % 12));
+                }
+    }
+}
+static int pk_level(const pal_t *p, const pk_ev_t *e)
+{
+    unsigned allow = e->pcs | 1u << ((e->root + 7) % 12), need = e->ess & ~(1u << e->bass);
+    if (p->root != e->root) return 0;
+    if (p->pcs == e->pcs && p->bass == e->bass) return 3;
+    if ((need & ~p->pcs) || (p->pcs & ~allow)) return 0;
+    return p->bass == e->bass ? 2 : 1;
+}
+static int pk_better(const pal_t *a, int la, const pal_t *b, int lb)   /* a over b: closer, fewer keys held, jazz */
+{
+    if (!b) return 1;
+    if (la != lb) return la > lb;
+    if (a->nfl != b->nfl) return a->nfl < b->nfl;
+    return a->world == CR_HCOL_JAZZ && b->world != CR_HCOL_JAZZ;
+}
+static void pack_section(packstats_t *ps)
+{
+    int i, j, sc, w, x;
+    const char *mname[64];
+    int mcount[64], nm = 0;
+    memset(ps, 0, sizeof *ps);
+    pal_build();
+    if (!json) printf("6. THE RESEARCH PACK'S 40 PHRASES on the palette (home C; key world [+chord keys held]; ~ the same chord, "
+                      "not every note; (bass!) needs a bass of its own)\n\n");
+    else printf("\"pack\":[");
+    for (i = 0; i < NPACK; i++) {
+        const pk_phrase_t *ph = &PACK[i];
+        int brank = 9, bmiss = 99, bsc = 0, bw = -1;
+        const pal_t *bpick[PK_MAXEV];
+        int blev[PK_MAXEV];
+        for (sc = 0; sc < 2; sc++) {
+            const pal_t *any[PK_MAXEV], *one[PK_MAXEV];
+            int alev[PK_MAXEV], olev[PK_MAXEV], rank, miss = 0, onew = -1, onenf = 99, allsame = 1, allright = 1;
+            for (j = 0; j < ph->n; j++) {
+                any[j] = 0; alev[j] = 0;
+                for (x = 0; x < npal; x++) {
+                    int l;
+                    if (PAL[x].sc != sc) continue;
+                    l = pk_level(&PAL[x], &ph->ev[j]);
+                    if (l && pk_better(&PAL[x], l, any[j], alev[j])) { any[j] = &PAL[x]; alev[j] = l; }
+                }
+                if (!any[j]) { miss++; allright = 0; allsame = 0; }
+                else if (alev[j] < 2) allsame = 0;
+            }
+            for (w = 0; w < CR_HCOL_N; w++) {                /* the whole phrase in one world */
+                const pal_t *pk[PK_MAXEV];
+                int lv[PK_MAXEV], nf = 0, ok = 1;
+                for (j = 0; j < ph->n && ok; j++) {
+                    pk[j] = 0; lv[j] = 0;
+                    for (x = 0; x < npal; x++) {
+                        int l;
+                        if (PAL[x].sc != sc || PAL[x].world != WORDER[w]) continue;
+                        l = pk_level(&PAL[x], &ph->ev[j]);
+                        if (l >= 2 && pk_better(&PAL[x], l, pk[j], lv[j])) { pk[j] = &PAL[x]; lv[j] = l; }
+                    }
+                    if (!pk[j]) ok = 0; else nf += pk[j]->nfl;
+                }
+                if (ok && nf < onenf) { onenf = nf; onew = WORDER[w]; memcpy(one, pk, sizeof pk); memcpy(olev, lv, sizeof lv); }
+            }
+            rank = onew >= 0 ? 0 : allsame ? 2 : allright ? 3 : 4;
+            if (rank < brank || (rank == brank && miss < bmiss)) {
+                brank = rank; bmiss = miss; bsc = sc; bw = onew;
+                memcpy(bpick, onew >= 0 ? one : any, sizeof bpick);
+                memcpy(blev, onew >= 0 ? olev : alev, sizeof blev);
+            }
+        }
+        if (brank == 0) { ps->one++; ps->playable++; }
+        else if (brank == 2) { ps->change++; ps->playable++; }
+        else if (brank == 3) ps->bass++;
+        else ps->missing++;
+        if (!json) {
+            static const char *const V[5] = { "one world", "", "playable with a KNOB 1 turn", "needs its own bass",
+                                              "a chord missing" };
+            printf("  %s %-8s %-28s %s: %s%s%s\n    ", ph->id, ph->bank, ph->name, bsc ? "C minor" : "C major", V[brank],
+                   brank == 0 ? " " : "", brank == 0 ? WNAME[bw] : "");
+            for (j = 0; j < ph->n; j++) {
+                const pal_t *p = bpick[j];
+                printf("%s%s ", j ? " | " : "", ph->ev[j].sym);
+                if (!p) { printf("MISSING"); continue; }
+                printf("%s %s", KEYN[p->key], WNAME[p->world]);
+                for (x = 0; x < 5; x++) if (p->fl >> x & 1) printf("%s%s", x == 0 || !(p->fl & ((1 << x) - 1)) ? " +" : "+", FLN[x]);
+                printf("%s", blev[j] == 1 ? " (bass!)" : blev[j] == 2 ? " ~" : "");
+            }
+            printf("\n");
+        } else {
+            static const char *const VJ[5] = { "one_world", "", "world_change", "needs_bass", "missing" };
+            printf("{\"id\":\"%s\",\"home\":\"%s\",\"verdict\":\"%s\"}%s", ph->id, bsc ? "C minor" : "C major", VJ[brank],
+                   i < NPACK - 1 ? "," : "");
+        }
+        for (j = 0; j < ph->n; j++)
+            if (!bpick[j]) {
+                for (x = 0; x < nm && strcmp(mname[x], ph->ev[j].sym); x++) {}
+                if (x == nm && nm < 64) { mname[nm] = ph->ev[j].sym; mcount[nm++] = 0; }
+                if (x < 64) mcount[x]++;
+            }
+    }
+    {
+        size_t o = 0;
+        for (x = 0; x < nm; x++)
+            o += (size_t)snprintf(ps->miss + o, o < sizeof ps->miss ? sizeof ps->miss - o : 0, "%s%s%s", x ? ", " : "",
+                                  mname[x], mcount[x] > 1 ? (mcount[x] > 2 ? " x3+" : " x2") : "");
+    }
+    if (!json) printf("\n  %d of %d playable from the palette (%d in one colour world, %d with a KNOB 1 turn); %d need a bass "
+                      "of their own; %d have a chord it can't reach: %s\n\n",
+                      ps->playable, NPACK, ps->one, ps->change, ps->bass, ps->missing, ps->miss);
+    else printf("],");
+}
+
 int main(int argc, char **argv)
 {
+    packstats_t pks;
     int i, differ = 0, differ_same_key = 0, same_key_pairs = 0, key_ok = 0, key_wrong_at3 = 0, self = 0, same_root = 0;
     int distinct[2] = { 0, 0 };
     lanestats_t ms;
@@ -446,6 +597,9 @@ int main(int argc, char **argv)
     /* 5 ------------------------------------------------------------------------ */
     lanes_section(&ms);
 
+    /* 6 ------------------------------------------------------------------------ */
+    pack_section(&pks);
+
     /* summary ------------------------------------------------------------------ */
     if (!json) {
         printf("SUMMARY\n");
@@ -461,15 +615,18 @@ int main(int argc, char **argv)
                "line moves %.1f / %.1f / %.1f a chord; the same notes every time: %s\n", ms.band[0], ms.band[1], ms.band[2],
                ms.step[0], ms.step[1], ms.step[2], ms.same ? "yes" : "NO");
         printf("cr_harmony_bench: same-chord pairs differing %d/%d (same key %d/%d), function sets %d/7 + %d/7, "
-               "self %d/42 (same root %d), keys %d/%d; lanes top band %d/%d/%d, repeatable %s\n", differ,
+               "self %d/42 (same root %d), keys %d/%d; lanes top band %d/%d/%d, repeatable %s; pack %d/%d playable "
+               "(%d one world), %d need a bass, %d missing\n", differ,
                NPAIRS, differ_same_key, same_key_pairs, distinct[0], distinct[1], self, same_root, key_ok, NCORPUS,
-               ms.band[0], ms.band[1], ms.band[2], ms.same ? "yes" : "NO");
+               ms.band[0], ms.band[1], ms.band[2], ms.same ? "yes" : "NO", pks.playable, NPACK, pks.one, pks.bass,
+               pks.missing);
     } else {
         printf("\"summary\":{\"pairs\":%d,\"pairs_differ\":%d,\"same_key_pairs\":%d,\"same_key_differ\":%d,"
                "\"function_distinct\":%d,\"self\":%d,\"same_root\":%d,\"corpus\":%d,\"key_ok\":%d,\"wrong_at_3\":%d,"
-               "\"lanes_band_colour\":%d,\"lanes_same\":%d}}\n",
+               "\"lanes_band_colour\":%d,\"lanes_same\":%d,\"pack_playable\":%d,\"pack_one_world\":%d,"
+               "\"pack_needs_bass\":%d,\"pack_missing\":%d}}\n",
                NPAIRS, differ, same_key_pairs, differ_same_key, distinct[0] + distinct[1], self, same_root, NCORPUS, key_ok,
-               key_wrong_at3, ms.band[2], ms.same);
+               key_wrong_at3, ms.band[2], ms.same, pks.playable, pks.one, pks.bass, pks.missing);
     }
     return 0;
 }
