@@ -2804,20 +2804,24 @@ case "$(hv 12)|$(hv 13)" in *"chord C6 9 sounding 1 notes 48 62 64 67 69|"*"chor
     ok "chord keys flavour a key: 6 + D4 is C6/9, m7 + D4 is C9";; *) bad "flavours: $(hv 12) / $(hv 13)";; esac
 case "$(hv 14)" in *"chord CM7 9 sounding 1 notes 59 62 64 67") has '^bass: on' "$L" &&
     ok "the bass on: D4 is rootless, B3 D4 E4 G4 (the bass part plays C)";; *) false;; esac || bad "rootless: $(hv 14)"
-has '^harm: glide 8' "$L" && has '^harm: glide 0' "$L" && ok "KNOB 3: the chord sound's Glide, 8 a detent, back to off" \
+has '^harm: motion Strum$' "$L" && has '^harm: motion Strum rate 45' "$L" && has '^harm: motion off' "$L" &&
+    case "$(hv 15)" in *"chord CM7 9 sounding 1 notes 48 59 62 64 67") true;; *) false;; esac &&
+    ok "ALGORITHM: the motion (Strum, perform on), KNOB 3 its rate (45 ms), D4 strummed; back to off" \
+    || bad "the motion: $(LC_ALL=C grep -a '^harm: motion' "$L" | tr '\n' ' ') / $(hv 15)"
+has '^harm: glide 8' "$L" && has '^harm: glide 0' "$L" && ok "KNOB 4: the chord sound's Glide, 8 a detent, back to off" \
     || bad "the glide knob: $(LC_ALL=C grep -a '^harm: glide' "$L" | tr '\n' ' ')"
 pb=$(awk '/^loop: loop recorded/ { on = 1 } /^loop: stop/ { on = 0 } on && /^chord: Em7/ { e++ } on && /^chord: G#M7 9/ { g++ }
           END { printf "%d %d", e + 0, g + 0 }' "$L")
 has '^loop: loop recorded (state 2 layers 1 events 2 ' "$L" && [ "${pb% *}" -ge 2 ] && [ "${pb#* }" -ge 2 ] &&
     ok "REC, F4, C5, REC: the loop holds the two chords (Em7, Abmaj9) and plays them ($pb)" || bad "the loop: $pb"
-case "$(hm 16)" in "home, on G#M7 9 | home G# major | keys G#M* Fm Cm "*) ok "OCT+: the chord you are on (Abmaj9) is home: the palette moves to Ab major: $OUT/cr_harm_home.ppm";;
-    *) bad "OCT+: '$(hm 16)'";; esac
-case "$(hv 18)" in "voices 1 "*"chord Em sounding 1 notes 64 67 71") ok "MIN held + E4: E minor as ever (E4 G4 B4)";;
-    *) bad "MIN + E4: $(hv 18)";; esac
-case "$(hm 18)" in "key mode, on Em | home C major |"*) ok "KEY tapped in the mode: Key Mode's C major is home at once; tapped off, home stays";;
-    *) bad "Key Mode in the mode: '$(hm 18)'";; esac
-has '^layer: close 6' "$L" && case "$(hv 20)" in "voices 1 "*"chord C sounding 1 notes 72") true;; *) false;; esac &&
-    ok "OCT-: the mode ends; C5 alone is its single note again (Key Mode off)" || bad "after OCT-: $(hv 20)"
+case "$(hm 17)" in "home, on G#M7 9 | home G# major | keys G#M* Fm Cm "*) ok "OCT+: the chord you are on (Abmaj9) is home: the palette moves to Ab major: $OUT/cr_harm_home.ppm";;
+    *) bad "OCT+: '$(hm 17)'";; esac
+case "$(hv 19)" in "voices 1 "*"chord Em sounding 1 notes 64 67 71") ok "MIN held + E4: E minor as ever (E4 G4 B4)";;
+    *) bad "MIN + E4: $(hv 19)";; esac
+case "$(hm 19)" in "key mode, on Em | home C major |"*) ok "KEY tapped in the mode: Key Mode's C major is home at once; tapped off, home stays";;
+    *) bad "Key Mode in the mode: '$(hm 19)'";; esac
+has '^layer: close 6' "$L" && case "$(hv 21)" in "voices 1 "*"chord C sounding 1 notes 72") true;; *) false;; esac &&
+    ok "OCT-: the mode ends; C5 alone is its single note again (Key Mode off)" || bad "after OCT-: $(hv 21)"
 silent_end cr_harm_mode
 
 echo "Harmony: the chords played are its history (Key Mode off); a brush and loop playback are not; a latched tap is"

@@ -1240,8 +1240,8 @@ static void cu_harm_feed(void)
  * root an approach chord leaning into the white root to its right. Fixed: a key plays the same chord, voiced the
  * same way, every time, until home moves. Home is the chord on screen when the mode opens (Key Mode on: its key, as
  * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour (triads, 7ths, the full
- * palette's 9ths); KNOB 2: the voicing style (Shell, Spread, Colour). A chord key held: that root plays its chord
- * as ever (the way to jump anywhere). The chords sound as keyed chords given whole
+ * palette's 9ths); KNOB 2: the voicing style (Shell, Spread, Colour); ALGORITHM: the motion (a perform mode, or
+ * off); KNOB 3: its time; KNOB 4: glide. A chord key held: a flavour, or (MAJ, MIN, DIM) that root's own chord. The chords sound as keyed chords given whole
  * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
  * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
  * voicing, so a loop of a walk keeps the walk's chords and register, not each inversion), heard by the history */
@@ -1379,19 +1379,51 @@ static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on 
     return 0;
 }
 static void cu_edited(uint32_t part);
+static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop);
+static uint32_t cu_perf_mode(void);
+static void cu_perf_toggle(void);
+/* ALGORITHM in the mode: the motion -- off, or one of the perform modes (CU_PERF: Strum, Strum 2 Octaves, Slop, Arp,
+ * Arp 2 Octaves, Pattern, Harp) -- picked and switched on in one turn, no menu; KNOB 3 is then its time */
+static void cu_hm_motion(int32_t s)
+{
+    int32_t pos = cs.perform_on ? (int32_t)cs.perf_sel + 1 : 0;
+    pos += s > 0 ? 1 : -1;
+    pos = pos < 0 ? 0 : pos > 7 ? 7 : pos;
+    if (pos == 0) {
+        if (cs.perform_on)
+            cu_perf_toggle();
+        cu_message("motion off", CR_COL_YELLOW);
+        cu_trace("harm: motion off\n");
+        return;
+    }
+    if ((uint32_t)(pos - 1) != cs.perf_sel)
+        cu_perf_pick((uint32_t)(pos - 1));
+    if (!cs.perform_on)
+        cu_perf_toggle();
+    cu_message(CU_PERF[cs.perf_sel].name, CR_COL_YELLOW);
+    cu_trace("harm: motion %s\n", CU_PERF[cs.perf_sel].name);
+}
 /* the chord you are on is not home (the OCT+ LED says so) */
 static int cu_hm_away(void)
 {
     return cu_hm.cur.root_pc != cu_hm.home_pc ||
            cu_hm.cur.quality != (cu_hm.home_scale == CR_SCALE_MINOR ? CR_Q_MIN : CR_Q_MAJ);
 }
-/* KNOB 1 / 2 / 3 in the mode: the colour, the voicing style, the chord sound's Glide (its MIX page's: each new note
- * slides from the nearest free voice), a step a detent, shown in a message */
+/* KNOB 1 / 2 / 3 / 4 in the mode: the colour, the voicing style, the motion's time (its first parameter: strum and
+ * harp rate, slop amount, arp division, pattern -- KNOB 3's job outside the mode too), the chord sound's Glide (its
+ * MIX page's: each new note slides from the nearest free voice), a step a detent, shown on screen */
 static void cu_hm_knob(uint32_t knob, int32_t s)
 {
     static const char *const COL[3] = {"triads", "7ths", "9ths"}, *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
     int32_t v;
     if (knob == 2u) {
+        int32_t p = CU_PERF_KNOB[cu_perf_mode()][0];
+        cu_param_turn(cu_perf_mode(), p, s, 1);
+        cu_trace("harm: motion %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name,
+                 (int)cs.par[cu_perf_mode()][p]);
+        return;
+    }
+    if (knob == 3u) {
         track_t *t = &trk[CR_PART_CHORD];
         char b[12];
         v = t->p[P_GLIDE] + (s > 0 ? 8 : -8);
@@ -4296,8 +4328,13 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_layer_knob(l, 0, s);
         return;
     }
-    if (l == L_HARM && role >= EN_K1 && role <= EN_K3) {   /* Harmony mode: KNOB 1 the colour, 2 the style, 3 glide */
+    if (l == L_HARM && role >= EN_K1) {            /* Harmony mode: KNOB 1 the colour, 2 the style, 3 the motion's
+                                                    * time, 4 glide; ALGORITHM the motion */
         cu_hm_knob(role - EN_K1, s);
+        return;
+    }
+    if (l == L_HARM && role == EN_ALGO) {
+        cu_hm_motion(s);
         return;
     }
     if (l && role >= EN_K1) {

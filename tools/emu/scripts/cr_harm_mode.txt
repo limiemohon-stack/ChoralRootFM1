@@ -10,7 +10,8 @@
 #  6. KNOB 1 -1 (7ths): D4 is Cmaj7; KNOB 1 -1 (triads): D4 is C; KNOB 1 +2 (9ths again); KNOB 2 -2 (Shell): D4 is
 #     C3 B3 E4; KNOB 2 +2 (Colour again)
 #  7. Chord keys flavour a key: 6 (F3) + D4 is C6/9; m7 (G3) + D4 is C9. ALGORITHM tapped (the bass on): D4 is
-#     rootless (B3 D4 E4 G4), the bass plays C; tapped again (off). KNOB 3 +1 / -1: the chord sound's Glide 8, off
+#     rootless (B3 D4 E4 G4), the bass plays C; tapped again (off). KNOB 4 +1 / -1: the chord sound's Glide 8, off.
+#     ALGORITHM +1: the motion Strum (perform on); KNOB 3 +1: its rate; D4 strummed; ALGORITHM -1: motion off
 #  8. REC, F4 500 ms, C5 500 ms, REC: the loop plays the two chords back (3 s), LOOP tapped: it stops
 #  9. OCT+: the chord you are on (Abmaj9, C5's) is home (shot)
 # 10. MIN held + E4: E minor as ever (a chord key held: the player's own chord)
@@ -120,9 +121,20 @@ btn D4 up
 wait 100
 btn ENV
 wait 200
+knob KNOB4 +1
+wait 100
+knob KNOB4 -1
+wait 100
+knob ALGORITHM +1
+wait 100
 knob KNOB3 +1
 wait 100
-knob KNOB3 -1
+btn D4 down
+wait 400
+dump
+btn D4 up
+wait 300
+knob ALGORITHM -1
 wait 300
 btn REC
 wait 300
