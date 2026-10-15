@@ -1239,8 +1239,8 @@ static void cu_harm_feed(void)
  * cr_harmony.h's lanes: a fixed jazz / neo-soul palette on the home key, restful (D4) to pulling (G5), each black
  * root an approach chord leaning into the white root to its right. Fixed: a key plays the same chord, voiced the
  * same way, every time, until home moves. Home is the chord on screen when the mode opens (Key Mode on: its key, as
- * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour (triads, 7ths, the full
- * palette's 9ths); KNOB 2: the voicing style (Shell, Spread, Colour); ALGORITHM: the motion (a perform mode, or
+ * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour world (bare, triads, jazz:
+ * the palette as written, lush, quartal, altered, upper structure: cr_harmony.h); KNOB 2: the voicing style (Shell, Spread, Colour); ALGORITHM: the motion (a perform mode, or
  * off); KNOB 3: its time; KNOB 4: glide. A chord key held: a flavour, or (MAJ, MIN, DIM) that root's own chord. The chords sound as keyed chords given whole
  * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
  * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
@@ -1249,7 +1249,7 @@ static struct {
     uint8_t home_pc, home_scale;   /* cr_scale_t */
     uint8_t dirty;                 /* the map is to be laid out again (home moved) */
     uint8_t inited;                /* colour and style set (the first time the mode opens) */
-    uint8_t colour;                /* KNOB 1: 0 triads, 1 sevenths, 2 the palette as written (9ths) */
+    uint8_t colour;                /* KNOB 1: the colour world, CR_HCOL_* (CR_HCOL_JAZZ: the palette as written) */
     uint8_t style;                 /* KNOB 2: CR_HSTYLE_* */
     uint8_t hinted;                /* the "OCT+: home" hint shown since the mode opened */
     cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
@@ -1321,7 +1321,7 @@ static void cu_hm_enter(void)
     const cr_chord_info_t *ci = &cr_snap.ci;
     if (!cu_hm.inited) {
         cu_hm.inited = 1;
-        cu_hm.colour = 2;
+        cu_hm.colour = CR_HCOL_JAZZ;
         cu_hm.style = CR_HSTYLE_COLOUR;
     }
     if (ci->valid) {
@@ -1414,7 +1414,8 @@ static int cu_hm_away(void)
  * MIX page's: each new note slides from the nearest free voice), a step a detent, shown on screen */
 static void cu_hm_knob(uint32_t knob, int32_t s)
 {
-    static const char *const COL[3] = {"triads", "7ths", "9ths"}, *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
+    static const char *const COL[CR_HCOL_N] = {"bare", "triads", "jazz", "lush", "quartal", "altered", "upper"};
+    static const char *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
     int32_t v;
     if (knob == 2u) {
         int32_t p = CU_PERF_KNOB[cu_perf_mode()][0];
@@ -1440,7 +1441,7 @@ static void cu_hm_knob(uint32_t knob, int32_t s)
     }
     if (knob == 0u) {
         v = (int32_t)cu_hm.colour + (s > 0 ? 1 : -1);
-        cu_hm.colour = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v);
+        cu_hm.colour = (uint8_t)(v < 0 ? 0 : v >= CR_HCOL_N ? CR_HCOL_N - 1 : v);
         cu_message(COL[cu_hm.colour], CR_COL_YELLOW);
         cu_trace("harm: colour %s\n", COL[cu_hm.colour]);
     } else {
@@ -1461,7 +1462,8 @@ static int cu_hm_play(uint32_t k, uint32_t n)
 {
     const cr_hmap_chord_t *d;
     cr_hmap_chord_t e;
-    uint8_t notes[CR_CHORD_MAX], root_note;
+    uint8_t notes[CR_CHORD_MAX], root_note, lq, lx;
+    char nm_r[3], nm_q[5], nm_s[CR_SUP_MAX];
     int nv;
     uint32_t i, flav = 0;                       /* bit cr_mod_t: the chord keys held */
     for (i = 0; i < CU_ROOT0 && !cs.kbd_full; i++)
@@ -1472,11 +1474,7 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     d = cu_hm_dest(k);
     if (!d)
         return 0;
-    e = *d;                                     /* the colour: 9ths off (7ths), or 7ths and 9ths off (triads) */
-    if (cu_hm.colour < 2)
-        e.ext = (uint8_t)(e.ext & ~CR_EXT_9);
-    if (cu_hm.colour < 1)
-        e.ext = 0;
+    e = *d;
     if (flav & (1u << CR_MOD_SUS))              /* the flavours */
         e.quality = CR_Q_SUS;
     if (flav & (1u << CR_MOD_M7))
@@ -1487,14 +1485,18 @@ static int cu_hm_play(uint32_t k, uint32_t n)
         e.ext = (uint8_t)((e.ext & ~(CR_EXT_M7 | CR_EXT_MAJ7)) | CR_EXT_6);
     if (flav & (1u << CR_MOD_9))
         e.ext = (uint8_t)(e.ext | CR_EXT_9);
-    nv = cr_harm_voice_style(&e, cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note);
+    nv = cr_harm_voice_world(&e, cu_hm.colour, cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note, nm_r, nm_q,
+                             nm_s, &lq, &lx);
     if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
         return 0;
-    cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)e.quality << 4) | e.ext), nv);
+    cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)lq << 4) | lx), nv);
     for (i = 0; i < (uint32_t)nv; i++)
         cr_post(CRE_HNOTE, i, notes[i], 0);
     cr_post(CRE_HKEY, n, cs.vel, 1);
-    cu_hm_set_cur(e.root_pc, e.quality, e.ext, notes, (uint32_t)nv);
+    cu_hm_set_cur(e.root_pc, lq, lx, notes, (uint32_t)nv);
+    cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 alt, D/C ..) */
+    cu_cpy(cu_hm.cur.qual, nm_q, sizeof cu_hm.cur.qual);
+    cu_cpy(cu_hm.cur.sup, nm_s, sizeof cu_hm.cur.sup);
     if (cu_hm_away() && !cu_hm.hinted) {         /* (the first time away from home: how to come back to it here) */
         cu_hm.hinted = 1;
         cu_message("OCT+: make home", CR_COL_YELLOW);

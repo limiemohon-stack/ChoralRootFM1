@@ -190,6 +190,23 @@ void cr_harm_lanes(uint8_t home_pc, uint8_t home_scale, cr_hmap_t *map);
  * the live voicing). rootless (the Bass part on: it plays the root): no low root -- Shell is the 3rd, 7th and the
  * 9th (or 5th) above, Spread its three upper notes, Colour its four-note hand. Returns the note count (3 .. 5). */
 enum { CR_HSTYLE_SHELL, CR_HSTYLE_SPREAD, CR_HSTYLE_COLOUR, CR_HSTYLE_N };
+
+/* Colour worlds (KNOB 1 in the mode): each turns every chord into its version of that world, by the chord's job
+ * (a major chord, a dominant, a minor, a sus, a diminished):
+ *   BARE     root and 5th: C5                    TRIAD    the plain triad: C, Am, G
+ *   JAZZ     the palette as written: Cmaj9, Am9, G9 (the default)
+ *   LUSH     11ths and 13ths: Cmaj9#11, Am11, G13, G13sus, Bm11b5
+ *   QUARTAL  stacked 4ths: C6/9 (E A D G), Am11 (A D G C E), G13 (F B E A), G7sus (D G C F)
+ *   ALTERED  the dark side: C+maj7, AmM9, G7alt (#9 b13), G7sus b9, Bo7
+ *   UPPER    a triad floating over the root: D/C (Cmaj13#11), G/Am (Am11), A/G7 (G13#11), F/G (G11sus)
+ * cr_harm_voice_world voices d (flavours already applied to it) in the world and the style; root, qual and sup
+ * are its name for the screen (as cr_chord_name's three strings); loop_q / loop_x the nearest chord the engine
+ * knows (what a looper records). Returns the note count (3 .. 5). */
+enum { CR_HCOL_BARE, CR_HCOL_TRIAD, CR_HCOL_JAZZ, CR_HCOL_LUSH, CR_HCOL_QUARTAL, CR_HCOL_ALTERED, CR_HCOL_UPPER,
+       CR_HCOL_N };
+int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shift, int rootless,
+                        uint8_t notes[CR_CHORD_MAX], uint8_t *root_note, char root[3], char qual[5],
+                        char sup[CR_SUP_MAX], uint8_t *loop_q, uint8_t *loop_x);
 int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, int rootless, uint8_t notes[CR_CHORD_MAX],
                         uint8_t *root_note);
 

@@ -544,11 +544,63 @@ static void t_lanes_voicing(void)
     }
 }
 
+static void t_worlds(void)
+{
+    /* every chord of every key, both scales, every world, style, with and without the root: 3 .. 5 notes,
+     * ascending, in range, the root at the bottom unless rootless, a name; and the worlds as written in C */
+    static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    cr_hmap_t m;
+    int t, sc, i, w, st, rl, ok_all = 1, ok_c = 1;
+    for (sc = 0; sc < 2; sc++)
+        for (t = 0; t < 12; t++) {
+            cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+            for (i = 0; i < 18; i++)
+                for (w = 0; w < CR_HCOL_N; w++)
+                    for (st = 0; st < CR_HSTYLE_N; st++)
+                        for (rl = 0; rl < 2; rl++) {
+                            const cr_hmap_chord_t *d = i < 11 ? &m.w[i] : &m.b[i - 11];
+                            uint8_t n[CR_CHORD_MAX], r, lq, lx;
+                            char a[3], q[5], su[CR_SUP_MAX];
+                            int c = cr_harm_voice_world(d, w, st, 0, rl, n, &r, a, q, su, &lq, &lx), k;
+                            if (c < 3 || c > 5 || !a[0] || r % 12u != d->root_pc || lq >= CR_Q_COUNT) ok_all = 0;
+                            for (k = 1; k < c; k++) if (n[k] <= n[k - 1]) ok_all = 0;
+                            if (n[0] < 38 || n[c - 1] > 88) ok_all = 0;
+                            if (!rl && n[0] % 12u != d->root_pc) ok_all = 0;
+                            if (rl && n[0] < 50) ok_all = 0;
+                        }
+        }
+    ok(ok_all, "worlds: every chord, key, world, style, rooted and rootless: 3..5 notes, ascending, in range, named");
+    {
+        static const struct { int key, world; const char *name, *notes; } X[] = {
+            { 0, CR_HCOL_BARE, "C5", "48 55 60 67" },          { 0, CR_HCOL_TRIAD, "CM", "48 60 64 67" },
+            { 0, CR_HCOL_LUSH, "CM9 #11", "48 62 64 66 71" },  { 1, CR_HCOL_LUSH, "Am11", "45 59 60 62 67" },
+            { 9, CR_HCOL_ALTERED, "G7 alt", "43 59 63 65 70" }, { 1, CR_HCOL_QUARTAL, "Am11", "45 50 55 60 64" },
+            { 0, CR_HCOL_UPPER, "D/C", "48 52 62 66 69" },     { 9, CR_HCOL_UPPER, "A/G7", "43 53 61 64 69" } };
+        cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+        for (i = 0; i < (int)(sizeof X / sizeof X[0]); i++) {
+            uint8_t n[CR_CHORD_MAX], r, lq, lx;
+            char a[3], q[5], su[CR_SUP_MAX], nm[24], ns[32];
+            int c = cr_harm_voice_world(&m.w[X[i].key], X[i].world, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx), k;
+            size_t o = 0;
+            snprintf(nm, sizeof nm, "%s%s%s", a, q, su);
+            ns[0] = 0;
+            for (k = 0; k < c; k++) o += (size_t)snprintf(ns + o, sizeof ns - o, "%s%d", k ? " " : "", n[k]);
+            if (strcmp(nm, X[i].name) || strcmp(ns, X[i].notes)) {
+                printf("     world %d key %d: %s [%s], want %s [%s]\n", X[i].world, X[i].key, nm, ns, X[i].name, X[i].notes);
+                ok_c = 0;
+            }
+        }
+        (void)NN;
+    }
+    ok(ok_c, "worlds in C: C5, C, Cmaj9#11, Am11, G7alt (#9 b13), quartal Am11 (A D G C E), D/C, A/G7");
+}
+
 int main(void)
 {
     t_lanes_shape();
     t_lanes_transpose();
     t_lanes_voicing();
+    t_worlds();
     t_listen_settle();
     t_listen_brush();
     t_listen_latched();

@@ -607,3 +607,127 @@ int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, int root
     *root_note = (uint8_t)crh_place(r, 0, 52 + shift);       /* (the root an octave up: a loop's chord sits there) */
     return n;
 }
+
+/* ============================================================== colour worlds === */
+enum { CRH_CL_MAJ, CRH_CL_DOM, CRH_CL_MIN, CRH_CL_SUS, CRH_CL_DIM, CRH_NCL };   /* a chord's job */
+static int crh_class(uint8_t q, uint8_t ext)
+{
+    if (q == CR_Q_MIN) return CRH_CL_MIN;
+    if (q == CR_Q_SUS) return CRH_CL_SUS;
+    if (q == CR_Q_DIM) return CRH_CL_DIM;
+    return (ext & CR_EXT_M7) ? CRH_CL_DOM : CRH_CL_MAJ;
+}
+/* per world (LUSH .. UPPER) and job: the notes above the root (semitones; for UPPER the first `under` notes go
+ * below, the rest is the triad on top; for QUARTAL the order is the stack, low to high), its name (qual, sup; for
+ * UPPER the triad's root semitones above the chord's in `slash`, and the bass's qual) */
+typedef struct { int8_t iv[4]; uint8_t n, under; int8_t slash; const char *qual, *sup; } crh_world_t;
+static const crh_world_t CRH_WORLDS[4][CRH_NCL] = {
+    {   /* LUSH */
+        { { 4, 11, 14, 18 }, 4, 0, -1, "", "M9 #11" }, { { 4, 10, 14, 21 }, 4, 0, -1, "", "13" },
+        { { 3, 10, 14, 17 }, 4, 0, -1, "m", "11" },     { { 5, 10, 14, 21 }, 4, 0, -1, "sus", "13" },
+        { { 3, 6, 10, 17 }, 4, 0, -1, "m", "11 b5" } },
+    {   /* QUARTAL: a stack of 4ths (one tritone in the dominant's) */
+        { { 4, 9, 14, 19 }, 4, 0, -1, "", "6 9" },      { { 10, 16, 21, 26 }, 4, 0, -1, "", "13" },
+        { { 5, 10, 15, 19 }, 4, 0, -1, "m", "11" },     { { 7, 12, 17, 22 }, 4, 0, -1, "sus", "7" },
+        { { 6, 10, 15, 20 }, 4, 0, -1, "m", "7 b5" } },
+    {   /* ALTERED */
+        { { 4, 8, 11, 14 }, 4, 0, -1, "+", "M7" },      { { 4, 10, 15, 20 }, 4, 0, -1, "", "7 alt" },
+        { { 3, 7, 11, 14 }, 4, 0, -1, "m", "M9" },      { { 5, 7, 10, 13 }, 4, 0, -1, "sus", "7 b9" },
+        { { 3, 6, 9, 15 }, 4, 0, -1, "\260", "7" } },
+    {   /* UPPER: (under) + a major triad on top, named triad / bass */
+        { { 4, 14, 18, 21 }, 4, 1, 2, "", "" },         { { 10, 14, 18, 21 }, 4, 1, 2, "", "7" },
+        { { 3, 10, 14, 17 }, 4, 1, 10, "", "m" },       { { 10, 14, 17, 7 }, 4, 0, 10, "", "sus" },
+        { { 3, 6, 10, 17 }, 4, 0, -1, "m", "11 b5" } },
+};
+
+static void crh_strcpy(char *d, const char *s, int max) { int i = 0; while (s[i] && i < max - 1) { d[i] = s[i]; i++; } d[i] = 0; }
+
+int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shift, int rootless,
+                        uint8_t notes[CR_CHORD_MAX], uint8_t *root_note, char root[3], char qual[5],
+                        char sup[CR_SUP_MAX], uint8_t *loop_q, uint8_t *loop_x)
+{
+    cr_hmap_chord_t e = *d;
+    const crh_world_t *w;
+    static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
+    int r = d->root_pc, n = 0, i, k, cl, up[5], nu, lo, best, bk;
+    if (shift < -24) shift = -24;
+    if (shift > 24) shift = 24;
+    *loop_q = d->quality;
+    *loop_x = d->ext;
+    if (world == CR_HCOL_TRIAD || world == CR_HCOL_BARE) e.ext = 0;
+    if (world == CR_HCOL_BARE) {                             /* root, 5th, root */
+        int b = crh_place(r, 0, 40 + shift), f = crh_place(r, 7, rootless ? 50 + shift : b + 1);
+        if (!rootless) notes[n++] = (uint8_t)b;
+        notes[n++] = (uint8_t)f;
+        notes[n++] = (uint8_t)crh_place(r, 0, f + 1);
+        notes[n] = (uint8_t)crh_place(r, 7, notes[n - 1] + 1);
+        n++;
+        *root_note = (uint8_t)crh_place(r, 0, 52 + shift);
+        cr_chord_name((uint8_t)r, CR_Q_POW, 0, root, qual, sup);
+        *loop_q = CR_Q_POW; *loop_x = 0;
+        return n;
+    }
+    if (world <= CR_HCOL_JAZZ || world >= CR_HCOL_N) {      /* the palette's own chords (6ths, flavours) */
+        n = cr_harm_voice_style(&e, style, shift, rootless, notes, root_note);
+        cr_chord_name(e.root_pc, e.quality, e.ext, root, qual, sup);
+        *loop_q = e.quality; *loop_x = e.ext;
+        return n;
+    }
+    cl = crh_class(d->quality, d->ext);
+    w = &CRH_WORLDS[world - CR_HCOL_LUSH][cl];
+    *root_note = (uint8_t)crh_place(r, 0, 52 + shift);
+    if (!rootless) notes[n++] = (uint8_t)crh_place(r, 0, 40 + shift);
+    nu = w->n;
+    if (world == CR_HCOL_QUARTAL) {                          /* the stack in its order, the top nearest A4 */
+        up[0] = crh_place(r, w->iv[0], 50 + shift);
+        for (i = 1; i < nu; i++) up[i] = up[0] + (w->iv[i] - w->iv[0]);
+        while (up[nu - 1] > 74 + shift) for (i = 0; i < nu; i++) up[i] -= 12;
+        while (up[0] < 50 + shift) for (i = 0; i < nu; i++) up[i] += 12;
+    } else if (world == CR_HCOL_UPPER && w->under) {         /* the guide tone low, the triad close on top */
+        int g = crh_place(r, w->iv[0], 50 + shift), t0;
+        up[0] = g;
+        best = -1; bk = 0;
+        for (k = 0; k < 3; k++) {                            /* the triad's inversion whose top is nearest A4 */
+            int a = crh_place(r, w->iv[1 + k], g + 1), b = crh_place(r, w->iv[1 + (k + 1) % 3], a + 1);
+            int c = crh_place(r, w->iv[1 + (k + 2) % 3], b + 1);
+            if (best < 0 || crh_abs(c - (69 + shift)) < best) { best = crh_abs(c - (69 + shift)); bk = k; }
+        }
+        t0 = crh_place(r, w->iv[1 + bk], g + 1);
+        up[1] = t0;
+        up[2] = crh_place(r, w->iv[1 + (bk + 1) % 3], up[1] + 1);
+        up[3] = crh_place(r, w->iv[1 + (bk + 2) % 3], up[2] + 1);
+    } else {                                                 /* close position, the top nearest A4 */
+        int iv[4] = { 0, 0, 0, 0 }, m;
+        for (i = 0; i < nu; i++) iv[i] = w->iv[i] % 12;      /* (in pitch order: a close stack is a rotation) */
+        for (i = 1; i < nu; i++)
+            for (m = i; m > 0 && iv[m] < iv[m - 1]; m--) { int x = iv[m]; iv[m] = iv[m - 1]; iv[m - 1] = x; }
+        best = -1; bk = 0;
+        for (k = 0; k < nu; k++) {
+            int top = crh_place(r, iv[k], 55 + shift);
+            for (m = 1; m < nu; m++) top = crh_place(r, iv[(k + m) % nu], top + 1);
+            if (best < 0 || crh_abs(top - (69 + shift)) < best) { best = crh_abs(top - (69 + shift)); bk = k; }
+        }
+        up[0] = crh_place(r, iv[bk], 55 + shift);
+        for (i = 1; i < nu; i++) up[i] = crh_place(r, iv[(bk + i) % nu], up[i - 1] + 1);
+    }
+    if (style == CR_HSTYLE_SPREAD && nu == 4 && world != CR_HCOL_QUARTAL) {   /* drop 2: the second from the top
+                                                                               * an octave down */
+        int x = up[2] - 12;
+        if (x >= (n ? notes[0] + 1 : 50 + shift)) { up[2] = up[1]; up[1] = up[0]; up[0] = x; }
+    }
+    lo = (style == CR_HSTYLE_SHELL && nu > 3) ? nu - 3 : 0;  /* Shell: the top three */
+    for (i = lo; i < nu; i++) notes[n++] = (uint8_t)up[i];
+    for (i = 1; i < n; i++)                                  /* (ascending, no doubled pitch: lift what collides) */
+        while (notes[i] <= notes[i - 1]) notes[i] = (uint8_t)(notes[i] + 12);
+    if (w->slash >= 0) {                                     /* "D/C": the triad's root, "/" and the bass */
+        crh_strcpy(root, NN[(r + w->slash) % 12], 3);
+        qual[0] = '/';
+        crh_strcpy(qual + 1, NN[r], 4);
+        crh_strcpy(sup, w->sup, CR_SUP_MAX);
+    } else {
+        crh_strcpy(root, NN[r], 3);
+        crh_strcpy(qual, w->qual, 5);
+        crh_strcpy(sup, w->sup, CR_SUP_MAX);
+    }
+    return n;
+}
