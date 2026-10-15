@@ -123,6 +123,7 @@ typedef struct {
     uint8_t fixed;               /* 1: a chord given whole (cr_key_chord, Harmony mode): its notes, root, type and
                                   * extensions were chosen for it -- Key Mode, the chord block (Advanced / Free, LOCK)
                                   * and the voicing knob leave it as it is (in the struct's padding: no size change) */
+    uint8_t mo_gen;              /* the motion settings it was performed with (cr_t.mo_gen; cr_set_perform_later) */
     cr_clk_t clk;
 } cr_voice_t;
 
@@ -178,6 +179,11 @@ typedef struct {
     uint16_t ev_overflow;            /* events refused because the pool was full (diagnostic) */
     uint8_t tie;                     /* 1 while cr_key_chord sounds a chord: a note already sounding is kept
                                       * (tied over), not retriggered */
+    uint8_t mo_gen;                  /* motion "later" (cr_set_perform_later ..): the settings' generation, a step
+                                      * each time they take effect; a voice performed with an older one is re-
+                                      * performed on the beat */
+    uint8_t pend_on, pend_mode, npend;   /* .. waiting: perform on / off + 1, its mode + 1 (0: none), params */
+    struct { uint8_t m, p; int16_t v; } pend[6];
     cr_lastplayed_t lp;              /* Free play style: the last real voice */
     cr_chord_t pads[CR_MAX_PADS];
     int8_t rec_slot;
@@ -255,7 +261,15 @@ void cr_set_bass(cr_t *c, int enabled);
 void cr_set_bass_mode(cr_t *c, cr_bassmode_t m);
 void cr_set_perform(cr_t *c, int enabled);         /* restarts sounding voices, flushes a Hold latch */
 void cr_set_perform_mode(cr_t *c, cr_pmode_t m);
-void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value);   /* live: rephase / rebuild / restart */
+void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value);
+/* "Later" (Harmony mode's motion and its time, the owner 2026-10-15: "I don't want to hear the rate changing"):
+ * the same settings as cr_set_perform / cr_set_perform_mode / cr_set_param, but nothing sounding is re-performed by
+ * them as they turn. They take effect with the next gesture (a key, a pad, a loop step: the next chord plays with
+ * them), and a chord still sounding then -- held, or latched -- takes them on the next beat of the global grid, as
+ * one musical change. Several turns before then: only where they ended is heard. */
+void cr_set_perform_later(cr_t *c, int enabled);
+void cr_set_perform_mode_later(cr_t *c, cr_pmode_t m);
+void cr_set_param_later(cr_t *c, cr_pmode_t m, cr_param_t p, int value);   /* live: rephase / rebuild / restart */
 int  cr_get_param(const cr_t *c, cr_pmode_t m, cr_param_t p);
 void cr_set_sticky(cr_t *c, int on);               /* latch (Sticky Keys) */
 void cr_set_tempo(cr_t *c, int bpm);               /* 20..300; rephases clocked voices */

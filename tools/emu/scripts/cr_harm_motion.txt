@@ -1,0 +1,53 @@
+# Harmony mode's motion "later" (cr_engine.h cr_set_perform_later; the owner, 2026-10-15: twisting the motion should
+# not be heard as it turns): a latched chord, ALGORITHM turned through four motions at once -- nothing re-performed
+# while it turns; on the next beat the chord takes on the last (Arp) once. Then back to off: plain again on a beat.
+#  A. C major (MAJ + C5), LATCH held (the mode), LATCH tapped (Sticky), D4 tapped: Cmaj9 rings on (dump 1)
+#  B. ALGORITHM +1 x4 within 40 ms (Strum, Strum 2 Octaves, Slop, Arp): dump 2 at once (no note out since 1)
+#  C. 1.2 s later: dump 3 (the arp running: notes out since 2)
+#  D. ALGORITHM -1 x4 (motion off): dump 4 at once, 1.2 s later dump 5; LATCH tapped (Sticky off), OCT-, PANIC
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+btn LFO
+wait 200
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+knob ALGORITHM +1
+wait 10
+knob ALGORITHM +1
+wait 10
+knob ALGORITHM +1
+wait 10
+knob ALGORITHM +1
+wait 5
+dump
+wait 1200
+dump
+knob ALGORITHM -1
+wait 10
+knob ALGORITHM -1
+wait 10
+knob ALGORITHM -1
+wait 10
+knob ALGORITHM -1
+wait 5
+dump
+wait 1200
+dump
+btn LFO
+wait 200
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump

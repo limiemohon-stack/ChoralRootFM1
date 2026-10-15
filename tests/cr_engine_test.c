@@ -2007,6 +2007,70 @@ static void s_keyplays(void)
 
 /* Harmony mode: a key that sounds a chord given whole (cr_key_chord: root, type, extensions and voicing chosen by the
  * UI's map); everything else about it is a keyed voice's */
+/* "later" (Harmony mode's motion and its time): nothing sounding is re-performed while they turn; the next chord
+ * plays with where they ended; a chord still sounding takes them on the next beat, once */
+static void s_later(void)
+{
+    static const uint8_t CM[3] = {60, 64, 67}, AM[3] = {57, 60, 64};
+    uint32_t anchor, beat = 500u, first;      /* 120 BPM */
+    int k, n;
+    fresh("motion later");
+    anchor = cr_clock_epoch(&C);
+    cr_set_sticky(&C, 1);                                   /* LATCH: the chord rings on alone */
+    cr_key_chord(&C, 62, 0, 100, 60, CR_Q_MAJ, 0, CM, 3);
+    R(62, 1);
+    step(20); clear();
+    cr_set_perform_mode_later(&C, CR_PM_ARP);              /* twisting through: arp, harp, strum .. */
+    cr_set_perform_later(&C, 1);
+    cr_set_perform_mode_later(&C, CR_PM_HARP);
+    cr_set_perform_mode_later(&C, CR_PM_STRUM);
+    for (k = 0; k < 5; k++) cr_set_param_later(&C, CR_PM_STRUM, CR_P_RATE, 60 + 20 * k);   /* .. and its rate */
+    ok(nlog == 0 && C.perform_on == 0, "later: turning the motion and its rate re-performs nothing as it turns");
+    n = (int)((now_ms() - anchor) / beat + 1u) * (int)beat + (int)anchor - (int)now_ms();   /* ms to the next beat */
+    step(n - 3);
+    ok(nlog == 0, "later: .. nor before the beat");
+    step(400);
+    first = nlog ? LOG[0].ms : 0;
+    ok(nlog > 0 && (first - anchor) % beat <= TICK_US / 1000u + 1u && C.perform_on && C.perform_mode == CR_PM_STRUM &&
+       C.par[CR_PM_STRUM][CR_P_RATE] == 140, "later: on the beat the latched chord takes them on, once: strummed at the "
+       "rate it ended on (140), not arp or harp on the way");
+    {
+        int on[8], no = ons(on, 8, 0);
+        ok(no == 3 && LOG[on[1]].ms - LOG[on[0]].ms >= 138 && LOG[on[1]].ms - LOG[on[0]].ms <= 142,
+           "later: .. one strum, its notes 140 ms apart");
+    }
+    clear();
+    step(1000);
+    ok(nlog == 0, "later: and no more after it (one change, one re-performance)");
+    cr_set_param_later(&C, CR_PM_STRUM, CR_P_RATE, 20);    /* then a new chord before the beat */
+    step(5);
+    cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
+    R(64, 1);
+    step(60);
+    {
+        int on[8], no = ons(on, 8, 0);
+        ok(no >= 2 && LOG[on[1]].ms - LOG[on[0]].ms >= 18 && LOG[on[1]].ms - LOG[on[0]].ms <= 22,
+           "later: the next chord plays with the new rate at once (strummed 20 ms apart)");
+    }
+    clear();
+    step(1100);
+    ok(nlog == 0, "later: .. and the beat after it changes nothing (nothing out of date sounds)");
+    cr_set_param_later(&C, CR_PM_STRUM, CR_P_RATE, 300);   /* an immediate setting wins over one waiting */
+    cr_set_param(&C, CR_PM_STRUM, CR_P_RATE, 50);
+    clear();
+    step(1100);
+    ok(C.par[CR_PM_STRUM][CR_P_RATE] == 50, "later: an immediate setting replaces one waiting for the same");
+    clear();
+    cr_set_perform_later(&C, 0);                            /* motion off: the latched chord plain on the beat */
+    step(1100);
+    ok(C.perform_on == 0 && nlog == 6 && LOG[3].ms == LOG[5].ms && (LOG[3].ms - anchor) % beat <= TICK_US / 1000u + 1u,
+       "later: motion off: on the beat the chord sounds plain again, its notes together");
+    clear();
+    cr_set_sticky(&C, 0);
+    step(50);
+    clear();
+}
+
 static void s_fixedchord(void)
 {
     static const uint8_t CM7[4] = {72, 64, 71, 67};   /* C maj7, E4 G4 B4 C5, given out of order */
@@ -2566,7 +2630,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
     s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_pattern(); s_live(); s_streams();
-    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_fixedchord(); s_loopvoice(); s_queries(); s_limits(); s_torture();
+    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_fixedchord(); s_later(); s_loopvoice(); s_queries(); s_limits(); s_torture();
     s_sixth();
     fresh("end");
 }

@@ -78,9 +78,12 @@ static const char *const CR_QUAL_NAMES[CR_Q_COUNT] = { "", "dim", "m", "", "sus"
 #define CR_BLOCK_UNITS 384u      /* 16 beats in 1/24-beat units: a whole number of every division's pair */
 #define CR_NONE 0xFFu
 
-enum { CR_EV_NOTE_OFF = 1, CR_EV_STRUM, CR_EV_CLOCK };
+enum { CR_EV_NOTE_OFF = 1, CR_EV_STRUM, CR_EV_CLOCK, CR_EV_MOTION };
 #define CR_OWN_V(vi) ((uint8_t)((unsigned)(vi) * 2u))        /* a voice's strum / note-off events */
 #define CR_OWN_C(vi) ((uint8_t)((unsigned)(vi) * 2u + 1u))   /* its clocked-step events */
+#define CR_OWN_MOTION 0xFEu                                  /* the beat that brings "later" motion settings in */
+static void crx_motion_gesture(cr_t *c);
+static void crx_motion_beat(cr_t *c);
 
 /* =========================================================== helpers === */
 static void crx_zero(void *p, uint32_t n)
@@ -609,6 +612,7 @@ static void crx_main_voice(cr_t *c, int vi, int on)
         crx_main_release(c, v);
         v->main.live = 0; v->clk.on = 0;
     } else if (crx_main_ok(c, v)) {
+        v->mo_gen = c->mo_gen;
         if (c->perform_on) crx_start_performance(c, vi);
         else {
             int i;
@@ -747,6 +751,7 @@ static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, in
     v->gid = ++c->gid;
     crx_build_base(c, v);
     v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, zone ? 0 : c->voicing, v->notes);
+    crx_motion_gesture(c);
     crx_sound_voice(c, vi);
     if (crx_bass_ok(c, v)) crx_bass_start(c, v);
     c->disp_vi = (uint8_t)vi;
@@ -938,7 +943,7 @@ uint32_t cr_clock_epoch(const cr_t *c) { return c->clk_anchor; }
 
 void cr_tick(cr_t *c, uint32_t now_ms)
 {
-    int d = 0, k;
+    int d = 0, k, beat = 0;
     uint32_t block = 2u * (960000u / c->bpm);
     c->now = now_ms;
     if (!c->started) cr_clock_reset(c);
@@ -960,9 +965,11 @@ void cr_tick(cr_t *c, uint32_t now_ms)
             cr_voice_t *v = &c->v[e.vi];
             if (v->used && v->clk.on) { crx_fire_clocked_once(c, e.vi); crx_clocked_step(c, e.vi); }
         }
+        else if (e.kind == CR_EV_MOTION) beat = 1;   /* (after the drain: it cancels and re-performs voices) */
     }
     for (k = d; k < c->nev; k++) c->ev[k - d] = c->ev[k];
     c->nev = (uint16_t)(c->nev - d);
+    if (beat) crx_motion_beat(c);
 }
 
 void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
@@ -992,7 +999,7 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
             v->superseded |= (uint8_t)(1u << v->id);
             v->id = id;
             v->vel = vel;
-            if (!crx_clocked_no_retrig(c, v)) { crx_hush_voice(c, vi); crx_sound_voice(c, vi); }   /* retrig off: continues */
+            if (!crx_clocked_no_retrig(c, v)) { crx_hush_voice(c, vi); crx_motion_gesture(c); crx_sound_voice(c, vi); }   /* retrig off: continues */
             if (v->bass.live) crx_bass_start(c, v);
             crx_gesture(c, vi, 1);
         } else {
@@ -1082,6 +1089,7 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
                     }
         for (i = 0; i < CR_MAX_VOICES; i++) if ((replace >> i) & 1u) crx_kill_voice(c, i);
         c->tie = 1;                                                     /* (notes still sounding: tied over) */
+        crx_motion_gesture(c);
         crx_sound_voice(c, vi);
         c->tie = 0;
         for (s = 0; s < 2; s++)                                         /* (the claims go: a note nobody owns now ends) */
@@ -1245,6 +1253,7 @@ void cr_set_stream(cr_t *c, cr_stream_t s, int enabled) { if ((int)s >= 0 && (in
 void cr_set_perform(cr_t *c, int enabled)
 {
     enabled = enabled != 0;
+    c->pend_on = 0;                   /* (a "later" one waiting: this one wins) */
     if (c->perform_on == enabled) return;
     c->perform_on = (uint8_t)enabled;
     crx_restart_sounding_voices(c);   /* design.md 11.1/17 */
@@ -1253,7 +1262,9 @@ void cr_set_perform(cr_t *c, int enabled)
 
 void cr_set_perform_mode(cr_t *c, cr_pmode_t m)
 {
-    if ((int)m < 0 || (int)m >= CR_PM_COUNT || c->perform_mode == (uint8_t)m) return;
+    if ((int)m < 0 || (int)m >= CR_PM_COUNT) return;
+    c->pend_mode = 0;
+    if (c->perform_mode == (uint8_t)m) return;
     c->perform_mode = (uint8_t)m;
     if (c->perform_on) crx_restart_sounding_voices(c);
     crx_latch_sync(c);   /* leaving a Hold mode releases latched voices */
@@ -1265,6 +1276,8 @@ void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value)
     int i;
     if ((int)m < 0 || (int)m >= CR_PM_COUNT || (int)p < 0 || (int)p >= CR_P_COUNT) return;
     value = crx_clamp(value, CR_PAR_MIN[p], CR_PAR_MAX[p]);
+    for (i = 0; i < c->npend; i++)                /* (a "later" one waiting for the same: this one wins) */
+        if (c->pend[i].m == m && c->pend[i].p == p) c->pend[i] = c->pend[--c->npend];
     if (c->par[m][p] == value) return;
     c->par[m][p] = (int16_t)value;
     for (i = 0; i < CR_NVOICE; i++) {
@@ -1280,6 +1293,83 @@ void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value)
     }
     if (p == CR_P_HOLD) crx_latch_sync(c);   /* Hold turned off: release latched voices */
 }
+/* ---- "later" (cr_engine.h): settings that wait for the next gesture, or the next beat ---- */
+static void crx_motion_schedule(cr_t *c)        /* the next beat (a quarter on the global grid) after now */
+{
+    uint32_t k = 0, due;
+    int32_t el = (int32_t)(c->now - c->clk_anchor);
+    if (el > 0) {
+        k = (uint32_t)el * c->bpm / (24u * 2500u);
+        k = k > 2u ? k - 2u : 0u;
+    }
+    while ((int32_t)((due = crx_due_at(c->clk_anchor, c->clk_rem, k, 24u, 50u, c->bpm)) - c->now) <= 0) k++;
+    crx_cancel(c, CR_OWN_MOTION);
+    crx_sched(c, due - c->now, CR_EV_MOTION, CR_OWN_MOTION, 0, 0);
+}
+/* the waiting settings take effect, nothing re-performed here; 1: what sounds is now out of date (its generation) */
+static int crx_motion_apply(cr_t *c)
+{
+    int j, i, stale = 0, was_on = c->perform_on, was_mode = c->perform_mode;
+    if (!c->pend_on && !c->pend_mode && !c->npend) return 0;
+    if (c->pend_mode) c->perform_mode = (uint8_t)(c->pend_mode - 1u);
+    if (c->pend_on) c->perform_on = (uint8_t)(c->pend_on - 1u);
+    if (c->perform_on != was_on || (c->perform_on && c->perform_mode != was_mode)) stale = 1;
+    for (j = 0; j < c->npend; j++) {
+        int m = c->pend[j].m, p = c->pend[j].p, value = c->pend[j].v;
+        if (c->par[m][p] == value) continue;
+        c->par[m][p] = (int16_t)value;
+        if (c->perform_on && m == c->perform_mode) stale = 1;
+        for (i = 0; i < CR_NVOICE; i++) {            /* (a clocked voice reads its parameters as it steps: keep its
+                                                      * grid and its order consistent with them) */
+            cr_voice_t *v = &c->v[i];
+            if (!v->used || !v->clk.on || v->clk.mode != m) continue;
+            if (p == CR_P_DIR || p == CR_P_RANGE) crx_build_clocked_seq(c, v);
+            else if (p == CR_P_DIV || p == CR_P_SWING || p == CR_P_RETRIG) crx_rephase_clocked(c, i);
+        }
+    }
+    c->pend_on = c->pend_mode = c->npend = 0;
+    if (stale) c->mo_gen++;
+    crx_latch_sync(c);
+    return stale;
+}
+static void crx_motion_gesture(cr_t *c)          /* a new chord: it plays with them (the beat still comes for the
+                                                  * chords that sound on) */
+{
+    crx_motion_apply(c);
+}
+static void crx_motion_beat(cr_t *c)             /* the beat: what still sounds takes them on, once */
+{
+    int i;
+    crx_motion_apply(c);
+    for (i = 0; i < CR_NVOICE; i++)
+        if (c->v[i].used && c->v[i].mo_gen != c->mo_gen) { crx_main_voice(c, i, 0); crx_main_voice(c, i, 1); }
+}
+void cr_set_perform_later(cr_t *c, int enabled)
+{
+    c->pend_on = (uint8_t)((enabled != 0) + 1);
+    crx_motion_schedule(c);
+}
+void cr_set_perform_mode_later(cr_t *c, cr_pmode_t m)
+{
+    if ((int)m < 0 || (int)m >= CR_PM_COUNT) return;
+    c->pend_mode = (uint8_t)(m + 1);
+    crx_motion_schedule(c);
+}
+void cr_set_param_later(cr_t *c, cr_pmode_t m, cr_param_t p, int value)
+{
+    int j;
+    if ((int)m < 0 || (int)m >= CR_PM_COUNT || (int)p < 0 || (int)p >= CR_P_COUNT) return;
+    value = crx_clamp(value, CR_PAR_MIN[p], CR_PAR_MAX[p]);
+    for (j = 0; j < c->npend && (c->pend[j].m != m || c->pend[j].p != p); j++) {}
+    if (j == c->npend) {
+        if (c->npend >= (uint8_t)(sizeof c->pend / sizeof c->pend[0])) { crx_motion_apply(c); j = 0; }
+        c->npend = (uint8_t)(j + 1);
+        c->pend[j].m = (uint8_t)m; c->pend[j].p = (uint8_t)p;
+    }
+    c->pend[j].v = (int16_t)value;
+    crx_motion_schedule(c);
+}
+
 int cr_get_param(const cr_t *c, cr_pmode_t m, cr_param_t p)
 {
     if ((int)m < 0 || (int)m >= CR_PM_COUNT || (int)p < 0 || (int)p >= CR_P_COUNT) return 0;
@@ -1344,6 +1434,7 @@ void cr_pad_down(cr_t *c, int slot)
     v->gid = ++c->gid;
     v->nbase = (uint8_t)cr_chord_base_ex(d->root + v->transpose, d->q, d->x, c->sixth_up, v->base);
     v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, c->voicing, v->notes);
+    crx_motion_gesture(c);
     crx_sound_voice(c, vi);
     if (crx_bass_ok(c, v)) crx_bass_start(c, v);
     c->disp_vi = (uint8_t)vi;
@@ -1420,6 +1511,7 @@ int cr_loop_event_v(cr_t *c, int lv, int16_t root, uint8_t q, uint8_t ext, uint8
         voic = c->voicing;
     }
     v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, v->zone ? 0 : voic, v->notes);
+    crx_motion_gesture(c);
     crx_sound_voice(c, vi);
     if (crx_bass_ok(c, v)) crx_bass_start(c, v);
     c->disp_vi = (uint8_t)vi;
