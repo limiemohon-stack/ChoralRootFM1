@@ -204,6 +204,12 @@ void cr_key_ex(cr_t *c, uint8_t midi_note, uint8_t id, uint8_t vel, int down);
  * 0 .. 127, n out of range */
 void cr_key_chord(cr_t *c, uint8_t midi_note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
                   const uint8_t *notes, int n);
+/* .. with how it replaces the same key's chord: legato 0 (cr_key_chord: a key pressed again) strikes its notes again
+ * -- the same chord repeated is heard (the owner, 2026-10-16: "you can't play the same chord in repetition"); legato
+ * 1 (Harmony mode turning the chord that sounds: a world button, an added note) ties the notes they share, as a new
+ * key's chord always does with the one it replaces */
+void cr_key_chord_ex(cr_t *c, uint8_t midi_note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
+                     const uint8_t *notes, int n, int legato);
 void cr_mod(cr_t *c, cr_mod_t m, int down);        /* the chord block */
 /* LOCK (the UI's latch, cr_ui.c cu_mod_press): the chord keys down are a SET the UI owns: a latched key stays down
  * here after its release, a key leaves the set by an up. With cr_mod_lock on, the play styles differ only in who

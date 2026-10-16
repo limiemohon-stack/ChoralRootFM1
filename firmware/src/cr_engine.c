@@ -1029,7 +1029,13 @@ void cr_key(cr_t *c, uint8_t midi_note, uint8_t vel, int down) { cr_key_ex(c, mi
 void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
                   const uint8_t *notes, int n)
 {
+    cr_key_chord_ex(c, note, id, vel, root, q, ext, notes, n, 0);
+}
+void cr_key_chord_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, uint8_t q, uint8_t ext,
+                     const uint8_t *notes, int n, int legato)
+{
     uint8_t bit;
+    int again;              /* the same key pressed again (not legato): its chord is struck again, nothing tied */
     cr_voice_t *v;
     int vi, i, old;
     uint32_t replace = 0;   /* bit i: voice i is replaced by the new chord: the latched group (as cr_key_ex: the next
@@ -1044,6 +1050,7 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
     if (!(c->phys[note] & bit)) { c->phys[note] |= bit; c->phys_n++; }
     old = crx_find_voice(c, note);
     if (old >= 0) replace |= 1u << old;
+    again = !legato && old >= 0;
     for (vi = 0; vi < CR_MAX_VOICES; vi++) if (!c->v[vi].used) break;
     if (vi >= CR_MAX_VOICES && replace) {                               /* (no room: end the replaced ones first) */
         for (i = 0; i < CR_MAX_VOICES; i++) if ((replace >> i) & 1u) crx_kill_voice(c, i);
@@ -1073,7 +1080,7 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
         uint8_t cl[2][CR_CHORD_MAX], ncl[2] = { 0, 0 };
         static const uint8_t ST[2] = { CR_STREAM_MAIN, CR_STREAM_RAW };
         int s;
-        if (replace)
+        if (replace && !again)
             for (s = 0; s < 2; s++)
                 for (i = 0; i < n; i++)
                     if (c->reg[ST[s]][v->notes[i]] && c->reg[ST[s]][v->notes[i]] < 255u) {
@@ -1081,7 +1088,7 @@ void cr_key_chord(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int16_t root, 
                         cl[s][ncl[s]++] = v->notes[i];
                     }
         for (i = 0; i < CR_MAX_VOICES; i++) if ((replace >> i) & 1u) crx_kill_voice(c, i);
-        c->tie = 1;                                                     /* (notes still sounding: tied over) */
+        c->tie = (uint8_t)!again;                                       /* (notes still sounding: tied over) */
         crx_sound_voice(c, vi);
         c->tie = 0;
         for (s = 0; s < 2; s++)                                         /* (the claims go: a note nobody owns now ends) */

@@ -2911,6 +2911,11 @@ bv() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.*chord /
     ok "M7 held + A4: C#dim7, the lead-in; let go, A4: Dm9 lands" || bad "the lead-in: '$(bv 7)' / '$(bv 8)'"
 [ "$(bv 9)" = "C6 9 sounding 1 notes 48 62 64 67 69" ] && [ "$(bv 10)" = "CM7 9 sounding 1 notes 48 59 62 64 67" ] &&
     ok "D4 held, then 6 pressed: it adds the 6th at once (C6/9); let go: Cmaj9 again" || bad "adding a note: '$(bv 9)' / '$(bv 10)'"
+bo() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.* notes-out \([0-9]*\) .*/\1/'; }
+[ "$(bv 11)" = "CM7 9 sounding 1 notes 48 59 62 64 67" ] && [ "$(bv 12)" = "$(bv 11)" ] &&
+    [ "$(( $(bo 11) - $(bo 10) ))" = 5 ] && [ "$(( $(bo 12) - $(bo 11) ))" = 5 ] &&
+    ok "the same key tapped again over its latched chord: struck again every time (5 notes out each), the same chord" ||
+    bad "a repeated chord: notes out $(bo 10) -> $(bo 11) -> $(bo 12)"
 silent_end cr_harm_buttons
 
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"

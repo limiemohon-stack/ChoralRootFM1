@@ -1520,7 +1520,7 @@ static const uint8_t CU_HM_APPR_OF[CR_NMOD] = {    /* cr_mod_t -> CR_HAPP_* */
     0xFFu, 0xFFu, 0xFFu, 0xFFu, CR_HAPP_SLIP, CR_HAPP_DOM, CR_HAPP_DIM, CR_HAPP_TRITONE };
 static const char *const CU_HM_COL_NAME[CR_HCOL_N] = {"bare", "triads", "jazz", "lush", "quartal", "altered", "upper"};
 static const char *const CU_HM_APPR_NAME[CR_HAPP_N] = {"slide in", "its dominant", "dim lead-in", "tritone sub"};
-static int cu_hm_play(uint32_t k, uint32_t n);
+static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato);
 static void cu_hm_btn_pick(void)                 /* after a button goes up: another still held of its kind counts */
 {
     uint32_t i;
@@ -1549,7 +1549,7 @@ static void cu_hm_revoice(void)                  /* a world / added note: the ch
                    cr_snap.ci.valid && cr_snap.ci.sounding && cu_ci_same(&cr_snap.ci, &cu_hm.cur)))
         return;                                  /* (its key up and the chord not latched on -- LATCH, a Hold mode --
                                                   * or another sounding: nothing to turn, never a blip) */
-    if (cu_hm_play(k, cu_hm.last_n) && !held)
+    if (cu_hm_play_ex(k, cu_hm.last_n, 1) && !held)
         cr_post(CRE_KEY, cu_hm.last_n, 0, 0);    /* (its key is up: a tap, which LATCH keeps) */
 }
 static void cu_hm_button(uint32_t k, int down)   /* chord key k (not B3) in the mode */
@@ -1591,7 +1591,7 @@ static void cu_hm_button(uint32_t k, int down)   /* chord key k (not B3) in the 
  * same notes every time), posted as a chord given whole; an approach button held: the approach into it instead. The
  * Bass part on: rootless (it plays the root). The whole under the key's own note n (its release is the ordinary
  * CRE_KEY up). 0: play it as ever (not a root of the map) */
-static int cu_hm_play(uint32_t k, uint32_t n)
+static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato)
 {
     const cr_hmap_chord_t *d;
     cr_hmap_chord_t e;
@@ -1619,7 +1619,7 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)lq << 4) | lx), nv);
     for (i = 0; i < (uint32_t)nv; i++)
         cr_post(CRE_HNOTE, i, notes[i], 0);
-    cr_post(CRE_HKEY, n, cs.vel, 1);
+    cr_post(CRE_HKEY, n, cs.vel, legato ? 2 : 1);   /* (a key pressed again strikes again; a turn is legato) */
     cu_hm_set_cur(e.root_pc, lq, lx, notes, (uint32_t)nv);
     cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 b9, D/C ..) */
     cu_cpy(cu_hm.cur.qual, nm_q, sizeof cu_hm.cur.qual);
@@ -1631,6 +1631,7 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     cu_hm_trace("played, on");
     return 1;
 }
+static int cu_hm_play(uint32_t k, uint32_t n) { return cu_hm_play_ex(k, n, 0); }
 /* every frame: in the mode, a chord of the player's the keys did not play (a chord key held, a pad, MIDI in) becomes
  * the chord you are on (the screen; OCT+ would make it home). Only the player's own chords, while they sound: never a
  * loop's, a single note, or the chord still shown after it ended. And only a change since the last one seen, so the

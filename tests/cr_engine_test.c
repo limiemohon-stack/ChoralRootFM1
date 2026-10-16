@@ -2114,6 +2114,12 @@ static void s_fixedchord(void)
     cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);
     expect("-67 +57/100", "given whole + LATCH: the next chord replaces the latched one: G4 leaves first (its synth voice free to glide), C4 and E4, shared, ring on");
     R(64, 1);
+    cr_key_chord(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3);  /* the same key again: the same chord, heard again */
+    R(64, 1);
+    expect("-57 -60 -64 +57/100 +60/100 +64/100", "given whole + LATCH: the same key pressed again strikes its chord again (a repeated chord is heard)");
+    cr_key_chord_ex(&C, 64, 0, 100, 57, CR_Q_MIN, 0, AM, 3, 1);   /* legato: the chord turned, the same notes */
+    R(64, 1);
+    expect("", "given whole + LATCH, legato (Harmony mode turning the chord): the same notes ring on, nothing struck");
     cr_set_sticky(&C, 0);
     ok(sounding() == 0, "given whole: LATCH off releases it");
     clear();

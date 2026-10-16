@@ -5,7 +5,8 @@
 #  C. DIM (F#3) held: altered -- D4: home stays as written, Cmaj9 (dump 4); F5: G7b9b13 (dump 5); DIM up: G9 (dump 6)
 #  D. M7 (A3) held + A4: C#dim7, the lead-in to Dm9 (dump 7); M7 up, A4: Dm9 lands (dump 8)
 #  E. D4 held, then 6 (F3) pressed: it adds the 6th -- C6/9 at once (dump 9); 6 let go: Cmaj9 again (dump 10)
-#  F. LATCH tapped (Sticky off), OCT-, PANIC
+#  F. D4 tapped twice more (latched): the same chord struck again each time (dumps 11, 12: 5 notes out each)
+#  G. LATCH tapped (Sticky off), OCT-, PANIC
 wait 500
 btn A#3 down
 wait 40
@@ -68,6 +69,16 @@ wait 300
 dump
 btn D4 up
 wait 100
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
 btn LFO
 wait 200
 btn OCT-

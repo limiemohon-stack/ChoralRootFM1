@@ -420,7 +420,7 @@ enum {
                        * a: its root note (the looper's), b: quality << 4 | ext, v: its note count; its notes follow */
     CRE_HNOTE,        /* .. a: the note's place (0 ..), b: the note */
     CRE_HKEY,         /* Harmony mode: a root key down sounding that chord (cr_key_chord: a keyed voice of a chord given
-                       * whole): a: the key's note, b: vel. Its release is an ordinary CRE_KEY up. The UI posts the
+                       * whole): a: the key's note, b: vel, v: 1 a press, 2 the chord sounding turned (legato). Its release is an ordinary CRE_KEY up. The UI posts the
                        * group only when the queue has room for all of it (cr_post_room) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
     CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM, quietly (cr_set_perform_quiet:
@@ -581,8 +581,8 @@ static void cr_apply(const cr_ev_in_t *e)
         break;
     case CRE_HKEY:                               /* (no whole chord before it: the key plays as an ordinary key) */
         if (cr_hspec.n && cr_hspec.got == (uint8_t)((1u << cr_hspec.n) - 1u))
-            cr_key_chord(&cr, e->a, 0, e->b, cr_hspec.root, (uint8_t)(cr_hspec.qx >> 4), (uint8_t)(cr_hspec.qx & 15u),
-                         cr_hspec.note, cr_hspec.n);
+            cr_key_chord_ex(&cr, e->a, 0, e->b, cr_hspec.root, (uint8_t)(cr_hspec.qx >> 4), (uint8_t)(cr_hspec.qx & 15u),
+                            cr_hspec.note, cr_hspec.n, e->v == 2);   /* (v 2: the chord sounding turned, legato) */
         else
             cr_key(&cr, e->a, e->b, 1);
         cr_hspec.n = cr_hspec.got = 0;
