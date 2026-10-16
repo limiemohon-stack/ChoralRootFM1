@@ -44,11 +44,19 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
 {
 #if FELUCCA_FLASH
     uint32_t f = irq_save(), k;
+    uint8_t uid[16];
+    int uid_rc = -1;
     CR_STAGE(BS_FLASH);
     flash_ok = FL_FAR(fl_jedec_ram)() == 0x856014u;       /* the expected 1 MiB part, else stay RAM-only */
+    if (flash_ok && !cr_safe)                              /* its unique ID (fm1_flash.h fl_uid_ram: the SDK's own
+                                                            * read, nothing written), for the unit's ID; not in SAFE
+                                                            * MODE: that boot runs as it did before the ID came */
+        uid_rc = FL_FAR(fl_uid_ram)(uid);
     irq_restore(f);
     if (!flash_ok)
         return;
+    if (!uid_rc)
+        cr_unit_id_set(uid);
     fl_plain_window_init();                                /* the data region reads as plaintext through XIP */
     /* SAFE MODE (main.c, cr_bootguard.h): flash_ok stays (the installer's update and the backup's reads need it),
      * but no object is read: storage.c st_load / st_save and the loop slots answer "none" (core.h ST_BLOCKED), so
@@ -63,6 +71,8 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
 #if CR_HAVE_SETTINGS
     CR_STAGE(BS_SETTINGS);
     cr_settings_boot();                                    /* the settings record with ChoralRoot's block */
+    crs_ahead_boot();                                      /* the quiet writes: the spare copies erased now, before
+                                                            * the audio starts (cr_settings.c; SAFE MODE: nothing) */
 #endif
 #endif
 }

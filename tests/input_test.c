@@ -12,6 +12,7 @@
  *   - a stray closed sample (a 150 us glitch) plays nothing;
  *   - fast repeats (40 ms apart) are all heard;
  *   - the encoders still count one step per detent (their decoder is not touched);
+ *   - the analog rows through fm1_input_tick with the converter as memory (docs/VELOCITY.md), and the top row's probe;
  *   - the LED scan through fm1_input_tick: lit LEDs all of their tick, dim ones a pulse over the start of the
  *     595 shift (no wait) that settles to FM1_LED_DIM_NS +-30 % on every column whatever the bus speed, every
  *     frame, each only on its own column, the lines dark at every latch; the cost of a tick.
@@ -38,6 +39,56 @@ static uint32_t host_bus;
 #undef FM1_PR
 #define FM1_PR(p, r) (*(host_now += host_bus, &host_reg[(p) & 15u][((r) / 4u) & 63u]))
 #define fm1_ticks host_ticks
+/* the converter as memory (hal/fm1_adc.h), and the sensing's hooks (the analog test below): each row sample as the
+ * tick hands it over, with the row's direction and drive bits as they are at that moment */
+static volatile uint32_t host_adc_con, host_adc_res, host_wla;
+#define FM1_ADC_CON_R host_adc_con
+#define FM1_ADC_RES host_adc_res
+#define FM1_WLA_CON0 host_wla
+static struct { uint32_t n, bad_col, drv, dir_out_at_take, hd_at_take, per[6][11], drv_per[6][11]; } an;
+static uint32_t an_held_col = 5u, an_held_row = 3u, an_hold, an_drive_next, an_exp_col;
+static void an_hook(uint32_t col, uint32_t rowbit, uint32_t v, uint32_t driven)
+{
+    uint32_t dir = host_reg[FM1_PA & 15u][FM1_DIR / 4u], hd0 = host_reg[FM1_PA & 15u][FM1_HD0 / 4u];
+    uint32_t pin = rowbit == 3u ? 7u : 8u;
+    (void)v;
+    an.n++;
+    if (col != an_exp_col || rowbit < 3u || rowbit > 4u)
+        an.bad_col++;
+    if (rowbit < 6u && col < 11u) {
+        an.per[rowbit][col]++;
+        an.drv_per[rowbit][col] += driven;
+    }
+    an.drv += driven;
+    an.dir_out_at_take += !((dir >> pin) & 1u);         /* the row must be an input again before the rows are read */
+    an.hd_at_take += (hd0 >> pin) & 1u;
+}
+static int an_drive(uint32_t col, uint32_t rowbit)
+{
+    if (!an_hold || col != an_held_col || rowbit != an_held_row)
+        return 0;
+    an_drive_next ^= 1u;                                 /* every other sample of the held key, as cr_sense.c */
+    return (int)an_drive_next;
+}
+static int an_led_ok(uint32_t col, uint32_t rowbit) { return !(an_hold && col == an_held_col && rowbit == an_held_row); }
+static struct { uint32_t n, bad_col, pressed, pa10_in_at_take, pa6_out_at_take, per[11]; } pr;   /* the probe's readings */
+static void pr_hook(uint32_t col, uint32_t v, uint32_t pressed)
+{
+    uint32_t dir = host_reg[FM1_PA & 15u][FM1_DIR / 4u];
+    (void)v;
+    pr.n++;
+    if (col >= 7u)
+        pr.bad_col++;
+    else
+        pr.per[col]++;
+    pr.pressed += pressed;
+    pr.pa10_in_at_take += (dir >> 10) & 1u;             /* PA10 must be an output again at the take */
+    pr.pa6_out_at_take += !((dir >> 6) & 1u);           /* PA6 an input again */
+}
+#define FM1_INPUT_PROBE(c, v, p) pr_hook(c, v, p)
+#define FM1_INPUT_ANALOG(c, r, v, d) an_hook(c, r, v, d)
+#define FM1_INPUT_DRIVE(c, r) an_drive(c, r)
+#define FM1_INPUT_LED_OK(c, r) an_led_ok(c, r)
 #include "../firmware/hal/fm1_input.h"
 
 #define TICK_US 100u
@@ -565,6 +616,145 @@ int main(void)
             host_step = 2400u;
             printf("LEDs: host %.1f ns per tick without dim LEDs, %.1f ns with\n", ns[0], ns[1]);
         }
+    }
+
+    {   /* the analog rows through fm1_input_tick (docs/VELOCITY.md; the converter as memory): each tick starts one
+         * conversion on the column it has just latched (PA7 on even frames, PA8 on odd; the pot and the battery in
+         * OCT-'s / OCT+'s slots) and takes it at the next tick; a held key's driven samples have its row an output
+         * (high, the drive bits at the level) for the conversion and an input again, the drive bits cleared, before
+         * the rows are read; its column's LEDs stay dark on the tick that samples it; a conversion not done counts a
+         * timeout and the next one starts anyway; with fm1_an.con 0 nothing starts */
+        uint32_t t, frames = 60u, starts = 0, timeouts_seen, pend_held_drv = 0, drv_out_ok = 0, led_dark = 0, led_lit = 0, nostart = 0;
+        uint32_t per_ok = 1, c, r, skip_done = 0;
+        reset();
+        memset(&an, 0, sizeof an);
+        memset((void *)&fm1_an, 0, sizeof fm1_an);
+        memset((void *)host_reg, 0, sizeof host_reg);
+        host_bus = 1;
+        FM1_PR(FM1_PA, FM1_IN) = 0xFFFFFFFFu;
+        FM1_PR(FM1_PB, FM1_IN) = 0xFFFFFFFFu;
+        FM1_PR(FM1_PA, FM1_DIR) = (1u << 0) | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8);   /* the rows inputs */
+        memset(fm1_led, 0, sizeof fm1_led);
+        memset(fm1_led_dim, 0, sizeof fm1_led_dim);
+        memset(fm1_led_dim2, 0, sizeof fm1_led_dim2);
+        memset(fm1_led_faint, 0, sizeof fm1_led_faint);
+        fm1_led[an_held_col] = 1u << an_held_row;         /* the held key's own LED lit (the chord's note name) */
+        fm1__tick_col = 0;
+        an_hold = 1;
+        host_adc_con = 0;
+        fm1_an.con = FM1_ADC_CON_SCAN;
+        fm1_an.drive = 2;
+        for (t = 0; t < frames * FM1_NCOL; t++) {
+            uint32_t ch;
+            if (host_adc_con & 0x10u) {                   /* a conversion runs: done by now, with the row's reading */
+                ch = (host_adc_con >> 8) & 15u;
+                host_adc_res = ch == FM1_ADC_MASTER ? 500u : ch == FM1_ADC_BATT ? 700u : 1023u;
+                if (t == 200u)
+                    skip_done = 1;                        /* once: not done in time */
+                else
+                    host_adc_con |= 0x80u;
+            }
+            fm1_input_tick();
+            if (skip_done == 1u) {
+                skip_done = 2;
+                timeouts_seen = fm1_an.timeouts;
+            }
+            if (host_adc_con & 0x10u) {
+                uint32_t n = fm1_an.col;                  /* the column latched by this tick, sampled until the next */
+                starts++;
+                an_exp_col = n;
+                if (fm1_an.driven) {                      /* the held key's driven sample: its row an output, high, HD0 */
+                    uint32_t dir = host_reg[FM1_PA & 15u][FM1_DIR / 4u], out = host_reg[FM1_PA & 15u][FM1_OUT / 4u];
+                    uint32_t hd0 = host_reg[FM1_PA & 15u][FM1_HD0 / 4u], hd = host_reg[FM1_PA & 15u][FM1_HD / 4u];
+                    pend_held_drv++;
+                    drv_out_ok += !((dir >> 7) & 1u) && ((out >> 7) & 1u) && ((hd0 >> 7) & 1u) && !((hd >> 7) & 1u);
+                }
+                if (n == an_held_col && fm1_an.rowbit == an_held_row)
+                    led_dark += led_now == 0u;            /* the held key's sampled tick: the lines dark */
+                else if (n == an_held_col && fm1_an.rowbit >= 3u)
+                    led_lit += led_now == fm1_led[an_held_col];
+            }
+        }
+        for (r = 3; r <= 4u; r++)
+            for (c = 0; c < FM1_NCOL; c++) {
+                uint32_t want = r == 4u && c < 2u ? 0u : frames / 2u;   /* OCT- / OCT+: the pot's and the battery's slots */
+                if (an.per[r][c] + (r == 4u && c < 2u ? 0u : 1u) < want || an.per[r][c] > want)
+                    per_ok = 0;
+            }
+        check("analog: one conversion a tick, taken at the next, the row and column it was started on",
+              starts == frames * FM1_NCOL && an.bad_col == 0u && an.n + 2u * (frames / 2u) + 2u >= starts && an.n <= starts);
+        check("every key of PA7 / PA8 once per two frames; OCT- / OCT+'s slots the pot (500) and the battery (700)",
+              per_ok && fm1_an.mvalid && fm1_an.master == 500u && fm1_an.bvalid && fm1_an.batt == 700u);
+        check("a held key: every other sample driven, its row an output high at the level (HD0) for the conversion",
+              an.drv_per[an_held_row][an_held_col] >= frames / 4u - 1u && pend_held_drv == drv_out_ok && pend_held_drv >= frames / 4u - 1u);
+        check("the row an input again with the drive bits clear before the rows are read", an.dir_out_at_take == 0u && an.hd_at_take == 0u);
+        check("a held key's column: the LED lines dark on the tick that samples it, lit on the others", led_dark >= frames / 2u - 1u && led_lit >= frames / 2u - 1u);
+        check("a conversion not done at the take: one timeout, the scan goes on", timeouts_seen == 1u && fm1_an.timeouts == 1u && starts == frames * FM1_NCOL);
+        fm1_an.con = 0;
+        host_adc_con = 0;
+        for (t = 0; t < FM1_NCOL; t++) {
+            fm1_input_tick();
+            nostart += (host_adc_con & 0x10u) != 0u;
+        }
+        check("fm1_an.con 0: no conversion starts", nostart == 0u);
+        an_hold = 0;
+    }
+
+    {   /* the top row's probe (fm1_an.probe): a third frame phase samples PA6's keys through PA10 (channel 2): on
+         * those ticks PA10 is an input with its pull-up and PA6 an output driven high, both back before the take
+         * reads the rows; columns 7..10 (buttons) start nothing; the analog rows then come every third frame */
+        uint32_t t, frames = 60u, starts = 0, probe_starts = 0, pa10_in = 0, pa6_out = 0, c, r, per_ok = 1;
+        reset();
+        memset(&an, 0, sizeof an);
+        memset(&pr, 0, sizeof pr);
+        memset((void *)&fm1_an, 0, sizeof fm1_an);
+        memset((void *)host_reg, 0, sizeof host_reg);
+        host_bus = 1;
+        FM1_PR(FM1_PA, FM1_IN) = 0xFFFFFFFFu ^ (1u << 6);   /* row PA6 reads closed: every top key pressed */
+        FM1_PR(FM1_PB, FM1_IN) = 0xFFFFFFFFu;
+        FM1_PR(FM1_PA, FM1_DIR) = (1u << 0) | (1u << 5) | (1u << 6) | (1u << 7) | (1u << 8);
+        memset(fm1_led, 0, sizeof fm1_led);
+        memset(fm1_led_dim, 0, sizeof fm1_led_dim);
+        memset(fm1_led_dim2, 0, sizeof fm1_led_dim2);
+        memset(fm1_led_faint, 0, sizeof fm1_led_faint);
+        fm1__tick_col = 0;
+        host_adc_con = 0;
+        fm1_an.con = FM1_ADC_CON_SCAN;
+        fm1_an.drive = 2;
+        fm1_an.probe = 1;
+        for (t = 0; t < frames * FM1_NCOL; t++) {
+            if (host_adc_con & 0x10u) {
+                uint32_t ch = (host_adc_con >> 8) & 15u;
+                host_adc_res = ch == FM1_ADC_MASTER ? 500u : ch == FM1_ADC_BATT ? 700u : ch == 2u ? 800u : 1023u;
+                host_adc_con |= 0x80u;
+            }
+            fm1_input_tick();
+            if (host_adc_con & 0x10u) {
+                starts++;
+                an_exp_col = fm1_an.col;
+                if (fm1_an.probing) {
+                    uint32_t dir = host_reg[FM1_PA & 15u][FM1_DIR / 4u], out = host_reg[FM1_PA & 15u][FM1_OUT / 4u];
+                    probe_starts++;
+                    pa10_in += (dir >> 10) & 1u;
+                    pa6_out += !((dir >> 6) & 1u) && ((out >> 6) & 1u);
+                }
+            }
+        }
+        for (r = 3; r <= 4u; r++)
+            for (c = 0; c < FM1_NCOL; c++) {
+                uint32_t want = r == 4u && c < 2u ? 0u : frames / 3u;
+                if (an.per[r][c] + 1u < want || an.per[r][c] > want + 1u)
+                    per_ok = 0;
+            }
+        check("the probe: its phase every third frame, PA6's seven columns through channel 2, the buttons' four not",
+              probe_starts >= 7u * (frames / 3u) - 7u && probe_starts <= 7u * (frames / 3u) + 7u && pr.n + 7u >= probe_starts &&
+              pr.bad_col == 0u && pr.per[0] >= frames / 3u - 1u && pr.per[6] >= frames / 3u - 1u);
+        check("the probe's tick: PA10 an input, PA6 driven high; both back before the take; the key's pressed state passed",
+              pa10_in == probe_starts && pa6_out == probe_starts && pr.pa10_in_at_take == 0u && pr.pa6_out_at_take == 0u &&
+              pr.pressed == pr.n && an.dir_out_at_take == 0u);
+        check("the analog rows every third frame with the probe on", per_ok && starts > 0u);
+        fm1_an.probe = 0;
+        fm1_an.con = 0;
     }
 
     if (fails) {

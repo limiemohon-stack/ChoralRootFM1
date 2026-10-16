@@ -1950,10 +1950,20 @@ static void s_keyplays(void)
     cr_set_transpose(&C, 2);
     K(60, 1); expect("+62/127", "Full: the transpose applies");
     R(60, 1); clear(); cr_set_transpose(&C, 0);
-    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);      /* Key Mode on: blocks, whatever Key plays says; no chord */
-    K(54, 1); R(54, 1); ok(nlog == 0 && cr_voices(&C) == 0, "Full + Key Mode: F# (out of C major) does nothing");
-    K(55, 1); expect("+55/127", "Full + Key Mode: G is G, no scale chord");
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);      /* Key Mode on, Key plays Chords (0.22): the key's chords, as a lone
+                                                * root's on the Chords keyboard (until then: notes, the guard) */
+    K(55, 1); on_notes_sorted(b, 0); ok(!strcmp(b, "55 59 62"), "Full + Key Mode, Key plays Chords: G is the key's G major");
     R(55, 1); clear();
+    K(54, 1); ok(count('+', 0) >= 3 && cr_voices(&C) == 1 && C.v[0].rq, "Full + Key Mode, Chords: F# (out of C major) plays its alternate chord, as on the Chords keyboard");
+    R(54, 1); clear();
+    cr_voicing_step(&C, 1);
+    K(55, 1); on_notes_sorted(b, 0); ok(!strcmp(b, "59 62 67"), "Full + Key Mode, Chords: the voicing applies to the chord (a note has nothing to rotate)");
+    R(55, 1); clear(); cr_voicing_step(&C, -1);
+    cr_set_key_plays(&C, 1);                   /* Key plays Notes: the guard, single notes */
+    K(54, 1); R(54, 1); ok(nlog == 0 && cr_voices(&C) == 0, "Full + Key Mode, Notes: F# (out of C major) does nothing");
+    K(55, 1); expect("+55/127", "Full + Key Mode, Notes: G is G, no scale chord");
+    R(55, 1); clear();
+    cr_set_key_plays(&C, 0);
     cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
     cr_set_bass(&C, 1); cr_set_bass_mode(&C, CR_BASS_UNISON);   /* the bass follows as it follows a single note */
     K(60, 1); expect("+60/127 +60/127b", "Full, Bass on (Unison): the bass follows the note");
@@ -2146,6 +2156,104 @@ static void s_fixedchord(void)
     ok(nlog == 0 && cr_voices(&C) == 0, "given whole: refused: a root or a note out of range, no notes, too many, no such type");
     R(62, 1);
     C.out.gesture = 0;
+}
+
+/* 0.22, GitHub issue 18: Snap. With Key plays Notes / the Full keyboard a key out of the scale plays the nearest note of
+ * the scale (Scale) or of the chord sounding (Chord; the scale's when none), ties down, instead of nothing; the release
+ * ends the note the key played; a note two held keys play stays until both are up (cr_snap_note, cr_set_key_snap) */
+static void s_snap(void)
+{
+    char b[64];
+    fresh("snap");
+    ok(C.snap == CR_KEYSNAP_OFF, "Snap: Off by default");
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);
+    cr_set_key_plays(&C, 1);
+    ok(cr_snap_note(&C, 61) == -1, "Snap Off: no note for C#");
+    K(61, 1); R(61, 1); ok(nlog == 0 && cr_voices(&C) == 0 && C.phys_n == 0, "Snap Off, Notes: C# does nothing, as before");
+    cr_set_key_snap(&C, CR_KEYSNAP_SCALE);
+    ok(cr_snap_note(&C, 61) == 60 && cr_snap_note(&C, 63) == 62 && cr_snap_note(&C, 66) == 65 &&
+       cr_snap_note(&C, 68) == 67 && cr_snap_note(&C, 70) == 69, "Scale: C# D# F# G# A# in C major play C D F G A (ties go down)");
+    ok(cr_snap_note(&C, 1) == 0 && cr_snap_note(&C, 126) == 125 && cr_snap_note(&C, 62) == 62,
+       "Scale: the ends of the range; a key in the scale is itself");
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+    ok(cr_snap_note(&C, 61) == -1, "Key Mode off: no target");
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);
+    K(61, 1); expect("+60/127", "Scale, Notes: C# plays C");
+    R(61, 1); expect("-60", ".. and its release ends C");
+    ok(C.phys_n == 0 && C.snapn_n == 0, ".. nothing left held");
+    K(62, 1); expect("+62/127", "a key in the scale plays itself");
+    R(62, 1); clear();
+    MD(CR_MOD_MIN); K(61, 1); on_notes_sorted(b, 0); ok(!strcmp(b, "60 63 67"), "Scale: MIN + C# is Cm (the chord keys as in Notes, on the played note)");
+    R(61, 1); MU(CR_MOD_MIN); clear();
+    /* a note two keys play: as itself and snapped onto it, in both orders */
+    K(60, 1); expect("+60/127", "C held");
+    K(61, 1); ok(count('-', 0) == 1 && count('+', 0) == 1 && cr_voices(&C) == 1, "C# over it: C again (a second press of the same note retriggers it)");
+    clear();
+    R(61, 1); ok(nlog == 0 && cr_voices(&C) == 1, "C# up: C is still held as itself: it stays");
+    R(60, 1); expect("-60", "C up: off");
+    K(61, 1); expect("+60/127", "C# first: C");
+    K(60, 1); clear();
+    R(60, 1); ok(nlog == 0 && cr_voices(&C) == 1, "C up while C# still plays it: it stays");
+    R(61, 1); expect("-60", "C# up: off");
+    K(61, 1); K(63, 1); clear();
+    ok(cr_voices(&C) == 2, "C# and D#: C and D");
+    cr_set_key(&C, 1, 2, CR_SCALE_MAJOR);          /* D major: C# is in the scale now */
+    R(61, 1); expect("-60", "the key changed while C# was held: its release still ends the C it played");
+    cr_set_key_snap(&C, CR_KEYSNAP_OFF);
+    R(63, 1); expect("-62", "Snap turned off while D# was held: its release still ends D");
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);
+    cr_set_key_snap(&C, CR_KEYSNAP_SCALE);
+    /* the Full keyboard (Key plays Notes: Snap; Chords there: the key's chords) */
+    cr_set_keyboard(&C, 1, 65);
+    K(54, 1); expect("+53/127", "Full + Key Mode + Scale: F# plays F");
+    R(54, 1); expect("-53", ".. off");
+    cr_set_key_plays(&C, 0);
+    K(54, 1); ok(count('+', 0) >= 3, "Full + Key plays Chords: F# plays its alternate chord: Snap does not apply");
+    R(54, 1); clear();
+    cr_set_keyboard(&C, 0, 65);
+    K(61, 1); ok(count('+', 0) >= 3 && cr_voices(&C) == 1, "Key plays Chords: C# keeps its alternate chord: Snap does not apply");
+    R(61, 1); clear();
+    /* latching, performance */
+    cr_set_key_plays(&C, 1);
+    cr_set_sticky(&C, 1);
+    K(61, 1); clear();
+    cr_set_sticky(&C, 0);
+    ok(cr_voices(&C) == 1 && nlog == 0, "latch off while C# is held: its C stays (held through the key)");
+    R(61, 1); expect("-60", ".. off");
+    cr_set_perform(&C, 1); cr_set_perform_mode(&C, CR_PM_ARP);
+    K(61, 1); step(700);
+    ok(count('+', 0) >= 2 && LOG[0].note == 60 && cr_perform_stepping(&C), "the arp steps the played note (C), not the key");
+    R(61, 1); step(400); cr_set_perform(&C, 0); cr_set_perform_mode(&C, CR_PM_STRUM); step(50); clear();
+    /* Chord: the tones of the chord sounding (a pad's here: any voice with a chord) */
+    cr_set_key_snap(&C, CR_KEYSNAP_CHORD);
+    ok(cr_snap_note(&C, 61) == 60 && cr_snap_note(&C, 63) == 62, "Chord with nothing sounding: the scale's note");
+    cr_pad_arm(&C, 0); MD(CR_MOD_MAJ); K(60, 1); R(60, 1); MU(CR_MOD_MAJ);   /* pad 1: C (C E G) */
+    cr_pad_arm(&C, 1); MD(CR_MOD_MIN); K(65, 1); R(65, 1); MU(CR_MOD_MIN);   /* pad 2: Fm (F G# C) */
+    clear();
+    cr_pad_down(&C, 0);
+    ok(cr_snap_note(&C, 61) == 60 && cr_snap_note(&C, 63) == 64 && cr_snap_note(&C, 66) == 67 && cr_snap_note(&C, 68) == 67 &&
+       cr_snap_note(&C, 70) == 72, "Chord over C E G: C# plays C, D# E, F# G, G# G, A# C (the nearest tone, up or down)");
+    clear();
+    K(75, 1); expect("+76/127", "Chord, Notes: D#5 over C plays E5");
+    R(75, 1); expect("-76", ".. off");
+    cr_pad_up(&C, 0); clear();
+    ok(cr_snap_note(&C, 63) == 62, "the pad up: the scale's note again");
+    cr_pad_down(&C, 1);
+    ok(cr_snap_note(&C, 70) == 68 && cr_snap_note(&C, 68) == 68,
+       "Chord over F G# C: A# plays G#, not C (a tie goes down); G#, a chord tone out of the scale, plays as itself");
+    clear();
+    K(80, 1); expect("+80/127", ".. and sounds (G#5 over Fm)");
+    R(80, 1); clear();
+    cr_pad_up(&C, 1); clear();
+    cr_set_transpose(&C, 2);
+    cr_pad_down(&C, 0);                            /* C E G transposed: D F# A sound */
+    ok(cr_snap_note(&C, 63) == 64, "Chord, Transpose +2: the chord's tones taken back by its transpose (the keys arrive before it)");
+    clear();
+    K(75, 1); expect("+78/127", ".. D#5 plays E5, which sounds as F#5, a tone of the chord heard");
+    R(75, 1); cr_pad_up(&C, 0); clear();
+    cr_set_transpose(&C, 0);
+    cr_set_key_snap(&C, (cr_keysnap_t)5); ok(C.snap == CR_KEYSNAP_OFF, "a Snap out of range: Off");
+    cr_set_key_plays(&C, 0); cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
 }
 
 static void s_loopvoice(void)
@@ -2448,6 +2556,8 @@ static void s_sixth_tables(void)
         clear();
     }
     ok(offsetof(cr_t, bpm) - offsetof(cr_t, sixth_up) == 1u, "cr_t.sixth_up sits in the byte before bpm (it was padding: cr_t did not grow)");
+    ok(offsetof(cr_t, snap) == offsetof(cr_t, stream_on) + 3u && offsetof(cr_t, par) == offsetof(cr_t, stream_on) + 4u,
+       "cr_t.snap sits in the byte after the three streams (padding until 0.22)");
 }
 
 static void s_sixth(void)
@@ -2624,7 +2734,8 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
     s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_pattern(); s_live(); s_streams();
-    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_fixedchord(); s_quiet(); s_loopvoice(); s_queries(); s_limits(); s_torture();
+    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_fixedchord(); s_quiet(); s_loopvoice(); s_queries();
+    s_limits(); s_torture();
     s_sixth();
     fresh("end");
 }
@@ -2951,11 +3062,72 @@ static void s_numerals(void)
     ok(!strcmp(b, "V") && !strcmp(r, "G") && s[0], "numerals: G7 9 in C major is V, the extensions stay with the name");
 }
 
+/* GitHub issue 15: Numerals = Solfege, the same degree as a movable-do syllable (Do = the tonic): cr_chord_solfege.
+ * All 12 roots in C major and in A minor (the scale's chords and the roots between), the marks, another tonic, and
+ * every cell agreeing with the numeral on the accidental, the case and the mark */
+static unsigned s_degree_marks(const char *d)   /* the accidental, the case and the mark of a numeral / syllable */
+{
+    unsigned acc = d[0] == '#' ? 1u : d[0] == 'b' ? 2u : 0u, n = (unsigned)strlen(d);
+    unsigned char last = (unsigned char)d[n - 1];
+    return acc | (d[acc ? 1 : 0] & 0x20u ? 4u : 0u) | (last == 0xB0u ? 8u : last == '+' ? 16u : 0u);
+}
+static void s_solfege(void)
+{
+    static const struct { uint8_t tonic, scale, root, q; const char *want; } T[] = {
+        /* C major: the scale's chords, then the roots between (the numeral's bII bIII #iv bVI bVII) */
+        {0, CR_SCALE_MAJOR, 0, CR_Q_MAJ, "DO"},     {0, CR_SCALE_MAJOR, 2, CR_Q_MIN, "re"},
+        {0, CR_SCALE_MAJOR, 4, CR_Q_MIN, "mi"},     {0, CR_SCALE_MAJOR, 5, CR_Q_MAJ, "FA"},
+        {0, CR_SCALE_MAJOR, 7, CR_Q_MAJ, "SOL"},    {0, CR_SCALE_MAJOR, 9, CR_Q_MIN, "la"},
+        {0, CR_SCALE_MAJOR, 11, CR_Q_DIM, "ti\260"},
+        {0, CR_SCALE_MAJOR, 1, CR_Q_MAJ, "bRE"},    {0, CR_SCALE_MAJOR, 3, CR_Q_MAJ, "bMI"},
+        {0, CR_SCALE_MAJOR, 6, CR_Q_DIM, "#fa\260"}, {0, CR_SCALE_MAJOR, 8, CR_Q_MAJ, "bLA"},
+        {0, CR_SCALE_MAJOR, 10, CR_Q_MAJ, "bTI"},
+        /* the case and the marks: by the third, as the numeral's */
+        {0, CR_SCALE_MAJOR, 7, CR_Q_SUS, "SOL"},    {0, CR_SCALE_MAJOR, 7, CR_Q_POW, "SOL"},
+        {0, CR_SCALE_MAJOR, 7, CR_Q_NONE, "SOL"},   {0, CR_SCALE_MAJOR, 7, CR_Q_AUG, "SOL+"},
+        {0, CR_SCALE_MAJOR, 2, CR_Q_MIN4, "re"},    {0, CR_SCALE_MAJOR, 7, CR_Q_MIN, "sol"},
+        {0, CR_SCALE_MAJOR, 7, CR_Q_DIM, "sol\260"},
+        /* A minor (natural): Do is A, the degree is the scale's (C is MI as it is III) */
+        {9, CR_SCALE_MINOR, 9, CR_Q_MIN, "do"},     {9, CR_SCALE_MINOR, 11, CR_Q_DIM, "re\260"},
+        {9, CR_SCALE_MINOR, 0, CR_Q_MAJ, "MI"},     {9, CR_SCALE_MINOR, 2, CR_Q_MIN, "fa"},
+        {9, CR_SCALE_MINOR, 4, CR_Q_MAJ, "SOL"},    {9, CR_SCALE_MINOR, 4, CR_Q_MIN, "sol"},
+        {9, CR_SCALE_MINOR, 5, CR_Q_MAJ, "LA"},     {9, CR_SCALE_MINOR, 7, CR_Q_MAJ, "TI"},
+        {9, CR_SCALE_MINOR, 10, CR_Q_MAJ, "bRE"},   {9, CR_SCALE_MINOR, 1, CR_Q_MAJ, "#MI"},
+        {9, CR_SCALE_MINOR, 3, CR_Q_MAJ, "#FA"},    {9, CR_SCALE_MINOR, 6, CR_Q_MIN, "#la"},
+        {9, CR_SCALE_MINOR, 8, CR_Q_DIM, "#ti\260"}, {9, CR_SCALE_MINOR, 1, CR_Q_AUG, "#MI+"},
+        /* another tonic: movable do, so G major's D is SOL and F# minor's F# is do */
+        {7, CR_SCALE_MAJOR, 2, CR_Q_MAJ, "SOL"},    {6, CR_SCALE_MINOR, 6, CR_Q_MIN, "do"},
+        {5, CR_SCALE_MAJOR, 0, CR_Q_MAJ, "SOL"},    {5, CR_SCALE_MAJOR, 5, CR_Q_MAJ, "DO"},
+    };
+    char b[CR_NUMERAL_MAX], rn[CR_NUMERAL_MAX];
+    unsigned i, bad = 0, t, sc, pc, qq, longest = 0, agree = 0;
+    for (i = 0; i < sizeof T / sizeof T[0]; i++) {
+        cr_chord_solfege(T[i].root, T[i].q, T[i].tonic, T[i].scale, b);
+        if (strcmp(b, T[i].want)) { printf("  solfege %u: \"%s\", want \"%s\"\n", i, b, T[i].want); bad++; }
+    }
+    ok(!bad, "solfege: C major DO re mi FA SOL la ti(deg), bRE bMI #fa(deg) bLA bTI; A minor do re(deg) MI fa SOL LA TI, "
+             "bRE #MI #FA #la #ti(deg); G major's D is SOL");
+    for (bad = 0, t = 0; t < 12u; t++)             /* every cell ends inside the buffer, and reads as its numeral does */
+        for (sc = 0; sc < 2u; sc++)
+            for (pc = 0; pc < 12u; pc++)
+                for (qq = 0; qq < CR_Q_COUNT; qq++) {
+                    memset(b, 0x55, sizeof b);
+                    cr_chord_solfege((uint8_t)pc, (uint8_t)qq, (uint8_t)t, (uint8_t)sc, b);
+                    cr_chord_numeral((uint8_t)pc, (uint8_t)qq, (uint8_t)t, (uint8_t)sc, rn);
+                    if (!memchr(b, 0, sizeof b) || !b[0]) { bad++; continue; }
+                    if (strlen(b) > longest) longest = (unsigned)strlen(b);
+                    agree += s_degree_marks(b) == s_degree_marks(rn);
+                }
+    ok(!bad && longest == 4u && agree == 12u * 2u * 12u * CR_Q_COUNT,
+       "solfege: all 2304 cells written and ended (the longest: 4 characters), each with its numeral's accidental, case and mark");
+}
+
 int main(void)
 {
     s_tables();
     s_names_std();
     s_numerals();
+    s_solfege();
     s_sixth_tables();
     run_suite(1000, 0, "1ms");
     run_suite(2902, 0, "2.9ms");

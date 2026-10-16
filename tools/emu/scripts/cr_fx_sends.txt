@@ -14,6 +14,7 @@
 # has the rest): in the track, the part's own drive send (12) untouched (dump 8); FX off: still in the track, the
 # cell reads the same (dump 9).
 # GLO + SAVE held (the revert; nothing was saved): a new unit's sends on both screens, the layer on Sends (dump 10).
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 btn FX down
 wait 500

@@ -35,7 +35,7 @@ btn C#4 up
 wait 600
 btn GLO 80                    # Options > Chord Names
 wait 300
-knob SELECT +15
+knob SELECT +19
 wait 300
 dump                          # 4
 shot build/emu/test/cr_chord_names_opt_orchid.ppm

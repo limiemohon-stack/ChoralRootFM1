@@ -6,6 +6,7 @@
 # tools/emu/test_cr.sh: the WAV's left differs from its right (the side 20 dB or less under the mid); the same script
 # with EMU_CHORUS=mono (0.18's return, the emulator's test switch) is the same word on both sides, and the two runs'
 # mono sums and left channels are as loud as each other.
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 btn FX down
 wait 500

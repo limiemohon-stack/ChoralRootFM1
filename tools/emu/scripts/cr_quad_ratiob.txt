@@ -7,6 +7,7 @@
 # same pitch, another timbre); GLO held + KNOB 4 +1: B1 2.00 ("3.00/2.00", "fine . B1" in the title line: shot), C4
 # again (an octave up); GLO held + KNOB 4 +30: B1 stops at 16.00 (3.00/16.00, the longest denominator: shot), -30: at
 # 0.25. tools/emu/test_cr.sh reads the "deep:" lines, the shots and the WAV's notes (wavpitch.py: peak and centroid)
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 btn EDIT down
 wait 400

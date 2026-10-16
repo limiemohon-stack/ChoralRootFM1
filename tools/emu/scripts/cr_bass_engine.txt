@@ -55,7 +55,7 @@ shot build/emu/test/cr_bass_engine_level.ppm
 wait 600
 btn ENV up
 wait 1500
-dump                              # 5: level +6, layer 0, bass on
+dump                              # 5: level +8 (1 1 6: a turn's first two detents count one), layer 0, bass on
 btn ENV down
 wait 600
 knob ALGORITHM -2
@@ -63,7 +63,7 @@ wait 300
 shot build/emu/test/cr_bass_engine_layer.ppm
 btn ENV up
 wait 500
-dump                              # 6: level -4, layer 4
+dump                              # 6: level -2 (a reversal: one each), layer 4
 knob ALGORITHM +1
 wait 500
 dump                              # 7: bass sound 02

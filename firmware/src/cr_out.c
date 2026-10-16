@@ -195,6 +195,8 @@ static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t p, uint32
         cr_mcontrol(p, d1, d2);
     } else if (st == 0xD0u) {
         mod_midi(&trk[p], st, d1, d2);
+    } else if (st == 0xA0u) {                    /* polyphonic aftertouch: as the part's pressure (one part, one value) */
+        mod_midi(&trk[p], 0xD0u, d2, 0);
     }
 }
 
@@ -226,6 +228,9 @@ static void events_block(uint32_t n)
 /* --------------------------------------------------------------- routing --- */
 #define CR_PART_CHORD 0u
 #define CR_PART_BASS 1u
+#if FELUCCA_PROPHET
+_Static_assert(CR_PART_BASS == P5_PART_BASS, "eng_prophet_test.c: the bass part (a UNISON program's voice mode under it)");
+#endif
 #define CR_NOPART 0xFFu
 typedef struct {
     uint8_t part[CR_NSTREAM];        /* the Felucca part a stream plays (CR_NOPART: none) */
@@ -395,6 +400,28 @@ static void cr_cb_gesture(void *ud, uint32_t gid, int16_t root, uint8_t q, uint8
 
 static const cr_out_t CR_OUT = {cr_cb_note_on, cr_cb_note_off, cr_cb_all_off, 0, cr_cb_gesture};
 
+/* the keys' aftertouch (docs/VELOCITY.md): both parts hear it as channel pressure (mod.c's AT source and the default
+ * AT -> CUT of Velocity + Aftertouch), and it goes out as channel pressure on the Perform and Bass channels */
+static void cr_touch_at(uint32_t v)
+{
+    uint32_t s, n;
+    v &= 0x7Fu;
+    mod_midi(&trk[0], 0xD0u, v, 0);
+    mod_midi(&trk[1], 0xD0u, v, 0);
+    for (s = 0; s < 2u; s++) {
+        if (!cr_route.midi_en[s])
+            continue;
+        if (cr_touch_mode == CR_TOUCH_VEL_POLY) {   /* Vel + Poly AT: each sounding note's, on the channel its note-on
+                                                     * used (one value: the chord is one finger's) */
+            for (n = 0; n < 128u; n++)
+                if (CR_OCH(s, n))
+                    cr_midi(0xA0u | (CR_OCH(s, n) - 1u), n, v);
+        } else {
+            cr_midi(0xD0u | (cr_route.ch[s] & 15u), v, 0);
+        }
+    }
+}
+
 /* ------------------------------------------------------------ the queue --- */
 /* UI -> ISR. One producer (the main loop), one consumer (the audio ISR): the index stores are the publication */
 enum {
@@ -422,14 +449,17 @@ enum {
     CRE_HKEY,         /* Harmony mode: a root key down sounding that chord (cr_key_chord: a keyed voice of a chord given
                        * whole): a: the key's note, b: vel, v: 1 a press, 2 the chord sounding turned (legato). Its release is an ordinary CRE_KEY up. The UI posts the
                        * group only when the queue has room for all of it (cr_post_room) */
+    CRE_KEYSNAP,      /* v: Snap 0 Off, 1 Scale, 2 Chord (cr_set_key_snap) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
+    CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
     CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM, quietly (cr_set_perform_quiet:
                        * a knob or picker turning them: nothing sounding re-performed, the next chord has them) */
     CRE_PARAM_QUIET   /* a: mode, b: param, v: value */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
-       LP_STEP };                                                /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_* */
+       LP_STEP, LP_PREVIEW };                                    /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_*;
+                                                                 * LP_PREVIEW: the loop editor's cursor step heard */
 enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL, LC_MODE, LC_RATE };   /* LP_CONF: b, v */
 typedef struct { uint8_t op, a, b, rsv; int16_t v; } cr_ev_in_t;
 #define CR_EVQ 128u                              /* a power of two */
@@ -524,6 +554,7 @@ static void cr_loop_op(const cr_ev_in_t *e)
         break;
     case LP_METRO: cr_loop_metro(&crl, e->v); break;
     case LP_STEP: cr_loop_step(&crl, e->v); break;
+    case LP_PREVIEW: cr_loop_ed_preview(&crl, &cr); break;      /* (nothing while the loop plays: cr_loop.c) */
     case LP_CONF:
         switch (e->b) {
         case LC_SYNC: crl.sync = (uint8_t)(e->v < (int)CRL_NSYNC ? e->v : 0); break;
@@ -587,7 +618,9 @@ static void cr_apply(const cr_ev_in_t *e)
             cr_key(&cr, e->a, e->b, 1);
         cr_hspec.n = cr_hspec.got = 0;
         break;
+    case CRE_KEYSNAP: cr_set_key_snap(&cr, (cr_keysnap_t)e->v); break;
     case CRE_LOOP: cr_loop_op(e); break;
+    case CRE_AT: cr_touch_at((uint32_t)e->v); break;
     default: break;
     }
 }

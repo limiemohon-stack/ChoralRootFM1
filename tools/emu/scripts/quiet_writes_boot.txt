@@ -1,0 +1,17 @@
+# test_persist.sh, the quiet writes, runs 2 and 3 (on run 1's flash, quiet_writes.txt): a mark, written 1.5 s later,
+# and the unit switched off 1 s after that: before the erase ahead, so the favourites' spare copy is the stale one.
+# The next power-on erases it before the audio starts (the dump's "at power-on 1", "audio stalled 0"), and its mark
+# programs only again
+wait 300
+btn SAVE
+wait 300
+knob KNOB4 +1                 # (run 2: on; run 3, the same sound: its mark is on already, a turn to the right
+wait 100                      #  changes nothing, so: off, on)
+knob KNOB4 -1
+wait 100
+knob KNOB4 +1
+wait 200
+btn OCT-
+wait 2500
+dump
+quit

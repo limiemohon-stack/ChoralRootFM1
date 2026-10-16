@@ -185,6 +185,73 @@ at all: no stub runs; go on below.
    [FM-1-transporter](https://github.com/kurogedelic/FM-1-transporter). macOS: System Information > USB, the same
    three cases.
 
+## Several FM-1s (the unit ID, 2026-10-14, HISTORY 3y66)
+
+Every FM-1 calls itself the same: the port "ChoralRoot FM-1", the identity `FM-1_920`, and on a restart into update
+mode "Felucca Update" / `ota-FM-1_900`. With two units on one computer a tool that takes the first port that answers
+can talk to the wrong one, and an install that finds the unit again "by name" after its restarts can follow the other.
+ChoralRoot therefore gives each unit an ID.
+
+**The unit ID.** 8 hex digits, `A1B2C3D4`: the CRC-32 (zlib's) of the SPI flash's 128-bit unique ID. The firmware
+reads that ID once at power-on, right after the JEDEC id it already checks, with the same sequence the JieLi AC79 SDK
+uses at every power-on of an SDK firmware such as M-VAVE's (`cpu.a` `vm_sfc.c read_flash_id`: `9Fh`, then `4Bh`, four
+`00h` bytes, 16 bytes read): a read-only command, from RAM, with XIP off and the interrupts masked, as every flash
+command of `hal/fm1_flash.h` (`fl_uid_ram`). Nothing is written, nothing is stored: the ID is the flash chip's, so it
+stays the same across installs, restores and Reset Settings. Not read in SAFE MODE (that boot runs as before: no ID),
+and a flash that answers sixteen equal bytes has none. The update loader and the boot stub do not read it (their
+images are byte for byte as before). Shown on the unit under **Options > Version**: the line under the version reads
+`unit ID A1B2C3D4` (`no unit ID` without one).
+
+**Over SysEx.** INFO (`cr_backup.c CRB_INFO`) appends a tagged field after ChoralRoot's `42 01 03` and `43 01 03`:
+`49 08` and the ID's 8 hex digits in ASCII. Without an ID the reply is as before. The hosts of before read the version
+up to its NUL (`fm1_install.py device_info`, `fm1backup.js deviceInfo`) and `editor.html` Felucca's fields from the
+start, so they are unaffected; the new hosts walk the tags after Felucca's 7 bytes (`unit_id_of`, `unitIdOf`).
+
+**fm1_install.py.**
+
+```sh
+python3 tools/fm1_install.py --info                         # every FM-1: identity, port, version, unit ID
+python3 tools/fm1_install.py --info --unit a1b2c3d4         # that one (any case)
+python3 tools/fm1_install.py build/choralroot.fwsc --unit A1B2C3D4 --backup ~/fm1-backups/
+python3 tools/fm1_install.py --sounds --unit A1B2C3D4       # --unit goes with every command
+```
+
+- `--info` asks every candidate port and prints each FM-1 (one FM-1: the lines of before plus `unit ID: ...`). A unit
+  without an ID is listed too, with why: update mode, the stock firmware, another firmware, a ChoralRoot from before
+  the ID. Two FM-1s whose ports have the same name (as CoreMIDI may list them) appear as `ChoralRoot FM-1` and
+  `ChoralRoot FM-1 [2]`.
+- `--unit ID`: before the first port a command takes, every candidate port is asked; only the one whose INFO carries
+  the ID is used. None: exit 3 with the IDs that answered; two ports with it: exit 9. Every port taken again later (a
+  backup and then the install, a wait after a restart) is checked by its ID.
+- An install with `--unit`: the ports are counted while the FM-1 is still there; after it is told to switch to update
+  mode, only the one port that appeared new is taken as its loader, and only once its own port has gone. More than one
+  new port, a new port whose name another port also has, a new port that answers as something else, or its own port
+  still there beside a new one: it stops (exit 9) before anything is written; the FM-1 then waits in update mode:
+  unplug the other FM-1s and run the install again without `--unit`. After the write the FM-1 is the port whose INFO
+  carries the ID again, printed (`unit ID A1B2C3D4: the same FM-1 after the restart`). A package whose firmware has no
+  ID (the official V15, an older ChoralRoot) is followed as the one new port of a name no other port has, and said so;
+  otherwise exit 5 and the advice to check with `--info`.
+- With `--unit` nothing rescans MIDI (CoreMIDI's `MIDIRestart` restarts every MIDI port of the computer, the other
+  FM-1s' too): `--rescan-midi --unit` is refused, and the advice for a port CoreMIDI keeps offline is to unplug and
+  replug that FM-1.
+- **Without `--unit`**, when two or more FM-1s answer (asked only when two or more candidate ports exist: one FM-1 runs
+  exactly as before): a command that writes, restarts or changes what an FM-1 plays (an install, `--restore`, the
+  sound imports, renames and deletes, `--restore-favorites`, `--stub`, `--select`, `--screen`) is refused, exit 9,
+  with the IDs; a read (`--backup`, `--debug`, `--sounds`, the exports, `--favorites`) reads the first, as with one
+  FM-1, and prints a note with the IDs.
+- An FM-1 in update mode has no ID: to finish an interrupted install while another FM-1 is connected, unplug the
+  other one and run the install without `--unit`.
+
+**The web pages.** The installer's "What is on my FM-1?" adds the unit ID; with several FM-1s it lists each (unit ID,
+version, port) and Install, Back up, Restore, the Sounds and the return to V15 refuse (nothing written): the page
+works with one FM-1 at a time. The device manager asks which FM-1 to open, by number or unit ID, and shows the ID in
+its header (docs/DEVICE-MANAGER.md "Several FM-1s"). Not done: the installer asking which FM-1 and following it
+through an install's restarts as `fm1_install.py --unit` does.
+
+**Checked on the host only** (tests/install_test.py `units`, tests/cr_backup_test.c, tests/cr_draw_test.c, the web
+tests). On a unit, to check once: Options > Version shows an ID, `--info` prints the same ID, and the ID is the same
+after a power cycle and after an install; two units show different IDs; and how macOS names two FM-1s' ports.
+
 ## Reproducing the loader checks (manual; needs a Sloop checkout, not run in CI)
 
 The loader harness (`tests/ldr_test.c`, `tests/ota_test.c`, in `tests/run_tests.sh`) drives a loader / the app's

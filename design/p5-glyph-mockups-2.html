@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P5 glyph mock-ups, round 2</title>
+<style>
+  :root { --bg: #111; --fg: #eee; --dim: #888; }
+  body { margin: 0; padding: 16px 24px 48px; background: var(--bg); color: var(--fg); font: 14px/1.4 -apple-system, "Inter", Helvetica, sans-serif; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 28px 0 6px; }
+  p { color: var(--dim); max-width: 900px; margin: 4px 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .v { background: #000; padding: 8px; border-radius: 4px; }
+  .v h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #ddd; }
+  .v small { display: block; color: var(--dim); font-size: 11px; max-width: 250px; margin-top: 4px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+</style>
+</head>
+<body>
+<h1>P5 glyph mock-ups, round 2</h1>
+<p>Every tile is one cell of the editor at the FM-1's own pixels (60 wide; the glyph box 34 high), enlarged 3x with hard pixels.
+Left: the cell on the active row (its knob colour). Right: the same cell on a dim row. Lines are 2 px or more everywhere.</p>
+
+<h2>Knob: K6 with the eleven ticks</h2>
+<p>The face tinted in the row colour, a white 3 px pointer; what varies is the ticks (the scale that matches a real Prophet) and the tint.</p>
+<div class="row" id="knobs"></div>
+
+<h2>Button: B1 with the cap in the column colour</h2>
+<p>The 6 px red LED with its dark halo when on, a dark-red dot when off; the icon 4 px above. What varies is how the cap carries the colour.</p>
+<div class="row" id="buttons"></div>
+
+<h2>Three-way switch: the P5 cap with two LEDs (Key trk: Off / Half / Full)</h2>
+<p>A wide cap in the column colour with two LEDs. Two codings: true binary (00 · 01 · 10) and a count (none · one · both).</p>
+<div class="row" id="switches"></div>
+
+<script>
+const S = 3;                                  // the enlargement
+const C = { bg: [0,0,0], text: [235,235,235], blue: [40,120,255], orange: [255,140,0], white: [240,240,240], green: [0,200,120],
+            red: [230,56,41], yellow: [246,182,0], dim: [90,90,90], mid: [150,150,150], surf: [26,30,34], line: [62,62,62], dark: [14,14,14] };
+const LANES = [C.blue, C.orange, C.white, C.green];
+
+// a tiny pixel canvas: integer rectangles only, so every line is a whole number of pixels
+function px(w, h) {
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h; cv.style.width = w * S + "px"; cv.style.height = h * S + "px";
+  const g = cv.getContext("2d");
+  const fill = (x, y, ww, hh, c) => { g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.fillRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh)); };
+  const dot = (x, y, c) => fill(x, y, 1, 1, c);
+  // a ring between radii r0..r1 over the angles a0..a1 (degrees, 0 = right, clockwise), pixel by pixel
+  const ring = (cx, cy, r0, r1, a0, a1, c) => {
+    for (let y = Math.floor(cy - r1 - 1); y <= cy + r1 + 1; y++) for (let x = Math.floor(cx - r1 - 1); x <= cx + r1 + 1; x++) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy);
+      if (d < r0 || d >= r1) continue;
+      let a = Math.atan2(dy, dx) * 180 / Math.PI; if (a < 0) a += 360;
+      let s = a0, e = a1; if (e < s) e += 360; let aa = a; if (aa < s) aa += 360;
+      if (aa >= s && aa <= e) dot(x, y, c);
+    }
+  };
+  const disc = (cx, cy, r, c) => ring(cx, cy, 0, r, 0, 360, c);
+  // a thick line from (x0,y0) to (x1,y1), w px wide, drawn as discs along it
+  const line = (x0, y0, x1, y1, w, c) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0)) * 2 + 1;
+    for (let i = 0; i <= n; i++) { const t = i / n; disc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w / 2, c); } };
+  const text = (x, y, s, size, c, align = "center", bold = true) => { g.font = `${bold ? "700" : "500"} ${size}px -apple-system, Inter, Helvetica, sans-serif`; g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.textAlign = align; g.textBaseline = "alphabetic"; g.fillText(s, x, y); };
+  return { cv, g, fill, dot, ring, disc, line, text };
+}
+
+// the angles of the 270-degree sweep: 135 degrees (7:30) to 405 (4:30), clockwise
+const A0 = 135, SWEEP = 270;
+const ang = (pct) => A0 + SWEEP * pct;
+const rad = (a) => a * Math.PI / 180;
+
+
+// ------------------------------------------------------------------ knobs ---
+// the common K6 body: the face tinted, a white pointer; ticks drawn by the variant
+function k6body(p, cx, cy, pct, col, act, tint, rim, ptr) {
+  const r = 13; p.disc(cx, cy, r - 2, rim); p.disc(cx, cy, r - 4, tint);
+  const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 3, ptr);
+}
+const tintOf = (col, f) => col.map((v) => Math.round(v * f));
+function ticks(p, cx, cy, r0, r1, w, colFn) {
+  for (let i = 0; i <= 10; i++) { const a = rad(ang(i / 10)); p.line(cx + Math.cos(a) * r0, cy + Math.sin(a) * r0, cx + Math.cos(a) * r1, cy + Math.sin(a) * r1, w, colFn(i)); }
+}
+const KNOBS = [
+ ["K6a · ticks mid grey", "Eleven 2 px ticks in mid grey (dim grey on a dim row), 3 px long; the face tinted at 28 %, a 2 px rim in the row colour.", (p, cx, cy, pct, col, act) => {
+   ticks(p, cx, cy, 14, 17, 2, () => act ? C.mid : C.dim); k6body(p, cx, cy, pct, col, act, act ? tintOf(col, .28) : C.surf, act ? col : C.line, act ? C.white : C.mid); }],
+ ["K6b · ticks in the row colour", "The same, the ticks in the row colour at half strength so the scale and the knob read as one; white pointer.", (p, cx, cy, pct, col, act) => {
+   ticks(p, cx, cy, 14, 17, 2, () => act ? tintOf(col, .55) : C.dim); k6body(p, cx, cy, pct, col, act, act ? tintOf(col, .28) : C.surf, act ? col : C.line, act ? C.white : C.mid); }],
+ ["K6c · ticks lit up to the value", "The ticks up to the value in the row colour, the rest mid grey: the scale doubles as a fill. White pointer.", (p, cx, cy, pct, col, act) => {
+   const cur = Math.round(pct * 10); ticks(p, cx, cy, 14, 17, 2, (i) => i <= cur ? (act ? col : C.mid) : (act ? C.line : C.dark)); k6body(p, cx, cy, pct, col, act, act ? tintOf(col, .28) : C.surf, act ? col : C.line, act ? C.white : C.mid); }],
+ ["K6d · the nearest tick bright", "Mid-grey ticks, the one nearest the value bright white and 4 px long: the value's place on the scale at a glance. Stronger tint (40 %).", (p, cx, cy, pct, col, act) => {
+   const cur = Math.round(pct * 10); for (let i = 0; i <= 10; i++) { const a = rad(ang(i / 10)); const near = i === cur; p.line(cx + Math.cos(a) * 14, cy + Math.sin(a) * 14, cx + Math.cos(a) * (near ? 18 : 17), cy + Math.sin(a) * (near ? 18 : 17), 2, near ? (act ? C.white : C.mid) : (act ? C.mid : C.dim)); }
+   k6body(p, cx, cy, pct, col, act, act ? tintOf(col, .40) : C.surf, act ? col : C.line, act ? C.white : C.mid); }],
+ ["K6e · wider ticks, no rim", "3 px ticks in mid grey, the face tinted at 35 % with no separate rim (the tint's edge is the rim), a 3 px white pointer.", (p, cx, cy, pct, col, act) => {
+   ticks(p, cx, cy, 14, 17, 3, () => act ? C.mid : C.dim); const r = 13; p.disc(cx, cy, r - 2, act ? tintOf(col, .35) : C.surf);
+   const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 3, act ? C.white : C.mid); }],
+];
+
+// ------------------------------------------------------------- the icons ---
+function icon(p, kind, x, y, c) {
+  const w = 14, h = 8, L = (a, b, cc, d) => p.line(x + a, y + b, x + cc, y + d, 2, c);
+  if (kind === "saw") { L(1, h - 1, w - 3, 1); L(w - 3, 1, w - 3, h - 1); }
+  else if (kind === "tri") { L(1, h - 1, w / 2, 1); L(w / 2, 1, w - 1, h - 1); }
+  else if (kind === "sqr") { L(2, h - 1, 2, 1); L(2, 1, w - 2, 1); L(w - 2, 1, w - 2, h - 1); }
+}
+const led = (p, x, y, on) => { if (on) { p.disc(x, y, 4, [120, 20, 10]); p.disc(x, y, 3, C.red); } else p.disc(x, y, 2, [110, 24, 16]); };
+
+// ---------------------------------------------------------------- buttons ---
+const BUTTONS = [
+ ["B1a · rim in the column colour", "The cap 22 x 20: a 2 px rim in the row colour, the face dark; the LED window the top 8 px.", (p, cx, cy, on, kind, col, act) => {
+   const w = 22, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? col : C.line); p.fill(x + 2, y + 2, w - 4, h - 4, C.surf); p.fill(x + 2, y + 2, w - 4, 8, C.dark); led(p, cx, y + 6, on); }],
+ ["B1b · pad in the column colour", "The pad (the lower part) filled in the row colour, the LED window dark above it, a 2 px rim in the colour: the colour where the finger would press.", (p, cx, cy, on, kind, col, act) => {
+   const w = 22, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? col : C.line); p.fill(x + 2, y + 2, w - 4, 8, C.dark); p.fill(x + 2, y + 10, w - 4, h - 12, act ? tintOf(col, .75) : C.surf); led(p, cx, y + 6, on); }],
+ ["B1c · tinted cap", "The whole cap tinted in the row colour at 30 % (the knob's tint), a 2 px rim at full colour, the LED window a shade darker.", (p, cx, cy, on, kind, col, act) => {
+   const w = 22, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? col : C.line); p.fill(x + 2, y + 2, w - 4, h - 4, act ? tintOf(col, .30) : C.surf); p.fill(x + 2, y + 2, w - 4, 8, act ? tintOf(col, .15) : C.dark); led(p, cx, y + 6, on); }],
+ ["B1d · colour when on only", "The rim and pad in the row colour only while on; off, the cap is grey: the colour itself says on.", (p, cx, cy, on, kind, col, act) => {
+   const w = 22, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim); const c = on ? (act ? col : C.mid) : (act ? C.line : C.dark);
+   p.fill(x, y, w, h, c); p.fill(x + 2, y + 2, w - 4, 8, C.dark); p.fill(x + 2, y + 10, w - 4, h - 12, on ? (act ? tintOf(col, .75) : C.mid) : C.surf); led(p, cx, y + 6, on); }],
+];
+
+// --------------------------------------------------------------- switches ---
+// the two-LED cap, 30 x 20, rim and pad in the column colour (B1b); leds: [left, right]
+function cap2(p, cx, cy, col, act, l, r) {
+  const w = 30, h = 20, x = cx - w / 2, y = cy - 3;
+  p.fill(x, y, w, h, act ? col : C.line); p.fill(x + 2, y + 2, w - 4, 8, C.dark); p.fill(x + 2, y + 10, w - 4, h - 12, act ? tintOf(col, .75) : C.surf);
+  led(p, cx - 7, y + 6, l); led(p, cx + 7, y + 6, r);
+}
+const SWITCHES = [
+ ["S4 · binary (00 · 01 · 10)", "Two red LEDs in one wide cap; the state as a binary number: Off none, Half the right LED, Full the left LED. The names on the value row.", (p, cx, cy, pos, col, act) => {
+   cap2(p, cx, cy, col, act, pos === 2, pos === 1); }],
+ ["S5 · count (none · one · both)", "The same cap; the LEDs count the position: Off none, Half the left LED, Full both. Reads like a level.", (p, cx, cy, pos, col, act) => {
+   cap2(p, cx, cy, col, act, pos >= 1, pos === 2); }],
+ ["S6 · binary with small marks", "Binary as S4, with the two bit values marked above the LEDs in 2 px dots (one dot over the right LED, two over the left) in the row colour, so the code can be read.", (p, cx, cy, pos, col, act) => {
+   cap2(p, cx, cy, col, act, pos === 2, pos === 1); const y = cy - 11, c = act ? col : C.dim;
+   p.fill(cx + 6, y, 2, 2, c); p.fill(cx - 10, y, 2, 2, c); p.fill(cx - 6, y, 2, 2, c); }],
+];
+
+// ---------------------------------------------------------------- the tiles ---
+function cell(p, x, label, value, col, act, draw) {
+  p.text(x + 30, 14, label, 12, act ? col : C.dim);
+  draw(x + 30, 36);
+  p.text(x + 30, 80, value, 17, act ? col : C.dim);
+  p.fill(x + 1, 96, 58, 2, act ? col : C.dark);
+}
+function tile(parent, title, note, draw) {
+  const d = document.createElement("div"); d.className = "v"; d.innerHTML = `<h3>${title}</h3>`;
+  const p = px(240, 100); p.fill(0, 0, 240, 100, C.bg);
+  draw(p); d.appendChild(p.cv); const s = document.createElement("small"); s.textContent = note; d.appendChild(s); parent.appendChild(d);
+}
+const knobs = document.getElementById("knobs");
+for (const [t, n, f] of KNOBS) tile(knobs, t, n, (p) => {
+  cell(p, 0, "Freq", "25", LANES[0], true, (cx, cy) => f(p, cx, cy, 25 / 127, LANES[0], true));
+  cell(p, 60, "Fine", "100", LANES[1], true, (cx, cy) => f(p, cx, cy, 100 / 127, LANES[1], true));
+  cell(p, 120, "Width", "65", LANES[3], false, (cx, cy) => f(p, cx, cy, 65 / 127, LANES[3], false));
+  cell(p, 180, "Glide", "0", LANES[2], false, (cx, cy) => f(p, cx, cy, 0, LANES[2], false));
+});
+const buttons = document.getElementById("buttons");
+for (const [t, n, f] of BUTTONS) tile(buttons, t, n, (p) => {
+  cell(p, 0, "Saw", "On", LANES[1], true, (cx, cy) => f(p, cx, cy, true, "saw", LANES[1], true));
+  cell(p, 60, "Tri", "Off", LANES[2], true, (cx, cy) => f(p, cx, cy, false, "tri", LANES[2], true));
+  cell(p, 120, "Pulse", "On", LANES[3], false, (cx, cy) => f(p, cx, cy, true, "sqr", LANES[3], false));
+  cell(p, 180, "Sync", "Off", LANES[0], false, (cx, cy) => f(p, cx, cy, false, "sqr", LANES[0], false));
+});
+const switches = document.getElementById("switches");
+for (const [t, n, f] of SWITCHES) tile(switches, t, n, (p) => {
+  cell(p, 0, "Key trk", "Off", LANES[3], true, (cx, cy) => f(p, cx, cy, 0, LANES[3], true));
+  cell(p, 60, "Key trk", "Half", LANES[3], true, (cx, cy) => f(p, cx, cy, 1, LANES[3], true));
+  cell(p, 120, "Key trk", "Full", LANES[3], true, (cx, cy) => f(p, cx, cy, 2, LANES[3], true));
+  cell(p, 180, "Key trk", "Half", LANES[3], false, (cx, cy) => f(p, cx, cy, 1, LANES[3], false));
+});
+</script>
+</body>
+</html>

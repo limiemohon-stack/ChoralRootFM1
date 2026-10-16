@@ -1,0 +1,1083 @@
+{
+  "format": "choralroot-layout",
+  "version": 1,
+  "generated": "by lay_catalog from the firmware's built-in tables: do not edit (tools/layout/dump_catalogs.mjs writes it; read-only in step 2, docs/LAYOUT-TOOL.md). The firmware version is not in it: params_hash binds it to the parameters",
+  "engine": {"index": 12, "name": "FM6"},
+  "params_hash": "cd9302edcee8052a",
+  "pages": [
+    {
+      "page": 0,
+      "title": "OP 1",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 1,
+      "title": "OP 2",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 2,
+      "title": "OP 3",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 3,
+      "title": "OP 4",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 4,
+      "title": "OP 5",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 5,
+      "title": "OP 6",
+      "cols": [
+        {"short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 6,
+      "title": "OP 1+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 7,
+      "title": "OP 2+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 8,
+      "title": "OP 3+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 9,
+      "title": "OP 4+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 10,
+      "title": "OP 5+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 11,
+      "title": "OP 6+",
+      "cols": [
+        {"short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null},
+        {"short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 12,
+      "title": "SCALE 1",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 13,
+      "title": "SCALE 2",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 14,
+      "title": "SCALE 3",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 15,
+      "title": "SCALE 4",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 16,
+      "title": "SCALE 5",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 17,
+      "title": "SCALE 6",
+      "cols": [
+        {"short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null},
+        {"short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null}
+      ]
+    },
+    {
+      "page": 18,
+      "title": "ALGO",
+      "cols": [
+        {"short": "ALG", "fmt": "int", "min": 0, "max": 31, "def": 0, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32"], "unit": null},
+        {"short": "FB", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null},
+        {"short": "TRNSP", "fmt": "ofs", "min": 0, "max": 48, "def": 24, "names": null, "unit": "st"},
+        {"short": "OSYNC", "fmt": "onoff", "min": 0, "max": 1, "def": 1, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 19,
+      "title": "ENV 1",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 20,
+      "title": "ENV 1+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 21,
+      "title": "ENV 2",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 22,
+      "title": "ENV 2+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 23,
+      "title": "ENV 3",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 24,
+      "title": "ENV 3+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 25,
+      "title": "ENV 4",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 26,
+      "title": "ENV 4+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 27,
+      "title": "ENV 5",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 28,
+      "title": "ENV 5+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 29,
+      "title": "ENV 6",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 30,
+      "title": "ENV 6+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 31,
+      "title": "PITCH EG",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 32,
+      "title": "PITCH EG+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 33,
+      "title": "LFO",
+      "cols": [
+        {"short": "SPEED", "fmt": "int", "min": 0, "max": 99, "def": 35, "names": null, "unit": null},
+        {"short": "DELAY", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "PMD", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "AMD", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 34,
+      "title": "LFO+",
+      "cols": [
+        {"short": "WAVE", "fmt": "enum", "min": 0, "max": 5, "def": 0, "names": ["TRI", "SAWDN", "SAWUP", "SQR", "SIN", "S&H"], "unit": null},
+        {"short": "SYNC", "fmt": "onoff", "min": 0, "max": 1, "def": 1, "names": null, "unit": null},
+        {"short": "PMS", "fmt": "int", "min": 0, "max": 7, "def": 3, "names": null, "unit": null},
+        null
+      ]
+    },
+    {
+      "page": 35,
+      "title": "FUNC",
+      "cols": [
+        {"short": "BEND", "fmt": "int", "min": 0, "max": 12, "def": 3, "names": null, "unit": "st"},
+        {"short": "PORTA", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+        {"short": "ENGINE", "fmt": "enum", "min": 0, "max": 2, "def": 1, "names": ["MODRN", "MARK1", "OPL"], "unit": null},
+        null
+      ]
+    },
+    {
+      "page": 36,
+      "title": "FUNC+",
+      "cols": [
+        {"short": "STEP", "fmt": "int", "min": 0, "max": 12, "def": 0, "names": null, "unit": null},
+        {"short": "PMODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["PEDAL", "ON"], "unit": null},
+        {"short": "GLISS", "fmt": "onoff", "min": 0, "max": 1, "def": 0, "names": null, "unit": null},
+        {"short": "DXVEL", "fmt": "onoff", "min": 0, "max": 1, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 37,
+      "title": "CTRL",
+      "cols": [
+        {"short": "WHEEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null},
+        {"short": "W.DST", "fmt": "enum", "min": 0, "max": 7, "def": 1, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null},
+        {"short": "FOOT", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "F.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null}
+      ]
+    },
+    {
+      "page": 38,
+      "title": "CTRL+",
+      "cols": [
+        {"short": "BRTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "B.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null},
+        {"short": "AFTER", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "A.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null}
+      ]
+    }
+  ],
+  "page_cells": 154,
+  "header": null,
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "button": "FX",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "stack",
+          "type": "stack",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Level", "Coarse", "Fine", "Detune"],
+          "pages": [0, 1, 2, 3, 4, 5],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "OP 1 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 0, "col": 0, "page_title": "OP 1", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 0, "col": 1, "page_title": "OP 1", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 0, "col": 2, "page_title": "OP 1", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 0, "col": 3, "page_title": "OP 1", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "OP 2 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 1, "col": 0, "page_title": "OP 2", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 1, "col": 1, "page_title": "OP 2", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 1, "col": 2, "page_title": "OP 2", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 1, "col": 3, "page_title": "OP 2", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 2,
+              "title": "OP 3 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 2, "col": 0, "page_title": "OP 3", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 2, "col": 1, "page_title": "OP 3", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 2, "col": 2, "page_title": "OP 3", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 2, "col": 3, "page_title": "OP 3", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 3,
+              "title": "OP 4 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 3, "col": 0, "page_title": "OP 4", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 3, "col": 1, "page_title": "OP 4", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 3, "col": 2, "page_title": "OP 4", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 3, "col": 3, "page_title": "OP 4", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 4,
+              "title": "OP 5 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 4, "col": 0, "page_title": "OP 5", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 4, "col": 1, "page_title": "OP 5", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 4, "col": 2, "page_title": "OP 5", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 4, "col": 3, "page_title": "OP 5", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 5,
+              "title": "OP 6 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 5, "col": 0, "page_title": "OP 6", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 5, "col": 1, "page_title": "OP 6", "label": "Coarse", "short": "COARSE", "fmt": "int", "min": 0, "max": 31, "def": 1, "names": ["0.5", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 5, "col": 2, "page_title": "OP 6", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 5, "col": 3, "page_title": "OP 6", "label": "Detune", "short": "DETUNE", "fmt": "ofs", "min": 0, "max": 14, "def": 7, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "stack",
+          "type": "stack",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Mode", "Vel sens", "AM sens", "Rate scl"],
+          "pages": [6, 7, 8, 9, 10, 11],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "OP 1 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 6, "col": 0, "page_title": "OP 1+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 6, "col": 1, "page_title": "OP 1+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 6, "col": 2, "page_title": "OP 1+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 6, "col": 3, "page_title": "OP 1+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "OP 2 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 7, "col": 0, "page_title": "OP 2+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 7, "col": 1, "page_title": "OP 2+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 7, "col": 2, "page_title": "OP 2+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 7, "col": 3, "page_title": "OP 2+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 2,
+              "title": "OP 3 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 8, "col": 0, "page_title": "OP 3+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 8, "col": 1, "page_title": "OP 3+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 8, "col": 2, "page_title": "OP 3+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 8, "col": 3, "page_title": "OP 3+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 3,
+              "title": "OP 4 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 9, "col": 0, "page_title": "OP 4+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 9, "col": 1, "page_title": "OP 4+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 9, "col": 2, "page_title": "OP 4+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 9, "col": 3, "page_title": "OP 4+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 4,
+              "title": "OP 5 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 10, "col": 0, "page_title": "OP 5+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 10, "col": 1, "page_title": "OP 5+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 10, "col": 2, "page_title": "OP 5+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 10, "col": 3, "page_title": "OP 5+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 5,
+              "title": "OP 6 · B",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 11, "col": 0, "page_title": "OP 6+", "label": "Mode", "short": "MODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATIO", "FIXED"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 11, "col": 1, "page_title": "OP 6+", "label": "Vel sens", "short": "VSENS", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 11, "col": 2, "page_title": "OP 6+", "label": "AM sens", "short": "AMS", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 11, "col": 3, "page_title": "OP 6+", "label": "Rate scl", "short": "RSCL", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "stack",
+          "type": "stack",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Break pt", "L depth", "R depth", "Curve"],
+          "pages": [12, 13, 14, 15, 16, 17],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "SCALE 1 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 12, "col": 0, "page_title": "SCALE 1", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 12, "col": 1, "page_title": "SCALE 1", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 12, "col": 2, "page_title": "SCALE 1", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 12, "col": 3, "page_title": "SCALE 1", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "SCALE 2 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 13, "col": 0, "page_title": "SCALE 2", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 13, "col": 1, "page_title": "SCALE 2", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 13, "col": 2, "page_title": "SCALE 2", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 13, "col": 3, "page_title": "SCALE 2", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 2,
+              "title": "SCALE 3 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 14, "col": 0, "page_title": "SCALE 3", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 14, "col": 1, "page_title": "SCALE 3", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 14, "col": 2, "page_title": "SCALE 3", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 14, "col": 3, "page_title": "SCALE 3", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 3,
+              "title": "SCALE 4 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 15, "col": 0, "page_title": "SCALE 4", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 15, "col": 1, "page_title": "SCALE 4", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 15, "col": 2, "page_title": "SCALE 4", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 15, "col": 3, "page_title": "SCALE 4", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 4,
+              "title": "SCALE 5 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 16, "col": 0, "page_title": "SCALE 5", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 16, "col": 1, "page_title": "SCALE 5", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 16, "col": 2, "page_title": "SCALE 5", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 16, "col": 3, "page_title": "SCALE 5", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 5,
+              "title": "SCALE 6 · C",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 17, "col": 0, "page_title": "SCALE 6", "label": "Break pt", "short": "BREAK", "fmt": "fmnote", "min": 0, "max": 99, "def": 39, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 17, "col": 1, "page_title": "SCALE 6", "label": "L depth", "short": "LDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 17, "col": 2, "page_title": "SCALE 6", "label": "R depth", "short": "RDEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 17, "col": 3, "page_title": "SCALE 6", "label": "Curve", "short": "CURVE", "fmt": "enum", "min": 0, "max": 15, "def": 0, "names": ["-L/-L", "-L/-E", "-L/+E", "-L/+L", "-E/-L", "-E/-E", "-E/+E", "-E/+L", "+E/-L", "+E/-E", "+E/+E", "+E/+L", "+L/-L", "+L/-E", "+L/+E", "+L/+L"], "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "button": "SEL",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [18],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ALGO",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 18, "col": 0, "page_title": "ALGO", "label": "Algo", "short": "ALG", "fmt": "int", "min": 0, "max": 31, "def": 0, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31", "32"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 18, "col": 1, "page_title": "ALGO", "label": "Feedback", "short": "FB", "fmt": "int", "min": 0, "max": 7, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 18, "col": 2, "page_title": "ALGO", "label": "Transp", "short": "TRNSP", "fmt": "ofs", "min": 0, "max": 48, "def": 24, "names": null, "unit": "st", "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 18, "col": 3, "page_title": "ALGO", "label": "Osc sync", "short": "OSYNC", "fmt": "onoff", "min": 0, "max": 1, "def": 1, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "button": "ENV",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [19, 20],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 1",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 19, "col": 0, "page_title": "ENV 1", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 19, "col": 1, "page_title": "ENV 1", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 19, "col": 2, "page_title": "ENV 1", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 19, "col": 3, "page_title": "ENV 1", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 1",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 20, "col": 0, "page_title": "ENV 1+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 20, "col": 1, "page_title": "ENV 1+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 20, "col": 2, "page_title": "ENV 1+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 20, "col": 3, "page_title": "ENV 1+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [21, 22],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 2",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 21, "col": 0, "page_title": "ENV 2", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 21, "col": 1, "page_title": "ENV 2", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 21, "col": 2, "page_title": "ENV 2", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 21, "col": 3, "page_title": "ENV 2", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 2",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 22, "col": 0, "page_title": "ENV 2+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 22, "col": 1, "page_title": "ENV 2+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 22, "col": 2, "page_title": "ENV 2+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 22, "col": 3, "page_title": "ENV 2+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [23, 24],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 3",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 23, "col": 0, "page_title": "ENV 3", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 23, "col": 1, "page_title": "ENV 3", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 23, "col": 2, "page_title": "ENV 3", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 23, "col": 3, "page_title": "ENV 3", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 3",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 24, "col": 0, "page_title": "ENV 3+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 24, "col": 1, "page_title": "ENV 3+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 24, "col": 2, "page_title": "ENV 3+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 24, "col": 3, "page_title": "ENV 3+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 3,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [25, 26],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 25, "col": 0, "page_title": "ENV 4", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 25, "col": 1, "page_title": "ENV 4", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 25, "col": 2, "page_title": "ENV 4", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 25, "col": 3, "page_title": "ENV 4", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 26, "col": 0, "page_title": "ENV 4+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 26, "col": 1, "page_title": "ENV 4+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 26, "col": 2, "page_title": "ENV 4+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 26, "col": 3, "page_title": "ENV 4+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 4,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [27, 28],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 5",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 27, "col": 0, "page_title": "ENV 5", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 27, "col": 1, "page_title": "ENV 5", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 27, "col": 2, "page_title": "ENV 5", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 27, "col": 3, "page_title": "ENV 5", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 5",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 28, "col": 0, "page_title": "ENV 5+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 28, "col": 1, "page_title": "ENV 5+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 28, "col": 2, "page_title": "ENV 5+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 28, "col": 3, "page_title": "ENV 5+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 5,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [29, 30],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV 6",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 29, "col": 0, "page_title": "ENV 6", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 29, "col": 1, "page_title": "ENV 6", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 29, "col": 2, "page_title": "ENV 6", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 29, "col": 3, "page_title": "ENV 6", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "ENV 6",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 30, "col": 0, "page_title": "ENV 6+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 30, "col": 1, "page_title": "ENV 6+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 30, "col": 2, "page_title": "ENV 6+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 30, "col": 3, "page_title": "ENV 6+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 6,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "dx",
+          "tall": false,
+          "header": false,
+          "pages": [31, 32],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH EG",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 31, "col": 0, "page_title": "PITCH EG", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 31, "col": 1, "page_title": "PITCH EG", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 31, "col": 2, "page_title": "PITCH EG", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 31, "col": 3, "page_title": "PITCH EG", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "PITCH EG",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 32, "col": 0, "page_title": "PITCH EG+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 32, "col": 1, "page_title": "PITCH EG+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 32, "col": 2, "page_title": "PITCH EG+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 32, "col": 3, "page_title": "PITCH EG+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "button": "LFO",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [33, 34],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "LFO",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 33, "col": 0, "page_title": "LFO", "label": "Speed", "short": "SPEED", "fmt": "int", "min": 0, "max": 99, "def": 35, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 33, "col": 1, "page_title": "LFO", "label": "Delay", "short": "DELAY", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 33, "col": 2, "page_title": "LFO", "label": "PM depth", "short": "PMD", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 33, "col": 3, "page_title": "LFO", "label": "AM depth", "short": "AMD", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "LFO",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 34, "col": 0, "page_title": "LFO+", "label": "Wave", "short": "WAVE", "fmt": "enum", "min": 0, "max": 5, "def": 0, "names": ["TRI", "SAWDN", "SAWUP", "SQR", "SIN", "S&H"], "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 34, "col": 1, "page_title": "LFO+", "label": "Sync", "short": "SYNC", "fmt": "onoff", "min": 0, "max": 1, "def": 1, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 34, "col": 2, "page_title": "LFO+", "label": "PM sens", "short": "PMS", "fmt": "int", "min": 0, "max": 7, "def": 3, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "button": "SEQ",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [35, 36],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "FUNC",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 35, "col": 0, "page_title": "FUNC", "label": "Bend", "short": "BEND", "fmt": "int", "min": 0, "max": 12, "def": 3, "names": null, "unit": "st", "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 35, "col": 1, "page_title": "FUNC", "label": "Porta", "short": "PORTA", "fmt": "int", "min": 0, "max": 127, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 35, "col": 2, "page_title": "FUNC", "label": "Engine", "short": "ENGINE", "fmt": "enum", "min": 0, "max": 2, "def": 1, "names": ["MODRN", "MARK1", "OPL"], "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "FUNC",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 36, "col": 0, "page_title": "FUNC+", "label": "Step", "short": "STEP", "fmt": "int", "min": 0, "max": 12, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 36, "col": 1, "page_title": "FUNC+", "label": "Porta md", "short": "PMODE", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["PEDAL", "ON"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 36, "col": 2, "page_title": "FUNC+", "label": "Gliss", "short": "GLISS", "fmt": "onoff", "min": 0, "max": 1, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 36, "col": 3, "page_title": "FUNC+", "label": "DX vel", "short": "DXVEL", "fmt": "onoff", "min": 0, "max": 1, "def": 0, "names": null, "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [37, 38],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "CTRL",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 37, "col": 0, "page_title": "CTRL", "label": "Wheel", "short": "WHEEL", "fmt": "int", "min": 0, "max": 99, "def": 99, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 37, "col": 1, "page_title": "CTRL", "label": "W.dst", "short": "W.DST", "fmt": "enum", "min": 0, "max": 7, "def": 1, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 37, "col": 2, "page_title": "CTRL", "label": "Foot", "short": "FOOT", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 37, "col": 3, "page_title": "CTRL", "label": "F.dst", "short": "F.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null, "by_mode": true}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "CTRL",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 38, "col": 0, "page_title": "CTRL+", "label": "Breath", "short": "BRTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 2, "bind": "deep", "page": 38, "col": 1, "page_title": "CTRL+", "label": "B.dst", "short": "B.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null, "by_mode": true},
+                {"knob": 3, "bind": "deep", "page": 38, "col": 2, "page_title": "CTRL+", "label": "Aftertch", "short": "AFTER", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null, "by_mode": true},
+                {"knob": 4, "bind": "deep", "page": 38, "col": 3, "page_title": "CTRL+", "label": "A.dst", "short": "A.DST", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["-", "P", "A", "PA", "E", "PE", "AE", "PAE"], "unit": null, "by_mode": true}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "stack",
+          "type": "expr",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Source", "Dest", "Amount", ""],
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "EXPR · VEL",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "VEL"},
+                {"knob": 2, "bind": "text", "text": "AMP"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "EXPR · AT",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "AT"},
+                {"knob": 2, "bind": "text", "text": "CUT"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "button": "PLAY",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "FX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 33, "label": "Drive", "short": "DST", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 34, "label": "Chorus", "short": "CHO", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 35, "label": "Delay", "short": "DLY", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 36, "label": "Reverb", "short": "REV", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "button": "REC",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 0, "label": "Level", "short": "LVL", "fmt": "db", "min": 0, "max": 127, "def": 104, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 39, "label": "Pan", "short": "PAN", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 37, "label": "Voice", "short": "VCE", "fmt": "enum", "min": 0, "max": 3, "def": 0, "names": ["POLY", "MONO", "LEG", "UNI"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 38, "label": "Glide", "short": "GLD", "fmt": "time", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 28, "label": "Trans", "short": "TRN", "fmt": "semi", "min": -24, "max": 24, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 44, "label": "Detune", "short": "DTUNE", "fmt": "int", "min": 0, "max": 127, "def": 40, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 42, "label": "Priority", "short": "PRIO", "fmt": "enum", "min": 0, "max": 2, "def": 0, "names": ["LAST", "LOW", "HIGH"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 41, "label": "Gl. mode", "short": "GLMOD", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATE", "TIME"], "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

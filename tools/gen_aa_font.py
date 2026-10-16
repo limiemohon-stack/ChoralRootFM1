@@ -54,6 +54,7 @@ L_CHARS = " +-0123456789ABCDEFGHIKLMNOPQRSTUVXY"
 #               qualities m dim sus +, extensions M7 9 JAZZ ..), figures, and PANIC's letters; sparse like L
 #   CRB 40 px   everything else bold: pickers, values, the superscript, the notes line, titles (full ASCII)
 CRX_CHARS = " #+-.0123456789?ABCDEFGIJMNPTWZbdimsu"
+CRB_EXTRAS = [0xE8]                    # e grave, CRB only: the KEY layer's Numerals "Solf\xe8ge" (GitHub issue 15)
 HUFF_CR = ("CRX", "CRB")
 PROPORTIONAL = ("CRX", "CRB")          # proportional figures (the mock-ups' "13", "120"), not tabular
 
@@ -67,7 +68,7 @@ def preset(name):
     if name == "choralroot":
         v = str(FONTS.parent / "assets" / "fonts" / "InterTight[wght].ttf")
         return [("CRX", v + "@700", 104, (32, 32), [ord(c) for c in CRX_CHARS[1:]], 0.0, 1),
-                ("CRB", v + "@700", 40, (32, 126), EXTRAS, 0.0, 1)]
+                ("CRB", v + "@700", 40, (32, 126), EXTRAS + CRB_EXTRAS, 0.0, 1)]
     if name == "standin":
         if os.path.exists(LOCAL_INTER):
             reg, med, semi = LOCAL_INTER + "#0", LOCAL_INTER + "#10", LOCAL_INTER + "#12"

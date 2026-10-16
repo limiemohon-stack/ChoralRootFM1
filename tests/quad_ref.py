@@ -15,7 +15,8 @@ firmware's; the signal path (the operators, feedback, the mix, the DC blocker, t
 amplitude) is float. The goldens: 0.3 s of two notes (C4 and G4, velocity 100, released at 0.2 s) on eight test patches
 (one per algorithm; FDBK 14: the feedback of a HARM-shaped operator (the odd algorithms) is chaotic enough above
 ~25 that the model's float and the firmware's integer part ways) and four presets: the first 2048 output samples and the RMS of each 10 ms block.
-tests/cr_quad_test.c renders the same and compares. Needs build/gen/felucca_tables.h (Felucca's tables).
+tests/cr_quad_test.c renders the same and compares. Needs build/gen/felucca_tables.h (Felucca's tables) and reads the
+envelope and fade times from firmware/src/quad_times.h (the Digitone's: tools/digitone/make_quad_times.py).
 """
 import json
 import math
@@ -25,6 +26,7 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TABLES = os.path.join(ROOT, "build", "gen", "felucca_tables.h")
+TIMES = os.path.join(ROOT, "firmware", "src", "quad_times.h")
 OUT_H = os.path.join(ROOT, "firmware", "src", "quad_tables.h")
 GOLD = os.path.join(ROOT, "tests", "quad_goldens")
 FS = 44100
@@ -33,20 +35,26 @@ M32 = 0xFFFFFFFF
 
 
 # ------------------------------------------------------------------ tables
-def felucca_table(name):
-    src = open(TABLES).read()
+def felucca_table(name, path=TABLES):
+    src = open(path).read()
     m = re.search(r"\b%s\[\d*\]\s*=\s*\{(.*?)\};" % name, src, re.S)
     if not m:
-        sys.exit("quad_ref: %s not in %s (build the generated tables first)" % (name, TABLES))
-    return [int(x) for x in re.findall(r"-?\d+", m.group(1))]
+        sys.exit("quad_ref: %s not in %s (build the generated tables first)" % (name, path))
+    return [int(x) for x in re.findall(r"-?\d+", re.sub(r"/\*.*?\*/", "", m.group(1), flags=re.S))]
 
 
 SINE = felucca_table("SINE")
 PITCH_OCT = felucca_table("PITCH_OCT")
-ENV_LIN = felucca_table("ENV_LIN")
-ENV_EXP = felucca_table("ENV_EXP")
 SVF_G = felucca_table("SVF_G")
 TANH_Q15 = felucca_table("TANH_Q15")
+# the envelopes' times (quad_times.h): the attack's step and the decay's share a tick (Q24) of operator A, B, the
+# filter, the amp; the fade's 32767 x 2^16 a tick by |FADE|; DELAY: BPM x DLY_K 1/32 beats (Q24) a tick
+T_ATK = [felucca_table("QUAD_T_" + n, TIMES) for n in ("OATK", "OATK", "FATK", "AATK")]
+T_DEC = [felucca_table("QUAD_T_" + n, TIMES) for n in ("ODEC", "ODEC", "FDEC", "ADEC")]
+T_FADE = felucca_table("QUAD_T_FADE", TIMES)
+DLY_K = int(re.search(r"#define QUAD_DLY_K (\d+)u", open(TIMES).read()).group(1))
+OP_FLOOR = int(re.search(r"#define QUAD_OP_FLOOR (\d+)", open(TIMES).read()).group(1))   # the operators' attack: dB-linear
+BPM = 120
 
 # the ratio steps: C, B1 and B2 0.25 0.5 0.75 then 1..16 (19); A 0.25..16 in 0.25 (64); RATIO B (the pair) = B1 index
 # x 19 + B2 index (B2 the fast hand, the Digitone's watch: B2 runs through its steps, then B1 steps on: 361 pairs).
@@ -200,30 +208,50 @@ NP = len(NAMES)
 assert NP == 73
 # (min, max, def), as eng_quad.c's page columns
 RNG = {"ALGO": (1, 8, 1), "RC": (0, 18, 3), "RA": (0, 63, 3), "RB1": (0, 18, 3), "RB2": (0, 18, 3), "HARM": (-26, 26, 0),
-       "DTUN": (0, 127, 0), "FDBK": (0, 120, 0), "MIX": (-64, 63, 0), "OFSC": (-100, 100, 0), "OFSA": (-100, 100, 0),
-       "OFSB1": (-100, 100, 0), "OFSB2": (-100, 100, 0), "AATK": (0, 127, 0), "ADEC": (0, 127, 60),
-       "AEND": (0, 127, 64), "ALEV": (0, 127, 48), "BATK": (0, 127, 0), "BDEC": (0, 127, 60), "BEND": (0, 127, 0),
+       "DTUN": (0, 127, 0), "FDBK": (0, 120, 0), "MIX": (-64, 63, -64), "OFSC": (-100, 100, 0), "OFSA": (-100, 100, 0),
+       "OFSB1": (-100, 100, 0), "OFSB2": (-100, 100, 0), "AATK": (0, 127, 0), "ADEC": (0, 127, 32),
+       "AEND": (0, 127, 127), "ALEV": (0, 127, 0), "BATK": (0, 127, 0), "BDEC": (0, 127, 32), "BEND": (0, 127, 127),
        "BLEV": (0, 127, 0), "ADLY": (0, 127, 0), "ATRIG": (0, 1, 1), "ARST": (0, 1, 1), "PHRT": (0, 4, 1),
        "BDLY": (0, 127, 0), "BTRIG": (0, 1, 1), "BRST": (0, 1, 1), "VEL": (0, 127, 64), "AKEY": (0, 127, 0),
        "B1KEY": (0, 127, 0), "B2KEY": (0, 127, 0), "FATK": (0, 127, 0), "FDEC": (0, 127, 64), "FSUS": (0, 127, 0),
-       "FREL": (0, 127, 40), "FREQ": (0, 127, 127), "RESO": (0, 127, 0), "FTYPE": (0, 3, 1), "FDEPTH": (-64, 63, 0),
-       "FDLY": (0, 127, 0), "FKTRK": (0, 127, 0), "BASE": (0, 127, 0), "WIDTH": (0, 127, 127), "EATK": (0, 127, 0),
-       "EDEC": (0, 127, 64), "ESUS": (0, 127, 127), "EREL": (0, 127, 40), "LEVEL": (0, 127, 100)}
+       "FREL": (0, 127, 64), "FREQ": (0, 127, 127), "RESO": (0, 127, 0), "FTYPE": (0, 3, 1), "FDEPTH": (-64, 63, 0),
+       "FDLY": (0, 127, 0), "FKTRK": (0, 127, 0), "BASE": (0, 127, 0), "WIDTH": (0, 127, 127), "EATK": (0, 127, 8),
+       "EDEC": (0, 127, 32), "ESUS": (0, 127, 96), "EREL": (0, 127, 24), "LEVEL": (0, 127, 100)}
 for _k in range(3):
-    RNG.update({"L%dSPEED" % _k: (-64, 63, 16), "L%dMULT" % _k: (0, 23, 3), "L%dFADE" % _k: (-64, 63, 0),
-                "L%dDEST" % _k: (0, 39, 0), "L%dWAVE" % _k: (0, 6, 0), "L%dPHASE" % _k: (0, 127, 0),
+    RNG.update({"L%dSPEED" % _k: (-64, 63, 32), "L%dMULT" % _k: (0, 23, 5), "L%dFADE" % _k: (-64, 63, 0),
+                "L%dDEST" % _k: (0, 57, 0), "L%dWAVE" % _k: (0, 6, 0), "L%dPHASE" % _k: (0, 127, 0),
                 "L%dTRIG" % _k: (0, 4, 0), "L%dDEPTH" % _k: (-64, 63, 0)})
 FT = {"OFF": 0, "LP12": 1, "HP12": 2, "LP24": 3}
 WAVE = {"TRI": 0, "SINE": 1, "SQR": 2, "SAW": 3, "RAMP": 4, "EXP": 5, "RAND": 6}
 TRIG = {"FREE": 0, "TRIG": 1, "HOLD": 2, "ONE": 3, "HALF": 4}
 DEST_N = ["NONE", "PITCH", "PAB2", "ALGO", "RC", "RA", "RB", "OFSC", "OFSA", "OFSB1", "OFSB2", "HARM", "DTUN", "FDBK",
           "MIX", "ALEV", "BLEV", "AATK", "ADEC", "AEND", "BATK", "BDEC", "BEND", "ADLY", "BDLY", "FREQ", "RESO", "FENV",
-          "BASE", "WIDTH", "FATK", "FDEC", "FSUS", "FREL", "EATK", "EDEC", "ESUS", "EREL", "LEVEL", "PAN"]
+          "BASE", "WIDTH", "FATK", "FDEC", "FSUS", "FREL", "EATK", "EDEC", "ESUS", "EREL", "LEVEL", "PAN",
+          # appended 2026-10-14 (the Digitone's full list): LFO 1's own parameters, RATIO ALL, the AB macros, the
+          # part's DRIVE and sends (fx.c: not in this model's output), the filter envelope's DELAY
+          "L1SPD", "L1MUL", "L1FAD", "L1WAV", "L1SPH", "L1MOD", "L1DEP", "RALL", "ABLEV", "ABATK", "ABDEC", "ABEND",
+          "ABDLY", "DRIVE", "SREV", "SDLY", "SCHO", "FDLY"]
 DEST = {n: i for i, n in enumerate(DEST_N)}
 ND = len(DEST_N)
-assert ND == 40
+assert ND == 58
 # the algorithms' feedback operator (0 C, 1 A, 2 B1, 3 B2)
 FBOP = [1, 3, 1, 3, 2, 1, 1, 2]
+
+
+# version 5 (2026-10-14, the owner's corrections to version 4, the Digitone's ranges): these values in hundredths
+# (eng_quad.c quad_hires; FREQ DTUN RESO BASE top 127.00), FDBK 0..127; AMP DEC / REL 0..126 + INF (127) and LEVEL
+# whole numbers. The patches above are written in version 3's units (RNG); to_v4 converts them as eng_quad.c does, and
+# the model runs on version 5's
+HIRES = ["HARM", "DTUN", "FREQ", "RESO", "FDEPTH", "BASE"] + \
+    ["L%d%s" % (k, f) for k in range(3) for f in ("SPEED", "DEPTH")]
+
+
+def to_v4(p):
+    q = list(p)
+    for n in HIRES:
+        q[Q[n]] = p[Q[n]] * 100
+    q[Q["FDBK"]] = (p[Q["FDBK"]] * 127 + 60) // 120
+    return q
 
 
 def init_patch():
@@ -274,19 +302,21 @@ def merge(*ds):
     return r
 
 
-# four of eng_quad.c's presets (the C test checks these patches against its own: keep them in step)
+# four of eng_quad.c's presets (the C test checks these patches against its own: keep them in step; the times
+# re-expressed 2026-10-14 on the Digitone's tables, as eng_quad.c's; the LEVELs +6 dB on 2026-10-16, as eng_quad.c's,
+# whose output is 6 dB lower: docs/QUAD.md "Level")
 PRESETS = {
-    "EP": patch_of(**merge(syn(2, QRC(4), 3, QRC(4), QRC(56), 0, 12, 0, -30), env("A", 0, 78, 20, 66),
-                           env("B", 0, 52, 0, 62), dict(VEL=100, AKEY=40, B1KEY=30, B2KEY=30, PHRT=1),
-                           amp(0, 96, 40, 62, 72))),
-    "BASS": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 24, -64), env("A", 0, 62, 34, 88),
-                             env("B", 0, 50, 0, 0), flt("LP12", 92, 10, 20), fenv(0, 60, 0, 40),
-                             amp(0, 80, 100, 30, 110))),
-    "GLASS PAD": patch_of(**merge(syn(7, QRC(4), 7, QRC(16), QRC(16), 8, 40, 0, 0), env("A", 70, 90, 100, 36),
-                                  env("B", 80, 96, 60, 50), dict(PHRT=0), amp(70, 90, 120, 100, 88),
+    "EP": patch_of(**merge(syn(2, QRC(4), 3, QRC(4), QRC(56), 0, 12, 0, -30), env("A", 0, 29, 20, 66),
+                           env("B", 0, 12, 0, 62), dict(VEL=100, AKEY=40, B1KEY=30, B2KEY=30, PHRT=1),
+                           amp(0, 39, 40, 14, 102))),
+    "BASS": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 24, -64), env("A", 0, 18, 34, 88),
+                             env("B", 0, 11, 0, 0), flt("LP12", 92, 10, 20), fenv(0, 12, 0, 0),
+                             amp(0, 24, 100, 5, 127))),
+    "GLASS PAD": patch_of(**merge(syn(7, QRC(4), 7, QRC(16), QRC(16), 8, 40, 0, 0), env("A", 17, 41, 100, 36),
+                                  env("B", 24, 48, 60, 50), dict(PHRT=0), amp(53, 32, 120, 43, 124),
                                   lfo(0, 8, 3, "HARM", "SINE", 30))),
-    "WOBBLE": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 10, -64), env("A", 0, 64, 127, 60),
-                               env("B", 0, 60, 40, 0), flt("LP24", 70, 60, 0), amp(0, 80, 110, 40, 115),
+    "WOBBLE": patch_of(**merge(syn(1, QRC(4), 3, QRC(4), QRC(4), 0, 0, 10, -64), env("A", 0, 19, 127, 60),
+                               env("B", 0, 16, 40, 0), flt("LP24", 70, 60, 0), amp(0, 24, 110, 7, 127),
                                lfo(0, 32, 4, "ALEV", "TRI", 50, "TRIG"), lfo(1, 32, 4, "FREQ", "TRI", 40, "TRIG"))),
 }
 
@@ -403,11 +433,14 @@ def soft_knee_f(y, k):
     return -a if y < 0 else a
 
 
-def lfo_inc(p, k, bpm=120):
-    mu = p[Q["L%dMULT" % k]]
+def lfo_incv(sp, mu, bpm=120):
     b = bpm if mu < 12 else 120
-    v = (p[Q["L%dSPEED" % k]] * (1 << (mu % 12)) * b * LFO_K) >> 16
+    v = cdiv(sp * (1 << (mu % 12)) * b * LFO_K, 100 * 65536)   # (SPEED in hundredths)
     return clamp(v, -0x7FFFFFFF, 0x7FFFFFFF)
+
+
+def lfo_inc(p, k, bpm=120):
+    return lfo_incv(p[Q["L%dSPEED" % k]], p[Q["L%dMULT" % k]], bpm)
 
 
 def lfo_wave(w, ph, r):
@@ -440,6 +473,20 @@ def tsvf_coef_k(cut, k):
     a2 = (a1 * g) >> 12
     a3 = (a2 * g) >> 12
     return a1, a2, a3
+
+
+def quad_svf_coef(cut, k):
+    """eng_quad.c quad_svf_coef: tsvf_coef_k's with g in Q20 and a2 to 1/32 of its Q13 step (a float here)"""
+    cut = clamp(cut, 0, 127 << 8)
+    i = cut >> 8
+    g = SVF_G[i] << 8
+    if i < 127:
+        g += (SVF_G[i + 1] - SVF_G[i]) * (cut & 255)
+    den = 4096 + ((g * (g + (k << 8))) >> 28)
+    a1 = (4096 << 13) // den
+    a2 = (a1 * g) >> 15
+    a3 = (a2 * g) >> 20
+    return a1, a2 / 32.0, a3 >> 5
 
 
 PHRT_MASK = [0, 0xF, 0x1, 0xE, 0xA]
@@ -480,6 +527,7 @@ class Voice:
         self.lsl = [0] * 3
         self.lstop = 0
         self.ticks = 0
+        self.lof = 0
         self.live = 0
         self.gate = 0
         self.active = 0
@@ -537,6 +585,7 @@ class Voice:
             else:
                 self.lph[k] = sp
         self.ticks = 0
+        self.lof = 0
         self.live = 1
 
     def env_tick(self, k, atk, dec, sus, rel, dly, gate, adsr):
@@ -544,24 +593,29 @@ class Voice:
         if adsr and not gate and self.stage[k] and self.stage[k] < 4:
             self.stage[k] = 4
         st = self.stage[k]
-        if st == 1:
-            self.dly[k] += ENV_LIN[dly & 127]
-            if self.dly[k] >= (1 << 24):
+        if st == 1:                              # DELAY: dly / 32 beats
+            self.dly[k] += BPM * DLY_K
+            if self.dly[k] >= (dly & 127) << 24:
                 self.stage[k] = 2
         elif st == 2:
-            x += ENV_LIN[atk & 127]
+            if k < 2:                            # the operators: linear in dB from OP_FLOOR
+                x = max(x, OP_FLOOR)
+                x += (x * T_ATK[k][atk & 127]) >> 24
+            else:
+                x += T_ATK[k][atk & 127]
             if x >= (1 << 24):
                 x = 1 << 24
                 self.stage[k] = 3
         elif st == 3:
-            x += mulq16(sus - x, ENV_EXP[dec & 127])
+            if not (k == 3 and dec >= 127):      # AMP DEC 127 = INF: the level held
+                x += ((sus - x) * T_DEC[k][dec & 127]) >> 24
         elif st == 4 or st == 5:
             if rel >= 127:                       # REL 127 = INF: the level held (stage 5)
                 self.stage[k] = 5
                 self.env[k] = x
                 return x >> 9
             self.stage[k] = 4
-            x -= mulq16(x, ENV_EXP[rel & 127])
+            x -= (x * T_DEC[k][rel] + 0xFFFFFF) >> 24   # (rounded up)
             if x < (1 << 12):
                 x = 0
                 self.stage[k] = 0
@@ -581,11 +635,27 @@ class Voice:
         p = self.part.p
         g = lambda n: p[Q[n]]
         dst = [0] * ND
-        for k in range(3):
+        for k in (1, 2, 0):                                # LFO 2, 3, then 1 (2 and 3 may move LFO 1's parameters)
             d, tm, wv = g("L%dDEST" % k), g("L%dTRIG" % k), g("L%dWAVE" % k)
-            inc0 = lfo_inc(p, k)
+            fd, sph, dep = g("L%dFADE" % k), g("L%dPHASE" % k), g("L%dDEPTH" % k)
+            L = lambda n: dst[DEST[n]]
+            if k == 0 and any(L(n) for n in ("L1SPD", "L1MUL", "L1FAD", "L1WAV", "L1SPH", "L1MOD", "L1DEP")):
+                sp = clamp(g("L0SPEED") + ((L("L1SPD") * 12700) >> 15), -6400, 6399)
+                mu = g("L0MULT")
+                ms = 0 if mu < 12 else 12
+                mu = ms + clamp(mu - ms + ((L("L1MUL") * 11) >> 15), 0, 11)
+                inc0 = lfo_incv(sp, mu)
+                tm = clamp(tm + ((L("L1MOD") * 4) >> 15), 0, 4)
+                if tm == 0:
+                    self.lof = (self.lof + inc0 - lfo_inc(p, 0)) & M32
+                fd = clamp(fd + ((L("L1FAD") * 127) >> 15), -64, 63)
+                wv = clamp(wv + ((L("L1WAV") * 6) >> 15), 0, 6)
+                sph = clamp(sph + ((L("L1SPH") * 127) >> 15), 0, 127)
+                dep = clamp(dep + ((L("L1DEP") * 12700) >> 15), -6400, 6399)
+            else:
+                inc0 = lfo_inc(p, k)
             if tm == 0:
-                ph = (self.part.lph[k] + (0 if wv == 6 else g("L%dPHASE" % k) << 25)) & M32
+                ph = (self.part.lph[k] + (0 if wv == 6 else sph << 25) + (0 if k else self.lof)) & M32
                 rv = self.part.lrnd[k]
             else:
                 ph = self.lph[k]
@@ -602,24 +672,25 @@ class Voice:
                     self.lph[k] = (old + (-(st << 1) if inc0 < 0 else st << 1)) & M32
                     if (inc0 > 0 and self.lph[k] < old) or (inc0 < 0 and self.lph[k] > old):
                         self.lrnd[k] = xs(self.lrnd[k] + k)
+                if wv != 6:
+                    ph = (ph + ((sph - g("L%dPHASE" % k)) << 25)) & M32
             if wv == 6:                                    # RAND: SPH is the slew (a one-pole on the steps)
                 r = (rv >> 16) - 32768
-                sl = g("L%dPHASE" % k)
+                sl = sph
                 if sl:
                     kk = clamp(((abs(inc0) >> 17) * 254) // sl, 1, 32767)
                     self.lsl[k] += ((r - self.lsl[k]) * kk) >> 15
                 else:
                     self.lsl[k] = r
-            if not d or d >= ND or not g("L%dDEPTH" % k):
+            if not d or d >= ND or not dep:
                 continue
             w = lfo_wave(wv, ph, self.lsl[k])
-            w = (w * g("L%dDEPTH" % k)) >> 6
-            fd = g("L%dFADE" % k)
-            if fd:
-                f = min(32767, self.ticks * (ENV_LIN[2 * abs(fd) - 1] >> 9))
+            w = cdiv(w * dep, 6400)
+            if fd:                                         # FADE: a linear ramp over |FADE|'s time
+                f = min(32767, (self.ticks * T_FADE[abs(fd)]) >> 16)
                 w = (w * (f if fd < 0 else 32767 - f)) >> 15
             dst[d] += w
-        if self.ticks < 0xFFFF:
+        if self.ticks < 0xFFFFFFFF:
             self.ticks += 1
         return dst
 
@@ -629,22 +700,32 @@ class Voice:
         dst = self.lfos()
         D = lambda n, s: (dst[DEST[n]] * s) >> 15
         mv = lambda n, de, s, lo, hi: clamp(g(n) + D(de, s), lo, hi)
-        eA = self.env_tick(0, mv("AATK", "AATK", 127, 0, 127), mv("ADEC", "ADEC", 127, 0, 127),
-                           mv("AEND", "AEND", 127, 0, 127) << 17, 0, mv("ADLY", "ADLY", 127, 0, 127), 1, 0)
-        eB = self.env_tick(1, mv("BATK", "BATK", 127, 0, 127), mv("BDEC", "BDEC", 127, 0, 127),
-                           mv("BEND", "BEND", 127, 0, 127) << 17, 0, mv("BDLY", "BDLY", 127, 0, 127), 1, 0)
+        m2 = lambda n, de, d2, s, lo, hi: clamp(g(n) + (((dst[DEST[de]] + dst[DEST[d2]]) * s) >> 15), lo, hi)
+        eA = self.env_tick(0, m2("AATK", "AATK", "ABATK", 127, 0, 127), m2("ADEC", "ADEC", "ABDEC", 127, 0, 127),
+                           m2("AEND", "AEND", "ABEND", 127, 0, 127) << 17, 0, m2("ADLY", "ADLY", "ABDLY", 127, 0, 127),
+                           1, 0)
+        eB = self.env_tick(1, m2("BATK", "BATK", "ABATK", 127, 0, 127), m2("BDEC", "BDEC", "ABDEC", 127, 0, 127),
+                           m2("BEND", "BEND", "ABEND", 127, 0, 127) << 17, 0, m2("BDLY", "BDLY", "ABDLY", 127, 0, 127),
+                           1, 0)
         eF = self.env_tick(2, mv("FATK", "FATK", 127, 0, 127), mv("FDEC", "FDEC", 127, 0, 127),
-                           mv("FSUS", "FSUS", 127, 0, 127) << 17, mv("FREL", "FREL", 127, 0, 127), g("FDLY"),
-                           self.gate, 1)
+                           mv("FSUS", "FSUS", 127, 0, 127) << 17, mv("FREL", "FREL", 127, 0, 127),
+                           mv("FDLY", "FDLY", 127, 0, 127), self.gate, 1)
         eE = self.env_tick(3, mv("EATK", "EATK", 127, 0, 127), mv("EDEC", "EDEC", 127, 0, 127),
                            mv("ESUS", "ESUS", 127, 0, 127) << 17, mv("EREL", "EREL", 127, 0, 127), 0, self.gate, 1)
         if latest:
             self.part.pan = clamp((dst[DEST["PAN"]] * 64) >> 15, -64, 63)
         alg = mv("ALGO", "ALGO", 7, 1, 8)
-        dt = mv("DTUN", "DTUN", 127, 0, 127)
-        ra = mv("RA", "RA", 63, 0, 63)
+        dt = mv("DTUN", "DTUN", 12700, 0, 12700)
+        d0, df = dt // 100, dt % 100
+        d1 = d0 + 1 if d0 < 127 else 127
+        du = DT_UP[d0] + cdiv((DT_UP[d1] - DT_UP[d0]) * df, 100)
+        dd = DT_DN[d0] + cdiv((DT_DN[d1] - DT_DN[d0]) * df, 100)
+        ra = m2("RA", "RA", "RALL", 63, 0, 63)
         rb = clamp(g("RB1") * 19 + g("RB2") + D("RB", 180), 0, NRB - 1)
         rb1i, rb2i = rb // 19, rb % 19
+        if dst[DEST["RALL"]]:
+            o = D("RALL", 18)
+            rb1i, rb2i = clamp(rb1i + o, 0, 18), clamp(rb2i + o, 0, 18)
 
         def ratio(r, o):
             r += cdiv(o * 65536, 100)
@@ -660,12 +741,12 @@ class Voice:
         bAB2 = bAll
         if dst[DEST["PAB2"]]:
             bAB2 = (bAll * exp2q((dst[DEST["PAB2"]] * 4096) >> 15)) >> 15
-        rc = ratio(q16(RCB[mv("RC", "RC", 18, 0, 18)]), mv("OFSC", "OFSC", 100, -100, 100))
+        rc = ratio(q16(RCB[m2("RC", "RC", "RALL", 18, 0, 18)]), mv("OFSC", "OFSC", 100, -100, 100))
         rA = ratio(q16(RA[ra]), mv("OFSA", "OFSA", 100, -100, 100))
         rB1 = ratio(q16(RCB[rb1i]), mv("OFSB1", "OFSB1", 100, -100, 100))
         rB2 = ratio(q16(RCB[rb2i]), mv("OFSB2", "OFSB2", 100, -100, 100))
-        inc = [opinc(bAll, rc, 0), opinc(bAB2, rA, DT_UP[dt]), opinc(bAll, rB1, 0), opinc(bAB2, rB2, DT_DN[dt])]
-        hq = clamp((g("HARM") << 8) + ((dst[DEST["HARM"]] * 26 * 256) >> 15), -26 * 256, 26 * 256)
+        inc = [opinc(bAll, rc, 0), opinc(bAB2, rA, du), opinc(bAll, rB1, 0), opinc(bAB2, rB2, dd)]
+        hq = cdiv(mv("HARM", "HARM", 2600, -2600, 2600) * 256, 100)
         ha = hb = HARM[0]
         hff = 0.0
         if hq:
@@ -674,14 +755,14 @@ class Voice:
             t1 = t0 + 1 if t0 < 26 else 26
             hff = ((h & 255) << 7) / 32768.0 if t1 > t0 else 0.0
             ha, hb = HARM[t0], HARM[t1]
-        fbq = fbq_of(mv("FDBK", "FDBK", 120, 0, 120))
+        fbq = fbq_of((mv("FDBK", "FDBK", 127, 0, 127) * 120 + 63) // 127)
         mix = mv("MIX", "MIX", 127, -64, 63)
         gy = (64 + mix) * 258
         gx = 32766 - gy
         vel = self.vel
         velf = 32767 - ((g("VEL") * (127 - vel) * 2080) >> 10)
-        la_v = mv("ALEV", "ALEV", 127, 0, 127)
-        u1, u2 = blev(mv("BLEV", "BLEV", 127, 0, 127))
+        la_v = m2("ALEV", "ALEV", "ABLEV", 127, 0, 127)
+        u1, u2 = blev(m2("BLEV", "BLEV", "ABLEV", 127, 0, 127))
         lv = [lev_q15(la_v * 4096 // 127), lev_q15(u1), lev_q15(u2)]
         tl = [0, 0, 0]
         for j, kn in enumerate(("AKEY", "B1KEY", "B2KEY")):
@@ -693,28 +774,32 @@ class Voice:
             tl[j] = mulq15(eA if j == 0 else eB, l)
         l0 = [x << 16 for x in self.lv]
         dl = [((tl[j] << 16) - l0[j]) >> 5 for j in range(3)]
-        fdep = mv("FDEPTH", "FENV", 127, -64, 63)
-        cut = (mv("FREQ", "FREQ", 127, 0, 127) << 8) + ((eF * fdep) >> 6) + \
+        fdep = mv("FDEPTH", "FENV", 12700, -6400, 6399)
+        cut = (mv("FREQ", "FREQ", 12700, 0, 12700) * 256 + 50) // 100 + cdiv(eF * fdep, 6400) + \
             (((pitch16 - 960) * g("FKTRK") * 150) >> 10)
-        reso = mv("RESO", "RESO", 127, 0, 127)
+        reso = mv("RESO", "RESO", 12700, 0, 12700)
         fty = g("FTYPE")
         svf = fty != 0 and not (fty != 2 and cut >= (127 << 8) and not reso)
-        kd = 8192 - reso * 60
+        kd = 8192 - reso * 3 // 5
         c1 = c2 = (0, 0, 0)
         if svf:
-            c1 = tsvf_coef_k(cut, kd)
+            c1 = quad_svf_coef(cut, kd)
             if fty == 3:
                 c2 = tsvf_coef_k(cut, 8192)
-        base = mv("BASE", "BASE", 127, 0, 127)
+        base = mv("BASE", "BASE", 12700, 0, 12700)
         wid = mv("WIDTH", "WIDTH", 127, 0, 127)
-        hpk = BW_K[base] / 65536.0 if base else 0.0
-        lpk = BW_K[base + wid] / 65536.0 if base + wid < 127 else 0.0
+
+        def bwk(x):                                        # BW_K at x hundredths, interpolated
+            i = x // 100
+            return BW_K[i] + cdiv((BW_K[i + 1] - BW_K[i]) * (x % 100), 100)
+        hpk = bwk(base) / 65536.0 if base else 0.0
+        lpk = bwk(base + wid * 100) / 65536.0 if base + wid * 100 < 12700 else 0.0
         lvl = mv("LEVEL", "LEVEL", 127, 0, 127)
         A1 = mulq15(mulq15(eE, 32767 - (127 - vel) * 129), lvl * lvl * 2)
         A1 = mulq15(A1, 32767)
         A0 = self.amp
-        dA = (A1 - A0) >> 5
-        a = A0
+        dA = (A1 - A0) * 8                             # (the ramp in Q23: exact over the tick)
+        a = A0 * 256
         p0, p1, p2, p3 = self.ph
         fb1, fb2 = self.fb1, self.fb2
         fs = self.f[:]
@@ -808,7 +893,7 @@ class Voice:
                 y = soft_knee_f(clamp(y, -200000, 200000), 16000)
             y = clamp(y, -65535, 65535)
             a += dA
-            out[i] += y * a / 32768.0 * 6000 / 2048.0
+            out[i] += y * (a >> 8) / 32768.0 * 6000 / 4096.0   # (>> 12: the engine's output scale since 2026-10-16)
         self.ph = [p0 % 4294967296.0, p1 % 4294967296.0, p2 % 4294967296.0, p3 % 4294967296.0]
         self.fb1, self.fb2 = fb1, fb2
         self.f, self.bh, self.bl, self.dc = fs, bh, bl, dc
@@ -863,7 +948,7 @@ def main():
     write_header()
     print("quad_ref: wrote", os.path.relpath(OUT_H, ROOT))
     os.makedirs(GOLD, exist_ok=True)
-    jobs = [("algo%d" % a, algo_patch(a)) for a in range(1, 9)] + list(PRESETS.items())
+    jobs = [("algo%d" % a, to_v4(algo_patch(a))) for a in range(1, 9)] + [(n, to_v4(p)) for n, p in PRESETS.items()]
     for name, p in jobs:
         fn, pk = golden(name, p)
         print("quad_ref: %-28s peak %7.0f" % (os.path.relpath(fn, ROOT), pk))

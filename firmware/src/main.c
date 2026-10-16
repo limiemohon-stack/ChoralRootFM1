@@ -72,7 +72,7 @@ void fm1_timer5_irq(void)
     static uint32_t sub, owed;
     uint32_t t0 = fm1_ticks(), usb_due = sub % 5u == 0u;
 #ifdef FM1_IRQ_TARGET
-    cr_prof_t5(t0, fm1_reti());                 /* (cr_cpu1.h: the longest stretch without this interrupt, and where) */
+    cr_prof_t5(t0, fm1_reti(), fm1_ms);               /* (cr_cpu1.h: the longest stretch without this interrupt, and where) */
 #endif
     fm1_timer5_ack();
     felucca_dbg.timer_irqs++;
@@ -128,6 +128,10 @@ extern void isr_timer5(void);
 
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
+#ifdef CR_SENSE_KEYS
+    fm1_an.drive = SN_DRIVE;                       /* the analog rows (docs/VELOCITY.md): the tick owns the converter */
+    fm1_an.con = FM1_ADC_CON_SCAN;
+#endif
     fm1_timer5_start(isr_timer5, 4);   /* above ALNK0 (3): the scan nests into the render (see fm1_timer5_irq) */
 }
 
@@ -230,6 +234,9 @@ static void dbg_boot(void)
     CR_STAGE(BS_GUARD);
 }
 
+/* the pot: the scan's sample once TIMER5 owns the converter (hal/fm1_input.h fm1_an; -1 until its first), the
+ * blocking read before (master_boot, under the splash) */
+#define MASTER_POT_READ() (fm1_an.con ? (fm1_an.mvalid ? (int32_t)fm1_an.master : -1) : fm1_adc_read(FM1_ADC_MASTER))
 #include "master.c"              /* the MASTER pot: read before the audio starts (0.19; Felucca 1.1.5, #137) */
 
 static void fm1_main(void)
@@ -257,12 +264,13 @@ static void fm1_main(void)
 #if CR_CPU1
     CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */
     cr_dbg.prof_on = 1;                                 /* the ISR's stage profile (cr_cpu1.h) */
-    if (!cr_safe)                                       /* the second core: at power-on, before the audio and the
+    cr_c1_power_on(cr_safe, (int)bootguard.counted);    /* the second core: at power-on, before the audio and the
                                                          * timers (started later it does not reach its entry: fm1-x0x,
                                                          * Melodee); no answer in 20 ms: one core (docs/DUALCORE.md).
                                                          * With Dual Core On the core rails go up first, IRQs still
-                                                         * off (hal/fm1_power.h, after Melodee PR 21) */
-        cr_c1_boot();
+                                                         * off (hal/fm1_power.h, after Melodee PR 21). Not in SAFE
+                                                         * MODE, and not when the boot before this one failed
+                                                         * (cr_cpu1.h cr_c1_power_on) */
 #endif
     CR_STAGE(BS_AUDIO);
     master_boot();                            /* the first block already at the knob's level (master.c) */
@@ -301,7 +309,7 @@ static void fm1_main(void)
         if (fm1_ms > BG_SETTLE_MS && bootguard.pending)  /* a crash or hang in the first 30 s counts */
             bootguard_settled(&bootguard);              /* (SAFE MODE stays for this session: cr_safe) */
         {
-            int32_t b = fm1_adc_read(FM1_ADC_BATT);     /* battery: slow IIR */
+            int32_t b = fm1_an.bvalid ? (int32_t)fm1_an.batt : -1;   /* battery (the scan's sample): slow IIR */
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
@@ -364,6 +372,7 @@ static void fm1_main(void)
 #if FELUCCA_CDC
         cdc_task();
 #endif
+        uint32_t ft0 = fm1_ticks();                   /* (3y60: the frame's own time, audio.c ui_ft) */
         felucca_dbg.ui_frames++;
         felucca_dbg.page = ui.page;
         felucca_dbg.home = ui.home;
@@ -373,6 +382,7 @@ static void fm1_main(void)
         felucca_dbg.stage = BS_LOOP_DRAW;
         ui_leds();
         ui_draw();
+        ui_ft_add(ft0);
         felucca_dbg.stage = BS_LOOP_IDLE;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
@@ -386,6 +396,9 @@ static void fm1_main(void)
 void fm1_cstart(void)
 {
     uint32_t *s, *d, p3, src, wdt, mode;
+#if CR_CPU1 && defined(FM1_HAVE_CPU1)
+    fm1_cpu1_halt();                            /* core 1 held before the RAM below is cleared (hal/fm1_cpu1.h) */
+#endif
     fm1_time_init();
     fm1_reset_reason();
     p3 = fm1_boot.p3_rst;

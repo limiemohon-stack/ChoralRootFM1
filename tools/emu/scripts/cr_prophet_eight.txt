@@ -1,0 +1,80 @@
+# ChoralRoot, P5 on two cores (0.22, HISTORY 3y46; docs/PROPHET.md "Voices"): tools/emu/test_cr.sh runs this on a fresh
+# unit (Options > Dual Core On, the default since 0.22: the emulator's core 1 runs its job inline), again with
+# EMU_C1=thread (the job on a second thread: the same WAV) and with EMU_C1=nostart (one core: four voices, a P5 bass
+# one). The chord part on P5 place 01, eight notes over MIDI (as cr_dualcore.txt's 13th), a ninth; then the bass part
+# on a UNISON program (@BASS@ - 1: its place in the shipped list, test_cr.sh puts it in): its stack of four alone, two
+# of it under a chord of six, none under a chord of eight (the chord first).
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: the chord part to P5 (place 01), on OPT's release
+wait 100
+btn GLO up
+wait 400
+dump                          # 1: P5, no voice
+midi 90 30 64                 # channel 1 (CHORD): eight notes
+midi 90 34 64
+midi 90 37 64
+midi 90 3A 64
+midi 90 3E 64
+midi 90 41 64
+midi 90 45 64
+midi 90 48 64
+wait 1500
+dump                          # 2: eight voices (two cores); four (one core)
+midi 90 4C 64                 # a ninth: the oldest held voice that is not the lowest note fades, the note after it
+wait 600
+dump                          # 3: eight still
+midi 80 30 00
+midi 80 34 00
+midi 80 37 00
+midi 80 3A 00
+midi 80 3E 00
+midi 80 41 00
+midi 80 45 00
+midi 80 48 00
+midi 80 4C 00
+wait 6000
+dump                          # 4: none
+btn ENV down                  # the bass part's engine: BASS held + EDIT, EDIT held: the engine picker
+wait 50
+btn EDIT
+btn ENV up
+wait 300
+btn EDIT 600
+wait 200
+knob SELECT +2                # the engine picker: VA (the bass part's default) -> CZ-1 -> P5
+wait 200
+btn OCT+                      # kept
+wait 200
+btn EDIT                      # the editor closed
+wait 200
+knob ALGORITHM +@BASS@        # OFF -> P5, the UNISON program (its place + 1)
+wait 400
+midi 91 26 64                 # channel 2 (BASS): D2, the stack
+wait 1000
+dump                          # 5: the bass part four voices (one core: one)
+midi 90 32 64                 # a chord of six over it
+midi 90 39 64
+midi 90 3E 64
+midi 90 42 64
+midi 90 45 64
+midi 90 49 64
+wait 1000
+dump                          # 6: the chord six, the bass two (one core: three and one)
+midi 90 4C 64                 # .. of eight
+midi 90 51 64
+wait 1000
+dump                          # 7: the chord eight, the bass none
+midi 80 32 00
+midi 80 39 00
+midi 80 3E 00
+midi 80 42 00
+midi 80 45 00
+midi 80 49 00
+midi 80 4C 00
+midi 80 51 00
+midi 81 26 00
+wait 3500
+dump                          # 8: none
+quit

@@ -9,6 +9,10 @@
 set -e
 cd "$(dirname "$0")/.."
 mkdir -p build/host
+# P5's factory header follows the shipped list (assets/prophet5-factory/shipped.txt; written only when its text changes)
+[ -d build/gen ] && python3 tools/gen_prophet_factory.py build/gen/melodee_prophet_factory.h >/dev/null
+# the compiled layouts (tools/gen_layout.py: written only when its text changes)
+[ -d build/gen ] && python3 tools/gen_layout.py build/gen/cr_layouts.h >/dev/null
 . tests/par.sh
 par_init build/host/jobs_cr
 trap 'par_kill' EXIT
@@ -39,6 +43,10 @@ t ./build/host/cr_bootguard_test
 par_build cc -std=c99 -Wall -Wextra -Wno-unused-function -Werror -pedantic -O1 -fsanitize=address,undefined -fno-sanitize-recover=all -o build/host/cr_stub_test tests/cr_stub_test.c
 t ./build/host/cr_stub_test
 t python3 tests/stub_pkg_test.py
+# the compiled layouts (build/gen/cr_layouts.h, firmware/src/cr_layout.h; docs/LAYOUT-TOOL.md "Step 4"): P5's rows as
+# a screen plan over pages of its own, its counts, every column's built-in address, every parameter once, the screens
+par_build cc -std=c11 -Wall -Wextra -Wno-unused-function -Werror -pedantic -O2 -Ibuild/gen -Ifirmware/src -o build/host/cr_layout_test tests/cr_layout_test.c
+t ./build/host/cr_layout_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_engine_test tests/cr_engine_test.c firmware/src/cr_engine.c
 t ./build/host/cr_engine_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_loop_test tests/cr_loop_test.c firmware/src/cr_loop.c firmware/src/cr_engine.c
@@ -56,17 +64,43 @@ par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_harmo
 t logged_last cr_harmony_bench
 par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_settings_test tests/cr_settings_test.c firmware/src/cr_settings.c firmware/src/cr_engine.c
 t ./build/host/cr_settings_test
+# the favourites' store (firmware/src/cr_favs.c on storage.c and a simulated NOR): set, clear, a power cycle, a torn
+# write, an unknown version, ids out of range (docs/PRESETS.md "Favourites")
+par_build cc -std=c11 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_favs_test tests/cr_favs_test.c
+t ./build/host/cr_favs_test
+par_build cc -O1 -Wall -Wno-unused-function -o build/host/cr_sense_test tests/cr_sense_test.c -lm
+t ./build/host/cr_sense_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -Ibuild/gen -o build/host/cr_va_test tests/cr_va_test.c -lm
 t ./build/host/cr_va_test
 # QUAD (docs/QUAD.md): blob, pages, ratios, the routings, against tests/quad_ref.py's goldens, envelopes, filters, LFOs,
 # presets; an int32 wrap aborts (the sanitizer). The CPU figure: tests/run_quad_test.sh
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -DFELUCCA_QUAD=1 -Ibuild/gen -o build/host/cr_quad_test tests/cr_quad_test.c -lm
 t ./build/host/cr_quad_test
+# FM TONE's pops (docs/QUAD.md "Pops"): every factory sound and INIT through eight scenarios (retriggers, chord changes,
+# steals, arps) at C2 and C4: no jump, no hole, no operator restarted under the voice's level, no wrap (the sanitizer)
+par_build cc -O2 -w -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -o build/host/quad_pops tests/quad_pops.c -lm
+t ./build/host/quad_pops check
+# FM TONE's times against the Digitone's (docs/QUAD.md "Times"): quad_times.h not stale, the amp envelope's times, the
+# proxy readings, the delay, the fade, through the measurement's own analysis (tools/digitone/dt_analyse.py; numpy)
+par_build cc -std=c99 -O2 -w -DFELUCCA_QUAD=1 -Ibuild/gen -o build/host/quad_render tools/digitone/quad_render.c -lm
+t python3 tools/digitone/test_quad_times.py
 par_build cc -std=c99 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_trans_test tests/cr_trans_test.c -lm
 t ./build/host/cr_trans_test
 # the bass part on the second core (firmware/src/cr_cpu1.h, docs/DUALCORE.md): the split bit for bit, the budgets, the fail-safes
 par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_cpu1_test tests/cr_cpu1_test.c -lm
 t ./build/host/cr_cpu1_test
+# .. the persistent fallback inert in the single-core package (CR_SINGLE_CORE 1), and the same record barring in the
+# standard one (docs/DUALCORE.md "The persistent fallback")
+par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -DCR_SINGLE_CORE=1 -o build/host/cr_c1_bar_1core_test tests/cr_c1_bar_1core_test.c
+t ./build/host/cr_c1_bar_1core_test
+par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -DCR_SINGLE_CORE=0 -o build/host/cr_c1_bar_std_test tests/cr_c1_bar_1core_test.c
+t ./build/host/cr_c1_bar_std_test
+# .. and that job on a real second thread (3y45): the inline job's samples for twelve pairs of engines (P5 on both
+# parts among them), no ThreadSanitizer report, and a planted shared word reported
+t sh tests/run_c1_thread_test.sh
+# the firmware's memset / memcpy / memcmp, a word at a time since 3y50 (firmware/src/libc.c): the host's bytes
+par_build cc -std=gnu11 -O2 -w -fno-builtin -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_libc_test tests/cr_libc_test.c
+t ./build/host/cr_libc_test
 # ChoralRoot's delay and reverb (firmware/src/cr_fx.c, docs/FX.md): the coefficients, tempo sync, the half rate's response
 # and noise, every corner stable and ending in exact silence, smooth parameter changes, the level against Felucca's
 # effects, mono, the cost; impulse responses for tools/fx_plots.py into build/fx-review
@@ -82,6 +116,16 @@ t align
 # backup / restore SysEx (cr_backup.c) on the emulator's firmware build (tools/emu/emu_firmware.h; macOS: os_unfair_lock)
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_backup_test tests/cr_backup_test.c -lm
 t ./build/host/cr_backup_test
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_pool_test tests/cr_pool_test.c -lm
+t ./build/host/cr_pool_test
+# the editor on P5's compiled rows (cr_pages.c cp_deep, cr_edit.c's screen plan; docs/LAYOUT-TOOL.md "Step 4"): the
+# layout's pages (copies of the built-in descriptors), its screens (EXPR after VOICE), every cell turned (the parameter at
+# its built-in address, edited, hot), empty slots inert, SELECT across lanes and screens
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_p5rows_test tests/cr_p5rows_test.c -lm
+t logged_last cr_p5rows_test
+# a full pool's browsing: no flash read on a frame, a detent reads only the sound it loads (3y60)
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_poolperf_test tests/cr_poolperf_test.c -lm
+t ./build/host/cr_poolperf_test
 # a restart asked over SysEx (72 RESTART, 77 STUB) leaves once the host has the reply: the device's ed_service and usb.c's
 # EP1 against a model of the SIE, the host and TIMER5 (the same firmware build, FELUCCA_OTA 1)
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_restart_test tests/cr_restart_test.c -lm
@@ -92,6 +136,13 @@ t logged_last cr_fm6_test
 # CZ-1 (Melodee's engine, docs/CZ1.md): Casio's tones, the blob, Casio SysEx, the banks, the deep pages, the tone store
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_cz_test tests/cr_cz_test.c -lm
 t logged_last cr_cz_test
+# P5 (Melodee's Prophet-5 engine, docs/PROPHET.md): Sequential's bank against its .syx, the blob, every shipped program
+# through voice.c, the four voices, UNISON (a load takes the program's), GLIDE, the bend, the deep pages, the pool, SAVE
+# refused; then the remix's three optimisations bit for bit (P5_STAGE36 0 / 1 / 2 / 4 / 7), the build with INIT alone
+# (FELUCCA_P5_FACTORY=0) and the shipped list (three lists: a program and a saved session are the same in each)
+par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_prophet_test tests/cr_prophet_test.c -lm
+t logged_last cr_prophet_test
+t sh tests/run_prophet_test.sh
 # Felucca #61 (1.0.3.1): DIGITAL -> FM6 conversion without a divide by zero (the JieLi compiler hoists a guarded
 # divide; a 0.9 ORGAN preset trapped at boot -> UBOOT). Felucca's own test, built with the divide-by-zero sanitizer.
 par_build cc -O1 -w -fsanitize=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o build/host/fm4_div0_test tests/fm4_div0_test.c -lm
@@ -117,7 +168,10 @@ par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/
 t logged_last cr_usbtap_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
 t ./build/host/cr_midi_test
-# the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md)
+# the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md), and their factory
+# tables the firmware's. Built with P5, as the unit is (3y80, the device manager's P5 tab; until then without it): the
+# clients hold P5's shipped programs (INIT P5, then assets/prophet5-factory/shipped.txt's list) and their Sequential
+# numbers, the favourites' keys; when the list changes this check says what to paste
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/sound_templates tests/sound_templates.c -lm
 t ./build/host/sound_templates --check web/fm1sounds.js tools/fm1_install.py
 

@@ -1,0 +1,139 @@
+# ChoralRoot 0.22: the naming page of Save as new with a cursor (docs/MANUAL.md "Saving"; the owner, 2026-10-13: "Select
+# knob should select character, knob 1 to change the letter at selected index, knob 4 CCW as a backspace, the other
+# knobs 2 and 3 in the name editor should not do anything", and "The cursor should always sit at the character you are
+# editing, not the next character"). tools/emu/test_cr.sh reads the "name:" and "save:" lines and the dumps.
+# On FM6 TINE EP (01):
+# 1. SAVE, OCT+: the naming page, "TINE EP" grey, the cursor on its last character, P (shot).
+# 2. the knobs that do nothing there: PRESETS +1, ALGORITHM +1, KNOB 2 +1, KNOB 3 +1, KNOB 4 +1, GLO held + PRESETS +1
+#    and + ALGORITHM +1: the screen pixel for pixel (shot), the sound, the engine, the bass, the tempo as they were
+#    (dumps 0 and 1).
+# 3. the knobs alone: KNOB 1 +1: the last letter at once, Q; -1: P. SELECT -1: the cursor on the second E (shot);
+#    KNOB 1 +1: F ("TINE FP", shot); SELECT -1 (on the space), KNOB 4 -1: the backspace in the middle, the space goes,
+#    the cursor on the E before it ("TINEFP"); SELECT +1 +1: on the last character; KNOB 4 -1: it goes ("TINEF");
+#    SELECT +1 from the last character: a new one, A, the cursor on it ("TINEFA"); KNOB 1 +2: C.
+# 4. the keys still type, after the cursor: D4: A appended ("TINEFCA"); SELECT -1 three times (on the E), E4: D in
+#    after it, the cursor on the D ("TINEDFCA", shot); F#4: the backspace takes it back ("TINEFCA", the cursor on E).
+# 5. the maximum: SELECT +1 three times to the last character, five more: five new characters, 12 in all
+#    ("TINEFCAAAAAA", shot); one more: nothing. KNOB 4 -1 nine times: "TIN". OCT+: saved, FM6 26 TIN (U01).
+# 6. an empty name: SAVE (Overwrite), SELECT +1 (Save as new), OCT+: "TIN"; KNOB 4 -1 three times: empty, no cursor
+#    (shot); OCT+: saved under the automatic name, as an empty name always was (dump 2).
+wait 300
+btn SAVE
+wait 300
+btn OCT+
+wait 300
+shot build/emu/test/cr_nm_open.ppm
+dump                              # 0
+knob PRESETS +1
+wait 50
+knob ALGORITHM +1
+wait 50
+knob KNOB2 +1
+wait 50
+knob KNOB3 +1
+wait 50
+knob KNOB4 +1
+wait 50
+btn GLO down
+wait 50
+knob PRESETS +1
+wait 50
+knob ALGORITHM +1
+wait 50
+btn GLO up
+wait 300
+shot build/emu/test/cr_nm_inert.ppm
+dump                              # 1
+knob KNOB1 +1
+wait 50
+knob KNOB1 -1
+wait 50
+knob SELECT -1
+wait 300
+shot build/emu/test/cr_nm_cursor.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_nm_letter.ppm
+knob SELECT -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob KNOB4 -1
+wait 50
+knob SELECT +1
+wait 50
+knob KNOB1 +2
+wait 50
+btn D4
+wait 1000
+knob SELECT -1
+wait 50
+knob SELECT -1
+wait 50
+knob SELECT -1
+wait 50
+btn E4
+wait 300
+shot build/emu/test/cr_nm_insert.ppm
+btn F#4
+wait 100
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_nm_full.ppm
+knob SELECT +1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 300
+shot build/emu/test/cr_nm_short.ppm
+btn OCT+
+wait 1800
+btn SAVE
+wait 300
+knob SELECT +1
+wait 100
+btn OCT+
+wait 300
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 -1
+wait 300
+shot build/emu/test/cr_nm_empty.ppm
+btn OCT+
+wait 1800
+dump                              # 2

@@ -35,12 +35,13 @@ has() { LC_ALL=C grep -aq "$1" "$2"; }
 if [ ! -x "$EMU" ] || [ -n "$(find tools/emu firmware/src tests/hostsim.c -newer "$EMU" -name '*.[ch]' 2>/dev/null | head -1)" ]; then
     sh tools/emu/build.sh || { echo "build failed"; exit 1; }
 fi
-# the pre-cut build: the firmware unit again with the five engines and PHYS on, the emulator's own objects as build.sh
-# left them
+# the pre-cut build: the firmware unit again with the five engines and PHYS on (and without PROPHET, which 0.17 had
+# not: with it the picker would show twelve engines, one more than the settings record has places for), the
+# emulator's own objects as build.sh left them
 if [ ! -x "$PRE" ] || [ "$EMU" -nt "$PRE" ] || [ "$0" -nt "$PRE" ]; then
     SDL_LIBS=$(/opt/homebrew/bin/sdl2-config --libs 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2")
     ${CC:-clang} -O2 -w -Ibuild/gen -Ifirmware/src '-DFELUCCA_VERSION="ChoralRoot 0.17"' -DFELUCCA_PHASE=1 -DFELUCCA_LOFI=1 \
-        -DFELUCCA_VOICE=1 -DFELUCCA_TRIO=1 -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1 -c tools/emu/emu_fw.c -o "$OBJ/emu_fw_precut.o" &&
+        -DFELUCCA_VOICE=1 -DFELUCCA_TRIO=1 -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1 -DFELUCCA_PROPHET=0 -c tools/emu/emu_fw.c -o "$OBJ/emu_fw_precut.o" &&
     ${CC:-clang} -o "$PRE" "$OBJ/emu.o" "$OBJ/keymap.o" "$OBJ/emu_img.o" "$OBJ/emu_midi.o" "$OBJ/emu_fw_precut.o" \
         $SDL_LIBS -lz -lm -framework CoreMIDI -framework CoreFoundation || { echo "pre-cut build failed"; exit 1; }
 fi
@@ -50,7 +51,7 @@ part0() { LC_ALL=C sed -n 's/^.*part 0: \([^,]*\).*$/\1/p' "$1" | tail -1; }
 
 echo "retired engines: a 0.17 unit's flash on 0.18"
 EMU_UI_LOG=1 "$PRE" --headless --flash "$FLASH" --script "$S/retired_set.txt" >"$OUT/retired_1.log" 2>&1 || bad "run 1: exit status"
-has '^engine: part 0 -> PHASE' "$OUT/retired_1.log" && has '^save: part 0 slot U01 name ADG' "$OUT/retired_1.log" &&
+has '^engine: part 0 -> PHASE' "$OUT/retired_1.log" && has '^save: part 0 slot U001 name ADG' "$OUT/retired_1.log" &&
     ok "run 1 (pre-cut): the chord part on PHASE, saved as U01 ADG" || bad "run 1: no PHASE sound saved"
 has 'part 0: NOISE /' "$OUT/retired_1.log" && has 'settings saves [1-9]' "$OUT/retired_1.log" &&
     ok "run 1 (pre-cut): the chord part parked on NOISE ($(part0 "$OUT/retired_1.log")), the settings saved" ||
@@ -85,7 +86,7 @@ rm -f "$PF" "$OUT"/physcut_1.log "$OUT"/physcut_2.log "$OUT"/physcut_3.log "$OUT
 part1() { LC_ALL=C sed -n 's/^.*part 1: \([^,]*\).*$/\1/p' "$1" | tail -1; }
 echo "retired engines: a 0.17 unit's flash with both parts on PHYS on 0.18"
 EMU_UI_LOG=1 "$PRE" --headless --flash "$PF" --script "$S/physcut_set.txt" >"$OUT/physcut_1.log" 2>&1 || bad "PHYS run 1: exit status"
-has '^select: part 0 engine PHYS pos 3' "$OUT/physcut_1.log" && has '^save: part 0 slot U01 name ADG' "$OUT/physcut_1.log" &&
+has '^select: part 0 engine PHYS pos 3' "$OUT/physcut_1.log" && has '^save: part 0 slot U001 name ADG' "$OUT/physcut_1.log" &&
     has '^select: part 1 engine PHYS pos 2' "$OUT/physcut_1.log" &&
     ok "PHYS run 1 (pre-cut): the chord part on PHYS, saved as U01 ADG; the bass on PHYS 02" || bad "PHYS run 1: no PHYS sound saved"
 has 'part 0: PHYS /' "$OUT/physcut_1.log" && has 'part 1: PHYS /' "$OUT/physcut_1.log" && has 'settings saves [1-9]' "$OUT/physcut_1.log" &&

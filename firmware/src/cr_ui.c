@@ -149,6 +149,10 @@ static int cu_has(const char *s, const char *w)                /* w occurs in s 
 }
 
 static const char *const CU_NOTE[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+static const char *const CU_SNAP[3] = {"Off", "Scale", "Chord"};   /* the KEY layer's Snap (cr_keysnap_t) */
+static const char *const CU_NUMS[3] = {"Off", "On", "Solf\350ge"};   /* .. its Numerals (cs.numerals; \350: e grave,
+                                                    * CRB's extra) */
+static const char *const CU_NUMS_TR[3] = {"off", "on", "solfege"};
 
 /* --------------------------------------------------------------- sounds --- */
 /* PRESETS turns through the pool of the chord part's engine (cr_bank.c pool_*), ALGORITHM the bass part's (position 0
@@ -446,7 +450,8 @@ static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1", "1/1", "1/2", "1/2T", "1
                                                  "1/16T", "1/32", "1/32T"};
 static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as played", "random"};
 
-/* FX (docs/FX.md): four effects on seven pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive).
+/* FX (docs/FX.md): four effects on eight pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
+ * Filter: the master filter of 0.22, cr_fx.c xq_block, whose four parameters are xfp[] too).
  * A PART has its sends (P_REV, P_CHOR, P_DLY) and its drive (P_DIST), no sound load touches them (but FM TONE's Drive,
  * which is the sound's: "FM TONE'S DRIVE IS ITS PRESET'S" below): the chord part's are
  * cs.fx_amt[] (cu_send / cu_send_set below: the ONE value the Sends page, the "Send" cell on KNOB 4 of an effect's
@@ -455,8 +460,9 @@ static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as pl
  * part's its track's. The effects' own parameters are GLOBAL: the delay's and the reverb's are cr_fx.c's xfp[], the
  * chorus's song.g; the session keeps them (cr_settings.c CSS_FXG) and no sound load touches them */
 #define CU_NFX 4u                         /* the effects (cs.fx_sel, cs.fx_amt) */
-#define CU_NFXP 7u                        /* SELECT's pages */
+#define CU_NFXP 8u                        /* SELECT's pages */
 #define CU_FXPG_SENDS 2u                  /* cs.fx_page: the Sends page (0, 1: cs.fx_sel's first and second page) */
+#define CU_FXPG_FILTER 3u                 /* .. the Filter page (as Sends: cs.fx_sel stays the effect last picked) */
 /* a cell: an xfp id (cr_fx.c XP_*), FC_G + a song.g id, or one of these */
 enum { FC_NONE = -1, FC_SEND = -2, FC_TIME = -3, FC_SPREAD = -4, FC_G = 64,     /* TIME, SPREAD: by Sync, the free or
                                                                                  * the synced parameter */
@@ -472,17 +478,21 @@ static const struct { uint8_t fx, page, of; int8_t c[4]; const char *label[4]; }
     {1, 0, 1, {FC_G + G_CRATE, FC_G + G_CDEPTH, XP_CWIDTH, FC_SEND}, {"Rate", "Depth", "Width", "Send"}},
     {2, 0, 2, {FC_TIME, FC_SPREAD, XP_DFDBK, FC_SEND}, {"Time", "Spread", "Feedback", "Send"}},
     {2, 1, 2, {XP_DSYNC, XP_DMODE, XP_DTONE, XP_DWOW}, {"Sync", "Mode", "Tone", "Wow"}},
-    {3, 0, 1, {FC_NONE, FC_NONE, FC_NONE, FC_SEND}, {"", "", "", "Send"}}};
+    {3, 0, 1, {FC_NONE, FC_NONE, FC_NONE, FC_SEND}, {"", "", "", "Send"}},
+    /* the master filter (0.22, GitHub issue 16; cr_fx.c "The master filter"): the last page, as it is last in the
+     * chain. Filter on KNOB 4 is its On / Off; a cutoff turned switches it (and FX) on, as a send does */
+    {0, CU_FXPG_FILTER, 1, {XP_FLOW, XP_FHIGH, XP_FSLOPE, XP_FON}, {"Low cut", "High cut", "Slope", "Filter"}}};
 static const char *const CU_XDIV[XF_NDIV] = {"1/32", "1/16T", "1/32.", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.",
                                              "1/4", "1/2T", "1/4.", "1/2"};      /* cr_fx.c XF_DIV's order */
 static const char *const CU_BASSMODE[4] = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"};
-static const char *const CU_VIEW[5] = {"Chord", "Keyboard", "Notes", "Geek Out", "Scope"};
+static const char *const CU_VIEW[6] = {"Chord", "Keyboard", "Notes", "Geek Out", "Scope", "Geek Out 2"};
 static const char *const CU_LOOPLEN[6] = {"Free", "1 bar", "2 bars", "4 bars", "8 bars", "16 bars"};
 static const char *const CU_SIG[CRL_NSIG] = {"4/4", "3/4", "6/8"};
 static const char *const CU_QUANT[CRL_NQUANT] = {"none", "1/4", "1/8", "1/8T", "1/16", "1/16T", "1/32"};
 static const char *const CU_LOOP_MODE[CRL_NMODE] = {"Overwrite", "Advance", "Overdub", "Replace", "Step"};
 static const char *const CU_RATE[CRL_NRATE] = {"x1/16", "x1/12", "x1/8", "x1/6", "x1/4", "x1/2", "x3/4", "x1", "x1.5", "x2", "x4"};
-enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_SCOPE, V_N };
+enum { V_CHORD, V_KEYBOARD, V_NOTES, V_GEEK, V_SCOPE, V_GEEK2, V_N };   /* (saved: cr_settings.h CRS_VIEW; a new
+                                                                         * view goes last, a record keeps its meaning) */
 
 static struct {
     uint8_t playstyle, extadd, secret, key_on, tonic, scale, single, vel;
@@ -514,8 +524,12 @@ static struct {
                                            * roots out of the scale and generates no chord; v14) */
     uint8_t kbd_full;                     /* .. Keyboard: 0 Chords (the chord block + 18 roots), 1 Full (27 single-note
                                            * keys, no chord block, no LOCK; v14) */
+    uint8_t snap;                         /* .. Snap (KNOB 3; 0.22, cr_keysnap_t): with Key plays Notes / the Full
+                                           * keyboard a root out of the scale plays the nearest note of the scale (1)
+                                           * or of the chord sounding (2) instead of nothing (0, the default) */
     uint8_t numerals;                     /* .. Numerals (KNOB 4; 0.22): 1 = the Chord view shows the sounding chord's
-                                           * Roman numeral above its name (cu_numeral); 0 Off, the default */
+                                           * Roman numeral above its name (cu_numeral); 2 (GitHub issue 15) the same
+                                           * degree as a solfege syllable there; 0 Off, the default */
     uint8_t lock_keep, lock_push;         /* the LOCK layer (B3 held; v13): a type key keeps the latched extensions
                                            * (0: clears them, today's); the extension keys are pushed as the type
                                            * keys are (0: toggles, today's) */
@@ -527,6 +541,9 @@ static struct {
                                            * default: 44.1 kHz only, 0.18's device (usb.c UA_OFF_48) */
     uint8_t names_std;                    /* Options > Chord Names (0.20): 1 Standard, 0 Orchid, the default
                                            * (cr_engine.c cr_chord_names_set; docs/CHORD-NAMES.md) */
+    uint8_t touch, vel_sens, at_sens;     /* Options > Key Touch (0 Fixed, 1 Dynamic, 2 Velocity + Aftertouch), Velocity
+                                           * Sens and Aftertouch Sens (0 Mid, 1 Low, 2 High): docs/VELOCITY.md */
+    int8_t vel_curve;                     /* Options > Velocity Curve -3 .. +3 (0: Velo's 0.7; the map's exponent x 2^(0.2 k)) */
     uint8_t sixth_up;                     /* Options > 6th with 7th (0.20): 1 Octave up, 0 In place, the default
                                            * (cr_engine.c cr_set_sixth_up; docs/CHORD-NAMES.md) */
 } cs;
@@ -536,6 +553,8 @@ static void cr_settings_save(void);       /* .. the automatic part now (Felucca'
 static void cr_settings_reset(void);      /* .. Options > Reset Settings: the defaults, applied and saved */
 static int cr_settings_commit(void);      /* .. the global save (SAVE held): the whole block and the session */
 static void cr_settings_revert(void);     /* .. GLO + SAVE: what the last global save wrote, applied again */
+static void cr_settings_dc_off(void);     /* .. Dual Core Off after core 1 was given up (cr_cpu1.h), saved */
+static void cr_settings_dc_user(void);    /* .. the player set Dual Core: the record's from here on */
 #endif
 static uint8_t cr_restore_lock;            /* cr_backup.c: a settings record was restored into flash; the UI's state is
                                             * older, so no settings save until the restart (RESTART, or a power cycle) */
@@ -734,7 +753,9 @@ static uint32_t cu_fx_pg(void)
     uint32_t i, first = 1;
     if (cs.fx_page == CU_FXPG_SENDS)
         return 0;
-    for (i = 1; i < CU_NFXP; i++)
+    if (cs.fx_page == CU_FXPG_FILTER)
+        return CU_NFXP - 1u;
+    for (i = 1; i + 1u < CU_NFXP; i++)
         if (CU_FXP[i].fx == cs.fx_sel % CU_NFX) {
             if (CU_FXP[i].page == cs.fx_page)
                 return i;
@@ -742,6 +763,10 @@ static uint32_t cu_fx_pg(void)
                 first = i;
         }
     return first;
+}
+static const char *cu_fx_pgname(void)             /* the page's name: the effect's, Sends, Filter (the traces, the dump) */
+{
+    return cs.fx_page == CU_FXPG_SENDS ? "Sends" : cs.fx_page == CU_FXPG_FILTER ? "Filter" : CU_FX[cs.fx_sel % CU_NFX].name;
 }
 /* a cell's parameter: the delay's Time and Spread are the synced or the free one (both kept: Sync changes which) */
 static int32_t cu_fx_id(int32_t c)
@@ -752,6 +777,17 @@ static void cu_fx_unit(char *out, uint32_t v, const char *unit, uint32_t n)   /*
 {
     cu_int(out, (int32_t)v, 0, n);
     cu_cat(out, unit, n);
+}
+static void cu_fx_hz(char *out, uint32_t hz, uint32_t n)   /* "130 Hz", "2.1 kHz", "16.6 kHz" */
+{
+    if (hz < 1000u) {
+        cu_fx_unit(out, hz, " Hz", n);
+        return;
+    }
+    cu_int(out, (int32_t)(hz / 1000u), 0, n);
+    cu_cat(out, ".", n);
+    cu_int(out + (hz >= 10000u ? 3u : 2u), (int32_t)(hz % 1000u / 100u), 0, n - 3u);
+    cu_cat(out, " kHz", n);
 }
 /* a parameter's value as the knob row shows it: its unit where it has one ("250 ms", "1/8.", "2.4 s", "130 Hz",
  * "0.80 Hz"), a name ("Stereo"), else the number 0..127 */
@@ -805,6 +841,20 @@ static void cu_fx_val(int32_t id, char *out, uint32_t n)
         break;
     case XP_RPRE: cu_fx_unit(out, xf_pre_ms((uint32_t)v), " ms", n); break;
     case XP_RLOW: cu_fx_unit(out, xf_lowcut_hz((uint32_t)v), " Hz", n); break;
+    case XP_FLOW:                                 /* the master filter's: Off at the bottom */
+        if (v <= 0)
+            cu_cpy(out, "Off", n);
+        else
+            cu_fx_hz(out, xq_low_hz((uint32_t)v), n);
+        break;
+    case XP_FHIGH:                                /* .. Off at the top */
+        if (v >= 127)
+            cu_cpy(out, "Off", n);
+        else
+            cu_fx_hz(out, xq_high_hz((uint32_t)v), n);
+        break;
+    case XP_FSLOPE: cu_cpy(out, v ? "12 dB" : "6 dB", n); break;
+    case XP_FON: cu_cpy(out, v && cs.fx_on ? "On" : "Off", n); break;   /* (FX off: the filter is out, as a send) */
     default: cu_int(out, v, 0, n); break;
     }
 }
@@ -839,6 +889,9 @@ static void cu_fx_glyph(int32_t c0, cr_cell_t *c)
     case XP_DMODE: c->glyph = CR_G_PING; break;   /* two straight paths, or one bouncing between the walls */
     case XP_DTONE: c->glyph = CR_G_MOON; break;
     case XP_DWOW: c->glyph = CR_G_LFO; c->pct = 20; c->pct2 = (uint8_t)q; break;
+    case XP_FLOW: c->glyph = CR_G_CUT; break;     /* the master filter: the low cut's corner, the high cut's moon
+                                                   * (full: open); Slope and Filter are text */
+    case XP_FHIGH: c->glyph = CR_G_MOON; break;
     case FC_G + G_CRATE: case FC_G + G_CDEPTH:    /* rate, depth (0..127) */
         c->glyph = CR_G_LFO;
         c->pct = (uint8_t)((uint32_t)song.g[G_CRATE] * 255u / 127u);
@@ -854,8 +907,8 @@ static void cu_fx_glyph(int32_t c0, cr_cell_t *c)
  * the sound editor's FX group (cr_edit.c ce_text, ce_knob), either part's.
  * The scale: per cent of the stored 0..127, rounded to the nearest (params.c param_format's F_PCT, as the editor
  * always read it): 0 is 0 %, 127 is 100 %, and only they are.
- * The step: 6 of 127 a detent, about 5 % (cp_dstep's (range + 10) / 20, the editor's), clamped, so both ends are
- * reached exactly; fine (the editor's SHIFT): 1 */
+ * The step: the knob's speed (cr_pages.c kn_lin: 1 of 127 a slow detent, up to 5 a quick one), clamped, so both
+ * ends are reached exactly; snap (OPT held, the editor's SHIFT): 0 16 32 .. 112 127 (cu_kval) */
 static uint32_t cu_send_pct(int32_t v)
 {
     v = v < 0 ? 0 : v > 127 ? 127 : v;
@@ -866,10 +919,15 @@ static void cu_send_text(int32_t v, char *out, uint32_t n)       /* "46%" */
     cu_int(out, (int32_t)cu_send_pct(v), 0, n);
     cu_cat(out, "%", n);
 }
-static int32_t cu_send_step(int32_t v, int32_t s, uint32_t fine)
+/* a knob's value lo .. hi stepped s detents: at the knob's speed, or snapped (OPT held: cr_pages.c kn_snap_rng on the
+ * range's grid, kn_grid_rng). The values of the layers and the main view that have no descriptor */
+static int32_t cu_kval(int32_t v, int32_t s, int32_t lo, int32_t hi, uint32_t snap)
 {
-    v += s * (fine ? 1 : 6);
-    return v < 0 ? 0 : v > 127 ? 127 : v;
+    return snap ? kn_snap_rng(v, s, lo, hi, kn_grid_rng(lo, hi, lo < 0), 0) : kn_lin(v, s, lo, hi);
+}
+static int32_t cu_send_step(int32_t v, int32_t s, uint32_t snap)
+{
+    return cu_kval(v, s, 0, 127, snap);
 }
 /* the effect a cell of page pg sends into: its "Send" cell's, a cell of the Sends page's; -1: another cell */
 static int32_t cu_fx_send_of(uint32_t pg, int32_t c0)
@@ -947,7 +1005,7 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 }
 
 /* ------------------------------------------------------------- Options --- */
-enum { O_STYLE, O_EXTADD, O_SECRET, O_SIXTH, O_VEL, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
+enum { O_STYLE, O_EXTADD, O_SECRET, O_SIXTH, O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
        O_CLOCK, O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT, O_VERSION,
        O_CALIB,
        O_RESET,                           /* Reset Settings: the last entry of a normal session */
@@ -955,12 +1013,12 @@ enum { O_STYLE, O_EXTADD, O_SECRET, O_SIXTH, O_VEL, O_BASSMODE, O_SINGLE, O_SPLI
        O_N };
 #define O_N_NORMAL O_SAFE                 /* Safe Mode and Flash Data: listed in SAFE MODE only (core.h cr_safe) */
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords", "6th with 7th",
-    "Velocity",
+    "Velocity", "Key Touch", "Velocity Sens", "Velocity Curve", "Aftertouch Sens",
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
     "MIDI Clock", "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
     "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 127, 3, 2, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1,
+static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 127, 3, 2, 6, 2, 3, 2, 11, 16, 16, 16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1,
                                    1, 1, 0, 0, 0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
@@ -972,6 +1030,19 @@ static uint8_t cu_reset_ask;              /* Options > Reset Settings: OCT+ pres
  * the new configuration; never under a SysEx transfer). USB Record Off: the serial console instead (usb.c
  * usb_cdc_on). USB Rate (0.19, the owner 2026-10-12): 44.1 kHz, the default, is 0.18's device; 44.1 + 48 kHz adds
  * the second rate for the computer to choose. The emulator has no USB: the settings are kept and saved only */
+/* Options > Key Touch and the sensitivities to the engine (mod.c cr_touch_*) and the scan (the driven samples off
+ * with it Fixed: hal/fm1_input.h fm1_an.drive); docs/VELOCITY.md */
+static void cu_touch_apply(void)
+{
+    cr_touch_mode = cs.touch;
+    cr_touch_vsens = cs.vel_sens;
+    cr_touch_atsens = cs.at_sens;
+#ifdef CR_SENSE_KEYS
+    cr_touch_curve = (uint8_t)(cs.vel_curve + 3);
+    fm1_an.drive = cs.touch ? SN_DRIVE : 0u;
+    fm1_an.probe = cs.touch ? 1u : 0u;             /* the top row's probe: a third frame phase while the keys sense */
+#endif
+}
 static void cu_usb_apply(void)
 {
     fx_usb_fixed = cs.usb_fixed;
@@ -989,6 +1060,10 @@ static int32_t opt_get(uint32_t o)
     case O_SECRET: return cs.secret;
     case O_SIXTH: return cs.sixth_up;
     case O_VEL: return cs.vel;
+    case O_TOUCH: return cs.touch;
+    case O_VSENS: return cs.vel_sens;
+    case O_VCURVE: return cs.vel_curve + 3;
+    case O_ATSENS: return cs.at_sens;
     case O_BASSMODE: return cs.bass_mode;
     case O_SINGLE: return cs.single;
     case O_SPLIT: return cs.split;
@@ -1017,6 +1092,10 @@ static void opt_set(uint32_t o, int32_t v)
     case O_SECRET: cs.secret = (uint8_t)v; cr_post(CRE_SECRET, 0, 0, v); break;
     case O_SIXTH: cs.sixth_up = (uint8_t)v; cr_post(CRE_SIXTH, 0, 0, v); break;   /* (the chords built from now on) */
     case O_VEL: cs.vel = (uint8_t)v; break;
+    case O_TOUCH: cs.touch = (uint8_t)v; cu_touch_apply(); break;
+    case O_VSENS: cs.vel_sens = (uint8_t)v; cu_touch_apply(); break;
+    case O_VCURVE: cs.vel_curve = (int8_t)(v - 3); cu_touch_apply(); break;
+    case O_ATSENS: cs.at_sens = (uint8_t)v; cu_touch_apply(); break;
     case O_BASSMODE: cs.bass_mode = (uint8_t)v; cr_post(CRE_BASS_MODE, 0, 0, v); break;
     case O_SINGLE: cs.single = (uint8_t)v; cu_post_single(); break;
     case O_SPLIT: cs.split = (uint8_t)v; cu_post_single(); break;
@@ -1031,10 +1110,58 @@ static void opt_set(uint32_t o, int32_t v)
     case O_USB_IN: cs.usb_in = (uint8_t)v; cu_usb_apply(); break;
     case O_USB_LEVEL: cs.usb_fixed = (uint8_t)v; cu_usb_apply(); break;
     case O_USB_RATE: cs.usb48 = (uint8_t)v; cu_usb_apply(); break;
-    case O_DUALCORE: cs.dualcore = (uint8_t)v; break;   /* saved; core 1 starts (or not) at the next power-on */
+    case O_DUALCORE:                                  /* saved; core 1 starts (or not) at the next power-on. The
+                                                       * single-core package: not a setting (the record keeps what
+                                                       * it holds, for the standard package) */
+        if (CR_SINGLE_CORE)
+            break;
+        cs.dualcore = (uint8_t)v;
+        cr_c1_barred = 0;                             /* (the player decided: no word of the bar any more) */
+#if CR_HAVE_SETTINGS
+        cr_settings_dc_user();
+#endif
+        break;
     case O_OUTPUT: cs.out_clean = (uint8_t)v; fx_output_set((uint32_t)v, 0); break;   /* (fx.c: faded over) */
     default: break;
     }
+}
+/* The unit's ID (HISTORY 3y66, docs/INSTALL-COMPAT.md "Several FM-1s"): 8 hex digits, the CRC-32 of the flash's
+ * 128-bit unique ID, which the device reads once at power-on (cr_shim.c persist_boot); "" when there is none (the
+ * emulator, SAFE MODE, a flash that answers no ID). Read only: INFO's tag 49 08 (cr_backup.c) and the line under
+ * Options > Version's value say it; tools/fm1_install.py --unit and the web pages pick a unit by it */
+static char cr_unit_id[9];
+#if FELUCCA_FLASH
+/* the flash's 16 bytes (fm1_flash.h fl_uid_ram) -> cr_unit_id: their CRC-32 (storage.c's, zlib's) as 8 hex digits.
+ * Sixteen equal bytes (00 or FF: a part that answers no ID) are no ID */
+static void cr_unit_id_set(const uint8_t *u)
+{
+    static const char HEX[] = "0123456789ABCDEF";
+    uint32_t i, c;
+    cr_unit_id[0] = 0;
+    for (i = 1; i < 16u && u[i] == u[0]; i++)
+        ;
+    if (i == 16u)
+        return;
+    c = st_crc32(u, 16u);
+    for (i = 0; i < 8u; i++)
+        cr_unit_id[i] = HEX[(c >> (28u - 4u * i)) & 15u];
+    cr_unit_id[8] = 0;
+}
+#endif
+
+/* Options > Version's value (the owner, 2026-10-14; HISTORY 3y64): v whole when it fits n (the value line is
+ * cr_screen.h's value[24]: 23 characters), else without its leading "ChoralRoot ": the single-core beta's
+ * ChoralRoot 0.22-beta1 1-core (28) reads 0.22-beta1 1-core. Still too long: cut, as cu_cpy cuts. The display
+ * alone: the INFO reply over SysEx, the backups, the splash keep CR_VERSION whole */
+static void cu_version_text(char *d, const char *v, uint32_t n)
+{
+    static const char PFX[] = "ChoralRoot ";
+    uint32_t len = 0;
+    while (v[len])
+        len++;
+    if (len >= n && len > sizeof PFX - 1u && !memcmp(v, PFX, sizeof PFX - 1u))
+        v += sizeof PFX - 1u;
+    cu_cpy(d, v, n);
 }
 static void opt_text(uint32_t o, char *d, uint32_t n)
 {
@@ -1053,6 +1180,9 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_SECRET: cu_cpy(d, SECRET[v % 3], n); break;
     case O_SIXTH: cu_cpy(d, v ? "Octave up" : "In place", n); break;
     case O_VEL: cu_int(d, v, 0, n); break;
+    case O_TOUCH: cu_cpy(d, v == 3 ? "Vel + Poly AT" : v == 2 ? "Vel + Aftertouch" : v ? "Dynamic" : "Fixed", n); break;
+    case O_VSENS: case O_ATSENS: cu_cpy(d, v == 2 ? "High" : v ? "Low" : "Mid", n); break;
+    case O_VCURVE: cu_int(d, v - 3, 1, n); break;
     case O_BASSMODE: cu_cpy(d, CU_BASSMODE[v & 3], n); break;
     case O_SINGLE: cu_cpy(d, v == 2 ? "Split Bass" : v ? "Split Oct" : "Full Octave", n); break;
     case O_SPLIT: cu_cpy(d, CU_NOTE[v % 12], n); cu_cat(d, cs.single ? "" : " (Split off)", n); break;
@@ -1070,9 +1200,12 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_USB_IN: cu_cpy(d, ONOFF[v & 1], n); break;
     case O_USB_LEVEL: cu_cpy(d, v ? "Fixed" : "Master", n); break;
     case O_USB_RATE: cu_cpy(d, v ? "44.1 + 48 kHz" : "44.1 kHz", n); break;
-    case O_DUALCORE: cu_cpy(d, ONOFF[v & 1], n); cu_cat(d, (v & 1) == !cr_c1_off ? "" : " \267 restart", n); break;
+    case O_DUALCORE:
+        if (CR_SINGLE_CORE) { cu_cpy(d, "1 core build", n); break; }   /* (the single-core package: unavailable) */
+        cu_cpy(d, ONOFF[v & 1], n); cu_cat(d, (v & 1) == !cr_c1_off || cr_c1_barred ? "" : " \267 restart", n);
+        break;
     case O_OUTPUT: cu_cpy(d, v ? "Clean" : "Classic", n); break;
-    case O_VERSION: cu_cpy(d, CR_VERSION, n); break;
+    case O_VERSION: cu_version_text(d, CR_VERSION, n); break;
     case O_CALIB: cu_cpy(d, "OCT+ starts", n); break;
     case O_RESET: cu_cpy(d, cu_reset_ask ? "OCT+ again: reset" : "all options to default", n); break;
     case O_SAFE: cu_cpy(d, "flash data skipped", n); break;
@@ -1133,6 +1266,11 @@ static struct {
                                            * (Ratchet, Condition, Voicing); the first whenever it opens */
     uint8_t mlatch, mkill;                /* bit cr_mod_t: latched by LOCK; toggled off by this press (its release
                                            * does nothing) */
+    uint32_t kpend;                       /* key bits debounced down and waiting for their velocity (cu_scan_keys) */
+    uint32_t kpend_t0[CU_NKEY];           /* .. since (cu_now) */
+    uint8_t ctx_vel;                      /* the keys' recent velocity (0: none yet): what a sensed key whose reading
+                                           * did not come plays at (docs/VELOCITY.md "the top row") */
+    uint8_t last_vel, last_at;            /* the last key's velocity and the aftertouch now (GEEK OUT 2's line) */
     uint8_t key_note[CU_NKEY];            /* root keys (the Full keyboard: every key): note + 1 sent; 0xFF: the
                                            * layer's / a picker's; 0: not pressed, or pressed as a chord key */
     int8_t octave;
@@ -1146,9 +1284,12 @@ static struct {
     uint8_t sx_off;                       /* SysEx 74 SCREEN 0: off until SysEx on or a key, button or knob */
     uint32_t home_t0;                     /* HOME pressed (held CU_HOME_HOLD_MS: the view menu) */
     uint8_t home_hold;                    /* .. armed (pressed alone, the menu not opened yet) */
-    struct { uint32_t until; uint8_t kind, col, segs, jump, mark, pool; uint16_t pct; char value[8], sub[12], label[32], over[16]; } pop;
+    struct { uint32_t until; uint8_t kind, col, segs, jump, mark, pool, star, filt; uint16_t pct; char value[8], sub[12 + FELUCCA_PROPHET], label[32], over[16]; } pop;
                                           /* over: the line over the value, in orange (a pool's read-out on the home
-                                           * pages: the part's engine) */
+                                           * pages: the part's engine). sub: a pool's read-out puts the sound's name
+                                           * there, and 12 bytes cut a 12-character name's last ("ENSEMBLE ST", "FOREVER
+                                           * KEY"): 13 with PROPHET, whose programs made it plain (FELUCCA_PROPHET 0: the
+                                           * image as it was, byte for byte; to be 13 for all when the switch goes) */
                                           /* pool: CU_POOL_ID of a pool's read-out (0: another meter) */
                                           /* jump: the meter's bar jumps to the value (no fill: the picker's preview);
                                            * mark: the square after the name (an overwritten factory preset) */
@@ -1171,7 +1312,8 @@ static struct {
     uint16_t from_pct, shown_pct[4];      /* the turned glyph's tween: from, and what each column last showed */
     uint8_t from_env[4], shown_env[4][4];
     uint8_t save_part, slot, save_from_edit;   /* SAVE: the part saved, the slot written (Save as new: the free one) */
-    uint8_t save_step, save_choice;       /* 0 the choice (save_choice 0 Overwrite, 1 Save as new), 1 the naming page */
+    uint8_t save_step, save_choice;       /* 0 the menu (save_choice 0 Overwrite, 1 Save as new, 2 Favorite: CU_SAVE_FAV,
+                                           * 3 Favorites filter, 4 Favorite type), 1 the naming page */
     uint8_t save_pos;                     /* Save as new: the place in the pool it takes ("FM6 \267 27") */
     uint8_t del_ask;                      /* SAVE held 1 s in the dialog on a user preset: 1 "delete?", 2 "reset to
                                            * factory?" (an overwritten factory preset); OCT+ does it, OCT- keeps */
@@ -1193,6 +1335,11 @@ static int ce_button(uint32_t b, uint32_t ev);
 static void ce_leds(uint8_t *nl, uint32_t blink);
 static void cu_led(uint8_t *nl, uint32_t id, int on);
 static void cu_save_open(uint32_t part);
+#define CU_SAVE_FAV 2u                    /* the SAVE menu's third entry: Favorite (the sound's mark; nothing is saved) */
+#define CU_SAVE_FILT 3u                   /* .. the fourth: Favorites filter (Off / On: PRESETS turns through favourites) */
+#define CU_SAVE_TYPE 4u                   /* .. the fifth: Favorite type (Both / Chord / Bass: where the filter shows it) */
+#define CU_SAVE_N 5u
+static int cu_save_favonly(uint32_t part);
 static void cu_save_close(void);
 static void cu_save_commit(void);
 static void cu_save_delete(void);
@@ -1521,6 +1668,7 @@ static const uint8_t CU_HM_APPR_OF[CR_NMOD] = {    /* cr_mod_t -> CR_HAPP_* */
 static const char *const CU_HM_COL_NAME[CR_HCOL_N] = {"bare", "triads", "jazz", "lush", "quartal", "altered", "upper"};
 static const char *const CU_HM_APPR_NAME[CR_HAPP_N] = {"slide in", "its dominant", "dim lead-in", "tritone sub"};
 static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato);
+static uint32_t cu_key_vel(uint32_t k);
 static void cu_hm_btn_pick(void)                 /* after a button goes up: another still held of its kind counts */
 {
     uint32_t i;
@@ -1619,7 +1767,14 @@ static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato)
     cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)lq << 4) | lx), nv);
     for (i = 0; i < (uint32_t)nv; i++)
         cr_post(CRE_HNOTE, i, notes[i], 0);
-    cr_post(CRE_HKEY, n, cs.vel, legato ? 2 : 1);   /* (a key pressed again strikes again; a turn is legato) */
+    {
+        uint32_t vel = legato ? (cu.last_vel ? cu.last_vel : cs.vel) : cu_key_vel(k);   /* (a turn: the chord's own) */
+        if (!legato) {
+            cu.last_vel = (uint8_t)vel;
+            cu_trace("touch: key %u vel %u (harmony)\n", (unsigned)k, (unsigned)vel);
+        }
+        cr_post(CRE_HKEY, n, vel, legato ? 2 : 1);   /* (a key pressed again strikes again; a turn is legato) */
+    }
     cu_hm_set_cur(e.root_pc, lq, lx, notes, (uint32_t)nv);
     cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 b9, D/C ..) */
     cu_cpy(cu_hm.cur.qual, nm_q, sizeof cu_hm.cur.qual);
@@ -1654,6 +1809,40 @@ static void cu_hm_frame(void)
     }
     cu_hm.seen = *ci;
 }
+/* storage_hw.c st_erase (78 PEAK erases_near): an erase the unit starts by itself now would be near playing: a voice
+ * of the parts is active, the engine holds a chord or has a note scheduled, or the last input (a key, a button, a
+ * knob, a MIDI message: the screensaver's clock) is less than 2 s old */
+static inline int cr_erase_near(void)
+{
+    return cr_parts_busy() || cr_snap.voices || cr_snap.pending || (uint32_t)(cu_now() - cu.last_input) < 2000u;
+}
+
+/* the keys' aftertouch, every 5 ms (cr_ui_input and the pump): the highest pressure among the held keys that play
+ * (cr_sense.c cr_sense_at), posted to the engine when it changes (CRE_AT: both parts, channel pressure out) */
+static void cu_touch_poll(void)
+{
+#ifdef CR_SENSE_KEYS
+    static uint32_t last_ms;
+    static uint8_t sent;
+    uint32_t now = cu_now(), k, v = 0;
+    if (now - last_ms < 5u)
+        return;
+    last_ms = now;
+    if (cs.touch >= CR_TOUCH_VEL_AT) {
+        cr_sense_pressure_poll(now, cs.at_sens);
+        for (k = 0; k < CU_NKEY; k++)
+            if (((CR_SENSE_AT_KEYS >> k) & 1u) && ((cu.kheld >> k) & 1u) && cu.key_note[k] && cu.key_note[k] != 0xFFu &&
+                cr_sense_at[k] > v)
+                v = cr_sense_at[k];
+    }
+    if (v != sent) {
+        sent = (uint8_t)v;
+        cu.last_at = (uint8_t)v;
+        cr_post(CRE_AT, 0, 0, (int32_t)v);
+        cu_trace("touch: at %u\n", (unsigned)v);
+    }
+#endif
+}
 /* the Full keyboard's split point is a KEY: F4, the second F (key 12: F3..E4 left, F4..G5 right; the owner's,
  * 2026-10-11), fixed: the stored split point (cs.split, OPT + KNOB 1) is a pitch class and stays the Chords layout's,
  * untouched (Split Oct and Split Bass there: the roots whose pitch class is below it, in every octave). The engine
@@ -1687,6 +1876,8 @@ static void cu_popup(const char *value, const char *sub, const char *label, uint
     cu.pop.kind = PU_METER;
     cu.pop.jump = 0;
     cu.pop.mark = 0;
+    cu.pop.star = 0;
+    cu.pop.filt = 0;
     cu.pop.pool = 0;
     cu.pop.over[0] = 0;
     cu_cpy(cu.pop.value, value, sizeof cu.pop.value);
@@ -1786,6 +1977,189 @@ static int cu_epk_ok(uint32_t part)
         return 0;
     return 1;
 }
+/* ---- favourites (cr_favs.c; docs/PRESETS.md "Favourites"): the mark's key of a sound. A pool entry: a factory preset
+ * (the engine, its index in the engine's table; P5: the program's Sequential number), a record that overwrites one
+ * (the same key: the same place in the pool), an added record (its slot); INIT: none, 0 */
+static int cu_fav_key(uint32_t e, uint32_t kind, uint32_t fk, uint32_t slot, uint32_t *tag, uint32_t *id)
+{
+    e %= NENGINES;
+    if (kind == PK_USER && fk == PF_NONE) {
+        *tag = CRF_T_USER;
+        *id = slot;
+        return slot < UP_SLOTS && up_used(slot);
+    }
+    if (kind != PK_FACTORY && kind != PK_USER)
+        return 0;
+    *tag = e;
+    *id = fk;
+#if FELUCCA_PROPHET
+    if (e == ENGI_PROPHET) {
+        *id = p5_preset_id(fk);
+        return *id != 0u;
+    }
+#endif
+    return 1;
+}
+static int cu_fav_ent(uint32_t e, pool_ent_t en)   /* the pool entry is marked */
+{
+    uint32_t tag, id;
+    return cu_fav_key(e, en.kind, en.fk, en.slot, &tag, &id) && crf_has(tag, id);
+}
+/* the part's sound, as it is now: the entry it came from, edited or not (an edited factory sound is its factory
+ * origin). A P5 part: the number its program carries, in this build's list or not */
+static int cu_fav_part_key(uint32_t part, uint32_t *tag, uint32_t *id)
+{
+    const track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
+#if FELUCCA_PROPHET
+    if (eng_idx(t->eng_req) == ENGI_PROPHET && !(psnd[part].kind == PK_USER && psnd[part].fk == PF_NONE)) {
+        *tag = ENGI_PROPHET;                      /* (a P5 user sound of its own, 0.22: its slot, as any user sound's) */
+        *id = psnd[part].kind == PK_INIT ? 0u : p5_patch_id(p5_patch_of(t));
+        return *id != 0u;
+    }
+#endif
+    return cu_fav_key(t->eng_req, psnd[part].kind, psnd[part].fk, psnd[part].slot, tag, id);
+}
+static int cu_fav_part(uint32_t part)
+{
+    uint32_t tag, id;
+    return cu_fav_part_key(part, &tag, &id) && crf_has(tag, id);
+}
+/* KNOB 4 in the SAVE dialog's Favorite and in the editor's browser: a turn right marks the part's sound, a turn left
+ * takes the mark off. 1: the sound can carry a mark (INIT cannot: a message). Written by cr_settings.c crf_poll */
+static int cu_fav_turn(uint32_t part, int32_t s)
+{
+    uint32_t tag, id;
+    if (!cu_fav_part_key(part, &tag, &id)) {
+        cu_message("INIT: cannot be marked", CR_COL_RED);
+        cu_trace("fav: part %u %s cannot be marked\n", (unsigned)part, psnd[part].name);
+        return 0;
+    }
+    (void)crf_set(tag, id, s > 0);
+    cu_trace("fav: part %u %s %s (tag %u id %u, %u marked)\n", (unsigned)part, psnd[part].name,
+             crf_has(tag, id) ? "on" : "off", (unsigned)tag, (unsigned)id, (unsigned)crf_count());
+    return 1;
+}
+/* KNOB 1 on the SAVE menu's Favorite type: a turn a step through Both / Chord / Bass, stopping at the ends. The type
+ * is the sound's, marked or not, and the mark (KNOB 4) never changes it (the owner, 2026-10-13: "favorite/unfavorite
+ * them and the type does not change"); a turn here on a sound that is not a favourite also marks it ("I am fine if
+ * the sound is unfavorited and you change type to auto favorite it, which would make things quicker to organize"):
+ * any turn, one against the end stop too */
+static const char *const CU_FAV_TYPE[3] = {"Both", "Chord", "Bass"};
+static int cu_fav_type_turn(uint32_t part, int32_t s)
+{
+    uint32_t tag, id;
+    int32_t v;
+    if (!cu_fav_part_key(part, &tag, &id)) {
+        cu_message("INIT: cannot be marked", CR_COL_RED);
+        cu_trace("fav: part %u %s cannot be marked\n", (unsigned)part, psnd[part].name);
+        return 0;
+    }
+    v = (int32_t)crf_type(tag, id) + (s > 0 ? 1 : -1);
+    (void)crf_set_type(tag, id, (uint32_t)(v < 0 ? 0 : v > 2 ? 2 : v));
+    v = crf_set(tag, id, 1);
+    cu_trace("fav: part %u %s type %s%s (tag %u id %u, %u marked)\n", (unsigned)part, psnd[part].name,
+             CU_FAV_TYPE[crf_type(tag, id)], v ? ", marked by it" : "", (unsigned)tag, (unsigned)id, (unsigned)crf_count());
+    return 1;
+}
+/* ---- the favourites filter (0.22; the owner, 2026-10-13: "I want filter to reduce the preset list to just scrolling
+ * between favorites, still limited by engine"). crf_filter on: PRESETS / ALGORITHM (and the BASS layer's SOUND, the
+ * editor's browser) turn through the part's engine's pool places that hold a favourite FITTING THE PART (the chord
+ * part: typed Both or Chord; the bass part: Both or Bass), in the pool's own order, INIT left out. An engine with no
+ * fitting favourite: its whole pool, as if the filter were off there (cuf_n 0), and the read-out says so. Not
+ * filtered: a program change, the session, a loop's recorded sound changes, the Sound Manager (they name a place).
+ * cuf[part]: the places as bits, built once per (engine, the marks' generation, the user bank's): a turn never walks
+ * the pool (P5: 200 places, each a look through the 32 slots) */
+#define cuf crf_x.list                             /* (kept in cr_favs.c's one object: see there why) */
+static uint32_t cuf_n(uint32_t part, uint32_t e)   /* the part's fitting favourites in engine e's pool; 0: the filter
+                                                    * off, or none (the whole pool is turned) */
+{
+    uint32_t pos, n, tag, id, i;
+    pool_ent_t en;
+    part &= 1u;
+    e %= NENGINES;
+    if (!crf_filter)
+        return 0u;
+    if (cuf[part].e == e + 1u && cuf[part].gen == crf_gen && cuf[part].upgen == up_gen)
+        return cuf[part].n;
+    for (i = 0; i < sizeof cuf[0].bits; i++)
+        cuf[part].bits[i] = 0;
+    cuf[part].n = 0;
+    n = pool_count(e);
+    for (pos = 1; pos < n && pos < 256u; pos++) {
+        en = pool_entry(e, pos);
+        if (cu_fav_key(e, en.kind, en.fk, en.slot, &tag, &id) && crf_fits(tag, id, part)) {
+            cuf[part].bits[pos / 8u] |= (uint8_t)(1u << (pos % 8u));
+            cuf[part].n++;
+        }
+    }
+    cuf[part].e = (uint8_t)(e + 1u);
+    cuf[part].gen = crf_gen;
+    cuf[part].upgen = up_gen;
+    return cuf[part].n;
+}
+static int cuf_at(uint32_t part, int32_t pos)      /* (after cuf_n) the place holds one of them */
+{
+    return pos > 0 && pos < 256 && ((cuf[part & 1u].bits[pos / 8] >> (pos % 8)) & 1u);
+}
+static uint32_t cuf_rank(uint32_t part, uint32_t pos)   /* (after cuf_n) its place among them, 1.., 0: not one */
+{
+    uint32_t p, r = 0;
+    if (!cuf_at(part, (int32_t)pos))
+        return 0u;
+    for (p = 1; p <= pos; p++)
+        r += (uint32_t)cuf_at(part, (int32_t)p);
+    return r;
+}
+/* (after cuf_n > 0) s detents from place cur (-1: the bass OFF) among them. A sound that is not one of them (the
+ * filter just turned on, its mark just taken off, a program change): the first detent goes to the nearest favourite
+ * in that direction. wrap: round the ends (PRESETS, ALGORITHM), else stopping there (the BASS layer's SOUND);
+ * off: OFF is a place below the first (ALGORITHM: past the last comes OFF, as in the whole pool) */
+static int32_t cuf_move(uint32_t part, int32_t cur, int32_t s, int wrap, int off)
+{
+    int32_t k, p, nx;
+    for (k = s < 0 ? -s : s; k > 0; k--) {
+        nx = cur;
+        if (s > 0) {
+            for (p = cur + 1; p < 256 && !cuf_at(part, p); p++)
+                ;
+            if (p < 256)
+                nx = p;
+            else if (wrap && off && cur >= 0)
+                nx = -1;
+            else if (wrap)
+                for (p = 1; p < 256; p++)
+                    if (cuf_at(part, p)) {
+                        nx = p;
+                        break;
+                    }
+        } else {
+            for (p = cur < 0 ? (wrap ? 255 : 0) : cur - 1; p > 0 && !cuf_at(part, p); p--)
+                ;
+            if (p > 0)
+                nx = p;
+            else if (cur < 0)
+                nx = cur;
+            else if (off)
+                nx = -1;
+            else if (wrap)
+                for (p = 255; p > 0; p--)
+                    if (cuf_at(part, p)) {
+                        nx = p;
+                        break;
+                    }
+        }
+        cur = nx;
+    }
+    return cur;
+}
+/* KNOB 1 on the SAVE menu's Favorites filter: right On, left Off; kept with the marks (crf_poll writes it) */
+static void cu_filter_turn(int32_t s)
+{
+    (void)crf_set_filter(s > 0);
+    cu_trace("fav: filter %s (chord %u, bass %u of their engines)\n", crf_filter ? "on" : "off",
+             (unsigned)cuf_n(0, trk[CR_PART_CHORD].eng_req), (unsigned)cuf_n(1, trk[CR_PART_BASS].eng_req));
+}
+
 /* a pool's stripes: one per preset, at most 32; a pool of INIT alone: one */
 static uint32_t cu_pool_segs(uint32_t e)
 {
@@ -1797,32 +2171,53 @@ static uint32_t cu_pool_segs(uint32_t e)
 #define CU_POOL_ID(part, e) (1u + ((part) ? 1u : 0u) + 2u * (e))
 static void cu_pool_popup(uint32_t part, uint32_t pos)
 {
-    char b[8], nm[13], lb[24], c[8], ov[16];
+    char b[8], nm[13], lb[32], c[8], ov[16], fl[24];
     uint32_t e = trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES, n = pool_count(e) - 1u;
-    uint32_t segs = cu_pool_segs(e);
+    uint32_t segs = cu_pool_segs(e), nf = cuf_n(part, e);
     pool_ent_t en = pool_entry(e, pos);
     int home = cu_epk_ok(part);
     cu_2d(b, pos, sizeof b);
     pool_name(e, pos, nm);
     cu_cpy(lb, ENGINES[e]->name, sizeof lb);
     cu_cat(lb, " \267 ", sizeof lb);
-    cu_2d(c, pos, sizeof c);
-    cu_cat(lb, c, sizeof lb);
-    cu_cat(lb, "/", sizeof lb);
-    cu_2d(c, n, sizeof c);
-    cu_cat(lb, c, sizeof lb);
-    if (part && cs.bass_mode == CR_BASS_SOLO)     /* Bass Behaviour Solo: the chord part is silent while it is on */
-        cu_cat(lb, " \267 solo", sizeof lb);
+    fl[0] = 0;
+    if (nf) {                                     /* the filter in force: the place among the part's favourites of this
+                                                   * engine ("--": the sound is not one of them), in the star's colour */
+        cu_cpy(fl, home ? "favorites " : "fav ", sizeof fl);
+        if (cuf_rank(part, pos))
+            cu_2d(c, cuf_rank(part, pos), sizeof c);
+        else
+            cu_cpy(c, "--", sizeof c);
+        cu_cat(fl, c, sizeof fl);
+        cu_cat(fl, "/", sizeof fl);
+        cu_2d(c, nf, sizeof c);
+        cu_cat(fl, c, sizeof fl);
+        cu_cat(lb, fl, sizeof lb);
+    } else if (crf_filter) {                      /* .. on, and no favourite of the part here: the whole pool is turned */
+        cu_cpy(fl, "no favorites: all", sizeof fl);
+        cu_cat(lb, fl, sizeof lb);
+    } else {
+        cu_2d(c, pos, sizeof c);
+        cu_cat(lb, c, sizeof lb);
+        cu_cat(lb, "/", sizeof lb);
+        cu_2d(c, n, sizeof c);
+        cu_cat(lb, c, sizeof lb);
+        if (part && cs.bass_mode == CR_BASS_SOLO) /* Bass Behaviour Solo: the chord part is silent while it is on */
+            cu_cat(lb, " \267 solo", sizeof lb);
+    }
     cu_cpy(ov, ENGINES[e]->name, sizeof ov);
     if (part && cs.bass_mode == CR_BASS_SOLO)
         cu_cat(ov, " \267 solo", sizeof ov);
-    cu_popup(b, nm, !home ? lb : CU_POOL_HINT, part ? CR_COL_ORANGE : CR_COL_WHITE,
+    cu_popup(b, nm, !home ? lb : fl[0] ? fl : CU_POOL_HINT, part ? CR_COL_ORANGE : CR_COL_WHITE,
              (int32_t)cu_pool_lit(pos, n, segs), 0, (int32_t)segs, segs);
+    cu.pop.filt = (uint8_t)(fl[0] != 0);          /* (the sign that the filter is on: the line under the stripes) */
     if (home)
         cu_cpy(cu.pop.over, ov, sizeof cu.pop.over);
     cu.pop.mark = en.kind == PK_USER && en.fk != PF_NONE;
+    cu.pop.star = (uint8_t)cu_fav_ent(e, en);     /* a favourite: the star before its name */
     cu.pop.pool = (uint8_t)CU_POOL_ID(part, e);
-    cu_trace("popup: part %u %s / %s%s / ", (unsigned)part, b, nm, cu.pop.mark ? " (mark)" : "");   /* (the place) */
+    cu_trace("popup: part %u %s / %s%s%s / ", (unsigned)part, b, nm, cu.pop.mark ? " (mark)" : "",
+             cu.pop.star ? " (star)" : "");       /* (the place) */
     cu_trace_txt(lb);
     cu_trace("\n");
     if (home) {                                    /* .. and the two lines shown instead of it where OPT picks engines */
@@ -1894,7 +2289,11 @@ static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop
     int32_t v;
     if (p < 0)
         return;
-    v = cs.par[mode][p] + s * CU_PAR[p].step;
+    if (CU_PAR[p].step > 1 || p == CR_P_SWING)    /* a value (rate, gate, swing, amount): at the knob's speed, snapped
+                                                   * with OPT held; the choices one a detent */
+        v = cu_kval(cs.par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
+    else
+        v = cs.par[mode][p] + s;
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
     cs.par[mode][p] = (int16_t)v;
     cr_post(CRE_PARAM_QUIET, mode, (uint32_t)p, v);   /* (quietly: a running arp follows, nothing re-struck) */
@@ -1918,7 +2317,9 @@ static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
  * 0xC8000 + (2k + copy) x 4 KiB, the record's type CRL_FL_TYPE + k (never one of storage.c's objects). */
 #define CRL_FL_BASE 0xC8000u
 #define CRL_FL_TYPE 0x4C30u
-static uint8_t cu_loop_buf[CRL_REC_MAX] __attribute__((aligned(4)));   /* a packed record */
+/* a packed record; also cr_backup.c's staging, where a sound pool bank (ST_PAYLOAD_MAX, 3840 bytes) is the largest */
+#define CU_LOOP_BUF (CRL_REC_MAX > 3840u ? CRL_REC_MAX : 3840u)
+static uint8_t cu_loop_buf[CU_LOOP_BUF] __attribute__((aligned(4)));
 static void cu_ledit_close(void);
 static uint8_t cu_loop_gen;                        /* + 1 whenever cu_loop_buf is written here (cr_backup.c stages a
                                                     * restore in it between requests: a change ends that restore) */
@@ -1987,6 +2388,7 @@ static int crl_fl_save(uint32_t k, const uint8_t *src, uint32_t len)   /* storag
         return -1;
     cur = crl_fl_current(k, &h, st_buf);
     seq = cur < 0 ? 0u : h.seq;
+    st_note(0x100u + k, ST_WHY_LOOP);              /* (3y48: who erased: a loop slot) */
     copy = cur == 0 ? 1u : 0u;                     /* write the other copy, the header last */
     base = crl_fl_sector(k, copy);
     if ((rc = st_erase(base)) != 0)
@@ -2015,6 +2417,7 @@ static int crl_fl_delete(uint32_t k)
 {
     if (!flash_ok || ST_BLOCKED() || k >= CRL_SLOTS)
         return -1;
+    st_note(0x100u + k, ST_WHY_LOOP);
     return st_erase(crl_fl_sector(k, 0)) || st_erase(crl_fl_sector(k, 1)) ? -1 : 0;
 }
 static int crl_fl_ready(void) { return flash_ok && !ST_BLOCKED(); }   /* the slots can be written */
@@ -2420,6 +2823,14 @@ static void cu_ledit_move(int32_t s)               /* PRESETS: the cursor, a ste
     c = ((int32_t)cu_le.c0 + s) % n;
     cu.le_cell = (uint16_t)(c < 0 ? c + n : c);
     cu_le_sync();
+    /* the step preview (GitHub issue 8; the owner, 2026-10-15: "turn preset knob in the step editor, if the step has
+     * notes, it plays"): the step the cursor lands on is heard once while the loop is stopped, as the loop would
+     * play it, on the loop's voices (cr_loop_ed_preview, in the engine's thread as the keys are); a step without
+     * notes ends the one sounding; while the loop plays nothing is struck (the loop is heard). Nothing is written,
+     * REC is not armed, the position does not move */
+    cr_post(CRE_LOOP, LP_PREVIEW, 0, 0);
+    cu_trace("loopedit: preview step %u notes %u %s\n", (unsigned)cu_le.c0 + 1u, (unsigned)cu_le.cnt,
+             crl.state == CRL_PLAYING ? "playing" : "stopped");
 }
 static void cu_ledit_clear(void)                   /* REC: the step's notes go */
 {
@@ -2698,7 +3109,7 @@ static int cu_loop_write(void)
         return 0;
     cu_loop_gen++;
     fm1_irq_off();
-    n = cr_loop_pack(&crl.d, cu_loop_buf, sizeof cu_loop_buf);
+    n = cr_loop_pack(&crl.d, cu_loop_buf, CRL_REC_MAX);
     fm1_irq_on();
     if (!n && !((cs.loop_used >> k) & 1u)) {       /* empty, and so is its slot: nothing to write */
         fm1_irq_off();
@@ -2929,10 +3340,22 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu_trace("bass: %s (sound %u, %s)\n", cs.bass_on ? "on" : "off", (unsigned)cs.bass_sound,
                  CU_BASSMODE[cs.bass_mode & 3u]);
         break;
-    case BT_LATCH:
+    case BT_LATCH: {
+        uint32_t mode = CU_PERF[cs.perf_sel].mode;
+        if (!cs.sticky && cs.perform_on && cs.par[mode][CR_P_HOLD]) {   /* the mode's Hold (Strum's KNOB 4, the arp's)
+                                                   * lit the button: a tap turns Hold off and the held notes go, as a
+                                                   * tap on a lit LATCH does (the owner, 2026-10-15: "you can't control
+                                                   * this using the lock/hold button like you can elsewhere"); the next
+                                                   * tap latches as before */
+            cs.par[mode][CR_P_HOLD] = 0;
+            cr_post(CRE_PARAM, mode, CR_P_HOLD, 0);   /* (cr_engine.c: Hold off releases the latched voices) */
+            cu_trace("latch: %s hold off\n", CU_PERF[cs.perf_sel].short_name);
+            break;
+        }
         cs.sticky ^= 1u;
         cr_post(CRE_STICKY, 0, 0, cs.sticky);
         break;
+    }
     case BT_OPT:
         if (cu.lock == L_LOOP) {                  /* the PLAY menu: GLO toggles its keys (play / the slots): no
                                                    * Options from here; the loop editor: the keys play, nothing */
@@ -2970,6 +3393,9 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
     case BT_SAVE:                                 /* naming and saving the sound (on a bass page: the bass) */
         if (cu.page == PG_SAVE && ce.del_ask)
             ce.del_ask = 0;                       /* "delete?": no */
+        else if (cu.page == PG_SAVE && !ce.save_step && ce.save_choice >= CU_SAVE_FAV)
+            cu_save_close();                      /* SAVE again on Favorite, the filter, the type: nothing to save, the
+                                                   * dialog closes */
         else if (cu.page == PG_SAVE)
             cu_save_commit();                     /* SAVE again: save (as OCT+) */
         else
@@ -3038,8 +3464,9 @@ static void cu_home_tap(void)
         cs.view = (uint8_t)((cs.view + 1u) % V_N);
 }
 
-/* HOME held CU_HOME_HOLD_MS (alone): the view menu, a picker (L_VIEW): Chord .. Scope by SELECT / the white roots, the
- * last line "Lock: On / Off" (KNOB 1, or the sixth white root); OCT+ ok, OCT- / HOME back. Not over the naming page */
+/* HOME held CU_HOME_HOLD_MS (alone): the view menu, a picker (L_VIEW): Chord .. Geek Out 2 by SELECT / the white roots,
+ * the last line "Lock: On / Off" (KNOB 1, or the seventh white root, C5); OCT+ ok, OCT- / HOME back. Not over the
+ * naming page */
 #define CU_HOME_HOLD_MS 600u
 static void cu_view_menu(void)
 {
@@ -3073,9 +3500,12 @@ static void cu_reset(void)
     cr_settings_reset();
 #endif
     cu.opt_sel = O_STYLE;
-    cu_message(cr_c1_off ? "settings reset" : "settings reset \267 restart", CR_COL_GREEN);   /* (Dual Core was On at
-                                                   * this power-on: Off is saved, the core stops at the next) */
-    cu_trace("options: settings reset%s\n", cr_c1_off ? "" : " (Dual Core runs until the restart)");
+    cu_message(cr_c1_off && cs.dualcore && !CR_SINGLE_CORE ? "settings reset \267 restart" : "settings reset", CR_COL_GREEN);   /* (Dual Core
+                                                   * was Off at this power-on: On, the default since 0.22, is saved,
+                                                   * the core starts at the next; but not in a power-on that kept
+                                                   * core 1 off after a crash beside it: Off is saved, cr_settings.c
+                                                   * crs_dc_bar) */
+    cu_trace("options: settings reset%s\n", cr_c1_off && cs.dualcore && !CR_SINGLE_CORE ? " (Dual Core starts at the restart)" : "");
 }
 static void cu_oct_tap(uint32_t b)
 {
@@ -3210,6 +3640,10 @@ static void cu_engine_switch(uint32_t part, uint32_t e)
     if (t->eng_req == e)
         return;
     fm1_irq_off();
+#if FELUCCA_PROPHET
+    if (eng_idx(t->eng_req) == ENGI_PROPHET)
+        p5_leave(t);                              /* (the mix is kept: not a UNISON that a P5 program gave the part) */
+#endif
     cu_drive_load(t, e, en->npresets ? cu_preset_drive(&en->presets[p0]) : 0);   /* (FM TONE: its first preset's) */
     t->eng_req = (uint8_t)e;
     t->preset = (uint8_t)p0;
@@ -3232,7 +3666,10 @@ static void cu_engine_pick(uint32_t i) { cu_engine_switch(ce.part, cu_engine_at(
 static void cu_pool_step(int32_t s)
 {
     uint32_t part = ce.part, e = cu_edit_trk()->eng_req % NENGINES, n = pool_count(e), pos;
-    pos = (cu_part_pos(part) + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n;
+    if (cuf_n(part, e))                            /* the favourites filter: the part's favourites of this engine */
+        pos = (uint32_t)cuf_move(part, (int32_t)cu_part_pos(part), s, 1, 0);
+    else
+        pos = (cu_part_pos(part) + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n;
     cu_pool_load(part, e, pos);
     if (!part)
         cu_sends_to_fx();
@@ -3332,6 +3769,10 @@ static void cu_pick_end(int keep)
         d = cp_deep(t);
         if (cpk.has_blob && d && d->blob_set)
             d->blob_set(t, cpk.blob);             /* the deep patch as it was */
+#if FELUCCA_PROPHET
+        if (eng_idx(t->eng_req) == ENGI_PROPHET)
+            p5_voice_restore(t, cpk.p[P_VOICE]);  /* (the load took the factory program's UNISON: the snapshot's mode) */
+#endif
         if (!cpk.part) {
             cs.fx_on = cpk.fx_on;
             for (i = 0; i < CU_NFX; i++)
@@ -3362,7 +3803,22 @@ static void cu_edit_open(uint32_t part) { ce_open(part); }
  * binding and name kept), on INIT (which cannot be overwritten) is Save as new. Overwrite never renames: a new name
  * is a Save as new (and the old one deleted). SAVE held 1 s in the dialog: "reset to factory?" on an overwritten
  * factory preset, "delete?" on an added one; OCT+ does it. No free slot: "no free slot". Every user preset is one of
- * upreset.c's 32 records (cr_bank.c cb_store writes the binding) */
+ * the pool's 128 slots (upool.c, 0.22; 32 records before) (cr_bank.c cb_store writes the binding) */
+#define CU_SAVE_FOOT "K1 change \267 K2 filter \267 K3 type \267 K4 favorite"   /* (KNOB 1 .. 4: spelled out they are wider
+                                                                                * than the line) */
+static const char *const CU_SAVE_NAME[CU_SAVE_N] = {"overwrite", "save as new", "favorite", "filter", "type"};   /* (the traces) */
+/* the part's engine has no store for its sound: its menu has the three favourites' entries alone, and OCT+ is refused.
+ * Until 0.22 that was P5 (a record of the 32 held the part's parameters and no program); the sound pool (upool.c) keeps
+ * a P5 sound's whole program with its record, so P5 saves as every engine does (docs/PROPHET.md "Saving") */
+static int cu_save_favonly(uint32_t part)
+{
+#if FELUCCA_PROPHET && !UP_POOL
+    return eng_idx(trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req) == ENGI_PROPHET;
+#else
+    (void)part;
+    return 0;
+#endif
+}
 static void cu_save_open(uint32_t part)
 {
     if (cr_safe) {                                 /* SAFE MODE: the user sounds are neither read nor written */
@@ -3373,13 +3829,15 @@ static void cu_save_open(uint32_t part)
     ce.save_from_edit = cu.page == PG_EDIT;
     ce.save_step = 0;
     ce.save_choice = psnd[part].kind == PK_USER || psnd[part].edited ? 0u : 1u;
+    if (cu_save_favonly(part))                     /* P5: the dialog is its Favorite alone (cu_save_favonly) */
+        ce.save_choice = CU_SAVE_FAV;
     ce.del_ask = 0;
     cu.opt_open = 0;
     cu.lock = L_NONE;
     cu.page = PG_SAVE;
     cu.pop.until = 0;                              /* (a PRESETS meter would hide the dialog) */
     cu_trace("save: dialog part %u %s%s (%s)\n", (unsigned)part, psnd[part].name, psnd[part].edited ? "*" : "",
-             ce.save_choice ? "save as new" : "overwrite");
+             CU_SAVE_NAME[ce.save_choice]);
 }
 static void cu_save_close(void) { cu.page = ce.save_from_edit ? PG_EDIT : PG_NONE; }
 
@@ -3419,7 +3877,7 @@ static void cu_save_take(void)
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
     uint32_t e = t->eng_req % NENGINES;
     int rc;
-    char l[4], nm[13];
+    char l[UP_LABEL], nm[13];
     if (ce.save_choice == 0u && psnd[part].kind != PK_INIT) {     /* Overwrite */
         cu_cpy(nm, psnd[part].name, sizeof nm);
         if (psnd[part].kind == PK_USER && up_used(psnd[part].slot)) {
@@ -3464,8 +3922,21 @@ static void cu_save_commit(void)
 {
     uint32_t part = ce.save_part, k = ce.slot;
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
-    char name[16], l[4];
+    char name[16], l[UP_LABEL];
     int rc;
+    if (ce.save_step == 0u && ce.save_choice >= CU_SAVE_FAV) {   /* Favorite, the filter, the type: OCT+ saves nothing,
+                                                                  * writes no slot */
+#if !UP_POOL
+        if (cu_save_favonly(part)) {                /* (before the sound pool: P5 had no store) */
+            cu_message("P5: no save yet", CR_COL_RED);
+            cu_trace("save: part %u P5 refused (no store)\n", (unsigned)part);
+            return;
+        }
+#endif
+        cu_trace("save: favorite, nothing to save\n");
+        (void)part;
+        return;
+    }
     if (ce.save_step == 0u) {
         cu_save_take();
         return;
@@ -3505,7 +3976,7 @@ static void cu_save_delete(void)
     uint32_t part = ce.save_part, k = psnd[part].slot, other = part ^ 1u, f, pos, n;
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
     uint32_t e = t->eng_req % NENGINES;
-    char l[4], b[24], pl[24];
+    char l[UP_LABEL], b[24], pl[24];
     int rc, reset = ce.del_ask == 2u;
     ce.del_ask = 0;
     if (psnd[part].kind != PK_USER || k >= UP_SLOTS)
@@ -3578,6 +4049,10 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
             cs.fx_page = CU_FXP[i].page;
             if (cs.fx_page == CU_FXPG_SENDS) {    /* (the Sends page: cs.fx_sel stays, KNOB 4 of the main view's) */
                 cu_trace("fx: sends\n");
+                break;
+            }
+            if (cs.fx_page == CU_FXPG_FILTER) {   /* (the Filter page: the same) */
+                cu_trace("fx: filter\n");
                 break;
             }
             cs.fx_sel = CU_FXP[i].fx;
@@ -3711,7 +4186,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
     int32_t v;
     switch (l) {
     case L_KEY:
-        if (cu.kpage) {                            /* page 2: KEY PLAYS, KEYBOARD, NUMERALS on KNOB 4 (KNOB 3: nothing) */
+        if (cu.kpage) {                            /* page 2: KEY PLAYS, KEYBOARD, SNAP, NUMERALS */
             if (knob == 0) {
                 cs.key_notes = (uint8_t)(s > 0);
                 cr_post(CRE_KEYPLAYS, 0, 0, cs.key_notes);
@@ -3720,11 +4195,18 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                 cs.kbd_full = (uint8_t)(s > 0);
                 cu_post_kbd();
                 cu_trace("key: knob 2 keyboard %s\n", cs.kbd_full ? "full" : "chords");
-            } else if (knob == 3) {                /* NUMERALS: the chord's Roman numeral on the Chord view (display only) */
-                cs.numerals = (uint8_t)(s > 0);
-                cu_trace("key: knob 4 numerals %s\n", cs.numerals ? "on" : "off");
-            } else
-                break;
+            } else if (knob == 2) {                /* SNAP: Off / Scale / Chord (a root out of the scale, with Key plays
+                                                    * Notes or the Full keyboard: the engine, cr_snap_note) */
+                v = (int32_t)cs.snap + s;
+                cs.snap = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v);
+                cr_post(CRE_KEYSNAP, 0, 0, cs.snap);
+                cu_trace("key: knob 3 snap %s\n", CU_SNAP[cs.snap]);
+            } else {                               /* NUMERALS: Off / On (the chord's Roman numeral on the Chord view) /
+                                                    * Solfege (the same degree as a syllable; display only) */
+                v = (int32_t)cs.numerals + s;
+                cs.numerals = (uint8_t)(v < 0 ? 0 : v > 2 ? 2 : v);
+                cu_trace("key: knob 4 numerals %s\n", CU_NUMS_TR[cs.numerals]);
+            }
             cu_hot_set(L_KEY, knob);
             break;
         }
@@ -3738,7 +4220,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_post_key();
             cu_trace("key: knob 2 scale %s\n", cs.scale ? "minor" : "major");
         } else if (knob == 2) {                    /* TRANSPOSE */
-            v = cs.transpose + s;
+            v = kn.snap ? kn_snap_rng(cs.transpose, s, -24, 24, 12, 0) : cs.transpose + s;   /* (a semitone a detent;
+                                                    * OPT held: octaves) */
             cs.transpose = (int8_t)(v < -24 ? -24 : v > 24 ? 24 : v);
             cr_post(CRE_TRANSPOSE, 0, 0, cs.transpose);
             cu_trace("key: knob 3 transpose %d\n", (int)cs.transpose);
@@ -3785,7 +4268,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                                                    * one step (cu_send_step, the sound editor's for the same knob) */
             uint32_t sid = CU_FX[e].send;
             v = cu_send(0, sid);
-            cu_send_set(0, sid, cu_send_step(v, s, 0));
+            cu_send_set(0, sid, cu_send_step(v, s, kn.snap));
             cu_hot_set(L_FX, knob);               /* (no popup: the knob row is the readout, its cell turns hot) */
             cu_trace("fx: knob %u %s send %u\n", (unsigned)knob + 1u, CU_FX[e].name, (unsigned)cu_send(0, sid));
             break;
@@ -3806,10 +4289,21 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                                                    * turned round: the stored value, the read-out and the glyph's
                                                    * spacing are the time's as before */
             s = -s;
-        v = *q + s * (hi - lo > 20 ? 2 : 1);
-        *q = (int16_t)(v < lo ? lo : v > hi ? hi : v);
+        v = hi - lo > 20 ? cu_kval(*q, s, lo, hi, kn.snap) : *q + s;   /* (a value at the knob's speed / snapped; a
+                                                   * division, a ratio, a switch: one a detent) */
+        v = v < lo ? lo : v > hi ? hi : v;
+        if (((id == XP_FLOW || id == XP_FHIGH) && v != *q) || (id == XP_FON && v)) {   /* the master filter: a cutoff
+                                                   * turned, or Filter to On, switches the filter and FX on (as a
+                                                   * send turned switches FX on: the knob is heard) */
+            xfp[XP_FON] = 1;
+            if (!cs.fx_on) {
+                cs.fx_on = 1;
+                cu_fx_apply();
+            }
+        }
+        *q = (int16_t)v;
         cu_hot_set(L_FX, knob);
-        cu_trace("fx: knob %u %s %s %d\n", (unsigned)knob + 1u, CU_FX[cs.fx_sel].name, lb, (int)*q);
+        cu_trace("fx: knob %u %s %s %d\n", (unsigned)knob + 1u, cu_fx_pgname(), lb, (int)*q);
         break;
     }
     case L_BASS:
@@ -3821,11 +4315,12 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_trace("bass: knob 2 register %+d\n", (int)s);
         } else if (knob == 2) {                    /* SOUND */
             v = (int32_t)cs.bass_sound + s;
+            if (cuf_n(1, trk[CR_PART_BASS].eng_req))   /* the favourites filter: off, then the bass part's favourites */
+                v = cuf_move(1, (int32_t)cs.bass_sound - 1, s, 0, 1) + 1;
             cu_bass_go((uint32_t)(v < 0 ? 0 : v));
             cu_trace("bass: knob 3 sound %u\n", (unsigned)cs.bass_sound);
         } else {                                   /* LEVEL */
-            v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
-            trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+            trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, kn.snap);
             cu_trace("bass: knob 4 level %d\n", (int)trk[CR_PART_BASS].p[P_LEVEL]);
         }
         cu_hot_set(L_BASS, knob);                 /* (no popup: the knob row is the readout, its cell turns hot) */
@@ -3839,7 +4334,14 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         } else if (knob == 1) {                    /* INIT */
             cu_sound_init(ce.part);
             cpk.changed = 1;
-        }                                          /* (KNOB 3, KNOB 4: nothing. Until 0.18 KNOB 4 switched the white roots
+        } else if (knob == 3) {                    /* KNOB 4: the favourite's mark on the sound under the cursor (the
+                                                    * one previewed), right on, left off; the browser stays (0.22, the
+                                                    * owner 2026-10-13); the read-out shows it with its star */
+            if (cu_fav_turn(ce.part, s)) {
+                cu_pool_popup(ce.part, cu_part_pos(ce.part));
+                cu.pop.jump = 1;
+            }
+        }                                          /* (KNOB 3: nothing; KNOB 4 had no job in 0.19 .. 0.21. Until 0.18 KNOB 4 switched the white roots
                                                     * between choosing engines and playing; the owner, 2026-10-12: "I
                                                     * don't see any case in which I would want to scroll through presets
                                                     * and not be able to immediately play them": they always play, SELECT
@@ -4096,6 +4598,31 @@ static int cu_layer_keys(uint32_t l)
 #ifndef CU_KEY_T0
 #define CU_KEY_T0(k) fm1_in.note_t0[k]             /* the first scan that saw key k closed (hal/fm1_input.h) */
 #endif
+/* Key velocity (cr_sense.c; docs/VELOCITY.md). With Options > Key Touch Dynamic (or Velocity + Aftertouch), a key with
+ * the converter (CR_SENSE_KEYS) that plays a note waits, once debounced, for its velocity (cu_scan_keys: cu.kpend;
+ * 8.8 ms after the touch sample, CU_VEL_WAIT_MS at most) and plays at it, as measured (the level's law is the voice's:
+ * mod.c cr_touch_gain); a key without it plays at the keys' recent velocity (cu.ctx_vel), else at Options >
+ * Velocity. Fixed: every key at Options > Velocity, as before. */
+#ifndef CR_SENSE_KEYS                              /* (the emulator, the tests: no analog rows) */
+#define CR_SENSE_KEYS 0u
+static volatile uint16_t cr_sense_land[CU_NKEY];
+static uint32_t cr_sense_take(uint32_t k) { (void)k; return 0; }
+#endif
+#define CU_VEL_WAIT_MS 12u
+static uint8_t cu_press_vel;                       /* the pending key's velocity, for cu_key_press (0: none) */
+#define CU_KEY_SENSED(k) (cs.touch && ((CR_SENSE_KEYS >> (k)) & 1u) && ((k) >= CU_ROOT0 || cs.kbd_full))
+static uint32_t cu_key_vel(uint32_t k)
+{
+    uint32_t v = cu_press_vel;
+    (void)k;
+    if (!cs.touch)
+        return cs.vel;                             /* Key Touch Fixed: Options > Velocity, as before */
+    if (!v)
+        v = cu.ctx_vel;                            /* (no reading in time: the keys' recent velocity) */
+    if (!v)
+        return cs.vel;
+    return v < 1u ? 1u : v > 127u ? 127u : v;
+}
 static void cu_key_press(uint32_t k)
 {
     uint32_t l;
@@ -4143,6 +4670,7 @@ static void cu_key_press(uint32_t k)
             cn_space();
         else if (k == 13u)
             cn_delete();
+        cu_trace("name: key %u: '%s' cursor %u of %u\n", (unsigned)k, cn.s, (unsigned)cn.cur, (unsigned)cn.len);
         cu.key_note[k] = 0xFFu;
         return;
     }
@@ -4153,11 +4681,14 @@ static void cu_key_press(uint32_t k)
         int32_t n = 53 + (int32_t)k + 12 * cu.octave;
         n = n < 0 ? 0 : n > 127 ? 127 : n;
         cr_klat_post(CU_KEY_T0(k));                /* (78 PEAK: the key's way to the engine, timed) */
-        if (l == L_HARM && cu_hm_play(k, (uint32_t)n)) {   /* Harmony mode: the key plays its place on the map */
+        if (l == L_HARM && cu_hm_play(k, (uint32_t)n)) {   /* Harmony mode: the key plays its place on the map (at
+                                                    * the key's velocity, as any key: cu_hm_play_ex) */
             cu.key_note[k] = (uint8_t)(n + 1);
             return;
         }
-        cr_post(CRE_KEY, (uint32_t)n, cs.vel, 1);
+        cr_post(CRE_KEY, (uint32_t)n, cu_key_vel(k), 1);
+        cu.last_vel = (uint8_t)cu_key_vel(k);
+        cu_trace("touch: key %u vel %u%s\n", (unsigned)k, (unsigned)cu_key_vel(k), cs.touch ? cu_press_vel ? " sensed" : " context" : " fixed");
         cu.key_note[k] = (uint8_t)(n + 1);
     }
 }
@@ -4165,6 +4696,7 @@ static void cu_key_press(uint32_t k)
 static void cu_key_release(uint32_t k)
 {
     cu.kheld &= ~(1u << k);
+    cr_sense_land[k] = 0;
     if (k == CU_KEY_LOCK && !cu.key_note[k] && !((cu.kpick >> k) & 1u)) {
         if (cu.b3_pend) {                          /* let go before the hold time, nothing else pressed: the tap */
             cu.b3_pend = 0;
@@ -4338,6 +4870,9 @@ static void cu_epk_commit(void)                   /* OPT released: the engine pi
     pos = cs.pool_pos[part][eng_rank(e)];
     if (pos >= n)
         pos = n > 1u ? 1u : 0u;
+    if (cuf_n(part, e))                            /* the favourites filter: the engine's first favourite of the part,
+                                                    * not the place remembered (none: the place remembered) */
+        pos = (uint32_t)cuf_move(part, 0, +1, 0, 0);
     cu_pool_load(part, e, pos);
     if (!part)
         cu_sends_to_fx();
@@ -4381,8 +4916,8 @@ static int cu_bass_level_hold(int32_t s)
             cu_opened(BT_BASS);
         }
     }
-    v = trk[CR_PART_BASS].p[P_LEVEL] + s * 2;
-    trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)(v < 0 ? 0 : v > 127 ? 127 : v);
+    (void)v;
+    trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, 0);
     if (cu_layer() == L_BASS)
         cu_hot_set(L_BASS, 3);
     else
@@ -4392,10 +4927,45 @@ static int cu_bass_level_hold(int32_t s)
     return 1;
 }
 
+/* the knobs on the naming page of Save as new (the owner, 2026-10-13: "the editor to name the preset needs work. All
+ * the other knobs do default things which is weird. Select knob should select character, knob 1 to change the letter
+ * at selected index, knob 4 CCW as a backspace, the other knobs 2 and 3 in the name editor should not do anything"):
+ * SELECT the cursor (a step a turn; right from the last character: a new one), KNOB 1 the character under it, KNOB 4
+ * left the backspace (the character under it; "The cursor should always sit at the character you are editing, not
+ * the next character"); KNOB 2, KNOB 3, KNOB 4
+ * right, PRESETS and ALGORITHM nothing, GLO or BASS held or not. Until then, with a name on the screen: KNOB 1 was the
+ * voicing (the Full keyboard: the octave), KNOB 2 the name's last letter, KNOB 3 the Perform mode's knob, KNOB 4 the
+ * chord part's send, SELECT the tempo, PRESETS the chord part's sound and ALGORITHM the bass part's (the sound being
+ * named changed under its name), GLO + KNOB 1 the split point, GLO + SELECT the click level, BASS held + ALGORITHM
+ * the bass level. A layer held open over the page (PERF, FX, ..) still owns the knobs while it is open; MASTER is not
+ * a knob of this code */
+static void cu_name_knob(uint32_t role, int32_t s)
+{
+    const char *what = "nothing";
+    if (role == EN_SELECT) {
+        cn_move(s > 0 ? 1 : -1);
+        what = "cursor";
+    } else if (role == EN_K1) {
+        cn_knob(s);
+        what = "letter";
+    } else if (role == EN_K4 && s < 0) {
+        cn_delete();
+        what = "backspace";
+    }
+    cu_trace("name: %s (knob role %u %+d): '%s' cursor %u of %u\n", what, (unsigned)role, (int)s, cn.s, (unsigned)cn.cur,
+             (unsigned)cn.len);
+}
 static void cu_knob(uint32_t role, int32_t s)
 {
     uint32_t l;
     int32_t v;
+    kn_turn(role, s, cu_now(), (uint32_t)cu_shift());   /* (the knob's speed, OPT held: cr_pages.c kn_*) */
+    if (cu.page == PG_SAVE && ce.save_step && !cu_layer()) {   /* naming a sound: the knobs are the name's and nothing
+                                                    * else (cu_name_knob): before the holds and shifts below */
+        cu_activity();
+        cu_name_knob(role, s);
+        return;
+    }
     if (role == EN_ALGO && cu_bass_level_hold(s))  /* BASS held + ALGORITHM: the bass level */
         return;
     cu_activity();
@@ -4432,7 +5002,7 @@ static void cu_knob(uint32_t role, int32_t s)
     if (cu_shift() && cu.page == PG_EDIT && (role >= EN_K1 || role == EN_SELECT) && !cu_layer()) {
         if (role == EN_SELECT)                     /* the editor wins: SHIFT + SELECT steps as SELECT */
             ce_select(s);
-        else                                       /* .. SHIFT + a knob: fine (one step) */
+        else                                       /* .. SHIFT + a knob: the value snaps (cr_pages.c kn_snap) */
             ce_knob(role - EN_K1, s, 1);
         return;
     }
@@ -4542,7 +5112,8 @@ static void cu_knob(uint32_t role, int32_t s)
             v = cu.opt_sel + s;
             cu.opt_sel = (uint8_t)(v < 0 ? 0 : v >= (int32_t)cu_opt_n() ? (int32_t)cu_opt_n() - 1 : v);
         } else {
-            opt_set(cu.opt_sel, opt_get(cu.opt_sel) + s * (cu.opt_sel == O_VEL ? 4 : 1));
+            opt_set(cu.opt_sel, cu.opt_sel == O_VEL ? cu_kval(opt_get(O_VEL), s, 1, 127, kn.snap) : opt_get(cu.opt_sel) + s);
+                                                   /* (Velocity: a value; the others are choices, one a detent) */
         }
         return;
     }
@@ -4553,14 +5124,54 @@ static void cu_knob(uint32_t role, int32_t s)
             ce_knob(role - EN_K1, s, 0);
         return;
     }
-    if (cu.page == PG_SAVE && !ce.save_step && (role == EN_K1 || role == EN_SELECT)) {   /* the choice */
-        ce.save_choice = s > 0 ? 1u : 0u;
+    if (cu.page == PG_SAVE && !ce.save_step && role == EN_SELECT) {   /* the SAVE menu, in the Options' grammar (the
+                                                    * owner, 2026-10-13: "make knob 1 work for changing values to match
+                                                    * menu behaviour in other menus like GBL"): SELECT picks the entry, a
+                                                    * turn a step, stopping at the ends: Overwrite, Save as new, Favorite,
+                                                    * Favorites filter, Favorite type; P5's menu: the last three */
+        int32_t lo = cu_save_favonly(ce.save_part) ? (int32_t)CU_SAVE_FAV : 0;
+        v = (int32_t)ce.save_choice + (s > 0 ? 1 : -1);
+        ce.save_choice = (uint8_t)(v < lo ? lo : v > (int32_t)CU_SAVE_N - 1 ? (int32_t)CU_SAVE_N - 1 : v);
         ce.del_ask = 0;
-        cu_trace("save: choice %s\n", ce.save_choice ? "save as new" : "overwrite");
+        cu_trace("save: choice %s\n", CU_SAVE_NAME[ce.save_choice]);
         return;
     }
-    if (cu.page == PG_SAVE && ce.save_step && role == EN_K2) {            /* naming: the last letter */
-        cn_knob(s);
+    if (cu.page == PG_SAVE && !ce.save_step && (role == EN_K1 || role == EN_K2 || role == EN_K3 || role == EN_K4)) {
+        /* KNOB 1 changes the entry's value (Favorite: Off / On; the filter: Off / On; the type: Both / Chord / Bass);
+         * Overwrite and Save as new have none: nothing. KNOB 4 is the sound's mark on every entry ("Knob 4 should set
+         * favorite regardless of which setting is selected"): right marks, left takes it off, at once. (Until this
+         * menu KNOB 1 also moved the choice, and KNOB 4 on the two saves was the chord part's send as on the home
+         * pages; on the naming page both are still what they are there.) KNOB 3 is the sound's TYPE on every entry
+         * (the owner, 2026-10-13: "Fix knob 3 in the preset save menu to set the type too"): what KNOB 1 does on the
+         * Favorite type entry, and on another entry a short message says the type it gave (until then KNOB 3 here was
+         * the Perform mode's knob, as on the home pages; on the naming page it still is). KNOB 2 is the favourites
+         * filter on every entry, left Off, right On: what KNOB 1 does on the Favorites filter entry, with a message of
+         * the state on another entry (until then KNOB 2 here was the bass register, as on the home pages; on the
+         * naming page it is the last letter, unchanged). So: SELECT the entry, KNOB 1 its value, KNOB 2 the filter,
+         * KNOB 3 the type, KNOB 4 the mark. Over the red question: none of them */
+        if (ce.del_ask)
+            return;
+        if (role == EN_K2) {
+            cu_filter_turn(s);
+            if (ce.save_choice != CU_SAVE_FILT)
+                cu_message(crf_filter ? "Filter on" : "Filter off", CR_COL_YELLOW);
+        } else if (role == EN_K3) {
+            if (cu_fav_type_turn(ce.save_part, s) && ce.save_choice != CU_SAVE_TYPE) {
+                uint32_t tag = 0, id = 0;
+                char m[24];
+                (void)cu_fav_part_key(ce.save_part, &tag, &id);
+                cu_cpy(m, "Type: ", sizeof m);
+                cu_cat(m, CU_FAV_TYPE[crf_type(tag, id)], sizeof m);
+                cu_message(m, CR_COL_YELLOW);
+            }
+        } else if (role == EN_K4 || ce.save_choice == CU_SAVE_FAV)
+            (void)cu_fav_turn(ce.save_part, s);
+        else if (ce.save_choice == CU_SAVE_FILT)
+            cu_filter_turn(s);
+        else if (ce.save_choice == CU_SAVE_TYPE)
+            (void)cu_fav_type_turn(ce.save_part, s);
+        else
+            cu_trace("save: knob 1 on %s: no value\n", CU_SAVE_NAME[ce.save_choice]);
         return;
     }
     switch (role) {
@@ -4587,7 +5198,7 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s, 1);
         break;
     case EN_K4:
-        cu_send_set(0, CU_FX[cs.fx_sel].send, cu_send_step(cu_send(0, CU_FX[cs.fx_sel].send), s, 0));
+        cu_send_set(0, CU_FX[cs.fx_sel].send, cu_send_step(cu_send(0, CU_FX[cs.fx_sel].send), s, kn.snap));
         cu_send_popup(cu_send(0, CU_FX[cs.fx_sel].send), CU_FX[cs.fx_sel].name, CR_COL_GREEN);
         cu_trace("send: knob 4 %s %u (%u%%)\n", CU_FX[cs.fx_sel].name, (unsigned)cu_send(0, CU_FX[cs.fx_sel].send),
                  (unsigned)cu_send_pct(cu_send(0, CU_FX[cs.fx_sel].send)));
@@ -4595,7 +5206,10 @@ static void cu_knob(uint32_t role, int32_t s)
     case EN_PRESET:                                /* the chord part's engine's pool, wrapping */
         {
             uint32_t n = pool_count(trk[CR_PART_CHORD].eng_req % NENGINES);
-            cu_sound_go((cs.sound + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
+            if (cuf_n(0, trk[CR_PART_CHORD].eng_req))   /* the favourites filter: the chord part's favourites, wrapping */
+                cu_sound_go((uint32_t)cuf_move(0, (int32_t)cs.sound, s, 1, 0));
+            else
+                cu_sound_go((cs.sound + (uint32_t)(s % (int32_t)n + (int32_t)n)) % n);
             cu_sound_popup(0);
             cu_trace("sound: part 0 pos %u %s\n", (unsigned)cs.sound, psnd[0].name);
         }
@@ -4604,6 +5218,8 @@ static void cu_knob(uint32_t role, int32_t s)
         {
             int32_t n = (int32_t)pool_count(trk[CR_PART_BASS].eng_req % NENGINES) + 1;
             v = ((int32_t)cs.bass_sound + s % n + n) % n;
+            if (cuf_n(1, trk[CR_PART_BASS].eng_req))   /* the favourites filter: OFF, then the bass part's favourites */
+                v = cuf_move(1, (int32_t)cs.bass_sound - 1, s, 1, 1) + 1;
         }
         cu_bass_go((uint32_t)v);
         cu_sound_popup(1);
@@ -4780,16 +5396,43 @@ static void cu_calib_screen(cr_screen_t *s)
  * redraw). ne: the press edges taken, km: the keys down */
 static void cu_scan_keys(uint32_t ne, uint32_t km)
 {
-    uint32_t k;
+    uint32_t k, now = cu_now();
     for (k = 0; k < CU_NKEY; k++) {
         uint32_t was = (cu.kheld >> k) & 1u, is = (km >> k) & 1u, e = (ne >> k) & 1u;
         if (was && (e || !is))
             cu_key_release(k);
     }
+    for (k = 0; k < CU_NKEY; k++) {                /* the keys waiting for their velocity: play when it is there */
+        uint32_t bit = 1u << k, v;
+        if (!(cu.kpend & bit))
+            continue;
+        v = cr_sense_take(k);
+        if (!v && now - cu.kpend_t0[k] < CU_VEL_WAIT_MS)
+            continue;
+        cu.kpend &= ~bit;
+        cr_sense_land[k] = 0;
+        if (v)
+            cu.ctx_vel = (uint8_t)(cu.ctx_vel ? (cu.ctx_vel * 3u + v + 2u) / 4u : v);
+        cu_press_vel = (uint8_t)v;
+        cu_key_press(k);
+        cu_press_vel = 0;
+        if (!((km >> k) & 1u))
+            cu_key_release(k);
+    }
     for (k = 0; k < CU_NKEY; k++) {
         uint32_t was = (cu.kheld >> k) & 1u, is = (km >> k) & 1u, e = (ne >> k) & 1u;
-        if (!was && (is || e)) {
+        if (!was && (is || e) && !((cu.kpend >> k) & 1u)) {
+            if (CU_KEY_SENSED(k) && !cr_sense_land[k]) {   /* (the velocity comes 7 .. 10 ms after the debounce) */
+                cu.kpend |= 1u << k;
+                cu.kpend_t0[k] = now;
+                continue;
+            }
+            cu_press_vel = (uint8_t)cr_sense_take(k);
+            cr_sense_land[k] = 0;
+            if (cu_press_vel)
+                cu.ctx_vel = (uint8_t)(cu.ctx_vel ? (cu.ctx_vel * 3u + cu_press_vel + 2u) / 4u : cu_press_vel);
             cu_key_press(k);
+            cu_press_vel = 0;
             if (!is)
                 cu_key_release(k);
         }
@@ -4842,6 +5485,7 @@ static void cr_ui_pump(void)
         uint32_t ne = fm1_input_note_edges();
         cu_scan_keys(ne, fm1_in.notes);
         cu_scan_step();
+        cu_touch_poll();
         cu_pumped++;
     }
     CU_PUMP_END();
@@ -4963,6 +5607,7 @@ static void cr_ui_input(void)
         cu_lock_menu();
     }
     cu_scan_step();
+    cu_touch_poll();
     for (b = 0; b < NE; b++)
         if ((s = panel_enc(b)) != 0)
             cu_knob(b, s);
@@ -5012,6 +5657,9 @@ static void cr_leds(void)
     uint32_t full = cs.kbd_full && !cu_key_pick(); /* the Full keyboard: the chord block's nine keys are notes */
     uint32_t key0 = full ? 0u : CU_ROOT0;          /* the first key that plays */
     uint32_t scale = cs.key_on ? cu_scale_bits() : 0u;
+    uint32_t snapped = cs.key_on && cs.snap && cs.key_notes && !cs.leds;   /* Snap (0.22): the roots
+                                                    * out of the scale play, and glow faint for it (Glow; Stock keeps
+                                                    * its two levels: the scale's keys lit, the others dark) */
     const cr_snap_t *sn = &cr_snap;
     if (cu.msg.big == 1u && (int32_t)(cu.msg.until - now) > 0) {   /* panic: everything flashes */
         for (k = 0; k < 41u; k++)
@@ -5158,6 +5806,8 @@ static void cr_leds(void)
                 cu_led(cs.leds ? own : nm, 14u + k, 1);
             else if ((scale >> pc) & 1u)
                 cu_led(nd, 14u + k, 1);
+            else if (snapped)
+                cu_led(nf, 14u + k, 1);
         }
     } else if (cu.page == PG_SAVE && ce.save_step) {     /* naming: the keys that type lit (the letters, D#4 space) */
         for (k = CU_ROOT0; k < CU_NKEY; k++)
@@ -5176,9 +5826,10 @@ static void cr_leds(void)
                 pcs |= 1u << (sn->ci.notes[i] % 12u);
         for (k = 0; full && k < CU_NKEY; k++)            /* the Full keyboard: every key held that plays a note (the
                                                           * chord shown is the last one only) */
-            if (cu.key_note[k] && cu.key_note[k] != 0xFFu && (!cs.key_on || ((scale >> CU_KEY_PC(k)) & 1u)))
+            if (cu.key_note[k] && cu.key_note[k] != 0xFFu && (!cs.key_on || (cs.key_notes && ((scale >> CU_KEY_PC(k)) & 1u))))
                 pcs |= 1u << ((uint32_t)(cu.key_note[k] - 1 + 48 + cs.transpose) % 12u);
-                                                     /* (Key Mode: a key out of the scale plays nothing: dark) */
+                                                     /* (Key Mode, Notes: a key out of the scale plays nothing, or
+                                                      * Snap's note, shown by ci: dark; Chords: its chord, by ci) */
         if (sn->perform_on && sn->perf_pos >= 0 && sn->ci.sounding && !blink)
             pcs &= ~(1u << (sn->perf_note % 12u));       /* the performed note blinks (on every key of its name) */
         for (k = key0; k < CU_NKEY; k++)
@@ -5194,9 +5845,9 @@ static void cr_leds(void)
          * glowed (the low level); Stock keeps that (its idle keys lit: its two levels are the stock firmware's
          * picture, not the glow's). Key Mode on (the owner, 2026-10-11): the
          * key shows on them: a note of the scale glows (low), the tonic's keys at the middle level (fm1_led_dim2),
-         * a key out of the scale is dark; a sounding note is lit over it (nl). Until then only the black keys out of
-         * the scale went dark: every white key glowed whatever the key. Stock has two levels: below, the scale's
-         * keys lit (the tonic as the rest), the others dark */
+         * a key out of the scale is dark, or glows faint when Snap makes it play (0.22); a sounding note is lit over
+         * it (nl). Until then only the black keys out of the scale went dark: every white key glowed whatever the
+         * key. Stock has two levels: below, the scale's keys lit (the tonic as the rest), the others dark */
         for (k = key0; k < CU_NKEY; k++) {
             uint32_t pc = CU_KEY_PC(k);                  /* (the octave shift keeps the pitch class) */
             if (!cs.key_on)
@@ -5205,6 +5856,8 @@ static void cr_leds(void)
                 cu_led(nm, 14u + k, 1);
             else if ((scale >> pc) & 1u)
                 cu_led(nd, 14u + k, 1);
+            else if (snapped)
+                cu_led(nf, 14u + k, 1);
         }
         for (k = key0; k < CU_NKEY; k++)                 /* PLAN 6: the loop's notes glow dim (not the player's), on
                                                           * every key of their names too */
@@ -5284,16 +5937,18 @@ static uint32_t cu_batt(void)
     return song.batt_raw >= 591 ? 3u : song.batt_raw >= 561 ? 2u : song.batt_raw >= 531 ? 1u : 0u;
 }
 
-/* the KEY layer's Numerals (0.22): the sounding chord's Roman numeral in the key, "" when there is none to show (the
- * option or Key Mode off, nothing sounding). The root is the one PLAYED: the name's (cr_chord_info: Key Mode
- * resolved, transposed) less the Transpose inside it, so the tonic chord reads I at any Transpose (the owner,
- * 2026-10-12; with Transpose +1 in C the name says C#M and the numeral I) */
+/* the KEY layer's Numerals (0.22): the sounding chord's Roman numeral in the key (Solfege, GitHub issue 15: the same
+ * degree as a syllable, cr_chord_solfege), "" when there is none to show (the option or Key Mode off, nothing
+ * sounding). The root is the one PLAYED: the name's (cr_chord_info: Key Mode resolved, transposed) less the Transpose
+ * inside it, so the tonic chord reads I (DO) at any Transpose (the owner, 2026-10-12; with Transpose +1 in C the name
+ * says C#M and the numeral I) */
 static void cu_numeral(char b[CR_NUMERAL_MAX])
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
     b[0] = 0;
     if (cs.numerals && cs.key_on && ci->valid && ci->sounding)
-        cr_chord_numeral((uint8_t)(((int)ci->root_pc - ci->transpose) % 12 + 12), ci->quality, cs.tonic, cs.scale, b);
+        (cs.numerals == 2u ? cr_chord_solfege : cr_chord_numeral)((uint8_t)(((int)ci->root_pc - ci->transpose) % 12 + 12),
+                                                                 ci->quality, cs.tonic, cs.scale, b);
 }
 /* .. on the Chord view, blue, centred above the chord name (cr_draw.c cr_p_chord, cr_p_arp). numeral_on is the
  * layout (the arp's name sits lower to make room): set by the two settings alone, not by a chord sounding, so the
@@ -5504,7 +6159,8 @@ static void cu_safe_screen(cr_screen_t *s)
  * FM6 bank copy A 0x97000..0x9FFFF (storage.c st_sector: VA store, FM6 stores, the project slots, 0x9F000), the loop
  * slots 0xC8000..0xDBFFF (CRL_FL_BASE), the user sound banks 0xDC000..0xDFFFF, the settings A / B and FM6 bank
  * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF;
- * FELUCCA_QUAD: the QUAD patch store 0xB2000..0xB3FFF and the session 0xB4000..0xB5FFF (0.18) */
+ * FELUCCA_QUAD: the QUAD patch store 0xB2000..0xB3FFF, the session 0xB4000..0xB5FFF (0.18) and the favourites
+ * 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their slots) */
 #ifndef CR_REBOOT
 #define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
 #endif
@@ -5516,7 +6172,7 @@ static void cu_flash_erase(void)
                                     {0xA0000u, 18u},   /* (storage.c: OBJ_CZSTORE1, OBJ_CZBANK0..+7) */
 #endif
 #if FELUCCA_QUAD
-                                    {0xB2000u, 4u},    /* (storage.c: OBJ_QUADSTORE, OBJ_SESSION) */
+                                    {0xB2000u, 6u},    /* (storage.c: OBJ_QUADSTORE, OBJ_SESSION, OBJ_FAVS) */
 #endif
     };
     cr_screen_t *es = &cu_scr;                     /* (the frame's screen, in the pool: off the stack and out of
@@ -5713,10 +6369,14 @@ static void cu_key_cells(cr_screen_t *s)
 {
     static const char *const LB[4] = {"Tonic", "Scale", "Transpose", "Single"};
     uint32_t k;
-    if (cu.kpage) {                                /* page 2 (SELECT): Key plays, Keyboard; KNOB 3 free; KNOB 4 Numerals */
+    if (cu.kpage) {                                /* page 2 (SELECT): Key plays, Keyboard, Snap, Numerals */
         s->cell[0][0].flags = s->cell[0][1].flags = s->cell[0][3].flags = CR_CF_ON;
+        s->cell[0][2].flags = (uint8_t)(CR_CF_ON | (cs.key_notes ? 0u : CR_CF_DIM));   /* (Snap changes nothing
+                                                    * with Key plays Chords, on either keyboard: grey) */
+        cu_cpy(s->cell[0][2].label, "Snap", sizeof s->cell[0][2].label);
+        cu_cpy(s->cell[0][2].value, CU_SNAP[cs.snap % 3u], sizeof s->cell[0][2].value);
         cu_cpy(s->cell[0][3].label, "Numerals", sizeof s->cell[0][3].label);
-        cu_cpy(s->cell[0][3].value, cs.numerals ? "On" : "Off", sizeof s->cell[0][3].value);
+        cu_cpy(s->cell[0][3].value, CU_NUMS[cs.numerals % 3u], sizeof s->cell[0][3].value);
         cu_cpy(s->cell[0][0].label, "Key plays", sizeof s->cell[0][0].label);
         cu_cpy(s->cell[0][0].value, cs.key_notes ? "Notes" : "Chords", sizeof s->cell[0][0].value);
         cu_cpy(s->cell[0][1].label, "Keyboard", sizeof s->cell[0][1].label);
@@ -6072,7 +6732,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
                                               "Pattern", "Harp"};
-    static const char *const FX_ITEMS[CU_NFX + 1u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive"};
+    static const char *const FX_ITEMS[CU_NFX + 2u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter"};
     const char *eng[NENGINES];
     uint32_t k, n;
     switch (l) {
@@ -6122,7 +6782,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        cu_picker(s, FX_ITEMS, CU_NFX + 1u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_sel % CU_NFX + 1u, CR_COL_GREEN,
+        cu_picker(s, FX_ITEMS, CU_NFX + 2u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_page == CU_FXPG_FILTER ? CU_NFX + 1u
+                                            : cs.fx_sel % CU_NFX + 1u, CR_COL_GREEN,
                   cs.fx_on ? "fx \267 on" : "fx \267 off", "SELECT: effect \267 FX: on/off \267 OCT-: back");
         if (CU_FXP[cu_fx_pg()].of > 1u)            /* the page, quietly (as the KEY layer's): SELECT steps through both */
             cu_cat(s->label, cs.fx_page ? " \267 2/2" : " \267 1/2", sizeof s->label);
@@ -6176,6 +6837,7 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         cu_cpy(s->value, psnd[ce.part].name, sizeof s->value);
         if (psnd[ce.part].edited)
             cu_cat(s->value, "*", sizeof s->value);
+        s->star = (uint8_t)cu_fav_part(ce.part);   /* a favourite (KNOB 4 here): the star before its name */
         break;
     case L_LOOP:                                   /* the PLAY menu (no ring: a loop running shows the dial) */
         cu_loopmenu(s, cu_now());
@@ -6242,11 +6904,23 @@ static void cu_options_screen(cr_screen_t *s)
         cu_cpy(s->label, cs.sixth_up ? "6 + 7: the 6th on top, a 13th" : "6 + 7: the 6th under the 7th", sizeof s->label);
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);
+    else if (cu.opt_sel == O_VERSION) {            /* the unit's ID under the version (3y66: several FM-1s on one
+                                                    * computer, fm1_install.py --unit) */
+        cu_cpy(s->label, cr_unit_id[0] ? "unit ID " : "no unit ID", sizeof s->label);
+        cu_cat(s->label, cr_unit_id, sizeof s->label);
+    }
     else if (cu.opt_sel == O_OUTPUT)               /* (docs/AUDIO-QUALITY.md: 0.19's output chain against 0.18's) */
         cu_cpy(s->label, cs.out_clean ? "0.19: linear, MASTER last" : "0.18: limiter, soft clip", sizeof s->label);
-    else if (cu.opt_sel == O_DUALCORE)             /* (docs/DUALCORE.md: Off the default, On the option; never started /
+    else if (cu.opt_sel == O_DUALCORE && !CR_SINGLE_CORE && !cs.dualcore && cr_c1_barred) {   /* (cr_cpu1.h: kept
+                                                    * off after a crash or a hang beside core 1, or given up this
+                                                    * session) */
+        static const char *const BAR[4] = {"", "off after a crash on 2 cores", "off after a hang on 2 cores",
+                                           "off: the 2nd core gave up"};
+        cu_cpy(s->label, BAR[cr_c1_barred & 3u], sizeof s->label);
+    } else if (cu.opt_sel == O_DUALCORE)           /* (docs/DUALCORE.md: On the default since 0.22; never started /
                                                     * stopped live) */
-        cu_cpy(s->label, cs.dualcore != !cr_c1_off ? "takes effect after a restart"
+        cu_cpy(s->label, CR_SINGLE_CORE ? "the single core package"
+                         : cs.dualcore != !cr_c1_off ? "takes effect after a restart"
                          : cs.dualcore ? "bass on the second core" : "On: bass on the second core", sizeof s->label);
 }
 
@@ -6276,7 +6950,7 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
 {
     static const char *const CHOICE[2] = {"Overwrite", "Save as new"};
     uint32_t part = ce.save_part, e = trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req % NENGINES, col;
-    char b[24];
+    char b[32];
     col = part ? CR_COL_ORANGE : CR_COL_WHITE;
     if (ce.del_ask) {                              /* the place huge in red, the name (reset: the factory one's) */
         s->kind = CR_K_BIG;
@@ -6292,13 +6966,37 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
         s->size = 96;
         return;
     }
-    if (!ce.save_step) {                           /* the choice */
-        cu_cpy(b, part ? "save bass \267 " : "save \267 ", sizeof b);
-        cu_cat(b, ENGINES[e]->name, sizeof b);
-        cu_picker(s, CHOICE, 2, ce.save_choice, col, b, "OCT+: save \267 OCT-: cancel");
+    if (!ce.save_step) {                           /* the menu: five entries (P5: the last three). The two saves by
+                                                    * their names; the other three show their VALUE big (the entry not
+                                                    * selected: a line that names it), the line under the name says
+                                                    * which entry it is */
+        static const char *const TYSM[3] = {"Type: Both", "Type: Chord", "Type: Bass"};
+        uint32_t ch = ce.save_choice, tag = 0, id = 0, ty;
+        int fav = cu_fav_part(part), only = cu_save_favonly(part);
+        const char *it[CU_SAVE_N];
+        ty = cu_fav_part_key(part, &tag, &id) ? crf_type(tag, id) : CRF_BOTH;   /* (the sound's, marked or not) */
+        it[0] = CHOICE[0];
+        it[1] = CHOICE[1];
+        it[CU_SAVE_FAV] = fav ? "Favorite" : "Not a favorite";
+        it[CU_SAVE_FILT] = crf_filter ? "Filter on" : "Filter off";
+        it[CU_SAVE_TYPE] = ch != CU_SAVE_TYPE ? TYSM[ty] : CU_FAV_TYPE[ty];
+        if (ch == CU_SAVE_FILT) {
+            cu_cpy(b, crf_filter && !cuf_n(part, e) ? "no favorites here: all" : "favorites filter", sizeof b);
+        } else if (ch == CU_SAVE_TYPE) {             /* (not a favourite: said here, and the name has no star) */
+            cu_cpy(b, fav ? "favorite type" : "type \267 not a favorite", sizeof b);
+        } else {
+            cu_cpy(b, ch == CU_SAVE_FAV ? (part ? "bass \267 " : "") : part ? "save bass \267 " : "save \267 ", sizeof b);
+            cu_cat(b, ENGINES[e]->name, sizeof b);
+            if (ch == CU_SAVE_FAV)
+                cu_cat(b, " \267 favorite", sizeof b);
+        }
+        cu_picker(s, only ? it + CU_SAVE_FAV : it, only ? CU_SAVE_N - CU_SAVE_FAV : CU_SAVE_N,
+                  only ? ch - CU_SAVE_FAV : ch, col, b,
+                  ch >= CU_SAVE_FAV ? CU_SAVE_FOOT : "OCT+: save \267 OCT-: cancel");
         cu_cpy(s->value, psnd[part].name, sizeof s->value);
         if (psnd[part].edited)
             cu_cat(s->value, " *", sizeof s->value);
+        s->star = (uint8_t)fav;
         return;
     }
     s->kind = CR_K_TEXT;
@@ -6311,11 +7009,12 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
     s->lines[1].px = 36;
     s->lines[1].col = cn.pristine ? CR_COL_GREY : CR_COL_WHITE;
     s->lines[1].bold = 1;
+    s->lines[1].cur = (uint8_t)(cn.len ? cn.cur + 1u : 0u);   /* the cursor: under its character (no name: none) */
     s->lines[2].px = 12;
-    cu_cpy(s->lines[3].t, "keys: letters \267 F#4: delete", sizeof s->lines[3].t);
+    cu_cpy(s->lines[3].t, "SELECT: cursor \267 K1: letter", sizeof s->lines[3].t);
     s->lines[3].px = 12;
     s->lines[3].col = CR_COL_GREY;
-    cu_cpy(s->lines[4].t, "SAVE: save \267 KNOB 2: letter", sizeof s->lines[4].t);
+    cu_cpy(s->lines[4].t, "keys: letters \267 K4 left: delete", sizeof s->lines[4].t);
     s->lines[4].px = 12;
     s->lines[4].col = CR_COL_GREY;
     s->n_lines = 5;
@@ -6389,6 +7088,106 @@ static int cu_arp_layer(uint32_t now)
     return cu_arp_run(&a, now, now - cu.perf_t0 >= CU_PERF_PICK_MS);
 }
 
+/* GEEK OUT 2 (the owner, 2026-10-14): four meters, the oscillator mixer's tall bars as a read-out (cr_draw.c cr_p_tall,
+ * tall 2) under the editor's title line with the battery: CORE 0, the audio ISR's share of a half over the last second
+ * (audio.c cpu_window: its render, less its waits for core 1); CORE 1, core 1's busy time over the same second (cr_cpu1.h
+ * c1_avg_us / c1_max_us: the bass part's job with its share of P5's chord voices, and the reverb, 3y46 / 3y50; not
+ * running: dim, cr_c1_name); RAM and POOL in use (app.ld, link-time: build.sh's size line). The core
+ * bars glide a quarter of the way to the second's figure each frame (Motion Off: at once; from 0 on coming to the
+ * view), the second's peak a tick. The emulator has no link map, and its ISR's wall time is the host's: its own
+ * CR_MEM_USED and CR_CORE0_US (emu_firmware.h) */
+#ifndef CR_CORE0_US
+#define CR_CORE0_US(avg, max) ((avg) = cpu_last.avg_us, (max) = cpu_last.max_us)
+#endif
+#ifndef CR_MEM_USED
+extern uint32_t _bss_end[], _pool_start[], _pool_end[];          /* app.ld (main.c's) */
+#define CR_MEM_USED(r, p) ((r) = (uint32_t)(uintptr_t)_bss_end - 0x01C08000u, \
+                           (p) = (uint32_t)(uintptr_t)_pool_end - (uint32_t)(uintptr_t)_pool_start)   /* (RAM's origin) */
+#endif
+#define CU_RAM_BYTES 98304u                       /* app.ld: RAM 96 KiB, POOL 0x54000 */
+#define CU_POOL_BYTES 0x54000u
+static void cu_g2_cell(cr_cell_t *c, const char *label, uint32_t pct, uint32_t peak, uint32_t v100)
+{
+    char b[8];
+    c->flags = CR_CF_ON | CR_CF_PCT;
+    c->glyph = CR_G_BAR;
+    cu_cpy(c->label, label, sizeof c->label);
+    c->pct = (uint8_t)(pct > 255u ? 255u : pct);
+    c->pct2 = (uint8_t)(peak > 255u ? 255u : peak);
+    cu_int(b, (int32_t)v100, 0, sizeof b);
+    cu_cat(b, "%", sizeof b);
+    cu_cpy(c->value, b, sizeof c->value);
+}
+static void cu_geek2(cr_screen_t *s, uint32_t now)
+{
+    static uint32_t shown[2], seen;              /* the core bars as shown (Q12 of a half), the last frame here */
+    uint32_t us[2], pk[2], k, ram, pool, dual = 0;
+    CR_CORE0_US(us[0], pk[0]);
+    us[1] = pk[1] = 0;
+#if CR_CPU1
+    if (cr_dbg.c1 == C1_OK) {
+        dual = 1;
+        us[0] = us[0] > cr_dbg.avg_us[CRP_WAIT] ? us[0] - cr_dbg.avg_us[CRP_WAIT] : 0u;
+        pk[0] = pk[0] > cr_dbg.max_us[CRP_WAIT] ? pk[0] - cr_dbg.max_us[CRP_WAIT] : 0u;
+        us[1] = cr_dbg.c1_avg_us;                /* (its voices and the reverb: not CRP_PART1 alone, the voices') */
+        pk[1] = cr_dbg.c1_max_us;
+    }
+#endif
+    if (now - seen > 200u)                       /* (back on the view: the bars rise from 0) */
+        shown[0] = shown[1] = 0;
+    seen = now;
+    for (k = 0; k < 2u; k++) {
+        uint32_t t = us[k] >= CPU_HALF_US ? 4096u : us[k] * 4096u / CPU_HALF_US;
+        int32_t d = (int32_t)t - (int32_t)shown[k];
+        shown[k] = cr_motion == CR_MOTION_OFF || (d > -8 && d < 8) ? t : (uint32_t)((int32_t)shown[k] + d / 4);
+    }
+    s->kind = CR_K_EDIT8;
+    s->header = 0;                               /* (its own title line, as the editor's) */
+    s->ring_on = 0;
+    s->tall = 2;
+    s->n_rows = 1;
+    s->active = 0;
+    s->batt = (uint8_t)cu_batt();
+    cu_cpy(s->title, "GEEK OUT 2", sizeof s->title);
+    s->title_col = CR_COL_WHITE;
+    if (cs.touch) {                              /* the keys sensing: the last key's velocity, the aftertouch now */
+        char b[8];
+        cu_cpy(s->page, "VEL ", sizeof s->page);
+        cu_int(b, cu.last_vel, 0, sizeof b);
+        cu_cat(s->page, b, sizeof s->page);
+        cu_cat(s->page, " AT ", sizeof s->page);
+        cu_int(b, cu.last_at, 0, sizeof b);
+        cu_cat(s->page, b, sizeof s->page);
+    } else
+        cu_cpy(s->page, dual ? "2 cores" : "1 core", sizeof s->page);
+    cu_g2_cell(&s->cell[0][0], "CORE 0", shown[0] >> 4, pk[0] * 256u / CPU_HALF_US,
+               (us[0] * 100u + CPU_HALF_US / 2u) / CPU_HALF_US);
+    if (dual)
+        cu_g2_cell(&s->cell[0][1], "CORE 1", shown[1] >> 4, pk[1] * 256u / CPU_HALF_US,
+                   (us[1] * 100u + CPU_HALF_US / 2u) / CPU_HALF_US);
+    else {                                       /* one core: core 1's word, in the grey */
+        cu_g2_cell(&s->cell[0][1], "CORE 1", 0, 0, 0);
+        s->cell[0][1].flags |= CR_CF_DIM;
+#if CR_CPU1
+        cu_cpy(s->cell[0][1].value, cr_c1_name(), sizeof s->cell[0][1].value);
+#else
+        cu_cpy(s->cell[0][1].value, "off", sizeof s->cell[0][1].value);
+#endif
+    }
+    CR_MEM_USED(ram, pool);
+    if (ram == 0xFFFFFFFFu) {                    /* (no link map: the emulator) */
+        for (k = 2; k < 4u; k++) {
+            cu_g2_cell(&s->cell[0][k], k == 2u ? "RAM" : "POOL", 0, 0, 0);
+            s->cell[0][k].flags |= CR_CF_DIM;
+            cu_cpy(s->cell[0][k].value, "n/a", sizeof s->cell[0][k].value);
+        }
+        return;
+    }
+    cu_g2_cell(&s->cell[0][2], "RAM", ram * 256u / CU_RAM_BYTES, 0, (ram * 100u + CU_RAM_BYTES / 2u) / CU_RAM_BYTES);
+    cu_g2_cell(&s->cell[0][3], "POOL", pool * 256u / CU_POOL_BYTES, 0,
+               (pool * 100u + CU_POOL_BYTES / 2u) / CU_POOL_BYTES);
+}
+
 static void cu_view_screen(cr_screen_t *s, uint32_t now)
 {
     const cr_snap_t *sn = &cr_snap;
@@ -6412,6 +7211,9 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
         return;
     }
     switch (cs.view) {
+    case V_GEEK2:                                 /* four meters: the two cores, RAM, POOL */
+        cu_geek2(s, now);
+        break;
     case V_SCOPE:                                 /* the sound itself: one bold line, the chord small on top */
         s->kind = CR_K_SCOPE;
         s->col = CR_COL_WHITE;
@@ -6496,6 +7298,10 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
                 cu_cat(s->lines[3].t, " \267 stk ", sizeof s->lines[3].t);
                 cu_int(b, (int32_t)cr_dbg.c1_stack, 0, sizeof b);
                 cu_cat(s->lines[3].t, b, sizeof s->lines[3].t);
+            }
+            if (cr_dbg.c1 == C1_OFF && cr_c1_barred) {         /* kept off: why ("c1 off \267 after a crash") */
+                cu_cat(s->lines[3].t, " \267 ", sizeof s->lines[3].t);
+                cu_cat(s->lines[3].t, cr_c1_bar_name(), sizeof s->lines[3].t);
             }
             if (cr_dbg.c1 == C1_GAVE_UP)                       /* the way out: the switch (docs/DUALCORE.md) */
                 cu_cat(s->lines[3].t, " \267 Options>Dual Core", sizeof s->lines[3].t);   /* (30 chars of the 31 a line holds) */
@@ -6642,6 +7448,8 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         } else {
             cu_meter(s, cu.pop.value, cu.pop.sub, cu.pop.label, cu.pop.col, cu.pop.pct, cu.pop.segs);
             s->sub_mark = cu.pop.mark;
+            s->star = cu.pop.star;
+            s->label_fav = cu.pop.filt;
             if (cu.pop.over[0]) {                  /* a pool's read-out on the home pages: the engine over the number */
                 cu_cpy(s->line, cu.pop.over, sizeof s->line);
                 s->line_col = CR_COL_ORANGE;
@@ -6912,6 +7720,23 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
 #if CR_CPU1
     if (cr_dbg.c1 == C1_OK)
         cr_dbg.c1_stack = cr_c1_stack_used();      /* core 1's stack high-water mark (its C1MK fill) */
+    {   /* core 1 kept off at boot (cr_cpu1.h cr_c1_bar_boot): told once, after the splash; given up this session
+         * (cr_c1_give_up): Dual Core Off, saved (a restart keeps one core either way: the .noinit bar) */
+        static uint8_t cu_c1_told, cu_c1_seen;
+        static const char *const MSG[4] = {"", "dual core off: crash", "dual core off: hang", "dual core off: gave up"};
+        if (cr_dbg.c1_fallback && !cu_c1_seen && !CR_C1_INJECTED()) {   /* (an injected failure, a CR_CORE1_TEST
+                                                    * build's 75 CORE1_TEST, is not the unit's: nothing saved) */
+            cu_c1_seen = cu_c1_told = 1;
+            cr_c1_barred = C1_BAR_GAVE_UP;
+#if CR_HAVE_SETTINGS
+            cr_settings_dc_off();
+#endif
+            cu_message(MSG[C1_BAR_GAVE_UP], CR_COL_RED);
+        } else if (cr_c1_barred && !cu_c1_told && cu_now() - cu_boot_ms >= CR_SPLASH_MS) {
+            cu_c1_told = 1;
+            cu_message(MSG[cr_c1_barred & 3u], CR_COL_RED);
+        }
+    }
 #endif
     if (cpk.on && cu.lock != L_EDIT)               /* the picker closed another way (OPT, SAVE, BASS + EDIT): kept */
         cu_pick_end(1);
@@ -7073,7 +7898,7 @@ static void cr_ui_init(void)
     cs.loop_level = 100;
     cs.loop_rate = CRL_RATE_1;
     cs.metro_vol = 70;
-    cs.dualcore = 0;                              /* Options > Dual Core Off (the record's: cr_settings_load) */
+    cs.dualcore = 1;                              /* Options > Dual Core On (the record's: cr_settings_load) */
     cs.out_clean = 1;                             /* Options > Output Clean (the record's) */
     cs.usb48 = 0;                                 /* Options > USB Rate 44.1 kHz (the record's) */
     cs.names_std = 0;                             /* Options > Chord Names Orchid (the record's) */

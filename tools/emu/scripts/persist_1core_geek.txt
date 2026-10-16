@@ -1,0 +1,19 @@
+# test_persist.sh, the two packages (docs/DUALCORE.md "Two packages"): GEEK OUT (HOME x3 with a chord held) for its c1
+# line ("c1 ok" on the standard package with Dual Core On, "c1 off" on the single-core package), then quit
+wait 300
+key F3 down
+btn D4 down
+wait 500
+btn HOME 80
+wait 300
+btn HOME 80
+wait 300
+btn HOME 80
+wait 1200
+dump
+btn HOME 80
+btn D4 up
+key F3 up
+wait 500
+dump
+quit

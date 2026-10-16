@@ -56,6 +56,12 @@ static inline int32_t pd_cos(uint32_t ph16) { return -sine_i(((ph16 & 0xFFFFu) <
 #endif
 #include "eng_quad.c"           /* QUAD: a Digitone-style four-operator FM voice (docs/QUAD.md; its state is its own pool) */
 #endif
+#if FELUCCA_PROPHET
+#if !FELUCCA_QUAD
+#error "FELUCCA_PROPHET: engine 16 follows FM TONE's 15 (core.h ENGI_PROPHET): FELUCCA_QUAD 1"
+#endif
+#include "eng_prophet_test.c"   /* PROPHET: Melodee's Prophet-5 engine (docs/PROPHET.md; Kerem Kilic) */
+#endif
 
 /* the engines' runtime state of a part (Melodee's voice model). A part renders one engine at a time (an engine switch
  * fades the old one out first, voice.c engine_block), so their states share one block per part, cleared at every
@@ -83,6 +89,10 @@ static union {
 #if FELUCCA_CZ
     cz_part_t cz;                /* CZ-1's voices: six envelopes each, vibrato, noise */
 #endif
+#if FELUCCA_PROPHET
+    p5_part_t p5;                /* P5's four voices, the wheel's block of samples, the DC blocker (672 B: the union
+                                  * stays FM6's size) */
+#endif
 } eng_state[ENG_STATE_NPART] __attribute__((section(".pool")));
 #if FELUCCA_PHYS
 static phys_slot_t *phys_slots(uint32_t part) { return part < ENG_STATE_NPART ? eng_state[part].phys : 0; }
@@ -99,6 +109,10 @@ static cz_part_t *cz_part(uint32_t part) { return part < ENG_STATE_NPART ? &eng_
  * engine's bytes could pass for the tone's generation when a part comes to CZ-1 without a clear (power-on's loads) */
 static cz_defs_t cz_defs_[ENG_STATE_NPART] __attribute__((section(".pool")));
 static cz_defs_t *cz_defs(uint32_t part) { return part < ENG_STATE_NPART ? &cz_defs_[part] : 0; }
+#endif
+#if FELUCCA_PROPHET
+static p5_part_t *p5_part(uint32_t part) { return part < ENG_STATE_NPART ? &eng_state[part].p5 : 0; }
+_Static_assert(sizeof(p5_part_t) <= sizeof(fm6_part_t), "PROPHET's part state does not grow the parts' engine state");
 #endif
 static void eng_state_clear(uint32_t part)
 {
@@ -228,6 +242,9 @@ static const engine_t *const ENGINES[NENGINES] = {
 #if FELUCCA_QUAD
     &ENG_QUAD,                   /* 13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ (ENGI_QUAD; ChoralRoot: 15) */
 #endif
+#if FELUCCA_PROPHET
+    &ENG_P5_TEST,                /* .. + FELUCCA_QUAD (ENGI_PROPHET; ChoralRoot: 16; Melodee's name for its engine) */
+#endif
 };
 
 /* a track's engine number as an index (the audio paths: a compare, cheaper than % NENGINES; a bad number: 0) */
@@ -249,6 +266,9 @@ static const uint8_t ENGINE_ORDER[NENG_SHOWN] = {
 #endif
 #if FELUCCA_CZ
     ENGI_CZ,                     /* CZ-1 (after the VA since ChoralRoot 0.14; Melodee shows it after PHASE) */
+#endif
+#if FELUCCA_PROPHET
+    ENGI_PROPHET,                /* PROPHET (after CZ-1, before WHEEL) */
 #endif
 #if FELUCCA_FM4
     1,                           /* DIGITAL */

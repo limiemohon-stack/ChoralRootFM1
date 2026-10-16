@@ -18,7 +18,12 @@
  *  8. mono: Spread 0 in Stereo mode is the same sample left and right; ping-pong's sum has every repeat;
  *  9. silence in, silence out: after the tail both effects switch off (exact zeros) and the block costs almost
  *     nothing; the decay times against the knob;
- * 10. the cost: host instructions a 128-frame block with both fully on, and emu.c's device estimate (budget: 350 us).
+ * 10. the cost: host instructions a 128-frame block with both fully on, and emu.c's device estimate (budget: 350 us);
+ * 11. the master filter (0.22, cr_fx.c xq_block): Off is bit-exact (the default, FX off, the cuts at their Off ends,
+ *     and again after a cut was in), the response of each cut at a few corners and both slopes against the one-pole's
+ *     own formula, the extremes (both cuts in at their far ends, a loud square and noise over the clamp: bounded,
+ *     exact zeros after silence), a cutoff swept and the filter and the slope toggled under a held tone (no step
+ *     above the tone's own), and the cost a half of one cut and of both.
  * WAVs for tools/fx_plots.py into OUTDIR: the reverb's impulse responses (small, default, large, Inf), the delay's
  * repeats (stereo, ping-pong, spread).
  *   build/host/cr_fx_test --chorus-listen DIR   the chorus's listening files of 0.21 (tools/chorus_glide_listen.sh) */
@@ -60,6 +65,8 @@ static const char *outdir = "build/fx-review";
 static void fx_reset(void)
 {
     memset(&xf, 0, sizeof xf);
+    memset(&xq, 0, sizeof xq);
+    fx_off = 0;
     memset(xd_buf, 0, sizeof xd_buf);
     memset(xr_buf, 0, sizeof xr_buf);
     memset(xr_pbuf, 0, sizeof xr_pbuf);
@@ -876,6 +883,241 @@ static void t_silence(void)
     }
 }
 
+/* ------------------------------------------------------------ the master filter --- */
+static int32_t *WI;                                     /* the master into the filter, a run */
+static void fq_reset(void)
+{
+    memset(&xq, 0, sizeof xq);
+    xf_defaults();
+    fx_off = 0;
+    g_f = 1000.0;
+    g_a = 20000.0;
+    g_len = 0xFFFFFFFFu;
+}
+/* n samples of gen (a multiple of CTL) through the master filter, the same on both sides: WI the input, WL / WR the
+ * output; hook before every block */
+static void fq_run(uint32_t n, gen_t gen, hook_t hook)
+{
+    static int32_t ml[CTL], mr[CTL];
+    uint32_t i, k;
+    for (i = 0; i < n && i + CTL <= MAXS; i += CTL) {
+        if (hook)
+            hook(i);
+        for (k = 0; k < CTL; k++)
+            ml[k] = mr[k] = WI[i + k] = gen ? gen(i + k) : 0;
+        xq_block(ml, mr, CTL);
+        memcpy(WL + i, ml, sizeof ml);
+        memcpy(WR + i, mr, sizeof mr);
+    }
+}
+static int fq_same(uint32_t a, uint32_t b)              /* WL == WI == WR over [a, b) */
+{
+    uint32_t i;
+    for (i = a; i < b; i++)
+        if (WL[i] != WI[i] || WR[i] != WI[i])
+            return 0;
+    return 1;
+}
+static int fq_rest(void)                                /* every state of the filter at 0 (a remainder may stay: xf_rs) */
+{
+    uint32_t c, i;
+    for (c = 0; c < 2u; c++)
+        for (i = 0; i < 2u; i++)
+            if (xq.s[c][i].y[0] | xq.s[c][i].y[1])
+                return 0;
+    return 1;
+}
+/* the one-pole y += k (x - y), k Q12, at f: its gain (hp: of x minus it), squared */
+static double fq_pole2(int32_t k12, double f, int hp)
+{
+    double k = k12 / 4096.0, w = 2.0 * M_PI * f / 44100.0, re = 1.0 - (1.0 - k) * cos(w), im = (1.0 - k) * sin(w);
+    double d = re * re + im * im, hr = k * re / d, hi = -k * im / d;   /* H = k / (1 - (1 - k) e^-jw) */
+    if (hp) {
+        hr = 1.0 - hr;
+        hi = -hi;
+    }
+    return hr * hr + hi * hi;
+}
+static uint32_t fq_sw_ms;
+static int32_t fq_sw_v;
+static void h_fq_sweep(uint32_t i)                      /* the high cut a detent every fq_sw_ms, 126 -> 0 -> 126 */
+{
+    uint32_t step = i / (441u * fq_sw_ms / 10u);
+    xfp[XP_FHIGH] = (int16_t)(step < 126u ? 126u - step : step < 252u ? step - 126u : 126u);
+}
+static void h_fq_toggle(uint32_t i)                     /* Filter off / on every 300 ms, Slope every 700 ms */
+{
+    xfp[XP_FON] = (int16_t)((i / 13230u) & 1u);
+    xfp[XP_FSLOPE] = (int16_t)((i / 30870u) & 1u);
+}
+static double fq_maxstep(const int32_t *x, uint32_t a, uint32_t b)
+{
+    double m = 0;
+    uint32_t i;
+    for (i = a + 1u; i < b; i++) {
+        double d = fabs((double)x[i] - x[i - 1u]);
+        if (d > m)
+            m = d;
+    }
+    return m;
+}
+static void t_filter(void)
+{
+    static const uint8_t LO[3] = {20, 70, 120}, HI[3] = {10, 60, 110};
+    uint32_t n = 44100u, i, c, sl, k;
+    int ok;
+    /* Off is bit-exact: the defaults; FX off with the cuts set; the Filter cell Off with the cuts set; On with both
+     * cuts at their Off ends. The states stay at rest and the block costs almost nothing */
+    for (k = 0, ok = 1; k < 4u; k++) {
+        fq_reset();
+        if (k == 1u) {
+            xfp[XP_FON] = 1;
+            xfp[XP_FLOW] = 60;
+            xfp[XP_FHIGH] = 60;
+            fx_off = 1;
+        } else if (k == 2u) {
+            xfp[XP_FLOW] = 60;
+            xfp[XP_FHIGH] = 60;
+        } else if (k == 3u) {
+            xfp[XP_FON] = 1;
+        }
+        g_a = 120000.0;
+        g_len = 0xFFFFFFFFu;
+        fq_run(n, g_chord, 0);
+        ok = ok && fq_same(0, n) && fq_rest();
+    }
+    check("filter: Off is bit for bit the mix (the defaults; FX off; Filter Off; On with both cuts Off), its states at rest", ok);
+    /* in, then out again: after the fade the output is the mix again, bit for bit, the states cleared */
+    fq_reset();
+    xfp[XP_FON] = 1;
+    xfp[XP_FLOW] = 60;
+    xfp[XP_FHIGH] = 60;
+    fq_run(n, g_chord, 0);
+    ok = !fq_same(n / 2u, n);
+    xfp[XP_FON] = 0;
+    fq_run(n, g_chord, 0);
+    check("filter: switched Off under a chord: within the fade's 16 blocks the mix comes back bit for bit, the states cleared",
+          ok && !fq_same(0, CTL) && fq_same(17u * CTL, n) && fq_rest());
+    /* each cut at three corners, both slopes: a sine at a quarter of, at, and at four times the corner: the gain is
+     * the one-pole formula's (one stage, or two at 1.554 x the corner), within 0.3 dB; the same on both sides */
+    for (c = 0, ok = 1; c < 2u; c++)
+        for (sl = 0; sl < 2u; sl++)
+            for (i = 0; i < 3u; i++) {
+                uint32_t p = c ? HI[i] : LO[i], hz = c ? xq_high_hz(p) : xq_low_hz(p), hp = c == 0u;
+                int32_t k12 = xq_k12(sl ? hz * 1554u / 1000u : hz);
+                for (k = 0; k < 3u; k++) {
+                    double f = hz * (k == 0u ? 0.25 : k == 1u ? 1.0 : 4.0), want, got, r;
+                    if (f > 20000.0)
+                        continue;
+                    fq_reset();
+                    xfp[XP_FON] = 1;
+                    xfp[XP_FSLOPE] = (int16_t)sl;
+                    xfp[c ? XP_FHIGH : XP_FLOW] = (int16_t)p;
+                    g_f = f;
+                    g_a = 20000.0;
+                    fq_run(n, g_sine, 0);
+                    want = fq_pole2(k12, f, (int)hp);
+                    if (sl)
+                        want *= want;
+                    got = rms(WL, n / 2u, n) / rms(WI, n / 2u, n);
+                    r = fabs(db(got) - 10.0 * log10(want));
+                    if (r > 0.3 || memcmp(WL, WR, n * sizeof *WL)) {
+                        printf("cr_fx:   filter: %s %u Hz %s dB at %.0f Hz: %.2f dB for %.2f\n", c ? "high cut" : "low cut", (unsigned)hz,
+                               sl ? "12" : "6", f, db(got), 10.0 * log10(want));
+                        ok = 0;
+                    }
+                }
+            }
+    check("filter: each cut at 3 corners x 2 slopes x 3 frequencies: the one-pole formula's gain within 0.3 dB, both sides the same", ok);
+    /* the extremes: both cuts in at their far ends (2 kHz low cut into a 200 Hz high cut), a square at the clamp and
+     * noise over it, both slopes: bounded by 4 x the clamp; then silence: exact zeros within 2 s, the states at rest */
+    for (sl = 0, ok = 1; sl < 2u; sl++)
+        for (k = 0; k < 2u; k++) {
+            int32_t m = 0;
+            fq_reset();
+            xfp[XP_FON] = 1;
+            xfp[XP_FSLOPE] = (int16_t)sl;
+            xfp[XP_FLOW] = 127;
+            xfp[XP_FHIGH] = 0;
+            g_a = k ? 131068.0 : 98304.0;
+            g_f = 55.0;
+            g_len = 2u * n;
+            fq_run(2u * n, k ? g_noise : g_loud, 0);
+            for (i = 0; i < 2u * n; i++) {
+                int32_t a = WL[i] < 0 ? -WL[i] : WL[i];
+                if (a > m)
+                    m = a;
+            }
+            fq_run(2u * n, 0, 0);
+            for (i = n; i < 2u * n; i++)
+                if (WL[i] | WR[i])
+                    break;
+            if (m > 4 * XQ_MAX || i < 2u * n || !fq_rest()) {
+                printf("cr_fx:   filter: extremes (%s, %s): peak %d, silent from %u, rest %d\n", sl ? "12 dB" : "6 dB",
+                       k ? "noise over the clamp" : "a square at it", (int)m, (unsigned)i, fq_rest());
+                ok = 0;
+            }
+        }
+    check("filter: both cuts at their far ends, a square at the clamp and noise over it: bounded by 4 x the clamp; silence: exact 0 within 1 s",
+          ok);
+    /* smooth: the high cut swept 126 -> 0 -> 126 a detent every 20 ms under a held 440 Hz tone, then Filter and
+     * Slope toggled under it with the high cut at 500 Hz: no sample step above 1.3 x the tone's own */
+    {
+        double ref, sw, tg;
+        fq_reset();
+        xfp[XP_FON] = 1;
+        g_f = 440.0;
+        g_a = 20000.0;
+        g_len = 0xFFFFFFFFu;
+        fq_sw_ms = 20;
+        fq_run(6u * n, g_sine, h_fq_sweep);
+        ref = fq_maxstep(WI, 0, 6u * n);
+        sw = fq_maxstep(WL, 0, 6u * n);
+        fq_reset();
+        xfp[XP_FON] = 1;
+        xfp[XP_FHIGH] = 27;                             /* ~500 Hz */
+        g_f = 440.0;
+        fq_run(4u * n, g_sine, h_fq_toggle);
+        tg = fq_maxstep(WL, 0, 4u * n);
+        printf("cr_fx:   filter: the largest sample step: the tone's %.0f, under the sweep %.0f, under the toggles %.0f\n", ref, sw, tg);
+        check("filter: the high cut swept 126 -> 0 -> 126 and Filter / Slope toggled under a 440 Hz tone: no step above 1.3 x the tone's",
+              sw < 1.3 * ref && tg < 1.3 * ref);
+    }
+    /* the cost: host instructions a half (a guard: the unit's time is the listing's count, docs/FX.md) */
+    {
+        uint64_t off, one, both, t0;
+        static int32_t ml[CTL], mr[CTL];
+        fq_reset();
+        g_a = 20000.0;
+        fq_run(CTL, g_chord, 0);
+        t0 = instr_now();
+        for (i = 0; i < 2000u; i++)
+            xq_block(ml, mr, CTL);
+        off = (instr_now() - t0) / 2000u;
+        fq_reset();
+        xfp[XP_FON] = 1;
+        xfp[XP_FHIGH] = 60;
+        fq_run(20u * CTL, g_chord, 0);
+        t0 = instr_now();
+        for (i = 0; i < 2000u; i++)
+            xq_block(ml, mr, CTL);
+        one = (instr_now() - t0) / 2000u;
+        xfp[XP_FLOW] = 60;
+        fq_run(20u * CTL, g_chord, 0);
+        t0 = instr_now();
+        for (i = 0; i < 2000u; i++)
+            xq_block(ml, mr, CTL);
+        both = (instr_now() - t0) / 2000u;
+        if (off) {
+            printf("cr_fx:   filter COST, host instructions a half: off %llu, one 12 dB cut %llu, both %llu\n",
+                   (unsigned long long)off, (unsigned long long)one, (unsigned long long)both);
+            check("filter: the cost: off <= 200 host instructions a half, one 12 dB cut <= 6000, both <= 12000",
+                  off <= 200u && one <= 6000u && both <= 12000u);
+        }
+    }
+    fq_reset();
+}
+
 /* the reverb's impulse responses and the delay's repeats, for tools/fx_plots.py and the ear */
 static void demos(void)
 {
@@ -1466,7 +1708,8 @@ int main(int argc, char **argv)
         sfx = argv[2];
     WL = calloc(MAXS, sizeof *WL);
     WR = calloc(MAXS, sizeof *WR);
-    if (!WL || !WR)
+    WI = calloc(MAXS, sizeof *WI);
+    if (!WL || !WR || !WI)
         return 2;
     if (argc > 2 && !strcmp(argv[1], "--chorus-listen")) {   /* (tools/chorus_glide_listen.sh: the files, no tests) */
         outdir = argv[2];
@@ -1488,6 +1731,7 @@ int main(int argc, char **argv)
     t_silence();
     t_bound();
     t_corners();
+    t_filter();
     demos();
     printf(bad ? "cr_fx_test: %d FAILED\n" : "cr_fx_test: all ok\n", bad);
     return bad != 0;

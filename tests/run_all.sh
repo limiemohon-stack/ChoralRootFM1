@@ -19,15 +19,21 @@
 #   test_cr        sh tools/emu/test_cr.sh              (after emu_build)
 #   test_persist   sh tools/emu/test_persist.sh         (after emu_build)
 #   test_retired   sh tools/emu/test_retired.sh         (after emu_build)
+#   test_pool      sh tools/emu/test_pool.sh            (after emu_build: the sound pool's migration from 377264f's
+#                                                        format and the downgrade, 0.22)
 #   run_tests      sh tests/run_tests.sh                (after web_emu_build)
 #   install        python3 tests/install_test.py
 #   releases       python3 tests/releases_test.py
+#   layout_gen     python3 tests/gen_layout_test.py     (the layout generator: P5's panel, the broken designs)
 #   web_backup     node web/test_backup.mjs
 #   web_manager    node web/test_manager.mjs
 #   web_sounds     node web/test_sounds.mjs
+#   web_dnsnd      node web/test_dnsnd.mjs              (after cr_tests: build/host/sound_templates)
 #   web_installer  node web/test_installer.mjs
 #   web_web        node web/test_web.mjs                (once run_tests has written build/host/desc.json)
 #   web_emu_build  sh tools/emu/web/build_web.sh        (Emscripten: ~/emsdk)
+#   layout_build   sh tools/layout/build_layout.sh      (Emscripten: the layout tool's preview module, docs/LAYOUT-TOOL.md)
+#   layout_test    node web/test_layout.mjs             (after layout_build and web_emu_build)
 #   web_emu_test   node tools/emu/web/test_web_emu.mjs  (last and alone: it times the audio render against real time)
 # What may not run at the same time, and why the rest may:
 #   - test_cr, test_persist and test_retired share build/emu/test but not a file in it (cr_*, persist_* / gsave_*,
@@ -44,7 +50,11 @@
 #     (seen: 20 ms beside the others, 0.3 ms alone), so it runs when every other suite has ended;
 #   - run_tests.sh's site test (tests/site_test.py) puts build/emu-web into the site and checks it when it is there
 #     (and says "skip: build/emu-web missing" when not): run_tests waits for web_emu_build, so the site is checked
-#     with the emulator in it and never while the files are being copied.
+#     with the emulator in it and never while the files are being copied; the same for build/layout-web (the site's
+#     webapp/layout/): run_tests waits for layout_build too;
+#   - the layout tool's test compares its frames with the browser emulator's (build/emu-web/choralroot.wasm) and
+#     skips that when the file is missing: it waits for web_emu_build. Its files are its own (build/layout-web-test,
+#     a Chromium profile named by its process), it measures no real time, so it runs beside the others.
 # Several of the tests measure real time against simulated devices (install_test.py, the web tests), so the two
 # suites that compile and compute (run_tests, cr_tests) get half the cores each here unless PAR_JOBS says otherwise.
 # A suite whose prerequisite failed still runs (as the documented command would) and fails by itself.
@@ -54,7 +64,7 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/lib}"
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
-ALL="build cr_tests cr_draw emu_build test_cr test_persist test_retired run_tests install releases web_backup web_manager web_sounds web_installer web_web web_emu_build web_emu_test"
+ALL="build cr_tests cr_draw emu_build test_cr test_persist test_retired test_pool run_tests install releases layout_gen web_backup web_manager web_sounds web_dnsnd web_installer web_web web_emu_build layout_build layout_test web_emu_test"
 only=
 while [ $# -gt 0 ]; do
     case $1 in
@@ -94,23 +104,30 @@ command_of() {
         test_cr) echo "sh tools/emu/test_cr.sh" ;;
         test_persist) echo "sh tools/emu/test_persist.sh" ;;
         test_retired) echo "sh tools/emu/test_retired.sh" ;;
+        test_pool) echo "sh tools/emu/test_pool.sh" ;;
         run_tests) echo "sh tests/run_tests.sh" ;;
         install) echo "python3 tests/install_test.py" ;;
         releases) echo "python3 tests/releases_test.py" ;;
+        layout_gen) echo "python3 tests/gen_layout_test.py" ;;
         web_backup) echo "node web/test_backup.mjs" ;;
         web_manager) echo "node web/test_manager.mjs" ;;
         web_sounds) echo "node web/test_sounds.mjs" ;;
+        web_dnsnd) echo "node web/test_dnsnd.mjs" ;;
         web_installer) echo "node web/test_installer.mjs" ;;
         web_web) echo "node web/test_web.mjs" ;;
         web_emu_build) echo "sh tools/emu/web/build_web.sh" ;;
+        layout_build) echo "sh tools/layout/build_layout.sh" ;;
+        layout_test) echo "node web/test_layout.mjs" ;;
         web_emu_test) echo "node tools/emu/web/test_web_emu.mjs" ;;
     esac
 }
 waits_of() {    # the suites that must have ended before this one starts (those of them that are selected)
     case $1 in
         build) ;;
-        test_cr|test_persist|test_retired) echo "build emu_build" ;;
-        run_tests) echo "build web_emu_build" ;;
+        test_cr|test_persist|test_retired|test_pool) echo "build emu_build" ;;
+        run_tests) echo "build web_emu_build layout_build" ;;
+        layout_test) echo "build web_emu_build layout_build" ;;
+        web_dnsnd) echo "build cr_tests" ;;
         web_emu_test) for o in $ALL; do [ "$o" = web_emu_test ] || echo "$o"; done ;;
         *) echo "build" ;;
     esac
@@ -176,7 +193,7 @@ if [ -f "$L/run_tests.log" ]; then
     grep -a -o '[0-9]* lint findings' "$L/run_tests.log" | sed 's/^/  run_tests: /'
     tail -1 "$L/run_tests.log" | sed 's/^/  run_tests: /'
 fi
-for s in test_cr test_persist test_retired; do
+for s in test_cr test_persist test_retired test_pool; do
     [ -f "$L/$s.log" ] || continue
     echo "  $s: $(grep -a -c '^  ok ' "$L/$s.log") ok, $(grep -a -c '^  FAIL ' "$L/$s.log") FAIL, last line: $(tail -1 "$L/$s.log")"
 done

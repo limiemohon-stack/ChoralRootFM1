@@ -15,10 +15,13 @@
  * a MIDI note, at up to the default's level whatever the knob said (docs/AUDIO-QUALITY.md "Round 3").
  * master_knob: the pot x 16, smoothed a UI frame (master_poll). */
 static int32_t master_knob = 512 * 16;
+#ifndef MASTER_POT_READ
+#define MASTER_POT_READ() fm1_adc_read(FM1_ADC_MASTER)   /* main.c: the scan's sample once TIMER5 owns the converter */
+#endif
 static inline uint32_t master_of_pot(uint32_t k10) { return (k10 * k10) >> 8; }   /* 0 .. ~4096 */
 static void master_poll(void)
 {
-    int32_t a = fm1_adc_read(FM1_ADC_MASTER);
+    int32_t a = MASTER_POT_READ();
     if (a >= 0) {
         master_knob += (a * 16 - master_knob) / 8;
         song.master_q12 = master_of_pot((uint32_t)(master_knob / 16));

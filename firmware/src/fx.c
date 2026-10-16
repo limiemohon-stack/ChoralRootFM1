@@ -87,6 +87,9 @@ _Static_assert(sizeof rev_comb / 2u >= SP_LEN && sizeof rev_u.sp / 4u >= 4u * (S
 static void track_dist(track_t *t, int32_t *b, uint32_t n)
 {
     int32_t d = t->p[P_DIST], i, g, k, mk, bias = 2400, b0;
+#if FELUCCA_QUAD
+    d = quad_drive(t, d);                               /* eng_quad.c: FM TONE's LFO -> DRIVE */
+#endif
     if (!d)
         return;                                         /* states kept: switching on does not click */
     g = 4096 + d * d * 2;                                /* Q12: 1x .. ~9x, gentle at first */
@@ -131,7 +134,7 @@ static volatile uint8_t fx_usb_fixed;
 #define MASTER_FULL 4096                /* main.c: the MASTER knob's top, Q12 */
 static uint8_t fx_out_blk;              /* Options > Output: 1, this block went through the Clean chain (below) */
 static void clean_post(int32_t *out, uint32_t n);
-static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   /* audio ISR, after the USB tap */
+CR_HOT_MASTER static __attribute__((noinline)) void usb_fixed_dac(int32_t *out, uint32_t n)   /* audio ISR, after the USB tap */
 {
     uint32_t i;
     int32_t m = (int32_t)song.master_q12;
@@ -276,7 +279,7 @@ static inline __attribute__((always_inline)) void master_loop(int32_t *o, uint32
         sb_hl = sb[SB_HL];
     }
 }
-static __attribute__((noinline)) void master_block(int32_t *o, uint32_t n)
+CR_HOT_MASTER static __attribute__((noinline)) void master_block(int32_t *o, uint32_t n)
 {
     uint32_t lowcut = fx_lowcut;                        /* (the main loop's: it does not run under this block) */
     if (fx_smooth) {
@@ -453,7 +456,7 @@ static __attribute__((noinline)) int32_t clean_short(int32_t p)
     return p;
 }
 
-static __attribute__((noinline)) void clean_block(int32_t *o, uint32_t n)
+CR_HOT_MASTER static __attribute__((noinline)) void clean_block(int32_t *o, uint32_t n)
 {
     int32_t dl = dc_l, el = dce_l, dr = dc_r, er = dce_r;
     uint32_t w = cln_w;
@@ -596,9 +599,9 @@ static inline __attribute__((always_inline)) void clean_post_loop(int32_t *out, 
     }
     cln_mq = m;
 }
-static __attribute__((noinline)) void clean_post(int32_t *out, uint32_t n) { clean_post_loop(out, n, 0); }
-static __attribute__((noinline)) void clean_post17(int32_t *out, uint32_t n) { clean_post_loop(out, n, 1); }
-static __attribute__((noinline)) void clean_split(int32_t *out, uint32_t n)   /* Q17 -> Q15 and the two bits under */
+CR_HOT_MASTER static __attribute__((noinline)) void clean_post(int32_t *out, uint32_t n) { clean_post_loop(out, n, 0); }
+CR_HOT_MASTER static __attribute__((noinline)) void clean_post17(int32_t *out, uint32_t n) { clean_post_loop(out, n, 1); }
+CR_HOT_MASTER static __attribute__((noinline)) void clean_split(int32_t *out, uint32_t n)   /* Q17 -> Q15 and the two bits under */
 {
     uint32_t i;
     for (i = 0; i < 2u * n; i++) {
@@ -1023,15 +1026,15 @@ static inline __attribute__((always_inline)) int32_t mix_part_loop(const int32_t
     { \
         return mix_part_loop(b, sd, n, k, pc, side_, sends_, tap_); \
     }
-MIX_LOOP_FN(mix_loop, 0, 0, 0)
-MIX_LOOP_FN(mix_loop_f, 0, 1, 0)
-MIX_LOOP_FN(mix_loop_s, 1, 0, 0)
-MIX_LOOP_FN(mix_loop_sf, 1, 1, 0)
+CR_HOT_FX MIX_LOOP_FN(mix_loop, 0, 0, 0)                /* (cr_ram.h: the marker names the function for the build) */
+CR_HOT_FX MIX_LOOP_FN(mix_loop_f, 0, 1, 0)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_s, 1, 0, 0)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_sf, 1, 1, 0)
 #if FX_UA_STAGE
-MIX_LOOP_FN(mix_loop_u, 0, 0, 1)
-MIX_LOOP_FN(mix_loop_fu, 0, 1, 1)
-MIX_LOOP_FN(mix_loop_su, 1, 0, 1)
-MIX_LOOP_FN(mix_loop_sfu, 1, 1, 1)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_u, 0, 0, 1)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_fu, 0, 1, 1)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_su, 1, 0, 1)
+CR_HOT_FX MIX_LOOP_FN(mix_loop_sfu, 1, 1, 1)
 #else
 #define mix_loop_u mix_loop
 #define mix_loop_fu mix_loop_f
@@ -1043,7 +1046,7 @@ MIX_LOOP_FN(mix_loop_sfu, 1, 1, 1)
 /* one synth part into the dry mix and the sends; a part with no voice sounding costs
  * the LFO tick and a cleared buffer only (after the DIST tail has run out) */
 /* (mix_part's second half: the part rendered into b, its side into side when side_on, nr voices) */
-static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint8_t side_on, uint32_t nr, uint32_t n)
+CR_HOT_CORE static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint8_t side_on, uint32_t nr, uint32_t n)
 {
     int32_t *sd;
     int16_t *pc = 0;
@@ -1072,6 +1075,9 @@ static void mix_part_out(track_t *t, int32_t *b, int32_t *side, uint8_t side_on,
 #endif
         int32_t gl = 4096 - (pan > 0 ? pan * 64 : 0), gr = 4096 + (pan < 0 ? pan * 64 : 0);
         int32_t c = t->p[P_CHOR] * 258, d = t->p[P_DLY] * 258, r = t->p[P_REV] * 258, pk = t->peak;
+#if FELUCCA_QUAD
+        quad_sends(t, &c, &d, &r);                      /* eng_quad.c: FM TONE's LFO -> the sends (ramped below) */
+#endif
         int32_t xmax, k[MX_N], *g = k + MX_SG, *dg = k + MX_DG;
         int sends;
         dg[0] = dg[1] = dg[2] = 0;
@@ -1164,13 +1170,260 @@ static int32_t c1_buf[CTL] __attribute__((section(".pool"))), c1_side[CTL] __att
 static uint8_t c1_side_on;
 static uint32_t c1_nr;
 static int32_t c1_lfo[2];                               /* the parts' LFO values before this block's tick */
-static void c1_part1_job(uint32_t n)
+#if P5_SPLIT
+static int32_t p5x_buf[CTL] __attribute__((section(".pool")));   /* core 1's sum of the chord part's P5 voices it renders */
+#endif
+/* core 1's job of a block: the bass part, then (3y46) the chord part's P5 voices that p5x_run gave it (p5x.it[0 ..
+ * n1 - 1]: each its own p5_voice_t, into p5x_buf). CRP_PART1 is the whole job's time */
+CR_HOT_CORE static void c1_part1_job(uint32_t n)
 {
     uint32_t t0 = cr_dbg.prof_on ? cr_prof_now() : 0u;
     c1_nr = track_render_x(&trk[1], c1_buf, c1_side, &c1_side_on, n, &c1_lfo[1]);
-    if (cr_dbg.prof_on)
-        cr_dbg.cur[CRP_PART1] += cr_prof_less(cr_prof_now() - t0);
+#if P5_SPLIT
+    if (p5x.n1) {
+        uint32_t i;
+        for (i = 0; i < n; i++)
+            p5x_buf[i] = 0;
+        for (i = 0; i < p5x.n; i++)
+            if (p5x.it[i].c1)
+                p5_render(&trk[0], p5x.it[i].v, p5x_buf, n, &p5x.it[i].m);
+    }
+#endif
+    if (cr_dbg.prof_on) {
+        uint32_t t1 = cr_prof_now(), d = cr_prof_less(t1 - t0);
+        cr_dbg.cur[CRP_PART1] += d;
+        if (cr_c1_split) {                              /* (on core 1: its busy time, and when it went idle) */
+            cr_dbg.c1_busy_cur += d;
+            cr_dbg.c1v_cur += d;
+            cr_dbg.c1_end = t1;
+        }
+    }
 }
+#if CR_FX && XF_SPLIT
+/* 3y50, THE REVERB ON CORE 1 (docs/DUALCORE.md "What each core runs"): once both parts are in the mix the sends are
+ * whole; core 1, done with its voices, takes the reverb (its half-band, its lines, the wet's up-sampler: the largest
+ * of the three effects, 202 us of a half on average and 273 at most on the unit) into c1x_l / c1x_r while core 0 runs
+ * the chorus and the delay; core 0 then waits for it and adds the two buffers into the mix. Sums of integers: the
+ * mix is the one core's, bit for bit (tests/cr_c1_thread_test.c "effects"). The job touches xf's reverb state alone
+ * (cr_fx.c xf_reverb), the sends it reads are not written again before the next block, and these.
+ * The delay at the half rate (XF_SPLIT_HALF, CR_FX_DELAY_DS 2: the default since 0.22) shares the half-rate wet and
+ * its up-sampler with the reverb: core 1's job is then the reverb's half-band and lines alone, into c1h_l / c1h_r at
+ * the half rate; core 0 runs the delay into xf.t[2..3], adds core 1's after the join and up-samples the sum (the
+ * up-sampler's tail alone, with no lines to run, stays on core 0: no job). The same sums of integers as xf_block */
+#if XF_SPLIT_HALF
+static int32_t c1h_l[XF_NH] __attribute__((section(".pool"))), c1h_r[XF_NH] __attribute__((section(".pool")));
+#define C1X_BITS 2u                                     /* (xf_prep's: the reverb's lines run) */
+#else
+static int32_t c1x_l[CTL] __attribute__((section(".pool"))), c1x_r[CTL] __attribute__((section(".pool")));
+#define C1X_BITS 6u                                     /* (the reverb's lines or its up-sampler's tail run) */
+#endif
+static uint8_t c1x_rev;                                 /* this block's reverb runs its lines (else the tail alone) */
+static uint32_t c1x_tm[CRX_N];                          /* the job's parts' times (cr_fx.c xf_reverb's tm) */
+CR_HOT_CORE static void c1_fx_job(uint32_t n)
+{
+    uint32_t i, t0 = cr_dbg.prof_on ? cr_prof_now() : 0u, mk = t0;
+#if XF_SPLIT_HALF
+    for (i = 0; i < (n >> 1); i++)
+        c1h_l[i] = c1h_r[i] = 0;
+    xf_reverb(send_r, 0, 0, n, c1x_rev, cr_dbg.prof_on ? c1x_tm : 0, &mk, c1h_l, c1h_r, 0);
+#else
+    for (i = 0; i < n; i++)
+        c1x_l[i] = c1x_r[i] = 0;
+    xf_reverb(send_r, c1x_l, c1x_r, n, c1x_rev, cr_dbg.prof_on ? c1x_tm : 0, &mk, xf.t[2], xf.t[3], 1);
+#endif
+    if (cr_dbg.prof_on && cr_c1_split) {
+        uint32_t t1 = cr_prof_now();
+        cr_dbg.c1_busy_cur += cr_prof_less(t1 - t0);
+        if (cr_dbg.c1_end && (int32_t)(t0 - cr_dbg.c1_end) > 0)
+            cr_dbg.w1_cur += t0 - cr_dbg.c1_end;        /* (core 1 idle from its voices' end to this job) */
+        cr_dbg.c1_end = 0;
+    }
+}
+/* the effects of a block with core 1 alive: the reverb there when it has something to do (above), the chorus and the
+ * delay here, the join, the reverb's buffers added. Core 1 refusing, failing or given up: everything here, as
+ * xf_block. Returns with the stage marks as mix_block's serial path leaves them (the join's wait is CRP_WAIT's) */
+static __attribute__((noinline)) void mix_fx_split(uint32_t n)
+{
+    uint32_t f = xf_prep(send_d, send_r, n), i, k, mk = 0;
+    int ran = 0;
+    if ((f & C1X_BITS) && cr_c1_check()) {              /* the reverb's lines (or, at the full-rate delay, its
+                                                         * up-sampler's tail) run */
+        c1x_rev = (uint8_t)(f >> 1 & 1u);
+        for (k = 0; k < CRX_N; k++)
+            c1x_tm[k] = 0;
+        cr_c1_split = 1;
+        ran = cr_c1_run(c1_fx_job, n);
+        if (!ran)
+            cr_c1_split = 0;
+    }
+    if (!ran)
+        cr_dbg.c1_end = 0;                              /* (no reverb job: core 1's idle stretch ends with the block) */
+    xc_block(send_c, mix_l, mix_r, n);                  /* (cr_fx.c: the chorus, two taps, into the mix) */
+    cr_dbg.fxmap_cur |= 1u | (f & 1u) << 1 | (f & 6u ? 4u : 0u) | (ran ? 8u : 0u);
+    if (!f)
+        return;
+#if XF_SPLIT_HALF
+    for (i = 0; i < (n >> 1); i++)                      /* (the delay's wet and the reverb's share it: from 0, as
+                                                         * xf_block; core 1's lines are in c1h_l / c1h_r) */
+        xf.t[2][i] = xf.t[3][i] = 0;
+#endif
+    CR_PROFX_START();
+    if (f & 1u)
+        xf_delay(send_d, mix_l, mix_r, n);
+    if (ran) {
+        CR_PROF(CRP_FX);
+        if (cr_c1_wait())                               /* 8 ms or a fault: core 1 held for good (C1_GAVE_UP) */
+            ran = 0;
+        if (cr_dbg.prof_on) {                           /* the join's wait: CRP_WAIT's, and on its own */
+            uint32_t t_ = cr_prof_now(), d = cr_prof_less(t_ - cr_dbg.mark);
+            cr_dbg.cur[CRP_WAIT] += d;
+            cr_dbg.fxw_cur += d;
+            cr_dbg.mark = t_;
+        }
+        cr_c1_split = 0;
+        if (ran) {
+            cr_dbg.c1x_jobs++;
+            for (k = 0; k < CRX_N; k++)
+                cr_dbg.xcur[k] += c1x_tm[k];
+#if XF_SPLIT_HALF
+            for (i = 0; i < (n >> 1); i++) {            /* the reverb's wet onto the delay's, at the half rate */
+                xf.t[2][i] += c1h_l[i];
+                xf.t[3][i] += c1h_r[i];
+            }
+            CR_PROFX_START();
+            xf_reverb(send_r, mix_l, mix_r, n, 0, 0, &mk, xf.t[2], xf.t[3], 1);   /* (rev 0: the up-sampler alone) */
+#else
+            for (i = 0; i < n; i++) {
+                mix_l[i] += c1x_l[i];
+                mix_r[i] += c1x_r[i];
+            }
+#endif
+            return;
+        }
+        cr_dbg.fxmap_cur &= ~8u;                        /* (core 1 given up: core 0 runs the job, as c1_part1_job) */
+        CR_PROFX_START();
+    }
+    xf_reverb(send_r, mix_l, mix_r, n, (int)(f >> 1 & 1u), 0, &mk, xf.t[2], xf.t[3], 1);   /* (here; with nothing for
+                                                         * the reverb: the up-sampler's states cleared, as xf_block
+                                                         * does) */
+}
+#endif
+#if P5_SPLIT
+/* WHICH CORE RENDERS WHICH OF THE CHORD PART'S P5 VOICES (3y46; docs/PROPHET.md "Two cores"). Core 0 WAITS for core 1
+ * before the effects and the master, so the half's time is the tick + the LONGER of the two cores' renders + the
+ * effects + the master: what counts is the longer render, and the split that makes it shortest is the even one. The
+ * bass part is core 1's (its job, as before): its P5 voices count there as voices, a bass of another engine as
+ * P5X_UNIT_US a budget unit. So: of nc voices core 1 takes the k that makes the longer side shortest, at most P5_CORE
+ * P5 voices a core (the owner's "4 per core"), an equal split's odd voice to core 1 (core 0 has the rest of the half).
+ * -DP5_FILL_C1_FIRST=1: core 1 takes voices until it has four, core 0 the rest (the first plan: for a four-note chord
+ * that is one core's time again, core 0 waiting for it) */
+#ifndef P5_FILL_C1_FIRST
+#define P5_FILL_C1_FIRST 0
+#endif
+#define P5X_VOICE_US 440u               /* a P5 voice at the peak (the unit: four are 1533 .. 1760) */
+#define P5X_UNIT_US 75u                 /* a budget unit of another engine (16 units: 1070 .. 1230) */
+static uint32_t p5x_assign(uint32_t nc, uint32_t *nbp)
+{
+    const track_t *bt = &trk[P5_PART_BASS];
+    uint32_t nb = p5_sounding(bt), bl, cap1, k, best = 0, bm = 0xFFFFFFFFu;   /* (a voice given up fades on its
+                                                         * last sample's line: no voice's work) */
+    if (P5_IS(bt)) {
+        bl = nb * P5X_VOICE_US;
+        k = nb;
+        *nbp = nb;
+    } else {
+        bl = nb * voice_units(bt) * P5X_UNIT_US;
+        k = nb * voice_units(bt) / P5_BASS_UNITS;
+        *nbp = 0;
+    }
+    if (CR_C1_TEST_SHARE)                               /* (the host's tests: a share of their own) */
+        return CR_C1_TEST_SHARE - 1u < nc ? CR_C1_TEST_SHARE - 1u : nc;
+    cap1 = k < P5_CORE ? P5_CORE - k : 0u;
+    if (cap1 > nc)
+        cap1 = nc;
+    if (P5_FILL_C1_FIRST)
+        return cap1;
+    for (k = 0; k <= cap1; k++) {
+        uint32_t l1 = bl + k * P5X_VOICE_US, l0 = (nc - k) * P5X_VOICE_US, m = l1 > l0 ? l1 : l0;
+        if (nc - k > P5_CORE && k < cap1)
+            continue;                                   /* (core 0 above its four while core 1 has room) */
+        if (m <= bm) {
+            bm = m;
+            best = k;
+        }
+    }
+    return best;
+}
+/* one core: its P5 voices of this block (78 PEAK: p5_core0_voices, p5_bass_voices) */
+static __attribute__((noinline)) void p5x_one_core(void)
+{
+    uint32_t c = P5_IS(&trk[0]) ? p5_sounding(&trk[0]) : 0u, b = P5_IS(&trk[P5_PART_BASS]) ? p5_sounding(&trk[P5_PART_BASS]) : 0u;
+    if (c + b > cr_dbg.p5_c0)
+        cr_dbg.p5_c0 = c + b;
+    if (b > cr_dbg.p5_bass)
+        cr_dbg.p5_bass = b;
+}
+static __attribute__((noinline)) void p5x_bass_count(void)   /* two cores, a P5 bass under another engine's chord */
+{
+    uint32_t nb = p5_sounding(&trk[P5_PART_BASS]);
+    if (nb > cr_dbg.p5_c1)
+        cr_dbg.p5_c1 = nb;
+    if (nb > cr_dbg.p5_bass)
+        cr_dbg.p5_bass = nb;
+}
+/* voice.c track_render_x(trk[0]) calls it when every voice of the chord part is on the list (p5x.it): the hand-over
+ * (the bass part and core 1's share of the list: ONE job a block, as before), core 0's share, the wait, the two sums
+ * added. Sums of 32-bit integers: whatever the split, out[] is what one core's render of the voices in their order
+ * gives, bit for bit (tests/cr_c1_thread_test.c). The part's DC blocker runs after this, on core 0 (track_render_x).
+ * Core 1 not answering, refusing or given up: core 0 runs the same job itself, in this block */
+static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, uint32_t n)
+{
+    uint32_t i, nb = 0, nc = 0, k;
+    int ran;
+    /* a whole voice's work, or (a voice given up, in its last block: p5_render) the line of its last sample to 0,
+     * which is no work to share out and stays here */
+    for (i = 0; i < p5x.n; i++) {
+        const p5_voice_t *s = p5_voice(t0, p5x.it[i].v);
+        p5x.it[i].c1 = (uint8_t)(p5x.it[i].v->active || p5x.it[i].m.amp1 || (s && s->steal));
+        nc += p5x.it[i].c1;
+    }
+    k = p5x_assign(nc, &nb);
+    p5x.n1 = (uint8_t)k;
+    for (i = 0; i < p5x.n; i++)                         /* core 1's: the first k whole voices of the list */
+        if (p5x.it[i].c1) {
+            if (k)
+                k--;
+            else
+                p5x.it[i].c1 = 0;
+        }
+    if (nc - p5x.n1 > cr_dbg.p5_c0)
+        cr_dbg.p5_c0 = nc - p5x.n1;
+    if (p5x.n1 + nb > cr_dbg.p5_c1)
+        cr_dbg.p5_c1 = p5x.n1 + nb;
+    if (nb > cr_dbg.p5_bass)
+        cr_dbg.p5_bass = nb;
+    CR_PROF(CRP_PART0);
+    ran = cr_c1_check() && cr_c1_run(c1_part1_job, n);   /* (a second misread, a fault: given up) */
+    CR_PROF_SKIP();                                     /* (the host's stub ran it here: counted as part1) */
+    for (i = 0; i < p5x.n; i++)
+        if (!p5x.it[i].c1)
+            p5_render(t0, p5x.it[i].v, out, n, &p5x.it[i].m);
+    CR_PROF(CRP_PART0);
+    if (ran && cr_c1_wait())                            /* 8 ms or a fault: core 1 held for good (C1_GAVE_UP) */
+        ran = 0;
+    CR_PROF(CRP_WAIT);
+    cr_c1_split = 0;
+    if (ran)
+        cr_dbg.c1_jobs++;
+    else
+        c1_part1_job(n);                                /* core 0 does it: the bass part and the voices */
+    CR_PROF_SKIP();
+    if (p5x.n1)
+        for (i = 0; i < n; i++)
+            out[i] += p5x_buf[i];
+    p5x.on = 0;
+}
+#endif
 /* the split is one core's samples bit for bit unless part 0's render draws from the shared generator itself
  * (PHYS: a model change under a note) or both parts play VOICE (one breath-noise generator, eng_formant.c): then
  * this block renders on core 0 alone, as before */
@@ -1191,6 +1444,7 @@ static void mix_parts_split(uint32_t n)
     uint32_t nr0;
     int ran;
     CR_PROF(CRP_FX);
+    cr_dbg.c1_end = 0;                                  /* (core 1's voices end stamp: this block's, c1_fx_job) */
     mod_begin(t0);
     c1_lfo[0] = mulq15(t0->lfo_val, t0->lfo_fade);
     track_lfo_tick(t0);
@@ -1198,6 +1452,21 @@ static void mix_parts_split(uint32_t n)
     c1_lfo[1] = mulq15(t1->lfo_val, t1->lfo_fade);
     track_lfo_tick(t1);
     cr_c1_split = 1;
+#if P5_SPLIT
+    p5x.n = p5x.n1 = 0;
+    if (P5_IS(t0) && !CR_C1_TEST_NOSPLIT) {             /* P5 on the chord part: its voices on both cores. The job
+                                                         * (the bass part and core 1's voices) is handed over and
+                                                         * waited for inside the render: p5x_run */
+        p5x.on = 1;
+        nr0 = track_render_x(t0, part_buf, part_side, &part_side_on, n, &c1_lfo[0]);
+        CR_PROF(CRP_PART0);
+    } else
+#endif
+    {
+#if P5_SPLIT
+    if (P5_IS(t1))                                      /* (a P5 bass under another engine's chord: core 1's voices) */
+        p5x_bass_count();
+#endif
     ran = cr_c1_check() && cr_c1_run(c1_part1_job, n);   /* (a second misread, a fault: given up) */
     CR_PROF_SKIP();                                     /* (the host's stub ran it here: counted as part1) */
     nr0 = track_render_x(t0, part_buf, part_side, &part_side_on, n, &c1_lfo[0]);
@@ -1212,6 +1481,7 @@ static void mix_parts_split(uint32_t n)
     else
         c1_part1_job(n);
     CR_PROF_SKIP();
+    }
     mix_part_out(t0, part_buf, part_side, part_side_on, nr0, n);
     mix_part_out(t1, c1_buf, c1_side, c1_side_on, c1_nr, n);
 }
@@ -1261,6 +1531,10 @@ static void mix_block(int32_t *out, uint32_t n)
         i = 2;
     }
 #endif
+#if P5_SPLIT
+    else if (P5_IS(&trk[0]) || P5_IS(&trk[P5_PART_BASS]))
+        p5x_one_core();                                 /* (78 PEAK's counts; out of line: the ISR as it was laid) */
+#endif
     for (; i < MIX_NPART; i++)
         mix_part(&trk[i], n);
     for (; i < NPART; i++)
@@ -1282,11 +1556,22 @@ static void mix_block(int32_t *out, uint32_t n)
         xc_live = CHO_LEN;
     } else
 #endif
+#if CR_CPU1 && XF_SPLIT
+    if (cr_dualcore_active() && !CR_C1_TEST_FX0)
+        mix_fx_split(n);                                /* (3y50: the reverb on core 1, the chorus and the delay here) */
+    else
+#endif
+    {
         xc_block(send_c, mix_l, mix_r, n);              /* (cr_fx.c: the chorus, two taps, into the mix) */
-    xf_block(send_d, send_r, mix_l, mix_r, n);          /* (cr_fx.c: stereo, into the mix; the FX layer's master
+        xf_block(send_d, send_r, mix_l, mix_r, n);      /* (cr_fx.c: stereo, into the mix; the FX layer's master
                                                          * effects and the limiter after it, as the chorus) */
+    }
 #else
     fx_buses(send_c, send_d, send_r, wet, n);
+#endif
+#if CR_FX
+    xq_block(mix_l, mix_r, n);                          /* (cr_fx.c: the master filter, 0.22: after the effects, before
+                                                         * the master; Off, the default: nothing read or written) */
 #endif
     CR_PROF(CRP_FX);
 #if FELUCCA_PERFORM

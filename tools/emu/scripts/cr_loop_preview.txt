@@ -1,0 +1,99 @@
+# ChoralRoot 0.22: the loop editor's step preview (GitHub issue 8; the owner, 2026-10-15: "all I want is step preview
+# switching steps when playback is stopped. So turn preset knob in the step editor, if the step has notes, it plays").
+# The PLAY menu open throughout. Chords: MAJ = A#3, MIN = G#3.
+# A. Step (ALGORITHM +4), Length Free: REC, D, Em, G, REC: a loop of 3 steps. EDIT: the editor (no preview on opening).
+#    KNOB 2 +13: 16 steps.
+# B. PRESETS +1 onto step 2 (Em), the loop stopped: the step sounds on a loop voice (loop3 "pre 1"), not counted as
+#    played, the loop still stopped. KNOB 1 +7: its note 8 steps long. PRESETS -1 onto step 1 (D): heard, the Em ended.
+#    PRESETS +1 onto step 2 again: its 8 steps sound on at 500 ms; nothing recorded, REC not armed, the position at 0.
+#    PRESETS +2 onto step 4 (empty): the preview ends; 3 s later no part is busy (silence).
+# C. LOOP: the loop plays; PRESETS moved onto steps with notes previews nothing (the loop is heard). LOOP: stopped.
+# D. PRESETS +1 onto step 2 (Em, 8 steps): a chord played by hand (MAJ + A4) ends the preview, and goes into the step
+#    as ever (A). PRESETS -1 onto step 1 (D): REC clears it and its preview. EDIT: closed: 2 events, no capture.
+wait 300
+btn PLAY down
+wait 500
+btn PLAY up
+wait 300
+knob ALGORITHM +4
+wait 300
+btn REC
+wait 300
+btn A#3 down
+btn D4 down
+wait 200
+btn D4 up
+btn A#3 up
+wait 300
+btn G#3 down
+btn E4 down
+wait 200
+btn E4 up
+btn G#3 up
+wait 300
+btn A#3 down
+btn G4 down
+wait 200
+btn G4 up
+btn A#3 up
+wait 300
+btn REC
+wait 1500
+dump                          # 1: 3 events, 72 ticks, stopped
+btn EDIT
+wait 400
+knob KNOB2 +13
+wait 400
+dump                          # 2: 16 steps, the cursor on step 1, no preview
+knob PRESETS +1               # B: step 2 (Em, one step: 125 ms)
+wait 80
+dump                          # 3: pre 1, loopv 1, played 0, stopped
+expect sound
+knob KNOB1 +7                 # its note 8 steps long
+wait 300
+knob PRESETS -1               # step 1 (D)
+wait 80
+dump                          # 4: pre 1, loopv 1 (the Em ended)
+knob PRESETS +1               # step 2 again (Em, 8 steps: 1 s)
+wait 500
+dump                          # 5: pre 1, loopv 1 at 500 ms; 3 events, cap 0, ring 0, played 0
+expect sound
+knob PRESETS +2               # step 4 (empty)
+wait 50
+dump                          # 6: pre 0, loopv 0
+wait 3000
+dump                          # 7: the tail over: parts busy 0 (silence)
+btn PLAY                      # C: the loop plays
+wait 300
+knob PRESETS +1               # step 5 (empty)
+wait 100
+knob PRESETS -3               # step 2 (Em) while playing
+wait 100
+dump                          # 8: playing, pre 0
+wait 1200
+btn PLAY
+wait 300
+dump                          # 9: stopped, loopv 0
+knob PRESETS -1               # D: step 1 (D, one step)
+wait 80
+knob PRESETS +1               # step 2 (Em, 8 steps)
+wait 200
+btn A#3 down
+btn A4 down                   # A by hand
+wait 200
+dump                          # 10: pre 0 (the preview ended), the key's own voice sounds
+btn A4 up
+btn A#3 up
+wait 300
+dump                          # 11: step 2 is A (69/30), 3 events
+knob PRESETS -1               # step 1 (D)
+wait 60
+btn REC                       # clears it, and its preview
+wait 100
+dump                          # 12: pre 0, 2 events
+btn EDIT
+wait 300
+dump                          # 13: closed, 2 events, cap 0
+btn OCT-
+wait 2500
+dump

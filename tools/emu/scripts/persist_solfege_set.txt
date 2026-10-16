@@ -1,0 +1,16 @@
+# test_persist.sh, Numerals = Solfege run 1 (GitHub issue 15): Key Mode on (C major), the KEY layer's page 2: KNOB 4
+# to Solfege (bit 7 of the block's scale, CRS_SOLFEGE); OCT-; SAVE held: the global save
+wait 500
+btn SEL                       # tap: Key Mode on
+wait 300
+btn SEL 600
+wait 300
+knob SELECT +1
+wait 200
+knob KNOB4 +2                 # Numerals: Solfege
+wait 300
+btn OCT-
+btn SAVE 900
+wait 3000
+dump
+quit

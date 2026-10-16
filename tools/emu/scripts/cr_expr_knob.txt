@@ -1,0 +1,71 @@
+# ChoralRoot 0.22: the EXPR screen's amounts step as every value does (cr_pages.c kn_lin: one unit a slow detent, more
+# when quick; docs/EDITOR.md "Knob acceleration"), and read as numbers (-64 .. +63), not percentages (the owner,
+# 2026-10-15: "you can't adjust the modulation in steps of 1 ... the knob should respond to acceleration"). FM6 (the
+# power-on sound), EDIT, MOD (SEQ) three taps: EXPR, lane VEL; KNOB 3 (the amount): the first detent takes the
+# default (63) and steps it: four slow detents (200 ms apart) 62 61 60 59, then five quick ones (20 ms apart: 58, the
+# first of a run, then 52 46 40 34), then one slow after a rest (33: one unit again); a quick reversal: its first two
+# detents one (34 35), then six (41 47); two detents in one frame after a rest: one each (45); a hand turn at 90 ms a
+# detent: one each (44 43 42); KNOB 2 (the destination, a named choice): one item a detent
+# at any speed; SELECT: the AT lane, KNOB 3 slow -1 -1 (40 -> 39 -> 38). tools/emu/test_cr.sh reads the "param:" lines.
+wait 600
+btn EDIT
+wait 400
+btn SEQ
+wait 300
+btn SEQ
+wait 300
+btn SEQ
+wait 300
+knob KNOB3 -1
+wait 200
+knob KNOB3 -1
+wait 200
+knob KNOB3 -1
+wait 200
+knob KNOB3 -1
+wait 200
+shot build/emu/test/cr_expr_knob_slow.ppm
+knob KNOB3 -1
+wait 20
+knob KNOB3 -1
+wait 20
+knob KNOB3 -1
+wait 20
+knob KNOB3 -1
+wait 20
+knob KNOB3 -1
+wait 400
+knob KNOB3 -1
+wait 200
+knob KNOB3 +1                 # a reversal: a new turn; quick, its first two detents count one (34 35), then six (41 47)
+wait 20
+knob KNOB3 +1
+wait 20
+knob KNOB3 +1
+wait 20
+knob KNOB3 +1
+wait 400
+knob KNOB3 -2                 # two detents in one frame after a rest (the unit's coalesced read): one each (45)
+wait 300
+knob KNOB3 -1                 # a hand turn, 90 ms a detent: one each (44 43 42)
+wait 90
+knob KNOB3 -1
+wait 90
+knob KNOB3 -1
+wait 200
+knob KNOB2 +1
+wait 20
+knob KNOB2 +1
+wait 20
+knob KNOB2 +1
+wait 300
+knob SELECT +1
+wait 300
+knob KNOB3 -1
+wait 200
+knob KNOB3 -1
+wait 300
+shot build/emu/test/cr_expr_knob_at.ppm
+btn EDIT
+wait 200
+quit

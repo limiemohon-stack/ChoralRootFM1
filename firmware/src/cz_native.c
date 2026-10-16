@@ -16,7 +16,7 @@ static const uint16_t CZ_AMP[128] = {
     3490,3745,4019,4313,4628,4966,5329,5718,6136,6585,7066,7582,8136,8731,9369,10054,
     10789,11577,12423,13331,14305,15351,16473,17676,18968,20355,21842,23438,25151,26990,28962,31079
 };
-static __attribute__((noinline)) uint32_t cz_hw_rate(uint32_t raw, uint32_t e)
+CR_HOT_CZ static __attribute__((noinline)) uint32_t cz_hw_rate(uint32_t raw, uint32_t e)
 {
     uint32_t chip = (8u | (raw & 7u)) << ((raw & 127u) >> 3);
     /* uPD933 at 40 kHz; convert its three different fixed-point domains to
@@ -32,7 +32,7 @@ static int32_t cz_hw_target(uint32_t raw, uint32_t e)
 }
 /* The six envelopes of a tone, without the DCA's key follow: the tone alone gives them, so they are built once per
  * tone change (cz_native_render: eng_cz.c cz_pgen) and not per voice and block. */
-static __attribute__((noinline)) void cz_native_defs(const uint8_t *b, cz_env_def_t d[2][3])
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_defs(const uint8_t *b, cz_env_def_t d[2][3])
 {
     for (uint32_t l = 0; l < 2u; l++) for (uint32_t e = 0; e < 3u; e++) {
         cz_env_def_t *p = &d[l][e]; uint32_t base = CZ_ENV_BASE[l][e];
@@ -48,7 +48,7 @@ static __attribute__((noinline)) void cz_native_defs(const uint8_t *b, cz_env_de
 /* Native DCA key-follow is rate scaling; higher keys run faster.
  * Keep raw key-follow and velocity bytes intact for recalibration.
  * The DCA rates of a voice: the tone's and the note's, so built once per note (and tone change). */
-static __attribute__((noinline)) void cz_native_krate(const uint8_t *b, cz_env_def_t d[2][3], uint32_t vnote, uint32_t kr[2][8])
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_krate(const uint8_t *b, cz_env_def_t d[2][3], uint32_t vnote, uint32_t kr[2][8])
 {
     uint32_t note = vnote > 36u ? vnote - 36u : 0u;
     for (uint32_t l = 0; l < 2u; l++) {
@@ -59,7 +59,7 @@ static __attribute__((noinline)) void cz_native_krate(const uint8_t *b, cz_env_d
         }
     }
 }
-static __attribute__((noinline)) int32_t cz_native_amp(int32_t level, uint32_t atten, uint32_t sense, uint32_t vel)
+CR_HOT_CZ static __attribute__((noinline)) int32_t cz_native_amp(int32_t level, uint32_t atten, uint32_t sense, uint32_t vel)
 {
     /* Interpolate the chip's logarithmic amplitude, not a linear percentage. */
     uint32_t x = (uint32_t)clamp(level, 0, 127<<17), i = x >> 17, f = x & 0x1FFFFu;
@@ -77,7 +77,7 @@ typedef struct { uint32_t wave[2], window, dcw, pivot, k0, k1, dq, dstep; } cz_h
  * is the envelope's of a control block, and a step of it at a block's edge is a step of the phase function, so of
  * the sample (a pop on every fast DCW attack of a low note: 0.19, docs/CZ1.md "Pops"). The chip's envelopes step at
  * its sample rate (cz_hw_rate). */
-static __attribute__((noinline)) void cz_native_pd(cz_hw_pd_t *p, uint32_t word, uint32_t dcw, uint32_t *pk, uint32_t n)
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_pd(cz_hw_pd_t *p, uint32_t word, uint32_t dcw, uint32_t *pk, uint32_t n)
 {
     int32_t was = pk[0] ? (int32_t)(1024u - pk[0]) : (int32_t)dcw, mv = (int32_t)dcw - was;
     p->wave[0] = (word >> 13) & 7u;
@@ -164,13 +164,13 @@ static inline __attribute__((always_inline)) uint32_t cz_native_run(const cz_hw_
         } \
     }
 #define CZ_MOV 0u
-static __attribute__((noinline)) void cz_native_line(const cz_hw_pd_t *b, cz_line_t *s, int32_t *o, uint32_t n)
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_line(const cz_hw_pd_t *b, cz_line_t *s, int32_t *o, uint32_t n)
 {
     CZ_LINE_BODY
 }
 #undef CZ_MOV
 #define CZ_MOV 1u
-static __attribute__((noinline)) void cz_native_line_mv(const cz_hw_pd_t *b, cz_line_t *s, int32_t *o, uint32_t n)
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_line_mv(const cz_hw_pd_t *b, cz_line_t *s, int32_t *o, uint32_t n)
 {
     CZ_LINE_BODY
 }
@@ -179,7 +179,7 @@ static __attribute__((noinline)) void cz_native_line_mv(const cz_hw_pd_t *b, cz_
 #undef CZ_RUNS
 #undef CZ_RUN
 /* Line 2 with NOISE: the generator moves its increment every sample, so its loop keeps a sample's switches. */
-static __attribute__((noinline)) void cz_native_noise(const cz_hw_pd_t *b, cz_line_t *s, uint32_t *noise, int32_t *o, uint32_t n)
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_noise(const cz_hw_pd_t *b, cz_line_t *s, uint32_t *noise, int32_t *o, uint32_t n)
 {
     uint32_t ph = s->ph, tg = s->tg, nz = *noise, pivot = b->pivot, k0 = b->k0, k1 = b->k1, dcw = b->dcw;
     uint32_t dq = b->dq, dstep = b->dstep;
@@ -198,7 +198,7 @@ static __attribute__((noinline)) void cz_native_noise(const cz_hw_pd_t *b, cz_li
     }
     s->ph = ph; s->tg = tg; s->dc = dc; *noise = nz;
 }
-static __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const uint8_t *b)
+CR_HOT_CZ static __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const uint8_t *b)
 {
     uint32_t delay = (uint32_t)b[6] | (uint32_t)b[7] << 8, inc = (uint32_t)b[9] | (uint32_t)b[10] << 8;
     /* Approximate control clock; needs verification against a CZ-1. */
@@ -216,7 +216,7 @@ static __attribute__((noinline)) int32_t cz_native_vibrato(cz_voice_t *c, const 
     return (wave * (int32_t)depth) / (1 << 19);
 }
 #define CZ_VOICE_GAIN 2              /* a voice's sum into the part (below); 4 until 0.19 */
-static __attribute__((noinline)) void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
+CR_HOT_CZ static __attribute__((noinline)) void cz_native_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
     uint32_t tr = (uint32_t)(t-trk)%NTRK, gen = cz_pgen[tr];
     const uint8_t *b = cz_patch[tr].raw;

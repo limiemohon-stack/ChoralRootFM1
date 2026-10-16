@@ -1,0 +1,46 @@
+# ChoralRoot: Strum's Hold and the LATCH button (the owner, 2026-10-15: "strum has a hold parameter which will light up
+# the lock button, however you can't control this using the lock/hold button like you can elsewhere"). PERF held opens
+# the layer on Strum (SELECT +1 -1 picks it), KNOB 4 turns Hold on, OCT- closes; MAJ + D4 played and released: the
+# strummed chord keeps sounding and LATCH (LFO) is lit by the mode's Hold. A tap on LATCH turns Hold off (the trace
+# "latch: Strum hold off"), the LED goes to its idle glow and the notes go; a second tap latches as before (LED lit, Hold
+# still off: dump 4; the top line keeps the mode's name). PANIC clears.
+wait 300
+btn ARP down
+wait 700
+btn ARP up
+wait 300
+knob SELECT +1
+wait 200
+knob SELECT -1
+wait 300
+knob KNOB4 +1
+wait 300
+dump                          # 1: perform 1 (Strum), Hold on
+btn OCT-
+wait 300
+key F3 down
+wait 40
+btn D4 down
+wait 800
+btn D4 up
+key F3 up
+wait 400
+expect led LFO on
+expect sound
+dump                          # 2: released, still sounding (Hold)
+btn LFO
+wait 300
+expect led LFO dim             # (Glow: an idle button glows dim)
+dump                          # 3: Hold off, the notes released
+wait 1200
+btn LFO
+wait 300
+expect led LFO on
+dump                          # 4: LATCH (sticky) on, Hold still off
+btn OCT- down
+btn OCT+ down
+wait 200
+btn OCT+ up
+btn OCT- up
+wait 300
+dump                          # 5: panic

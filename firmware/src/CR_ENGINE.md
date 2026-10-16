@@ -78,7 +78,8 @@ Each setting has its own setter. A setter applies the setting's live side effect
 | `cr_set_transpose` | new gestures only |
 | `cr_set_single_notes(mode, split_pc)` | new gestures only; mode: Full, Split Oct, Split Bass (0.17) |
 | `cr_set_key_plays(notes)` | 0.17: 1 = Key Mode blocks the roots out of the scale and resolves no chord; new gestures only |
-| `cr_set_keyboard(full, split_note)` | 0.17: the Full keyboard (single notes, the chord block ignored, no voicing) and its split key as a MIDI note; new gestures only |
+| `cr_set_keyboard(full, split_note)` | 0.17: the Full keyboard (single notes, the chord block ignored, no voicing; 0.22: with Key Mode on and Key plays Chords, the key's chords, voiced) and its split key as a MIDI note; new gestures only |
+| `cr_set_key_snap(mode)` | 0.22: Snap, where Key plays Notes / the Full keyboard would drop a key out of the scale: Off / Scale (the nearest note of the scale) / Chord (the nearest tone of the chords sounding, the scale's when none), ties down; `cr_snap_note(note)` gives the note (or -1); new presses only, a held key ends the note it played |
 | `cr_set_bass` | next gesture |
 | `cr_set_bass_mode` | next gesture |
 | `cr_set_perform` | restart sounding voices + latch flush |

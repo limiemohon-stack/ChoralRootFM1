@@ -318,6 +318,23 @@ static void con_inp(void)
     con_kv("dim2_bits", (int32_t)fm1__dim2_k);
     con_kv("faint_pulse_ns", (int32_t)(fm1_in_stat.faint_n ? fm1_in_stat.faint_sum / fm1_in_stat.faint_n * 1000u / FM1_TICKS_PER_US : 0u));
     con_kv("faint_bits", (int32_t)fm1__faint_k);
+#ifdef CR_SENSE_KEYS
+    con_kv("an_samples", (int32_t)fm1_an.samples);     /* the analog rows (cr_sense.c, docs/VELOCITY.md) */
+    con_kv("an_timeouts", (int32_t)fm1_an.timeouts);
+    con_kv("an_presses", (int32_t)sn_presses);
+    con_kv("an_grazes", (int32_t)sn_grazes);
+    con_puts("an_vel (F3..C5):");
+    for (i = 0; i < 20u; i++) {
+        con_putc(' ');
+        con_dec((int32_t)sn_key[i].vel);
+    }
+    con_puts("\r\nan_landing:");
+    for (i = 0; i < 20u; i++) {
+        con_putc(' ');
+        con_dec((int32_t)sn_key[i].dland);
+    }
+    con_puts("\r\n");
+#endif
     con_puts("led_on_permille:");
     for (i = 0; i < FM1_NCOL; i++) {
         con_putc(' ');

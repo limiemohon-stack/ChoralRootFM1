@@ -1,0 +1,61 @@
+# P5, the owner's gesture (HISTORY 3y44, docs/PROPHET.md "The crackle"): "preset 16 .. minor + 6 + 9 then playing chord
+# again as minor + 9 which had a long crackling effect like the voice got stuck in a washing machine .. All dry, no bass
+# on" (his build: all 200 programs, so place 16 = Sequential's program 16, CANNED HAPPY).
+# tools/emu/test_cr.sh writes the place into @STEPS@ (PRESETS turns from place 01): program 16's place in this build's
+# shipped list, or, where the list does not ship it, place 15. The chord keys: G#3 = MIN, F3 = 6, C4 = 9; the root D4:
+# Dm6/9 = 62 65 69 71 76, five notes on P5's four voices (voice.c: the second from the bottom gives way); then the 6 is
+# let go and the root struck again 100 ms after its release (Dm9 = 62 65 69 76 over four voices still releasing: the 65
+# has no voice and waits for a fade), and once more 30 ms after. Dumps: 1 the sound; 2 the five-note chord held; 3, 4
+# the four-note chord held; 5 six seconds after the last release: no voice left. The strikes are at 3.16, 4.76 and
+# 6.29 s of the script's clock.
+# test_cr.sh runs it twice: as it is (--wav: no jump, no hole, no burst inside the sound), and with EMU_SHED_OVER=4
+# (README "Overload": a unit that does not keep up with four voices): the shed fades a voice of each chord and that
+# is all it does.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: P5
+wait 200
+btn GLO up
+wait 500
+knob PRESETS +@STEPS@
+wait 500
+btn FX down                   # "All dry": the FX layer's knobs, chorus, delay and reverb down to 0
+wait 500
+knob KNOB2 -12
+wait 100
+knob KNOB3 -8
+wait 100
+knob KNOB4 -10
+wait 100
+btn FX up
+wait 300
+btn OCT-
+wait 300
+dump                          # 1
+btn G#3 down
+btn F3 down
+btn C4 down
+wait 60
+btn D4 down
+wait 1500
+expect sound
+dump                          # 2
+btn F3 up
+btn D4 up
+wait 100
+btn D4 down
+wait 1500
+expect sound
+dump                          # 3
+btn D4 up
+wait 30
+btn D4 down
+wait 1500
+expect sound
+dump                          # 4
+btn D4 up
+btn G#3 up
+btn C4 up
+wait 6000
+dump                          # 5

@@ -19,6 +19,10 @@ length is its note's (nothing else moves). The text below is the design of 2026-
 it says the grid is the Quantize setting, that the length rounds up to a bar, or that a latched chord stops the
 cursor, the paragraphs above and docs/LOOPER.md are what is built.
 
+**The step preview (2026-10-15; GitHub issue 8; docs/LOOPER.md "Step preview"):** in the loop editor, while the loop
+is stopped, the step the cursor lands on (PRESETS) is heard once, as the loop would play it; an empty step is silence;
+while the loop plays nothing is struck. Nothing is written or armed by it.
+
 The slot bug (a slot's pattern lost on a switch) is fixed separately: a slot *is* its pattern, leaving a slot saves it
 (docs/LOOPER.md "Slots and the record").
 

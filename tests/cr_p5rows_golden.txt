@@ -1,0 +1,19 @@
+# tests/cr_draw_test.c rows_screens: a hash of each picture (rewritten when its variable is 1)
+p5rows_1_1 34186134
+p5rows_1_2 3a7bf803
+p5rows_2_1 8c17deda
+p5rows_2_2 1267fd33
+p5rows_3_1 a3998591
+p5rows_4_1 4168b066
+p5rows_5_1 84456f24
+p5rows_6_1 4ecdfcda
+p5rows_7_1 63e25df0
+p5rows_8_1 efc41819
+p5rows_8_2 7aaf0a2b
+p5rows_9_1 14ef4a49
+p5rows_9_2 bf88bf95
+p5rows_10_1 a09d8118
+p5rows_10_2 0f352820
+p5rows_11_1 0d58f4bc
+p5rows_11_2 be0a3e57
+p5rows_filter_hot 6bb46453

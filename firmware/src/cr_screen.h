@@ -31,6 +31,10 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
        CR_K_KNOBROW,                /* a layer: a horizontal picker band over one row of four knob cells (cell[0]) */
        CR_K_LOOPMENU,               /* the looper's PLAY menu (docs/LOOPER-MODES.md): the slot strip, the record mode,
                                      * the middle (a big text, the record timeline, the step grid), the knob row */
+       CR_K_FREE,                   /* the sound editor: a compiled layout's free screen (cr_layout.h; docs/LAYOUT-TOOL.md
+                                     * "Step 4"): its elements drawn in the p5 style from the table, cell[lane][slot] every
+                                     * lane's values (pct2: an led's on, a switch's position), `active` the lane on the
+                                     * knobs, fl_eng / fl_scr the layout and screen */
        CR_K_N };
 
 /* CR_K_LOOPMENU's middle (lm_mid) */
@@ -87,7 +91,20 @@ enum { CR_G_NONE, CR_G_KNOB, CR_G_BAR, CR_G_WAVE, CR_G_SAW, CR_G_SQUARE, CR_G_ST
        CR_G_SYNC,                   /* pct < 1/2: a clock face (free: milliseconds); else two notes on a beam (the tempo) */
        CR_G_PING,                   /* between two walls: pct < 1/2 two level paths (stereo), else one bouncing down
                                      * from wall to wall (ping-pong) */
+       /* the Prophet-5's controls as an edit8 cell's glyph (docs/EDITOR.md section 9 "A cell"; cr_draw.c cr_p5glyph, on the p5
+        * primitives), the value on the cell's row; sized to the cell's glyph box */
+       CR_G_P5KNOB,                 /* the ticked dial (11 ticks over 270 degrees, the dark face, its rim), the pointer at
+                                     * pct; CR_CF_BIP: tick 5 lit (12 o'clock). No value inside: the cell's row has it */
+       CR_G_P5LED,                  /* the LED button: the cap with its black window, the red LED lit (pct >= 128) or a
+                                     * dim dot; pct2 the one-cycle icon over it (CR_P5I_*); a 22 px box (under a
+                                     * band): the cap only */
+       CR_G_P5LED2,                 /* the two-LED button (red: the minimum, left; yellow: the maximum, right), the
+                                     * current one lit (pct >= 128: the right); the two value names over them when
+                                     * they fit, NUL-separated in cr_cell_t.label after the label's own NUL */
+       CR_G_P5SWITCH,               /* the lever in a slot of three positions, the lever at pct (0, 1/2, 1) */
        CR_G_N };
+/* CR_G_P5LED's icon (cr_cell_t.pct2): one cycle of the wave as the panel prints it over the button */
+enum { CR_P5I_NONE, CR_P5I_SAW, CR_P5I_TRI, CR_P5I_SQUARE, CR_P5I_SINE, CR_P5I_NOISE };
 
 /* CR_G_LFOWAVE's wave (cr_cell_t.wave) */
 enum { CR_LW_TRI, CR_LW_SINE, CR_LW_SQUARE, CR_LW_SAW, CR_LW_RAMP, CR_LW_EXP, CR_LW_RANDOM, CR_LW_N };
@@ -138,10 +155,14 @@ typedef struct {                                                                
     uint16_t flags;                 /* CR_CF_*, the mark's colour in bits 4..7 */
     uint8_t glyph;                  /* CR_G_* */
     uint8_t pct;                    /* Q8 of 255: the glyph's / bar's fill (square: the duty) */
-    uint8_t pct2;                   /* Q8 of 255: a pictogram's second value (echoes: feedback, lfo: depth) */
+    uint8_t pct2;                   /* Q8 of 255: a pictogram's second value (echoes: feedback, lfo: depth; edit8
+                                     * tall 2: the peak tick, 0 none) */
     uint8_t wave;                   /* CR_G_LFOWAVE: CR_LW_* */
 } cr_cell_t;                        /* 32 bytes, no padding */
-typedef struct { char t[32]; uint8_t px, col, bold, center; } cr_line_t;       /* a text line (px 0 = 12) */
+typedef struct { char t[32]; uint8_t px, col, bold, center;
+                 uint8_t cur; } cr_line_t;       /* a text line (px 0 = 12). cur: a cursor under character cur - 1 of a
+                                                  * left-aligned line, in the
+                                                  * title's colour, steady; 0: none, every pixel as before (naming) */
 
 typedef struct {
     uint8_t kind;                   /* CR_K_* */
@@ -203,6 +224,13 @@ typedef struct {
     uint16_t pct, pct_from;         /* Q8: the stripes filled; CR_A_FILL: from */
     uint8_t segments, thick;        /* stripes (0 = 12), their height (0 = 14) */
     uint8_t sub_mark;               /* a small square after `sub` (an overwritten factory preset, docs/PRESETS.md) */
+    uint8_t star;                   /* a favourite's star before the sound's name, the two centred together (0.22,
+                                     * docs/PRESETS.md "Favourites"): the meter's `sub`, the picker's `value`. 0: every
+                                     * pixel as before */
+
+    uint8_t label_fav;              /* the meter's `label` in the star's colour: a pool's read-out while the favourites
+                                     * filter is on (its place among the favourites, or "no favorites: all"). 0: every
+                                     * pixel as before */
 
     /* panel: stripes */
     uint8_t bands[4], n_bands, band, gap;   /* colours (top first), band height, the gap between */
@@ -233,9 +261,13 @@ typedef struct {
     uint8_t hot_r, hot_c;           /* the cell just turned (a filled block behind its value): row + 1 (0: none), column */
     uint8_t hot_col;                /* .. the block's colour (NONE: the knob's; a modulation source's while mapping) */
     uint8_t wide;                   /* edit8: CR_W_* */
-    uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel (the oscillator mixer) */
-    uint8_t fine;                   /* edit8 / stack: SHIFT on (fine steps): "fine" small in the title line (2: the
-                                     * lane has a ratio pair, SHIFT steps its slow hand B1: "fine \267 B1");
+    uint8_t tall;                   /* edit8: one row of tall level bars over the whole panel: 1 the oscillator mixer
+                                     * (knob colours by `active`, the knob bars under them); 2 a read-out (Geek Out 2:
+                                     * bright, no knob bars; a cell's pct2, when not 0, a peak tick across its well;
+                                     * CR_CF_DIM: the cell in the grey) */
+    uint8_t fl_eng, fl_scr;         /* free: the compiled layout and its screen (cr_layout.c: index + 1; 0 none) */
+    uint8_t fine;                   /* edit8 / stack: SHIFT on (OPT snap): "snap" small in the title line (2: the
+                                     * lane has a ratio pair, SHIFT steps its slow hand B1: "snap \267 B1");
                                      * `batt` (0..4, 4 = charging; 255 = none): edit8 / stack draw the header's battery
                                      * at the title line's right end (the MIX screens) */
     uint8_t wv[20];                 /* env: a h d s r (Q8 of 255), the lit segment + 1 (1 A .. 5 R, 0 none), 1 = REL INF (6: the tail flat);

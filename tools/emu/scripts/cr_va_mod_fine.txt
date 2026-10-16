@@ -1,0 +1,59 @@
+# ChoralRoot 0.22 (issue 13, 3y110): the VA matrix's fine amounts. AMT reads hundredths (F_FIX2): tenths below 6,
+# whole numbers from 6 (firmware/src/eng_va.c va_amt_q; docs/VA.md "matrix").
+# 1. VA (GLO + PRESETS +2: LUSH PAD), EDIT, MOD (SEQ): slot 1; SELECT +1: slot 2 (LFO2 -> PITCH +3.00, the vibrato).
+# 2. KNOB 3 AMT: 4 slow detents down (300 ms apart: the finest step): 2.90 2.80 2.70 2.60, a tenth each.
+# 3. 4 detents up 15 ms apart: the reversal's first two one step each (2.70 2.80), then the quickest (6.35 a detent:
+#    9.00 15.00, whole numbers from 6: the whole amounts' quick step of before).
+# 4. One slow detent down: a whole number (14.00); GLO held -1: the snap, whole numbers (13.00).
+# 5. FILT (SEL): LFO held + KNOB 2 (RES) one slow detent: a free slot (3), "mod: LFO1 -> RES +0.1 slot 3".
+# tools/emu/test_cr.sh reads the "deep:" and "mod:" lines.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +2
+wait 100
+btn GLO up
+wait 1500
+btn EDIT
+wait 400
+btn SEQ
+wait 400
+knob SELECT +1
+wait 400
+shot cr_va_fine_start
+knob KNOB3 -1
+wait 300
+knob KNOB3 -1
+wait 300
+knob KNOB3 -1
+wait 300
+knob KNOB3 -1
+wait 300
+shot cr_va_fine_tenths
+knob KNOB3 +1
+wait 15
+knob KNOB3 +1
+wait 15
+knob KNOB3 +1
+wait 15
+knob KNOB3 +1
+wait 300
+knob KNOB3 -1
+wait 300
+btn GLO down
+wait 100
+knob KNOB3 -1
+wait 100
+btn GLO up
+wait 300
+shot cr_va_fine_whole
+btn SEL
+wait 400
+btn LFO down
+wait 400
+knob KNOB2 +1
+wait 100
+shot cr_va_fine_hot
+btn LFO up
+wait 1000
+quit

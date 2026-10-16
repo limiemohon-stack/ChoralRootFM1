@@ -24,9 +24,10 @@
 #define CRS_ENG_QUAD 15u                /* FM TONE (ENGI_QUAD, code name QUAD): pool_pos slot 0 since version 7 */
 #define CRS_POOL_DEFAULT 1u             /* pool_pos: an engine not played yet lands on its first preset */
 #define CRS_PALETTE_MOD 0xFFu           /* palette: MOD, ChoralRoot's (gfx.c: the last palette) */
-/* view (v9): bits 0..2 the main view 0..4 (Chord, Keyboard, Notes, Geek Out, Scope), bit 7 the view lock (HOME held's
- * menu: locked, HOME tap never cycles the view); the other bits 0. No reserve was left: the lock rides in the view's byte
- * (an older firmware reads a locked record's view as out of range: Chord) */
+/* view (v9): bits 0..2 the main view 0..5 (Chord, Keyboard, Notes, Geek Out, Scope; 5 Geek Out 2 since 0.22, which an
+ * older firmware reads as out of range: Chord), bit 7 the view lock (HOME held's menu: locked, HOME tap never cycles
+ * the view); the other bits 0. No reserve was left: the lock rides in the view's byte (an older firmware reads a locked
+ * record's view as out of range: Chord) */
 #define CRS_VIEW(s) ((unsigned)(s)->view & 7u)
 #define CRS_VIEW_LOCK(s) (((unsigned)(s)->view >> 7) & 1u)
 #define CRS_VIEW_BYTE(v, lock) ((uint8_t)(((v) & 7u) | ((lock) ? 0x80u : 0u)))
@@ -49,6 +50,16 @@
 #define CRS_KEY_PLAYS(s) (((unsigned)(s)->key_on & CRS_KEY_NOTES) ? 1u : 0u)
 #define CRS_KEYBOARD(s) (((unsigned)(s)->key_on & CRS_KBD_FULL) ? 1u : 0u)
 #define CRS_KEY_BYTE(on, notes, full) ((uint8_t)(((on) ? 1u : 0u) | ((notes) ? CRS_KEY_NOTES : 0u) | ((full) ? CRS_KBD_FULL : 0u)))
+/* The KEY layer's page 2 "Snap" (0.22, GitHub issue 18: a key out of the scale plays the nearest note of the scale or
+ * of the chord sounding, with Key plays Notes / the Full keyboard; 0 Off, the default / 1 Scale / 2 Chord,
+ * cr_keysnap_t) rides in bits 3 .. 4 of the same byte: 0 in every older record and 0 is the default: no version,
+ * nothing to migrate. A firmware from 0.17 to 0.22-beta2 checks the byte against 0 .. 7 and takes its default for a
+ * record with Snap on: Key Mode off, Key plays Chords, Keyboard Chords there, until set again (as with v14's Notes /
+ * Full, docs/SETTINGS.md); the other 0 / 1 bytes looked at would cost the scale or Single instead, away from Key
+ * Mode's byte. Manual (SAVE held), as the page's others */
+#define CRS_SNAP(s) (((unsigned)(s)->key_on >> 3) & 3u)
+#define CRS_SNAP_BITS(v) ((uint8_t)(((v) & 3u) << 3))
+#define CRS_KEY_MAX 23u                 /* crs_sanitize: bits 0 .. 4 with Snap 0 .. 2 (24 .. 31 would be Snap 3) */
 /* The KEY layer's page 2 "Numerals" (0.22: the chord's Roman numeral beside the key on the top line; Off, the default
  * / On) rides in bit 1 of bass_on. That byte's bit 0 is always written 0 since v15 (Bass on is the session's), and
  * every firmware from 0.17 to 0.21 reads the byte with CRS_FIX(bass_on, 0, 1), default 0: it finds 2 out of range and
@@ -57,6 +68,26 @@
  * every older record and 0 is the default: no version, nothing to migrate. Manual (SAVE held), as the page's others */
 #define CRS_NUMERALS 0x02u
 #define CRS_NUMS(s) (((unsigned)(s)->bass_on & CRS_NUMERALS) ? 1u : 0u)
+/* Its third value, Solfege (GitHub issue 15: the same degree as DO RE MI ..), is a bit of its own, apart from the bass
+ * byte (the owner, 2026-10-16: "Add a new bit for the Solfege mode. don't mix it with bass"): bit 7 of `scale`
+ * (CRS_SOLFEGE; the scale itself is bits 0..6, CRS_SCALE, room for more scales). Off: neither bit; On: CRS_NUMERALS
+ * alone; Solfege: CRS_SOLFEGE alone (set, it wins over the other). 0 in every older record and 0 is the default: no
+ * version, nothing to migrate. Every firmware from 0.17 to 0.22 checks the byte against 0 .. 1 (CRS_FIX(scale, 0,
+ * 1)), so after a downgrade with Solfege saved it reads the scale as Major and Numerals as Off until set again,
+ * nothing else; without Solfege the byte is one it knows. Manual (SAVE held), as the page's others */
+#define CRS_SOLFEGE 0x80u
+#define CRS_SCALE(s) ((unsigned)(s)->scale & 0x7Fu)
+#define CRS_SOL(s) (((unsigned)(s)->scale & CRS_SOLFEGE) ? 1u : 0u)
+/* Options > Key Touch, Velocity Sens, Aftertouch Sens (0.22; docs/VELOCITY.md) ride in bits 2..7 of the same byte:
+ * bits 2-3 Key Touch (0 Fixed, the default: the keys send Options > Velocity, no sensing; 1 Dynamic: the keys'
+ * velocity; 2 Velocity + Aftertouch; 3 Vel + Poly AT: the same, the pressure out as polyphonic aftertouch), bits 4-5
+ * Velocity Sens and bits 6-7 Aftertouch Sens (0 Mid, the default; 1 Low;
+ * 2 High). 0 in every older record and 0 is the default: no version, nothing to migrate; a firmware up to 0.21 finds
+ * 4..255 out of range and takes its default for the byte (Numerals off) until it is set there */
+#define CRS_TOUCH(s) (((unsigned)(s)->bass_on >> 2) & 3u)
+#define CRS_VSENS(s) (((unsigned)(s)->bass_on >> 4) & 3u)
+#define CRS_ATSENS(s) (((unsigned)(s)->bass_on >> 6) & 3u)
+#define CRS_TOUCH_BITS(t, v, a) ((uint8_t)(((t) & 3u) << 2 | ((v) & 3u) << 4 | ((a) & 3u) << 6))
 enum { CRS_CLOCK_OFF, CRS_CLOCK_OUT, CRS_CLOCK_IN };
 enum { CRS_NONE = 0xFF };               /* out part: no part */
 enum { CRS_USB_MASTER, CRS_USB_FIXED };
@@ -106,7 +137,13 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
  * writes that); with it clear the byte is in its range and is read as before */
 #define CRS_SIXTH_UP 0x10u
 #define CRS_SIXTH(s) (((unsigned)(s)->pick_roots & CRS_SIXTH_UP) ? 1u : 0u)
-#define CRS_PICK_AUTO (CRS_OUT_CLASSIC | CRS_USB_48K | CRS_NAMES_STD | CRS_SIXTH_UP)   /* the byte's automatic bits (cr_settings_auto) */
+/* Options > Velocity Curve (0.22; docs/VELOCITY.md "fm1-ctl") rides in bits 5..7 of the same byte: the curve -3 .. +3
+ * as three bits of two's complement (0 = 0, the default: every older record's, no version; 5 6 7 = -3 -2 -1; 4 is
+ * not a value and reads as -3). A firmware up to 3y93 finds 32..255 out of range and takes its default for the byte */
+#define CRS_VCURVE_BITS 0xE0u
+#define CRS_VCURVE(s) ((int)(((unsigned)(s)->pick_roots >> 5) & 7u) >= 4 ? (int)(((unsigned)(s)->pick_roots >> 5) & 7u) - 8 : (int)(((unsigned)(s)->pick_roots >> 5) & 7u))
+#define CRS_VCURVE_OF(k) ((uint8_t)(((unsigned)(k) & 7u) << 5))
+#define CRS_PICK_AUTO (CRS_OUT_CLASSIC | CRS_USB_48K | CRS_NAMES_STD | CRS_SIXTH_UP | CRS_VCURVE_BITS)   /* the byte's automatic bits (cr_settings_auto) */
 
 typedef struct {
     /* header (12 bytes) */
@@ -116,8 +153,10 @@ typedef struct {
     uint32_t check;                     /* FNV-1a over bytes [12, size) */
     /* version 1 */
     uint8_t playstyle, extadd, secret, key_on;       /* cr_playstyle_t, cr_extadd_t, cr_secret_t, Key Mode (bit 0;
-                                                      * v14: bit 1 Key plays Notes, bit 2 the Full keyboard) */
-    uint8_t tonic, scale;                            /* 0..11, cr_scale_t */
+                                                      * v14: bit 1 Key plays Notes, bit 2 the Full keyboard; 0.22:
+                                                      * bits 3 .. 4 Snap, CRS_SNAP) */
+    uint8_t tonic, scale;                            /* 0..11, cr_scale_t (bits 0..6; bit 7: Numerals' Solfege,
+                                                      * CRS_SOLFEGE, after 0.22) */
     int8_t transpose;                                /* -24..24 */
     uint8_t single;                                  /* cr_single_t: Full Octave / Split Oct / (v14) 2 Split Bass */
     uint8_t split_pc, vel, bass_on, bass_mode;       /* 0..11; key velocity 1..127; (bit 0 always written 0: a firmware
@@ -131,7 +170,7 @@ typedef struct {
     int16_t par[CRS_NPM][CRS_NPAR];                  /* per-mode perform parameters (cr_engine.h cr_param_t) */
     uint8_t loop_sync, loop_quant, loop_count_in, loop_level;   /* 0..5 (Free, 1..16 bars), 0..6, 0/1, 0..100 */
     uint8_t midi_en[3], midi_ch[3];                  /* per stream (MAIN BASS RAW): MIDI out on, channel 0..15 */
-    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..4 (bits 0..2; v9:
+    uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..5 (bits 0..2; v9:
                                                       * bit 7 the view lock, CRS_VIEW / CRS_VIEW_LOCK; v12: bit 6
                                                       * Dual Core On, CRS_DUALCORE), Motion 0..2 */
     uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on; v6: the
@@ -217,8 +256,8 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * CR_BLOCK), so the block keeps its size and its layout and an older firmware reads a v15 block as it read v14's.
  * The record has its own header (magic, version, size, check: FNV-1a over [12, size)), the block's import rules (a
  * shorter, older record over the defaults; a longer, newer one by its prefix; anything else: the defaults = the unit as
- * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 142 of them unused today (46 in the
- * state, 20 after the FX block, 8 in each part, 60 at the end).
+ * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 126 of them unused today (46 in the
+ * state, 4 after the FX block, 8 in each part, 60 at the end).
  * `bind`: the CRC of the settings object in flash when the session was written (0: none). The session is used at
  * power-on if the settings block was read as current (written by a v15 firmware: an older one in between would have
  * left its own version there) or, with any other block, if the settings object is still the one the session was
@@ -237,15 +276,20 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * when `version` is not its CSS_FX_VERSION (bump it only if this struct's layout changes). A parameter whose meaning
  * or range changes gets a NEW tag (the old one retired, never reused); room for 24 parameters and 8 effects */
 #define CSS_FX_VERSION 1u
-#define CSS_NFXP 24                     /* (23 used) */
+#define CSS_NFXP 28                     /* (27 used; 24 until 0.22's master filter: its four tags, 31..34, are
+                                         * written only when they are not at their defaults, so a record of a
+                                         * unit that never touched the filter keeps 23 and a firmware before
+                                         * 0.22 reads it as before; one with more than 24 entries makes such a
+                                         * firmware take this block's defaults: cr_session_import) */
 #define CSS_NFXE 8
 #define CSS_FX_NONE 0xFFu               /* amt: not stored (the default send) */
 enum { CSS_FXE_REVERB, CSS_FXE_CHORUS, CSS_FXE_DELAY, CSS_FXE_DRIVE,              /* effect tags (amt's index, sel) */
        CSS_FXE_REVERB2, CSS_FXE_DELAY2,                                            /* .. sel only (0.18): the effect's
                                                                                     * second page in the FX layer */
-       CSS_FXE_SENDS };                                                            /* .. sel only: the Sends page (a
+       CSS_FXE_SENDS,                                                              /* .. sel only: the Sends page (a
                                                                                     * record without it: sel is the
                                                                                     * effect's page it was left on) */
+       CSS_FXE_FILTER };                                                           /* .. sel only (0.22): the Filter page */
 /* parameter tags (1..255). 1..3 and 6..8 were Felucca's ROOM / SPRING reverb and its mono delay (0.17 and the first
  * 0.18 builds: size, damp, type; time, feedback, colour): RETIRED with them, never reused; a record that holds them
  * loses them at its next save. 9..24: the stereo delay's and the large reverb's (cr_fx.c XP_*, docs/FX.md) */
@@ -259,15 +303,19 @@ enum { CSS_FXP_NONE, CSS_FXP_RSIZE, CSS_FXP_RDAMP, CSS_FXP_RTYPE, CSS_FXP_CRATE,
                                           * 21 .. 1000 ms is retired with the half-rate line) */
        CSS_FXP_BS_REV, CSS_FXP_BS_CHO, CSS_FXP_BS_DLY, CSS_FXP_BS_DRIVE,           /* 26..29: the BASS part's sends (the
                                           * chord part's are amt[]): the sends are the parts', not the sounds' */
-       CSS_FXP_XC_WIDTH };               /* 30 (0.21): the chorus's Width (cr_fx.c XP_CWIDTH). A record without it:
+       CSS_FXP_XC_WIDTH,                 /* 30 (0.21): the chorus's Width (cr_fx.c XP_CWIDTH). A record without it:
                                           * 127, the chorus of 0.19 and 0.20 */
+       CSS_FXP_XQ_LOW, CSS_FXP_XQ_HIGH, CSS_FXP_XQ_SLOPE, CSS_FXP_XQ_ON };         /* 31..34 (0.22): the master filter's
+                                          * Low cut, High cut, Slope, Filter (cr_fx.c XP_FLOW ..): stored only off
+                                          * their defaults (above) */
 typedef struct { uint8_t tag, rsv; int16_t v; } css_fxp_t;
 typedef struct {
     uint8_t version, n, sel, on_rsv;    /* CSS_FX_VERSION, entries of par[] used, the FX layer's picked effect (its
                                          * tag), 0 (FX on / off is the block's fx_on) */
     uint8_t amt[CSS_NFXE];              /* per effect tag: the chord part's send 0..127 (the "Send" cell), CSS_FX_NONE */
     css_fxp_t par[CSS_NFXP];            /* the effects' own (global) parameters */
-} css_fx_t;                             /* 108 bytes */
+} css_fx_t;                             /* 124 bytes (108 until 0.22: par[] grew by four entries into rsv_fx, the
+                                         * entries before them where they were) */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
     uint8_t eng, preset, user;          /* core.h track_t eng_req, preset, user (the slot it is as stored, + 1) */
@@ -294,7 +342,7 @@ typedef struct {
                                          * a record written before it reads x1: no migration) */
     uint8_t rsv[46];
     css_fx_t fx;
-    uint8_t rsv_fx[20];
+    uint8_t rsv_fx[4];
     css_part_t part[2];                 /* chord, bass */
     uint8_t rsv_end[60];
 } cr_session_t;

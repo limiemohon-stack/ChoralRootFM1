@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
-# Build the ChoralRoot FM-1 release package (BUILDING.md, "Releasing").
+# Build the ChoralRoot FM-1 release packages (BUILDING.md, "Releasing"): the standard one and the single-core one
+# (choralroot-X.Y-1core.fwsc, docs/DUALCORE.md "Two packages"), both from one ./build.sh --release.
 #   push of a tag vX.Y  -> build, create or update the GitHub release vX.Y with the assets, then run pages.yml
 #   workflow_dispatch   -> build only; the package is a workflow artifact (choralroot-X.Y)
 # On ubuntu (x86-64) tools/build.py runs the JieLi toolchain natively, no Docker.
@@ -113,12 +114,18 @@ jobs:
             echo "::error::the build did not make $rel/"
             exit 1
           fi
-          for f in "choralroot-$VERSION.fwsc" "choralroot-$VERSION-app.bin" SHA256SUMS LICENSE LICENSING.md; do
+          for f in "choralroot-$VERSION.fwsc" "choralroot-$VERSION-app.bin" \
+                   "choralroot-$VERSION-1core.fwsc" "choralroot-$VERSION-1core-app.bin" SHA256SUMS LICENSE LICENSING.md; do
             if [ ! -s "$rel/$f" ]; then
               echo "::error::$rel/$f is missing"
               exit 1
             fi
           done
+          # SHA256SUMS lists all four (the two packages and their apps): every one must be there and match
+          if [ "$(grep -c . "$rel/SHA256SUMS")" != 4 ]; then
+            echo "::error::$rel/SHA256SUMS does not list the two packages and their apps"
+            exit 1
+          fi
           (cd "$rel" && sha256sum -c SHA256SUMS && zip -q -r LICENSES.zip LICENSES)
           ls -l "$rel"
 
@@ -153,7 +160,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir assets
-          for f in "choralroot-$VERSION.fwsc" "choralroot-$VERSION-app.bin" SHA256SUMS LICENSE LICENSING.md LICENSES.zip; do
+          for f in "choralroot-$VERSION.fwsc" "choralroot-$VERSION-app.bin" "choralroot-$VERSION-1core.fwsc" \
+                   "choralroot-$VERSION-1core-app.bin" SHA256SUMS LICENSE LICENSING.md LICENSES.zip; do
             cp "release/$f" assets/
           done
           if [ -f release/ATTRIBUTION.txt ]; then cp release/ATTRIBUTION.txt assets/; fi
@@ -171,7 +179,9 @@ jobs:
 
           Install from the browser at https://quixotic7.github.io/ChoralRootFM1/ (Chrome or Edge, the FM-1 connected by USB), or with the command-line installer: `python3 tools/fm1_install.py choralroot-@VERSION@.fwsc`.
 
-          `SHA256SUMS` lists the package and the app. The package holds three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          `choralroot-@VERSION@-1core.fwsc` is the same firmware on one processor core, for an FM-1 that crashes or freezes with the standard package (the installer offers it under Advanced > Hardware fallback). Settings, sounds and loops stay when you switch between the two.
+
+          `SHA256SUMS` lists both packages and their apps. The package holds three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
           EOT
           } > release-body.md
 
@@ -180,14 +190,18 @@ jobs:
         with:
           tag_name: ${{ github.ref_name }}
           name: ChoralRoot ${{ needs.build.outputs.version }}
-          prerelease: ${{ startsWith(needs.build.outputs.version, '0.') || contains(needs.build.outputs.version, '-') }}
+          # a pre-release for X.Y-suffix only (a beta among them); vX.Y is a full release, 0.x too (0.21 and 0.22 are
+          # the stable releases the installer offers by default)
+          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: assets/*
           body_path: release-body.md
 
       - name: Publish the site (pages.yml)
-        if: ${{ !contains(env.VERSION, '-') }}
+        # a final release, or a beta (X.Y-betaN: web/releases.json lists it first with "beta": true; the installer
+        # offers it only to who ticks "Show beta releases"). Other suffixes (-rc1, ...) do not publish the site
+        if: ${{ !contains(env.VERSION, '-') || contains(env.VERSION, '-beta') }}
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}

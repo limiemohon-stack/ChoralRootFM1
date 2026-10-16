@@ -1,0 +1,33 @@
+# test_persist.sh, P5 run 1: OPT + PRESETS +4: P5, place 01; PRESETS +2: place 03 (the shipped list's third program);
+# EDIT, FILT (SEL): KNOB 1 -1 (the rows' FILTER, its one lane: CUTOFF RES ENV AMT REV): the cutoff a detent down ("deep: part 0 page 5 FILTER col 0 CUT a -> b"); EDIT; SAVE:
+# the dialog (0.22, the sound pool: its five entries, on Overwrite: the sound is edited): KNOB 4 +1 marks the program;
+# OCT+: Overwrite, the edited program saved into U001 (docs/PROPHET.md "Saving"); SAVE held: the global save: the
+# session holds the part on U001, and the mark not yet written goes to flash with it; quit
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA -> CZ-1 -> P5), on OPT's release
+wait 100
+btn GLO up
+wait 600
+knob PRESETS +2               # place 03
+wait 400
+btn EDIT
+wait 400
+btn SEL
+wait 400
+knob KNOB1 -1
+wait 300
+btn EDIT
+wait 400
+btn SAVE
+wait 300
+knob KNOB4 +1                 # Favorite: the program marked (by its Sequential number)
+wait 200
+btn OCT+                      # Overwrite: the edited program saved into U001 (0.22, the sound pool)
+wait 1500
+wait 300
+btn SAVE 900                  # SAVE held: the global save (the chord part's sound and its edit: the session)
+wait 3500
+dump
+quit

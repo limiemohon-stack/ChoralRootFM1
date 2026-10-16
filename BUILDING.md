@@ -13,6 +13,7 @@ python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generat
 cc -O1 -w -Ibuild/gen -Ifirmware/src -o build/host/ui_test tests/ui_test.c -lm && build/host/ui_test
 sh tools/emu/build.sh && build/host/emu          # the Mac emulator (tools/emu/README.md)
 sh tools/emu/web/build_web.sh                    # the browser emulator (needs the Emscripten SDK: tools/emu/README.md "Browser build")
+sh tools/layout/build_layout.sh && python3 tools/layout/make_page.py   # the layout viewer: build/layout-web/index.html (Emscripten; docs/LAYOUT-TOOL.md)
 sh tests/run_cr_tests.sh                         # the ChoralRoot engine tests
 sh tests/run_cr_draw.sh                          # renders every mock-up screen to build/cr_screens/
 ```
@@ -109,6 +110,9 @@ Build options (environment, `0` or `1`; defaults in `firmware/src/choralroot.c`;
 | `FELUCCA_ICONS` | 0 | Felucca's icon atlas (`icons.c`, `build/gen/ui_icons.h`): parameter icons on Felucca's knob cards (ChoralRoot: off; its header glyphs are drawn by `cr_draw.c`) |
 | `FELUCCA_KEYCAPS` | 0 | Felucca's keycaps and key hints (`gfx.c`, `build/gen/ui_keycaps.h`; ChoralRoot: off, no screen draws one) |
 | `FELUCCA_FM4` | 0 | the retired DIGITAL engine (4-operator FM) instead of its FM6 conversion |
+| `P5_RAM` | 1 | the P5 engine's sample loop in RAM (`.ram_text`, 3792 B) instead of flash: a quarter less time for the part on the unit; `0`: all code in flash (docs/FX.md "Code in RAM") |
+| `CR_RAM_FX`, `CR_RAM_MASTER`, `CR_RAM_CORE`, `CR_RAM_CZ`, `CR_RAM_VA`, `CR_RAM_FM6` | 0 | measurement builds: one stage's functions linked at RAM (the same instructions; `firmware/src/cr_ram.h`, `tools/ram_code.py`). RAMTEXT holds FX + MASTER + CORE, or one engine; the build stops under 512 B spare |
+| `CR_RAM_TABLES_P5` | 0 | the four tables the P5 engine reads every sample in RAM `.data` (5376 B) |
 | `FELUCCA_SEQ` | 0 | Felucca's sequencer (`seq.c`, `song_chain.c`, `chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`); ChoralRoot: off, `cr_out.c` has the `events_block` and MIDI in (docs/INTEGRATION.md section 1) |
 | `FELUCCA_SAMPLE` | 0 | the SAMPLE engine and its ADPCM sets (about 190 KB of flash); ChoralRoot: off, engine 4 a retired slot |
 | `FELUCCA_GRAIN` | 0 | the GRAIN engine (needs `FELUCCA_SAMPLE`; 27 KB of POOL); ChoralRoot: off, engine 8 retired |
@@ -231,10 +235,13 @@ prints the guard, the reset reason and the stage the crash reached. Emulator: `b
 
 A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
 
-1. Check the release build locally: `./build.sh --release X.Y` (it makes `build/release-X.Y/`).
-   Add the version to `web/releases.json`, as the first entry: its date, tag, 4 to 8 bullets a player understands
-   (from `docs/releases/X.Y.md`), the sha256 of `build/release-X.Y/choralroot-X.Y.fwsc` (the build is reproducible:
-   CI makes the same file), and give the entry that was first a `going_back` note (from the new notes' "Going back"
+1. Check the release build locally: `./build.sh --release X.Y` (it makes `build/release-X.Y/`: **two packages**,
+   `choralroot-X.Y.fwsc` and the single-core `choralroot-X.Y-1core.fwsc` (`CR_SINGLE_CORE=1`, docs/DUALCORE.md "Two
+   packages"), their apps `choralroot-X.Y-app.bin` / `choralroot-X.Y-1core-app.bin`, `SHA256SUMS` listing all four,
+   and one size line each). Add the version to `web/releases.json`, as the first entry: its date, tag, 4 to 8
+   bullets a player understands (from `docs/releases/X.Y.md`), the sha256 of `build/release-X.Y/choralroot-X.Y.fwsc`
+   as `sha256` and of `choralroot-X.Y-1core.fwsc` as `sha256_1core` (the installer offers Single core only for a
+   release that has it; the build is reproducible: CI makes the same files), and give the entry that was first a `going_back` note (from the new notes' "Going back"
    section). `python3 tests/releases_test.py` checks the file. Commit this before the tag: the site is built from
    the tag's tree, and the installer offers what the file lists.
 2. Tag the commit and push the tag:
@@ -245,14 +252,15 @@ A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
 
    `.github/workflows/release.yml` builds the package on ubuntu (the JieLi toolchain runs natively there; it is
    fetched with `tools/get_toolchain.sh`, and the three SDK files with a sparse clone of the AC79 SDK; both are
-   cached), creates the GitHub release `vX.Y` (a pre-release for 0.x and for `X.Y-suffix`) and attaches
-   `choralroot-X.Y.fwsc`, `choralroot-X.Y-app.bin`, `SHA256SUMS`, `LICENSE`, `LICENSING.md`, `ATTRIBUTION.txt`
-   and `LICENSES.zip`. Run from the Actions tab (Run workflow, with a version) it only builds, and the package is
+   cached), creates the GitHub release `vX.Y` (a full release, 0.x too since 0.22; a pre-release for `X.Y-suffix`) and attaches
+   `choralroot-X.Y.fwsc`, `choralroot-X.Y-app.bin`, `choralroot-X.Y-1core.fwsc`, `choralroot-X.Y-1core-app.bin`,
+   `SHA256SUMS`, `LICENSE`, `LICENSING.md`, `ATTRIBUTION.txt` and `LICENSES.zip`. Run from the Actions tab (Run workflow, with a version) it only builds, and the package is
    a workflow artifact.
 3. Then it starts `.github/workflows/pages.yml`, which downloads `choralroot-X.Y.fwsc` from the release and the
    package of every other version in `web/releases.json` from that version's release (the installer offers them
    all, and a browser cannot fetch a release asset itself: the download has no CORS headers, so the site hosts
-   them under `firmware/`), checks each against the sha256 in `web/releases.json`, builds the
+   them under `firmware/`), and the single-core package of every version whose entry has `sha256_1core`, checks
+   each against the sha256 in `web/releases.json`, builds the
    browser emulator (`tools/emu/web/build_web.sh`, Emscripten; the site's `emu/`), runs
    `web/make_site.py ... --packages build/packages --require-all` and deploys the site to
    <https://quixotic7.github.io/ChoralRootFM1/>. A release published by hand starts it
@@ -260,6 +268,22 @@ A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
    listed version's release has no package, when a package does not have the listed sha256, or when X.Y is not
    the first entry of `web/releases.json`; correct the file on main and run pages.yml by hand (version X.Y, ref
    main).
+
+### A beta release
+
+A beta is `X.Y-betaN` (`0.22-beta1`, tag `v0.22-beta1`); it orders after X.(Y-1) and before X.Y. The firmware reads
+`ChoralRoot 0.22-beta1`. The steps are the release's above, with `--release 0.22-beta1`, `docs/releases/0.22-beta1.md`
+and, in `web/releases.json`, the entry first with `"beta": true` (`tests/releases_test.py` requires it on every
+`-betaN` version and on no other; a beta needs no `going_back`, and the newest stable entry keeps none). The release
+is a GitHub pre-release and release.yml publishes the site as for a final one (other suffixes, `-rc1`, do not). The
+installer hides betas until "Show beta releases" is ticked (remembered per browser); its default stays the newest
+stable entry, and the landing page presents that one (its version line, "New in", Install sentence, Download button
+and command line; `web/make_site.py front()`). The browser emulator is built from the tag, so it runs the beta: the
+landing page says so in one line under "Try it first" (`emu_line()`, from `emu/version.txt`). For X.Y final, add its entry above the beta (the
+beta's entry may stay as an older choice or be removed with its packages no longer offered). A later beta of the same
+version (`0.22-beta2`) goes first the same way and the earlier one stays below it, still behind the switch (pages.yml
+fetches both of its packages from its own release); the later beta's notes open with what is new since the earlier
+one, then the whole of X.Y's notes so far, and `docs/releases/X.Y.md` points at the newest beta's file.
 
 Once, before the first release: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 

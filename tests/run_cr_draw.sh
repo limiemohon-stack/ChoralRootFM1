@@ -5,8 +5,9 @@
 #   sh tests/run_cr_draw.sh
 # 1. build/gen/*.h if missing (tools/build.py generate(): the cr faces are build/gen/cr_fonts.h, MOD is in ui_palettes.h)
 # 2. tests/cr_screens_gen.h from design/choralroot-fm1-mockups.json (tests/gen_cr_screens.py)
-# 3. renders every state settled and mid-animation, the layout lint and the cache / animation checks
-#    (build/cr_screens/report.txt)
+# 3. renders every state settled and mid-animation, the layout lint and the cache / animation checks, P5's rows (the
+#    compiled classic layout) and, in a second build on the owner's panel compiled apart (build/host/freegen), the free
+#    screens (build/cr_screens/report.txt)
 # 4. PNGs (Pillow): build/cr_screens/<nn>_<slug>.png and <nn>_<slug>_mid.png (240 x 240, true size),
 #    build/cr_screens/sheet.png laid out as design/choralroot-fm1-screens.png (2x, nearest), and
 #    build/cr_screens/compare.png: each state's mock-up (from that sheet) beside the device render.
@@ -16,13 +17,20 @@ export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/l
 if [ ! -f build/gen/cr_fonts.h ] || [ ! -f build/gen/ui_palettes.h ] || ! grep -q '"MOD"' build/gen/ui_palettes.h; then
     python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()'
 fi
+python3 tools/gen_layout.py build/gen/cr_layouts.h >/dev/null   # (the compiled layouts: P5's rows, a classic layout)
+# the free screens' renderer (CR_K_FREE) is not in a unit without a built free design; the layout tool's preview has it,
+# and its pictures keep their goldens on the owner's panel (p5-panel.json) compiled into a header of their own
+python3 tools/gen_layout.py build/host/freegen/cr_layouts.h --design P5=design/layouts/designs/p5-panel.json >/dev/null
 python3 tests/gen_cr_screens.py
 OUT=build/cr_screens
 mkdir -p "$OUT/ppm" build/host
 ${CC:-cc} -std=c99 -O1 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -Wno-sign-compare \
     -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_draw_test tests/cr_draw_test.c firmware/src/cr_engine.c
+${CC:-cc} -std=c99 -O1 -Wall -Wextra -Wno-unused-function -Wno-unused-parameter -Wno-sign-compare \
+    -Ibuild/host/freegen -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_draw_free_test tests/cr_draw_test.c firmware/src/cr_engine.c
 status=0
 build/host/cr_draw_test "$OUT" || status=$?
+build/host/cr_draw_free_test "$OUT" free || status=$?   # (appends to the report)
 python3 - "$OUT" <<'EOF'
 import json, sys
 from pathlib import Path

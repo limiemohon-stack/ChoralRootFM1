@@ -1,0 +1,318 @@
+{
+  "format": "choralroot-layout",
+  "version": 2,
+  "kind": "design",
+  "name": "osc-panel",
+  "engine": {"index": 16, "name": "P5"},
+  "params_hash": "f5941e824048848d",
+  "header": {"kind": "title-line", "note": "the editor's title line: the sound's name left, the page's name right (fixed)"},
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "screens": [
+        {
+          "type": "free",
+          "title": "OSC A",
+          "elements": [
+            {"id": "fa", "type": "frame", "x": 4, "y": 36, "w": 232, "h": 80, "text": "OSC A"},
+            {"id": "a_freq", "type": "knob", "x": 12, "y": 44, "w": 56, "h": 64, "param": "OSC A:FREQ", "label": "Freq", "size": 32},
+            {"id": "a_saw", "type": "led", "x": 80, "y": 56, "w": 40, "h": 12, "param": "OSC A:SAW", "glyph": "saw"},
+            {"id": "a_pulse", "type": "led", "x": 80, "y": 80, "w": 40, "h": 12, "param": "OSC A:PULSE", "glyph": "square"},
+            {"id": "a_pw", "type": "knob", "x": 124, "y": 44, "w": 56, "h": 64, "param": "OSC A:WIDTH", "label": "PW", "size": 32},
+            {"id": "a_sync", "type": "switch", "x": 184, "y": 48, "w": 48, "h": 44, "param": "OSC A+:SYNC", "label": "Sync", "positions": 2},
+            {"id": "fm", "type": "frame", "x": 4, "y": 132, "w": 232, "h": 48, "text": "MIXER"},
+            {"id": "m_a", "type": "bar", "x": 12, "y": 144, "w": 68, "h": 28, "param": "MIXER:MIX A", "label": "Osc A"},
+            {"id": "m_b", "type": "bar", "x": 84, "y": 144, "w": 68, "h": 28, "param": "MIXER:MIX B", "label": "Osc B"},
+            {"id": "m_n", "type": "bar", "x": 156, "y": 144, "w": 68, "h": 28, "param": "MIXER:NOISE", "label": "Noise"}
+          ],
+          "lanes": [
+            ["a_freq", "a_saw", "a_pulse", "a_pw"],
+            ["a_sync", null, null, null],
+            ["m_a", "m_b", "m_n", null]
+          ]
+        },
+        {
+          "type": "free",
+          "title": "OSC B",
+          "elements": [
+            {"id": "fb", "type": "frame", "x": 4, "y": 36, "w": 232, "h": 144, "text": "OSC B"},
+            {"id": "b_freq", "type": "knob", "x": 12, "y": 44, "w": 56, "h": 64, "param": "OSC B:FREQ", "label": "Freq", "size": 32},
+            {"id": "b_fine", "type": "knob", "x": 72, "y": 44, "w": 56, "h": 64, "param": "OSC B:FINE", "label": "Fine", "size": 32},
+            {"id": "b_saw", "type": "led", "x": 136, "y": 52, "w": 40, "h": 12, "param": "OSC B:SAW", "glyph": "saw"},
+            {"id": "b_tri", "type": "led", "x": 136, "y": 72, "w": 40, "h": 12, "param": "OSC B:TRI", "glyph": "triangle"},
+            {"id": "b_pulse", "type": "led", "x": 136, "y": 92, "w": 40, "h": 12, "param": "OSC B+:PULSE", "glyph": "square"},
+            {"id": "b_pw", "type": "knob", "x": 180, "y": 44, "w": 52, "h": 64, "param": "OSC B+:WIDTH", "label": "PW", "size": 32},
+            {"id": "b_lo", "type": "switch", "x": 12, "y": 124, "w": 72, "h": 44, "param": "OSC B+:LOFREQ", "label": "Lo Freq", "positions": 2},
+            {"id": "b_kb", "type": "switch", "x": 92, "y": 124, "w": 72, "h": 44, "param": "OSC B+:KEYBD", "label": "Keyboard", "positions": 2}
+          ],
+          "lanes": [
+            ["b_freq", "b_fine", "b_saw", "b_tri"],
+            ["b_pulse", "b_pw", "b_lo", "b_kb"]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "filter",
+          "title": "FILTER",
+          "lanes": [
+            {
+              "title": "FILTER",
+              "cells": [
+                {"param": "FILTER:CUT"},
+                {"param": "FILTER:RES"},
+                {"param": "FILTER:FENV"},
+                {"param": "FILTER:KTRK"}
+              ]
+            },
+            {
+              "title": "FILTER",
+              "cells": [
+                {"param": "FILTER+:REV"},
+                {"param": "FILTER+:AFTER"},
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "env",
+          "title": "ENV 1 · amp",
+          "lanes": [
+            {
+              "title": "ENV 1 · amp",
+              "cells": [
+                {"param": "ENV 1:ATK"},
+                {"param": "ENV 1:DEC"},
+                {"param": "ENV 1:SUS"},
+                {"param": "ENV 1:REL"}
+              ]
+            },
+            {
+              "title": "ENV 1 · amp",
+              "cells": [
+                {"param": "ENV 1+:VEL"},
+                {"param": "ENV 1+:RELSW"},
+                null,
+                null
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "env",
+          "title": "ENV 2 · filter",
+          "lanes": [
+            {
+              "title": "ENV 2 · filter",
+              "cells": [
+                {"param": "ENV 2:ATK"},
+                {"param": "ENV 2:DEC"},
+                {"param": "ENV 2:SUS"},
+                {"param": "ENV 2:REL"}
+              ]
+            },
+            {
+              "title": "ENV 2 · filter",
+              "cells": [
+                {"param": "ENV 2+:VEL"},
+                null,
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "LFO",
+          "lanes": [
+            {
+              "title": "LFO",
+              "cells": [
+                {"param": "LFO:RATE"},
+                {"param": "LFO:AMOUNT"},
+                {"param": "LFO:NOISE"},
+                {"param": "LFO:AFTER"}
+              ]
+            },
+            {
+              "title": "LFO",
+              "cells": [
+                {"param": "LFO+:SAW"},
+                {"param": "LFO+:TRI"},
+                {"param": "LFO+:SQUARE"},
+                null
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "WHEEL",
+          "lanes": [
+            {
+              "title": "WHEEL",
+              "cells": [
+                {"param": "WHEEL:FREQ A"},
+                {"param": "WHEEL:FREQ B"},
+                {"param": "WHEEL:PW A"},
+                {"param": "WHEEL:PW B"}
+              ]
+            },
+            {
+              "title": "WHEEL",
+              "cells": [
+                {"param": "WHEEL+:FILTER"},
+                null,
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "POLYMOD",
+          "lanes": [
+            {
+              "title": "POLYMOD",
+              "cells": [
+                {"param": "POLYMOD:ENV"},
+                {"param": "POLYMOD:OSC B"},
+                {"param": "POLYMOD:FREQ A"},
+                {"param": "POLYMOD:PW A"}
+              ]
+            },
+            {
+              "title": "POLYMOD",
+              "cells": [
+                {"param": "POLYMOD+:FILTER"},
+                null,
+                null,
+                null
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "VOICE",
+          "lanes": [
+            {
+              "title": "VOICE",
+              "cells": [
+                {"param": "VOICE:UNISON"},
+                {"param": "VOICE:VOICES"},
+                {"param": "VOICE:DETUNE"},
+                {"param": "VOICE:GLIDE"}
+              ]
+            },
+            {
+              "title": "VOICE",
+              "cells": [
+                {"param": "VOICE+:PRIO"},
+                {"param": "VOICE+:VINTAGE"},
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "FX",
+          "lanes": [
+            {
+              "title": "FX",
+              "cells": [
+                {"param": "part:33"},
+                {"param": "part:34"},
+                {"param": "part:35"},
+                {"param": "part:36"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "MIX",
+          "lanes": [
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:0"},
+                {"param": "part:39"},
+                {"param": "part:37"},
+                {"param": "part:38"}
+              ]
+            },
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:28"},
+                {"param": "part:44"},
+                {"param": "part:42"},
+                {"param": "part:41"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

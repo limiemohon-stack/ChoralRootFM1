@@ -288,7 +288,9 @@ static void crx_snapshot_spec(const cr_t *c, uint8_t *sq, uint8_t *sx)
 static void crx_build_base(const cr_t *c, cr_voice_t *v)
 {
     int q = v->sq, root = v->note_pressed, pc = v->pc_pressed;
-    if (c->key_on && !c->key_notes && !v->zone) {   /* (Key plays Notes, the Full keyboard, a bass-side key: no chord) */
+    if (c->key_on && !c->key_notes && !(v->zone & CR_Z_BASS)) {   /* (Key plays Notes, a bass-side key: no chord. The
+                                                    * Full keyboard, Key plays Chords: the key's chord, as a lone root's
+                                                    * on the Chords keyboard; until 0.22 every key there was a note) */
         int e = CR_KEYMAP[c->scale][crx_mod(v->pc_pressed - c->tonic, 12)], sh = e >> 3;
         if (sh == 1) { root--; pc = crx_mod(pc - 1, 12); }
         else if (sh == 2) { root++; pc = crx_mod(pc + 1, 12); }
@@ -727,6 +729,12 @@ static int crx_find_voice(const cr_t *c, int key)
     return -1;
 }
 
+/* the voicing a voice takes: a chord's (the Full keyboard's Key chords too); none for a single note of the Full
+ * keyboard or a bass-side note (nothing to rotate; KNOB 1 is the octave on the Full keyboard) */
+static int crx_voic(const cr_t *c, const cr_voice_t *v)
+{
+    return v->zone && !((v->zone & CR_Z_FULL) && v->rq) ? 0 : c->voicing;
+}
 /* build, register and sound a voice; bass follows it */
 static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, int note_pressed, int sq, int sx, int is_free,
                            int zone)
@@ -746,7 +754,7 @@ static int crx_start_voice(cr_t *c, int key, int id, int vel, int pc_pressed, in
     v->serial = ++c->serial;
     v->gid = ++c->gid;
     crx_build_base(c, v);
-    v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, zone ? 0 : c->voicing, v->notes);
+    v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, crx_voic(c, v), v->notes);
     crx_sound_voice(c, vi);
     if (crx_bass_ok(c, v)) crx_bass_start(c, v);
     c->disp_vi = (uint8_t)vi;
@@ -771,13 +779,23 @@ int cr_latching(const cr_t *c)
 {
     return c->sticky || (c->perform_on && c->par[c->perform_mode][CR_P_HOLD]);
 }
+/* Snap: a held key plays this note (not its own) */
+static int crx_snapped_to(const cr_t *c, int note)
+{
+    int i;
+    if (c->snapn_n)
+        for (i = 0; i < 128; i++)
+            if (c->snapn[i] == note + 1) return 1;
+    return 0;
+}
 static void crx_latch_sync(cr_t *c)
 {
     int i;
     if (cr_latching(c)) return;
     for (i = 0; i < CR_MAX_VOICES; i++) {
         const cr_voice_t *v = &c->v[i];
-        if (v->used && !(c->phys[v->key] & (1u << v->id))) crx_kill_voice(c, i);   /* latched, not held */
+        if (v->used && !(c->phys[v->key] & (1u << v->id)) && !crx_snapped_to(c, v->key))
+            crx_kill_voice(c, i);   /* latched, not held */
     }
 }
 
@@ -806,7 +824,7 @@ static void crx_transform_voice(cr_t *c, int vi, int reattack)
 {
     cr_voice_t *v = &c->v[vi];
     crx_build_base(c, v);
-    v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, v->zone ? 0 : c->voicing, v->notes);
+    v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, crx_voic(c, v), v->notes);
     crx_note_last_chord(c, vi);
     /* Full re-strike (not performing): Chord Type press (reattack) or Play Chord; else Add Note diffs. */
     if (!c->perform_on && (reattack || c->extadd == CR_EXTADD_PLAY_CHORD)) {
@@ -967,20 +985,27 @@ void cr_tick(cr_t *c, uint32_t now_ms)
 
 void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
 {
-    uint8_t bit;
+    uint8_t bit, raw = note;
     int vi;
     if (note > 127) return;
     id &= 7u;
     bit = (uint8_t)(1u << id);
     if (down) {
         cr_voice_t *v;
-        /* Key plays Notes / the Full keyboard, Key Mode on: a key out of the scale does nothing at all (its release
-         * finds no press: phys is not set) */
-        if (c->key_on && (c->key_notes || c->full) && !((cr_scale_mask(c) >> (note % 12u)) & 1u)) return;
+        /* Key plays Notes, Key Mode on (either keyboard): a key out of the scale does nothing at all (its release
+         * finds no press: phys is not set), or, with Snap, plays the nearest note of the target (cr_snap_note): the
+         * key keeps its own place in phys, the voice is the played note's, snapn says which for the release. (Key
+         * plays Chords: the key's alternate chord, crx_build_base; the Full keyboard too since 0.22) */
+        if (c->key_on && c->key_notes && !((cr_scale_mask(c) >> (note % 12u)) & 1u)) {
+            int sn = cr_snap_note(c, note);
+            if (sn < 0) return;
+            note = (uint8_t)sn;
+        }
         /* Once every key of a latched gesture has been lifted, the first press of the next gesture replaces
          * the latched group instead of adding to it. */
         if (cr_latching(c) && c->phys_n == 0) crx_clear_manual_voices(c);
-        if (!(c->phys[note] & bit)) { c->phys[note] |= bit; c->phys_n++; }
+        if (!(c->phys[raw] & bit)) { c->phys[raw] |= bit; c->phys_n++; }
+        if (note != raw && !c->snapn[raw]) { c->snapn[raw] = (uint8_t)(note + 1u); c->snapn_n++; }
         vi = crx_find_voice(c, note);
         if (vi >= 0 && c->v[vi].is_free) { crx_kill_voice(c, vi); vi = -1; }   /* a real press replaces a Free voice */
         if (vi >= 0) {
@@ -1004,15 +1029,24 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
                 zone |= CR_Z_BASS;
             else if (c->full && c->single == CR_SINGLE_SPLIT && note < c->split_note) zone |= CR_Z_LOW;
             crx_snapshot_spec(c, &sq, &sx);   /* spec captured at note-on */
-            if (zone) sq = sx = 0;            /* the Full keyboard, a bass-side key: a single note */
+            if (zone) sq = sx = 0;            /* the Full keyboard (no chord key: Key plays Chords gives the key's
+                                               * chord in crx_build_base), a bass-side key: a single note */
             vi = crx_start_voice(c, note, id, vel, note % 12, note, sq, sx, 0, zone);
             if (vi < 0) return;
             c->lp.valid = 1; c->lp.attached = 1; c->lp.vi = (uint8_t)vi; c->lp.serial = c->v[vi].serial;
         }
         crx_note_last_chord(c, vi);
     } else {
-        if (c->phys[note] & bit) { c->phys[note] &= (uint8_t)~bit; c->phys_n--; }
+        if (c->phys[raw] & bit) { c->phys[raw] &= (uint8_t)~bit; c->phys_n--; }
         crx_rec_commit(c);
+        if (c->snapn[raw]) {                      /* a key Snap moved: the note it plays (the key, the chord, Snap may
+                                                   * have changed since) ... */
+            note = (uint8_t)(c->snapn[raw] - 1u);
+            c->snapn[raw] = 0;
+            c->snapn_n--;
+            if (c->phys[note] & bit) return;      /* .. held as itself too: it stays */
+        }
+        if (crx_snapped_to(c, note)) return;      /* another held key plays it: it stays */
         vi = crx_find_voice(c, note);
         if (cr_latching(c)) {                     /* it sounds on: a looper is told the key is up (CR_G_KEYUP) */
             if (vi >= 0 && c->v[vi].id == id && !c->v[vi].is_free) crx_gesture(c, vi, CR_G_KEYUP);
@@ -1169,8 +1203,9 @@ void cr_voicing_step(cr_t *c, int d)
     c->voicing = (int8_t)nv;
     for (i = 0; i < CR_NVOICE; i++) {
         cr_voice_t *v = &c->v[i];
-        if (!v->used || v->zone || v->fixed || (v->loop & CR_LOOP_FIXV)) continue;   /* (a loop step with its own
-                                                                                        * voicing, a chord given whole) */
+        if (!v->used || v->fixed || (v->zone && !((v->zone & CR_Z_FULL) && v->rq)) || (v->loop & CR_LOOP_FIXV))
+            continue;                              /* (a loop step with its own voicing; a note with nothing to rotate;
+                                                    * a chord given whole) */
         crx_hush_voice(c, i);
         v->nnotes = (uint8_t)cr_voice_apply(v->base, v->nbase, nv, v->notes);
         crx_sound_voice(c, i);
@@ -1240,6 +1275,35 @@ void cr_set_single_notes(cr_t *c, cr_single_t mode, int split_pc)
     c->split_pc = (uint8_t)crx_clamp(split_pc, 0, 11);
 }
 void cr_set_key_plays(cr_t *c, int notes) { c->key_notes = (uint8_t)(notes != 0); }
+void cr_set_key_snap(cr_t *c, cr_keysnap_t mode)
+{
+    c->snap = (uint8_t)((int)mode >= CR_KEYSNAP_OFF && (int)mode <= CR_KEYSNAP_CHORD ? mode : CR_KEYSNAP_OFF);
+}
+/* Snap (0.22, GitHub issue 18): the target as a pitch-class mask. Scale: the scale's notes. Chord: the base notes of
+ * every voice sounding with more than one (the player's chord, a pad's, a loop's), each taken back by its own
+ * captured transpose (the keys arrive before Transpose: the tone comes out where it sounds); the scale's when none.
+ * Then the nearest: d = 1 .. 11, down before up, so ties go down (C# in C major plays C; over C E G, D# plays E, A#
+ * plays C). A chord tone the key already is (out of the scale: a borrowed chord's) plays as itself */
+int cr_snap_note(const cr_t *c, uint8_t note)
+{
+    uint16_t m = 0;
+    int d, i, k;
+    if (!c->snap || !c->key_on || note > 127) return -1;
+    if (c->snap == CR_KEYSNAP_CHORD)
+        for (i = 0; i < CR_NVOICE; i++) {
+            const cr_voice_t *v = &c->v[i];
+            if (!v->used || v->nbase < 2u) continue;
+            for (k = 0; k < v->nbase; k++) m |= (uint16_t)(1u << crx_mod((int)v->base[k] - v->transpose, 12));
+        }
+    if (!m) m = cr_scale_mask(c);
+    if (!m) return -1;
+    if ((m >> (note % 12u)) & 1u) return note;
+    for (d = 1; d < 12; d++) {
+        if (note >= d && ((m >> ((note - d) % 12u)) & 1u)) return note - d;
+        if (note + d <= 127 && ((m >> ((note + d) % 12u)) & 1u)) return note + d;
+    }
+    return -1;
+}
 void cr_set_keyboard(cr_t *c, int full, int split_note)
 {
     c->full = (uint8_t)(full != 0);
@@ -1613,22 +1677,35 @@ void cr_chord_name(uint8_t root_pc, uint8_t quality, uint8_t ext, char root[3], 
  * of its root above the tonic (major 0 2 4 5 7 9 11, natural minor 0 2 3 5 7 8 10 = I .. VII); a root between two
  * degrees is the neighbour with an accidental (major bII bIII #IV bVI bVII, minor bII #III #IV #VI #VII); lower case
  * with a minor third (MIN, DIM, MIN + SUS), upper case otherwise (a single note too); DIM ends in the degree sign
- * (Latin-1 0xB0), the augmented chord in "+". No extensions: the name beside it has them. Display only */
-void cr_chord_numeral(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, char buf[CR_NUMERAL_MAX])
+ * (Latin-1 0xB0), the augmented chord in "+". No extensions: the name beside it has them. Display only.
+ * The same degree spelt as movable-do solfege (Numerals = Solfege, GitHub issue 15): DO RE MI FA SOL LA TI for I .. VII
+ * from the tonic in either scale (A minor's C is MI as it is III), the accidental, the case and the marks the
+ * numeral's: "SOL", "re", "ti\260", "#FA", "bTI" (docs/MANUAL.md "Numerals") */
+static void crx_degree(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, const char *const nm[7],
+                       char buf[CR_NUMERAL_MAX])
 {
-    static const char *const RN[7] = { "I", "II", "III", "IV", "V", "VI", "VII" };
     /* per semitone above the tonic: the degree 0..6 | 0x10 flat | 0x20 sharp */
     static const uint8_t DEG[2][12] = {
         { 0, 0x11, 1, 0x12, 2, 3, 0x23, 4, 0x15, 5, 0x16, 6 },
         { 0, 0x11, 1, 2, 0x22, 3, 0x23, 4, 5, 0x25, 6, 0x26 } };
     uint8_t d = DEG[scale == CR_SCALE_MINOR][(root_pc % 12u + 12u - tonic % 12u) % 12u];
-    const char *n = RN[d & 7u];
+    const char *n = nm[d & 7u];
     int i = 0, low = quality == CR_Q_MIN || quality == CR_Q_DIM || quality == CR_Q_MIN4;
     if (d & 0x30u) buf[i++] = d & 0x10u ? 'b' : '#';
     while (*n) buf[i++] = (char)(low ? *n++ | 0x20 : *n++);
     if (quality == CR_Q_DIM) buf[i++] = (char)0xB0;
     else if (quality == CR_Q_AUG) buf[i++] = '+';
     buf[i] = 0;
+}
+void cr_chord_numeral(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, char buf[CR_NUMERAL_MAX])
+{
+    static const char *const RN[7] = { "I", "II", "III", "IV", "V", "VI", "VII" };
+    crx_degree(root_pc, quality, tonic, scale, RN, buf);
+}
+void cr_chord_solfege(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, char buf[CR_NUMERAL_MAX])
+{
+    static const char *const SO[7] = { "DO", "RE", "MI", "FA", "SOL", "LA", "TI" };
+    crx_degree(root_pc, quality, tonic, scale, SO, buf);
 }
 
 void cr_note_name(uint8_t note, char buf[5])

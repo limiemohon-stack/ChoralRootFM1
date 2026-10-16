@@ -34,6 +34,9 @@ typedef struct {
     volatile uint32_t keys_tap, buttons_tap;   /* went down since the last tick (a tap shorter than 1 ms) */
     volatile int32_t enc[EMU_NENC];    /* detent steps not yet taken by the tick, per matrix encoder, + = CW */
     volatile int32_t master;           /* the MASTER pot: ADC 0..1023 */
+    volatile uint8_t key_vel[32];      /* a held key's velocity as the script gave it (0: none given, 100), keys 0..19
+                                        * (the analog rows): emu_fw.c feeds cr_sense.c the readings that land there */
+    volatile uint8_t key_lean[32];     /* .. and its lean, 0..100 % of full aftertouch (the "lean" command) */
     /* firmware -> emulator */
     uint8_t led[EMU_NCOL], led_dim[EMU_NCOL];   /* fm1_led / fm1_led_dim: packed row bits per column */
     uint8_t led_mid[EMU_NCOL];                  /* fm1_led_dim2: the middle level (dim < mid < lit) */
@@ -62,6 +65,10 @@ typedef struct {
     void (*strip_done)(void);
     void (*pump_mark)(void);
     uint8_t pump_off;
+    /* a script's "knobs quick" (1) / "knobs real" (0, the default): every knob detent at the quickest speed (the
+     * firmware's knob acceleration, firmware/src/cr_pages.c kn_turn: the range / 20 a detent, the step of before
+     * 0.22), for the scripts written against that step; real: the speed from the detents' times, as the unit */
+    volatile uint8_t knob_quick;
 } emu_hal_t;
 extern emu_hal_t emu_hal;
 

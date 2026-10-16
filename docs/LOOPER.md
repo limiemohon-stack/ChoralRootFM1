@@ -329,7 +329,7 @@ version 1, and 0.14 .. 0.17 read an edited loop's record as any other (`tests/cr
 | --- | --- |
 | **SEQ tap on the view** (2026-10-11) | opens it from the main screen, whichever view shows, with the same refusals (then SEQ does nothing else) and the same empty pattern as below (`cu_seq_tap`: the PLAY menu is locked open under it). **SEQ is a cycle of three**: the view -> the editor -> the PLAY menu (the editor closed, the menu as if LOOP had been held) -> the view. The owner: "The edit sequence is a bit buried, hold Play, then press edit. Most people won't find this ... from Main level you should be able to press the seq key to enter the edit sequence menu", then: "press once -> sequencer, press SEQ a second time -> Play menu, press SEQ a third time -> Exit". In KEY, PERF, FX, BASS, LOCK, the view menu, the engine picker, the Options and the save dialog SEQ tapped does nothing (it toggled the click there); in the sound editor it is the MOD group; in the SEQ key's hold menu (metronome) the click on / off |
 | EDIT tap in the PLAY menu | opens it (`cr_loop_ed_open`), **at any Quantize setting** (the first build refused a loop with Quantize none: `set Quantize to edit`). Refused: a slot switch on its way (`a slot is on its way`); a capture open (`end the take first`). An empty slot: an empty pattern of the set Length (Free: a bar, 16 steps; more than 64 steps: its first whole bars within 64), which is the slot empty again if nothing is entered |
-| PRESETS | the **step cursor**, a step a detent, wrapping at the loop's end (`cu_ledit_move`). **GLO held + PRESETS**: 8 steps a detent, wrapping the same way. Never the slot, never the chord sound, while the editor is open. (Until 2026-10-13 the cursor was SELECT and KNOB 1) |
+| PRESETS | the **step cursor**, a step a detent, wrapping at the loop's end (`cu_ledit_move`). **GLO held + PRESETS**: 8 steps a detent, wrapping the same way. Never the slot, never the chord sound, while the editor is open. (Until 2026-10-13 the cursor was SELECT and KNOB 1.) **While the loop is stopped the step the cursor lands on is heard** (below, "Step preview"; 2026-10-15, GitHub issue 8) |
 | SELECT | the editor's **page**, clamped: 1 **Step**, 2 **Trig** (`cu.le_page`, the first whenever it opens). The page's name stands where the record mode does, with the picker's two marks; the bottom line begins `1/2` / `2/2` |
 | ALGORITHM | the selected step's **voicing**, on both pages (the same value as Trig's KNOB 3; on the Step page, which has no cell for it, the message `step voicing: +2`). **GLO held + ALGORITHM** (or + Trig's KNOB 3) **snaps between Follow and 0** (2026-10-11, the owner: "below -12 is fine, but let's make it so you can hold GLO key and turn voicing to snap to Follow or 0"): from Follow a turn either way gives 0, from 0 a turn either way gives Follow; from any other value clockwise gives 0, the other way Follow; one snap a turn event, however fast the knob (`cu_ledit_voic`'s `snap`). GLO + ALGORITHM is the bass part's engine on the home pages (since 2026-10-12; the bass level until then, everywhere but here): **not inside the editor**, where the snap takes its place (the bass level: the BASS layer, or BASS held + ALGORITHM outside the editor) |
 | OCT- / OCT+ | the **octave**, exactly as on the view (the popup, -2 .. +2): what is played into a step next is entered there. They closed the editor until 2026-10-13 |
@@ -419,6 +419,36 @@ far as it can. The cell shows the root note of the step's name with its octave (
 how far this turn has moved it (`+2`); an empty step `-`. It is an edit like the others: the first one makes the loop
 one layer, the loop is marked changed, no undo of its own (turn it back; -1 after +1 gives the record byte for byte).
 A note sounding when it is turned ends at its old pitch.
+
+### Step preview (2026-10-15; GitHub issue 8; `cr_loop.c cr_loop_ed_preview`, `cr_out.c LP_PREVIEW`)
+
+Apieceofbluesky (issue 8, 2026-10-13): the editor would be much improved if moving the cursor to a step played it. The
+owner: "all I want is step preview switching steps when playback is stopped. So turn preset knob in the step editor,
+if the step has notes, it plays." No button, no setting.
+
+- **When the cursor lands on a step while the loop is stopped, the step is heard once, as the loop would play it**:
+  its live events, both sides, each on a loop voice as `crl_play_ev` strikes them (the velocity by the Level, the
+  step's voicing, its ratchet with its hits on the loop's clock, a bass-side note on the bass part, the notes' own
+  length: a note four steps long sounds four steps, at the Rate in force). The step's condition and chance are not
+  asked: a preview always sounds. A step without notes is silent, and ends the preview sounding; so does the next
+  move. PRESETS and GLO + PRESETS alike (`cu_ledit_move`); nothing when the editor opens (the cursor is on step 1 and
+  has not moved).
+- **It is the engine's, as the keys are**: the UI posts `LP_PREVIEW` after the cursor's move and the audio ISR plays
+  it (`cr_loop_ed_preview`), so the LEDs glow the previewed notes and the Chord view names the chord exactly as for a
+  chord the loop plays. Its voices carry a mark (`crl.pre`, a bit a loop voice): **not a hit of the loop**: not
+  counted in `played`, not the editor's "now playing" name (which shows while the loop plays only), and the loop's
+  own voice stealing treats a preview's voice as any other. **Nothing is written** (no event, no gesture: the
+  editor's "only what you play goes in" holds), **REC is not armed, the position does not move** (the loop is
+  stopped: `cr_loop_pos` 0 before and after), the slot is not dirtied.
+- **It ends** with the next cursor move, when a key is played by hand (the engine's gesture hook flags it,
+  `pre_end`, and the next `cr_loop_tick` ends the voices: never inside the hook; the chord played replaces the step as
+  before), when REC clears the step, when the editor closes, when LOOP starts the loop (its voices are the loop's
+  from the start), with a stop or a panic. **While the loop plays nothing is struck**: the cursor moves, the loop is
+  heard (`cr_loop_ed_preview` returns 0 while `CRL_PLAYING`).
+- Tests: `tests/cr_loop_test.c s_preview` (the notes of a chord, a bass-side note on the bass stream, the length,
+  the ratchet's two hits, a condition and a chance ignored, the step's voicing, a key by hand, REC, play, close);
+  `tools/emu/scripts/cr_loop_preview.txt` (the dump's `loop3: .. pre N`: the preview's voices). If a way to turn it
+  off is wanted later it is an Options line, not now.
 
 ### Ratchet, condition, chance, voicing (2026-10-13; `crl_data_t.st`, `cr_loop.c crl_play_ev`)
 

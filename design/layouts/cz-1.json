@@ -1,0 +1,1161 @@
+{
+  "format": "choralroot-layout",
+  "version": 1,
+  "generated": "by lay_catalog from the firmware's built-in tables: do not edit (tools/layout/dump_catalogs.mjs writes it; read-only in step 2, docs/LAYOUT-TOOL.md). The firmware version is not in it: params_hash binds it to the parameters",
+  "engine": {"index": 14, "name": "CZ-1"},
+  "params_hash": "d31f17977dbabcad",
+  "pages": [
+    {
+      "page": 0,
+      "title": "LINE 1",
+      "cols": [
+        {"short": "WAVE", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+        {"short": "WAVE2", "fmt": "enum", "min": 0, "max": 8, "def": 0, "names": ["OFF", "SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+        {"short": "WINDOW", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["OFF", "SAW DN", "TRIANGLE", "TRAPEZ", "HALF SAW", "2 SAW UP", "2 SAW 6", "2 SAW 7"], "unit": null},
+        {"short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 1,
+      "title": "LINE 2",
+      "cols": [
+        {"short": "WAVE", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+        {"short": "WAVE2", "fmt": "enum", "min": 0, "max": 8, "def": 0, "names": ["OFF", "SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+        {"short": "WINDOW", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["OFF", "SAW DN", "TRIANGLE", "TRAPEZ", "HALF SAW", "2 SAW UP", "2 SAW 6", "2 SAW 7"], "unit": null},
+        {"short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 2,
+      "title": "DETUNE",
+      "cols": [
+        {"short": "SIGN", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["+", "-"], "unit": null},
+        {"short": "OCT", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+        {"short": "NOTE", "fmt": "int", "min": 0, "max": 11, "def": 0, "names": null, "unit": null},
+        {"short": "FINE", "fmt": "int", "min": 0, "max": 60, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 3,
+      "title": "DCW",
+      "cols": [
+        {"short": "W.KEY1", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+        {"short": "W.KEY2", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+        {"short": "V.WAV1", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+        {"short": "V.WAV2", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 4,
+      "title": "DCW+",
+      "cols": [
+        {"short": "A.KEY1", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+        {"short": "A.KEY2", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+        {"short": "V.AMP1", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+        {"short": "V.AMP2", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 5,
+      "title": "PITCH 1",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 6,
+      "title": "PITCH 1+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 7,
+      "title": "PITCH 1 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 8,
+      "title": "PITCH 1 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 9,
+      "title": "PITCH 1 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        {"short": "V.PIT", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+        null
+      ]
+    },
+    {
+      "page": 10,
+      "title": "DCW 1",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 11,
+      "title": "DCW 1+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 12,
+      "title": "DCW 1 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 13,
+      "title": "DCW 1 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 14,
+      "title": "DCW 1 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        null,
+        null
+      ]
+    },
+    {
+      "page": 15,
+      "title": "DCA 1",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 16,
+      "title": "DCA 1+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 17,
+      "title": "DCA 1 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 18,
+      "title": "DCA 1 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 19,
+      "title": "DCA 1 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        null,
+        null
+      ]
+    },
+    {
+      "page": 20,
+      "title": "PITCH 2",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 21,
+      "title": "PITCH 2+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 22,
+      "title": "PITCH 2 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 23,
+      "title": "PITCH 2 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 24,
+      "title": "PITCH 2 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        {"short": "V.PIT", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+        null
+      ]
+    },
+    {
+      "page": 25,
+      "title": "DCW 2",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 26,
+      "title": "DCW 2+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 27,
+      "title": "DCW 2 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 28,
+      "title": "DCW 2 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 29,
+      "title": "DCW 2 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        null,
+        null
+      ]
+    },
+    {
+      "page": 30,
+      "title": "DCA 2",
+      "cols": [
+        {"short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 31,
+      "title": "DCA 2+",
+      "cols": [
+        {"short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 32,
+      "title": "DCA 2 B",
+      "cols": [
+        {"short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+        {"short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 33,
+      "title": "DCA 2 B+",
+      "cols": [
+        {"short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 34,
+      "title": "DCA 2 S",
+      "cols": [
+        {"short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+        {"short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+        null,
+        null
+      ]
+    },
+    {
+      "page": 35,
+      "title": "VIB",
+      "cols": [
+        {"short": "WAVE", "fmt": "enum", "min": 0, "max": 3, "def": 0, "names": ["TRI", "SAW UP", "SAW DN", "SQR"], "unit": null},
+        {"short": "DELAY", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+        {"short": "RATE", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null},
+        {"short": "DEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+      ]
+    },
+    {
+      "page": 36,
+      "title": "TONE",
+      "cols": [
+        {"short": "LINE", "fmt": "enum", "min": 0, "max": 3, "def": 2, "names": ["LINE1", "LINE2", "1+2", "1+1"], "unit": null},
+        {"short": "MOD", "fmt": "enum", "min": 0, "max": 2, "def": 0, "names": ["OFF", "RING", "NOISE"], "unit": null},
+        {"short": "OCT", "fmt": "ofs", "min": 0, "max": 2, "def": 1, "names": null, "unit": null},
+        null
+      ]
+    }
+  ],
+  "page_cells": 137,
+  "header": null,
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "button": "FX",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "stack",
+          "type": "stack",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Wave", "Wave", "Window", "Level"],
+          "pages": [0, 1],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "LINE 1 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 0, "col": 0, "page_title": "LINE 1", "label": "Wave", "short": "WAVE", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 0, "col": 1, "page_title": "LINE 1", "label": "Wave2", "short": "WAVE2", "fmt": "enum", "min": 0, "max": 8, "def": 0, "names": ["OFF", "SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+                {"knob": 3, "bind": "deep", "page": 0, "col": 2, "page_title": "LINE 1", "label": "Window", "short": "WINDOW", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["OFF", "SAW DN", "TRIANGLE", "TRAPEZ", "HALF SAW", "2 SAW UP", "2 SAW 6", "2 SAW 7"], "unit": null},
+                {"knob": 4, "bind": "deep", "page": 0, "col": 3, "page_title": "LINE 1", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "LINE 2 · A",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 1, "col": 0, "page_title": "LINE 2", "label": "Wave", "short": "WAVE", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 1, "col": 1, "page_title": "LINE 2", "label": "Wave2", "short": "WAVE2", "fmt": "enum", "min": 0, "max": 8, "def": 0, "names": ["OFF", "SAW", "SQUARE", "PULSE", "NULL", "DBL SINE", "SAW-PULS", "MULTISIN", "PULSE2"], "unit": null},
+                {"knob": 3, "bind": "deep", "page": 1, "col": 2, "page_title": "LINE 2", "label": "Window", "short": "WINDOW", "fmt": "enum", "min": 0, "max": 7, "def": 0, "names": ["OFF", "SAW DN", "TRIANGLE", "TRAPEZ", "HALF SAW", "2 SAW UP", "2 SAW 6", "2 SAW 7"], "unit": null},
+                {"knob": 4, "bind": "deep", "page": 1, "col": 3, "page_title": "LINE 2", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "edit8",
+          "type": "page",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [2],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DETUNE",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 2, "col": 0, "page_title": "DETUNE", "label": "Sign", "short": "SIGN", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["+", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 2, "col": 1, "page_title": "DETUNE", "label": "Oct", "short": "OCT", "fmt": "int", "min": 0, "max": 3, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 2, "col": 2, "page_title": "DETUNE", "label": "Note", "short": "NOTE", "fmt": "int", "min": 0, "max": 11, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 2, "col": 3, "page_title": "DETUNE", "label": "Fine", "short": "FINE", "fmt": "int", "min": 0, "max": 60, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "edit8",
+          "type": "mixer",
+          "band": "none",
+          "tall": true,
+          "header": false,
+          "pages": [0, 1],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "OSC · MIX",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 0, "col": 3, "page_title": "LINE 1", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 1, "col": 3, "page_title": "LINE 2", "label": "Level", "short": "LEVEL", "fmt": "int", "min": 1, "max": 15, "def": 15, "names": null, "unit": null},
+                {"knob": 3, "bind": "none"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "button": "SEL",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [3, 4],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 3, "col": 0, "page_title": "DCW", "label": "DCW key 1", "short": "W.KEY1", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 3, "col": 1, "page_title": "DCW", "label": "DCW key 2", "short": "W.KEY2", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 3, "col": 2, "page_title": "DCW", "label": "DCW vel 1", "short": "V.WAV1", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 3, "col": 3, "page_title": "DCW", "label": "DCW vel 2", "short": "V.WAV2", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCW",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 4, "col": 0, "page_title": "DCW+", "label": "DCA key 1", "short": "A.KEY1", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 4, "col": 1, "page_title": "DCW+", "label": "DCA key 2", "short": "A.KEY2", "fmt": "int", "min": 0, "max": 9, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 4, "col": 2, "page_title": "DCW+", "label": "DCA vel 1", "short": "V.AMP1", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 4, "col": 3, "page_title": "DCW+", "label": "DCA vel 2", "short": "V.AMP2", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "button": "ENV",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [5, 6],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 5, "col": 0, "page_title": "PITCH 1", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 5, "col": 1, "page_title": "PITCH 1", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 5, "col": 2, "page_title": "PITCH 1", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 5, "col": 3, "page_title": "PITCH 1", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "PITCH 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 6, "col": 0, "page_title": "PITCH 1+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 6, "col": 1, "page_title": "PITCH 1+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 6, "col": 2, "page_title": "PITCH 1+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 6, "col": 3, "page_title": "PITCH 1+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [7, 8],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 7, "col": 0, "page_title": "PITCH 1 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 7, "col": 1, "page_title": "PITCH 1 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 7, "col": 2, "page_title": "PITCH 1 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 7, "col": 3, "page_title": "PITCH 1 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "PITCH 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 8, "col": 0, "page_title": "PITCH 1 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 8, "col": 1, "page_title": "PITCH 1 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 8, "col": 2, "page_title": "PITCH 1 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 8, "col": 3, "page_title": "PITCH 1 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 2,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [9],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 1 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 9, "col": 0, "page_title": "PITCH 1 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 9, "col": 1, "page_title": "PITCH 1 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "deep", "page": 9, "col": 2, "page_title": "PITCH 1 S", "label": "Pitch vel", "short": "V.PIT", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 3,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [10, 11],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 10, "col": 0, "page_title": "DCW 1", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 10, "col": 1, "page_title": "DCW 1", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 10, "col": 2, "page_title": "DCW 1", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 10, "col": 3, "page_title": "DCW 1", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCW 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 11, "col": 0, "page_title": "DCW 1+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 11, "col": 1, "page_title": "DCW 1+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 11, "col": 2, "page_title": "DCW 1+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 11, "col": 3, "page_title": "DCW 1+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 4,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [12, 13],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 12, "col": 0, "page_title": "DCW 1 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 12, "col": 1, "page_title": "DCW 1 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 12, "col": 2, "page_title": "DCW 1 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 12, "col": 3, "page_title": "DCW 1 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCW 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 13, "col": 0, "page_title": "DCW 1 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 13, "col": 1, "page_title": "DCW 1 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 13, "col": 2, "page_title": "DCW 1 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 13, "col": 3, "page_title": "DCW 1 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 5,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [14],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 1 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 14, "col": 0, "page_title": "DCW 1 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 14, "col": 1, "page_title": "DCW 1 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "none"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 6,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [15, 16],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 15, "col": 0, "page_title": "DCA 1", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 15, "col": 1, "page_title": "DCA 1", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 15, "col": 2, "page_title": "DCA 1", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 15, "col": 3, "page_title": "DCA 1", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCA 1 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 16, "col": 0, "page_title": "DCA 1+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 16, "col": 1, "page_title": "DCA 1+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 16, "col": 2, "page_title": "DCA 1+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 16, "col": 3, "page_title": "DCA 1+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 7,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [17, 18],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 17, "col": 0, "page_title": "DCA 1 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 17, "col": 1, "page_title": "DCA 1 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 17, "col": 2, "page_title": "DCA 1 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 17, "col": 3, "page_title": "DCA 1 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCA 1 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 18, "col": 0, "page_title": "DCA 1 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 18, "col": 1, "page_title": "DCA 1 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 18, "col": 2, "page_title": "DCA 1 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 18, "col": 3, "page_title": "DCA 1 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 8,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [19],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 1 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 19, "col": 0, "page_title": "DCA 1 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 19, "col": 1, "page_title": "DCA 1 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "none"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 9,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [20, 21],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 20, "col": 0, "page_title": "PITCH 2", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 20, "col": 1, "page_title": "PITCH 2", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 20, "col": 2, "page_title": "PITCH 2", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 20, "col": 3, "page_title": "PITCH 2", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "PITCH 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 21, "col": 0, "page_title": "PITCH 2+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 21, "col": 1, "page_title": "PITCH 2+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 21, "col": 2, "page_title": "PITCH 2+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 21, "col": 3, "page_title": "PITCH 2+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 10,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [22, 23],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 22, "col": 0, "page_title": "PITCH 2 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 22, "col": 1, "page_title": "PITCH 2 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 22, "col": 2, "page_title": "PITCH 2 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 22, "col": 3, "page_title": "PITCH 2 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "PITCH 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 23, "col": 0, "page_title": "PITCH 2 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 23, "col": 1, "page_title": "PITCH 2 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 23, "col": 2, "page_title": "PITCH 2 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 23, "col": 3, "page_title": "PITCH 2 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 11,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [24],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "PITCH 2 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 24, "col": 0, "page_title": "PITCH 2 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 24, "col": 1, "page_title": "PITCH 2 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "deep", "page": 24, "col": 2, "page_title": "PITCH 2 S", "label": "Pitch vel", "short": "V.PIT", "fmt": "int", "min": 0, "max": 15, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 12,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [25, 26],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 25, "col": 0, "page_title": "DCW 2", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 25, "col": 1, "page_title": "DCW 2", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 25, "col": 2, "page_title": "DCW 2", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 25, "col": 3, "page_title": "DCW 2", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCW 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 26, "col": 0, "page_title": "DCW 2+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 26, "col": 1, "page_title": "DCW 2+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 26, "col": 2, "page_title": "DCW 2+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 26, "col": 3, "page_title": "DCW 2+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 13,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [27, 28],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 27, "col": 0, "page_title": "DCW 2 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 27, "col": 1, "page_title": "DCW 2 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 27, "col": 2, "page_title": "DCW 2 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 27, "col": 3, "page_title": "DCW 2 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCW 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 28, "col": 0, "page_title": "DCW 2 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 28, "col": 1, "page_title": "DCW 2 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 28, "col": 2, "page_title": "DCW 2 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 28, "col": 3, "page_title": "DCW 2 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 14,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [29],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCW 2 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 29, "col": 0, "page_title": "DCW 2 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 29, "col": 1, "page_title": "DCW 2 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "none"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 15,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [30, 31],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 30, "col": 0, "page_title": "DCA 2", "label": "Rate 1", "short": "R1", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 30, "col": 1, "page_title": "DCA 2", "label": "Rate 2", "short": "R2", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 30, "col": 2, "page_title": "DCA 2", "label": "Rate 3", "short": "R3", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 30, "col": 3, "page_title": "DCA 2", "label": "Rate 4", "short": "R4", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCA 2 · 1-4",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 31, "col": 0, "page_title": "DCA 2+", "label": "Level 1", "short": "L1", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 31, "col": 1, "page_title": "DCA 2+", "label": "Level 2", "short": "L2", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 31, "col": 2, "page_title": "DCA 2+", "label": "Level 3", "short": "L3", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 31, "col": 3, "page_title": "DCA 2+", "label": "Level 4", "short": "L4", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 16,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [32, 33],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 32, "col": 0, "page_title": "DCA 2 B", "label": "Rate 5", "short": "R5", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 32, "col": 1, "page_title": "DCA 2 B", "label": "Rate 6", "short": "R6", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 32, "col": 2, "page_title": "DCA 2 B", "label": "Rate 7", "short": "R7", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 32, "col": 3, "page_title": "DCA 2 B", "label": "Rate 8", "short": "R8", "fmt": "int", "min": 0, "max": 99, "def": 70, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "DCA 2 · 5-8",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 33, "col": 0, "page_title": "DCA 2 B+", "label": "Level 5", "short": "L5", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "deep", "page": 33, "col": 1, "page_title": "DCA 2 B+", "label": "Level 6", "short": "L6", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 33, "col": 2, "page_title": "DCA 2 B+", "label": "Level 7", "short": "L7", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 33, "col": 3, "page_title": "DCA 2 B+", "label": "Level 8", "short": "L8", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 17,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "cz",
+          "tall": false,
+          "header": false,
+          "pages": [34],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "DCA 2 · END",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 34, "col": 0, "page_title": "DCA 2 S", "label": "Sustain", "short": "SUS", "fmt": "enum", "min": 0, "max": 8, "def": 1, "names": ["1", "2", "3", "4", "5", "6", "7", "8", "-"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 34, "col": 1, "page_title": "DCA 2 S", "label": "End", "short": "END", "fmt": "enum", "min": 0, "max": 7, "def": 2, "names": ["1", "2", "3", "4", "5", "6", "7", "8"], "unit": null},
+                {"knob": 3, "bind": "none"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "button": "LFO",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "page",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [35],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "VIB",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 35, "col": 0, "page_title": "VIB", "label": "Wave", "short": "WAVE", "fmt": "enum", "min": 0, "max": 3, "def": 0, "names": ["TRI", "SAW UP", "SAW DN", "SQR"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 35, "col": 1, "page_title": "VIB", "label": "Delay", "short": "DELAY", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "deep", "page": 35, "col": 2, "page_title": "VIB", "label": "Rate", "short": "RATE", "fmt": "int", "min": 0, "max": 99, "def": 50, "names": null, "unit": null},
+                {"knob": 4, "bind": "deep", "page": 35, "col": 3, "page_title": "VIB", "label": "Depth", "short": "DEPTH", "fmt": "int", "min": 0, "max": 99, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "button": "SEQ",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "edit",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [36],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "TONE",
+              "cells": [
+                {"knob": 1, "bind": "deep", "page": 36, "col": 0, "page_title": "TONE", "label": "Line", "short": "LINE", "fmt": "enum", "min": 0, "max": 3, "def": 2, "names": ["LINE1", "LINE2", "1+2", "1+1"], "unit": null},
+                {"knob": 2, "bind": "deep", "page": 36, "col": 1, "page_title": "TONE", "label": "Mod", "short": "MOD", "fmt": "enum", "min": 0, "max": 2, "def": 0, "names": ["OFF", "RING", "NOISE"], "unit": null},
+                {"knob": 3, "bind": "deep", "page": 36, "col": 2, "page_title": "TONE", "label": "Oct", "short": "OCT", "fmt": "ofs", "min": 0, "max": 2, "def": 1, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "stack",
+          "type": "expr",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Source", "Dest", "Amount", ""],
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "EXPR · VEL",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "VEL"},
+                {"knob": 2, "bind": "text", "text": "AMP"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "EXPR · AT",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "AT"},
+                {"knob": 2, "bind": "text", "text": "CUT"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "button": "PLAY",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "FX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 33, "label": "Drive", "short": "DST", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 34, "label": "Chorus", "short": "CHO", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 35, "label": "Delay", "short": "DLY", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 36, "label": "Reverb", "short": "REV", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "button": "REC",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 0, "label": "Level", "short": "LVL", "fmt": "db", "min": 0, "max": 127, "def": 104, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 39, "label": "Pan", "short": "PAN", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 37, "label": "Voice", "short": "VCE", "fmt": "enum", "min": 0, "max": 3, "def": 0, "names": ["POLY", "MONO", "LEG", "UNI"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 38, "label": "Glide", "short": "GLD", "fmt": "time", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 28, "label": "Trans", "short": "TRN", "fmt": "semi", "min": -24, "max": 24, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 44, "label": "Detune", "short": "DTUNE", "fmt": "int", "min": 0, "max": 127, "def": 40, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 42, "label": "Priority", "short": "PRIO", "fmt": "enum", "min": 0, "max": 2, "def": 0, "names": ["LAST", "LOW", "HIGH"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 41, "label": "Gl. mode", "short": "GLMOD", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATE", "TIME"], "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

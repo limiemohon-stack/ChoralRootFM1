@@ -3,6 +3,8 @@
 #   workflow_dispatch (version, ref)  -> download choralroot-VERSION.fwsc from the release vVERSION and every
 #                                        other version of web/releases.json from its own release (the installer
 #                                        offers them all; each is checked against the sha256 in releases.json),
+#                                        and the single-core package (choralroot-X.Y-1core.fwsc) of every version
+#                                        whose entry lists sha256_1core (docs/DUALCORE.md "Two packages"),
 #                                        build the browser emulator (Emscripten, build/emu-web -> emu/),
 #                                        web/make_site.py --require-all, deploy to Pages
 #   release published                 -> starts the dispatch above from the default branch (the github-pages
@@ -60,8 +62,8 @@ jobs:
         run: |
           set -euo pipefail
           version="${TAG#v}"
-          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]; then
-            echo "::notice::release $TAG is not a vX.Y (or vX.Y.Z) tag: the site stays as it is (run pages.yml by hand to publish it)"
+          if [[ "$TAG" != v* || ! "$version" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-beta[0-9]+)?$ ]]; then
+            echo "::notice::release $TAG is not a vX.Y, vX.Y.Z or vX.Y-betaN tag: the site stays as it is (run pages.yml by hand to publish it)"
             exit 0
           fi
           gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
@@ -120,9 +122,11 @@ jobs:
             echo "::error title=web/releases.json does not start with $VERSION::The site is published for the newest version of web/releases.json. Add $VERSION there (bullets, date, tag, the package's sha256: docs/HANDOFF.md, Release steps) on the ref this site is built from, then run pages.yml again."
             exit 1
           fi
-          python3 -c 'import json; [print(r["version"], r["tag"], r["sha256"]) for r in json.load(open("web/releases.json"))["releases"]]' > build/packages/list.txt
+          # one line per version: version, tag, sha256, and the single-core package's sha256 or "-" (sha256_1core:
+          # optional, docs/DUALCORE.md "Two packages"; 0.16 .. 0.21 have none)
+          python3 -c 'import json; [print(r["version"], r["tag"], r["sha256"], r.get("sha256_1core") or "-") for r in json.load(open("web/releases.json"))["releases"]]' > build/packages/list.txt
           missing=""
-          while read -r v tag sha; do
+          while read -r v tag sha sha1; do
             pkg="choralroot-$v.fwsc"
             if [ "$v" = "$VERSION" ]; then
               cp "build/$pkg" "build/packages/$pkg"
@@ -134,6 +138,16 @@ jobs:
             if ! echo "$sha  build/packages/$pkg" | sha256sum -c -; then
               echo "::error title=Wrong package for version $v::build/packages/$pkg (from the release $tag) does not have the sha256 web/releases.json lists for $v ($sha)."
               missing="$missing $v"
+            fi
+            if [ "$sha1" != "-" ]; then
+              pkg1="choralroot-$v-1core.fwsc"
+              if ! gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "$pkg1" --dir build/packages --clobber; then
+                echo "::error title=No single-core package for version $v::web/releases.json lists sha256_1core for $v, but the release $tag has no asset $pkg1. Attach it (build/release-$v/$pkg1), or take sha256_1core out of $v's entry, then run pages.yml again."
+                missing="$missing $v(1core)"
+              elif ! echo "$sha1  build/packages/$pkg1" | sha256sum -c -; then
+                echo "::error title=Wrong single-core package for version $v::build/packages/$pkg1 (from the release $tag) does not have the sha256_1core web/releases.json lists for $v ($sha1)."
+                missing="$missing $v(1core)"
+              fi
             fi
           done < build/packages/list.txt
           if [ -n "$missing" ]; then
@@ -189,9 +203,13 @@ jobs:
               exit 1
             fi
           done
-          while read -r v tag sha; do
+          while read -r v tag sha sha1; do
             if [ ! -s "build/site/firmware/choralroot-$v.fwsc" ]; then
               echo "::error::build/site/firmware/choralroot-$v.fwsc (version $v of web/releases.json) is missing"
+              exit 1
+            fi
+            if [ "$sha1" != "-" ] && [ ! -s "build/site/firmware/choralroot-$v-1core.fwsc" ]; then
+              echo "::error::build/site/firmware/choralroot-$v-1core.fwsc (version $v's single-core package) is missing"
               exit 1
             fi
           done < build/packages/list.txt

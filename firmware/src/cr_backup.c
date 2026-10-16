@@ -4,7 +4,8 @@
  * restore"). The subset of Felucca's protocol (editor.c / editor_backup.c, dropped with Felucca's UI) that the
  * installer page (web/fm1backup.js) and tools/fm1_install.py use, on ChoralRoot's objects:
  *
- *   1 INFO      "ChoralRoot <version>", no editor (0 engines), tags 42 01 03 (backup read + restore) and 43 01 02
+ *   1 INFO      "ChoralRoot <version>", no editor (0 engines), tags 42 01 03 (backup read + restore) and 43 01 02, then
+ *               (3y66) 49 08 and the unit's ID, 8 hex digits in ASCII (cr_ui.c cr_unit_id; no tag when none is known)
  *   65 LIST     1, rc, count, per object: id, size u32, crc u32 (CRC-32 zlib of the bytes GET returns)
  *   66 GET      id, offset u32, count (<= 256) -> id, rc, offset u32, count, pack7 data
  *   67 PUT      0 begin (id, size u32, crc u32) / 1 data (id, offset u32, pack7) / 2 commit (id) / 3 abort (id)
@@ -27,7 +28,9 @@
  *   store (va_store.c), 10, 11 the FM6 patch store (fm6_ustore.c: user slots 1..16, 17..32), 12, 13 the CZ-1 tone store
  *   (cz_ustore.c: user slots 1..16, 17..32), 14..21 the CZ-1 banks A..H (cz_bank.c: one object a bank, as Melodee's
  *   backup ids 9..16; a bank never saved has no object: its default, Casio's tones or empty), 22 the QUAD patch store
- *   (quad_store.c, FELUCCA_QUAD), 40..49 loop slots 1..10
+ *   (quad_store.c, FELUCCA_QUAD), 23 the favourites (cr_favs.c, 0.22: the marks on sounds; an older firmware has no
+ *   id 23: it does not list it and answers a PUT begin of it rc 1, which the clients report as skipped), 40..49 loop
+ *   slots 1..10
  *   (cr_ui.c's flash records, docs/LOOPER.md). No sample objects: ChoralRoot has
  *   no SAMPLE engine (FELUCCA_SAMPLE 0); Felucca's 32..34 and SMP_BEGIN .. SMP_ERASE (11..14) are not answered, so the
  *   installer page reports a Felucca archive's samples (and a ChoralRoot 0.1 archive's 32 / 33) skipped. The flash of
@@ -35,8 +38,8 @@
  *   rest stays free (storage.c's map); slot 3's the loops.
  *
  * Reads come from flash (the current copy of each A/B pair, checked at LIST) in 256-byte st_read windows: no RAM
- * copy, the audio keeps running (a loop may play). LIST first saves a pending Options change (cr_settings_save,
- * not while a loop plays). Writes are staged in cr_ui.c's cu_loop_buf (the largest object, a loop record, fits;
+ * copy, the audio keeps running (a loop may play). A read never writes flash (3y48): LIST lists the Options as last
+ * written and the favourites from RAM when a mark is not written yet. Writes are staged in cr_ui.c's cu_loop_buf (the largest object, a loop record, fits;
  * cu_loop_gen tells when the UI reused it: rc 5) and validated whole before one commit through storage.c's
  * protocol (st_save: the other copy, the header last; a loop: crl_fl_save, the same protocol): a torn write leaves
  * the previous copy. A begin or a commit while a loop plays, records or a slot load is on its way answers rc 3
@@ -55,7 +58,7 @@
 #define CRB_HDR1 0x46u
 #define CRB_HDR2 0x4Cu
 enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBUG = 73, CRB_SCREEN, CRB_CORE1_TEST, CRB_SELECT,
-       CRB_STUB, CRB_PEAK, CRB_USB };
+       CRB_STUB, CRB_PEAK, CRB_USB, CRB_IMPORT };
 #define CRB_LOOP0 40u                                /* loop slot k: id 40 + k */
 #define CRB_VA 9u
 #define CRB_FM6S 10u                                 /* 10, 11: the FM6 patch store's halves */
@@ -64,8 +67,22 @@ enum { CRB_INFO = 1, CRB_LIST = 65, CRB_GET, CRB_PUT, CRB_RESTART = 72, CRB_DEBU
 #define CRB_CZB 14u                                  /* 14..21: the CZ-1 banks A..H */
 #if FELUCCA_QUAD
 #define CRB_QUAD 22u                                 /* 22: the QUAD patch store */
+#define CRB_FAVS 23u                                 /* 23: the favourites (after the sounds they mark) */
+#if UP_POOL
+/* 0.22, the sound pool (upool.c): ids 50..62 the pool's 13 banks (storage.c sp_*: a bank's ST_PAYLOAD_MAX bytes, ten
+ * slots of SP_SLOT: the record and its patch). The legacy sound objects (6, 7, 9..13, 22) are not listed any more (this
+ * firmware never writes them); a PUT of one is still taken: an older backup, imported into slots 1..32 (crb_legacy) */
+#define CRB_POOL 50u                                 /* (not 24..36: Felucca's sample ids 32..34 are refused) */
+static const uint8_t CRB_IDS[] = {1, 8, 14, 15, 16, 17, 18, 19, 20, 21, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62,
+                                  CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+_Static_assert(SP_NBANK == 13u && CRB_POOL >= CRB_LOOP0 + CRL_SLOTS && CRB_POOL + SP_NBANK <= 64u &&
+               ST_PAYLOAD_MAX <= sizeof cu_loop_buf, "backup ids: the pool's banks 50..62 stage in cu_loop_buf");
+static int crb_is_pool(uint32_t id) { return id >= CRB_POOL && id < CRB_POOL + SP_NBANK; }
+#else
 static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16, 17, 18, 19,
-                                  20, 21, CRB_QUAD, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+                                  20, 21, CRB_QUAD, CRB_FAVS, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
+static int crb_is_pool(uint32_t id) { (void)id; return 0; }
+#endif
 _Static_assert(sizeof(quad_store_t) <= CRL_REC_MAX, "backup: the QUAD store stages too");
 #else
 static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, CRB_CZS, CRB_CZS + 1u, 14, 15, 16, 17, 18, 19,
@@ -76,6 +93,7 @@ static int crb_is_cz(uint32_t id) { return id >= CRB_CZS && id < CRB_CZB + CZ_BA
 #else
 static const uint8_t CRB_IDS[] = {1, 6, 7, 8, CRB_VA, CRB_FM6S, CRB_FM6S + 1u, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49};
 static int crb_is_cz(uint32_t id) { (void)id; return 0; }
+static int crb_is_pool(uint32_t id) { (void)id; return 0; }
 #endif
 #define CRB_N ((uint32_t)sizeof CRB_IDS)
 _Static_assert(CRL_SLOTS == 10u, "backup ids: 10 loop slots");
@@ -103,6 +121,11 @@ static struct {
                                                       * when the host was seen to have it */
     uint32_t stub;                                   /* 77 STUB: the request the restart leaves for the stub */
 } crb;
+#define CRB_COPY_RAM 64                              /* crb.copy: served from RAM (the favourites not yet written; not a
+                                                      * copy 0 / 1 nor a pool sector 0..15) */
+#if defined(CR_FAVS) && CRF_FLASH
+static uint8_t crb_favram[CRF_PACK_MAX];             /* .. their packed bytes at LIST */
+#endif
 
 /* ------------------------------------------------------------------ the reply --- */
 #define CRB_OUT st_buf                               /* the reply (<= 400 bytes, written after any storage call) .. */
@@ -176,6 +199,10 @@ static uint32_t crb_obj(uint32_t id)                 /* storage.c's object of id
 #if FELUCCA_QUAD
     if (id == CRB_QUAD)
         return OBJ_QUADSTORE;
+#if FELUCCA_CZ
+    if (id == CRB_FAVS)
+        return OBJ_FAVS;
+#endif
 #endif
 #if FELUCCA_CZ
     if (crb_is_cz(id))
@@ -194,8 +221,12 @@ static int crb_fm6_old(const uint8_t *raw, uint32_t len)
     return magic == FM6_BANK_MAGIC && (len == CRB_FM6_MEL || (len == CRB_FM6_FEL && raw[4] == 1u && raw[6] == 27u));
 }
 /* an A/B object (storage.c's or a loop slot's: the same commit record, another type and place) */
-static uint32_t crb_sector(uint32_t id, uint32_t copy)
+static uint32_t crb_sector(uint32_t id, uint32_t copy)   /* (a pool bank: copy is its sector, 0..15) */
 {
+#if UP_POOL
+    if (crb_is_pool(id))
+        return sp_addr(copy);
+#endif
     return crb_is_loop(id) ? crl_fl_sector(id - CRB_LOOP0, copy) : st_sector(crb_obj(id), copy);
 }
 static int crb_head(uint32_t id, uint32_t copy, st_hdr_t *h)   /* 0: a valid commit record */
@@ -213,6 +244,16 @@ static int crb_body(uint32_t id, uint32_t copy, const st_hdr_t *h)   /* the payl
 static int crb_current(uint32_t id, st_hdr_t *h)    /* storage.c st_current's choice: the newest intact copy */
 {
     st_hdr_t a, b;
+#if UP_POOL
+    if (crb_is_pool(id)) {                           /* the bank's current copy (sp_scan's choice): its sector */
+        uint32_t s;
+        sp_scan();
+        s = sp_cur[id - CRB_POOL];
+        if (s == SP_NONE || sp_head(s, h))
+            return -1;
+        return (int)s;
+    }
+#endif
     int va = crb_head(id, 0, &a) == 0, vb = crb_head(id, 1, &b) == 0;
     if (vb && (!va || (b.seq != a.seq && b.seq - a.seq < 0x80000000u)) && crb_body(id, 1, &b) == 0) {
         *h = b;
@@ -239,15 +280,22 @@ static void crb_list(void)
 {
     uint32_t i, crc[CRB_N];
     st_hdr_t h;
-#if CR_HAVE_SETTINGS
-    if (crs_loaded && !CR_SETTINGS_BUSY())
-        cr_settings_save();                          /* an Option not yet saved goes in first (none: no erase). The
-                                                      * manual settings and the session: as last saved (SAVE held), 0.18 */
-#endif
+    /* 3y48: a READ never writes flash (the owner, 2026-10-13, a stutter while an arp played: "I did not do anything
+     * around then ... So not sure why it wrote to flash"; until 3y48 LIST called cr_settings_save, which erased for a
+     * pending Option or favourite whatever sounded). The Options: as last written (the poll writes a change once
+     * nothing sounds); the favourites not yet written: their RAM form (crb_favram, CRB_COPY_RAM) */
     for (i = 0; i < CRB_N; i++) {
         uint32_t id = CRB_IDS[i];
         crb.copy[i] = -1;
         crb.size[i] = crc[i] = 0;
+#if defined(CR_FAVS) && CRF_FLASH
+        if (id == CRB_FAVS && crf_dirty && !ST_BLOCKED()) {
+            crb.copy[i] = CRB_COPY_RAM;
+            crb.size[i] = crf_pack(crb_favram);
+            crc[i] = st_crc32(crb_favram, crb.size[i]);
+            continue;
+        }
+#endif
         if (flash_ok && (crb.copy[i] = (int8_t)crb_current(id, &h)) >= 0) {
             crb.size[i] = h.len;
             crc[i] = h.crc;
@@ -274,6 +322,14 @@ static void crb_get(const uint8_t *a, uint32_t n)
         rc = 5;
     else if (n != 8u || a[5] > 15u || i < 0 || !count || count > 256u || off > crb.size[i] || count > crb.size[i] - off)
         rc = 1;
+#if defined(CR_FAVS) && CRF_FLASH
+    else if (crb.copy[i] == CRB_COPY_RAM) {          /* the marks as LIST packed them (RAM) */
+        uint32_t j;
+        for (j = 0; j < count; j++)
+            CRB_DATA[j] = crb_favram[off + j];
+        rc = 0;
+    }
+#endif
     else
         rc = st_read(crb_sector(a[0], (uint32_t)crb.copy[i]) + ST_PAYLOAD_OFF + off, CRB_DATA, count) ? 4u : 0u;
     crb_b(n ? a[0] : 127u);
@@ -321,9 +377,15 @@ static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this i
 #if FELUCCA_QUAD
     if (id == CRB_QUAD)
         return !len || len == sizeof(quad_store_t);
+#if FELUCCA_CZ
+    if (id == CRB_FAVS)                              /* (0: none; else the version and the count at least; 264 at most) */
+        return !len || (len >= 2u && len <= CRF_PACK_MAX);
+#endif
 #endif
     if (id == CRB_VA)                                /* version 3 / 2, or version 1's 104-byte blobs */
-        return !len || len == sizeof(va_store_t) || len == 16u + UP_SLOTS * VA_BLOB1;
+        return !len || len == sizeof(va_store_t) || len == 16u + UP_LEGACY * VA_BLOB1;
+    if (crb_is_pool(id))                             /* (0: an empty bank) */
+        return !len || len == ST_PAYLOAD_MAX;
     if (crb_is_loop(id))
         return !len || (len >= CRL_REC_HDR && len <= CRL_REC_MAX);
     return 0;
@@ -335,20 +397,27 @@ static int crb_size_ok(uint32_t id, uint32_t len)   /* a begin's size for this i
  * the part follows it into that engine's pool */
 static void crb_reload(uint32_t id)
 {
-    uint32_t part, lo = 0, hi = UP_SLOTS;
+    uint32_t part, lo = 0, hi = UP_LEGACY;
     if (id == 6u)
         hi = UP_PER_BANK;
     else if (id == 7u)
         lo = UP_PER_BANK;
     else if (id == CRB_FM6S + 1u)
-        lo = UP_SLOTS / 2u;
+        lo = UP_LEGACY / 2u;
     else if (id == CRB_FM6S)
-        hi = UP_SLOTS / 2u;
+        hi = UP_LEGACY / 2u;
 #if FELUCCA_CZ
     else if (id == CRB_CZS + 1u)
-        lo = UP_SLOTS / 2u;
+        lo = UP_LEGACY / 2u;
     else if (id == CRB_CZS)
-        hi = UP_SLOTS / 2u;
+        hi = UP_LEGACY / 2u;
+#endif
+#if UP_POOL
+    else if (crb_is_pool(id)) {
+        lo = (id - CRB_POOL) * SP_PER;
+        hi = lo + SP_PER;
+    } else if (id == CRB_IMPORT)
+        ;
 #endif
     else if (id != CRB_VA && !(FELUCCA_QUAD && id == 22u))
         return;
@@ -392,6 +461,135 @@ static uint32_t crb_select(const uint8_t *a, uint32_t na)
     return 0;
 }
 
+#if UP_POOL
+/* a legacy sound object (an older backup's 6, 7, 9..13, 22) staged in CRB_RAW -> pool slots 1..32, in any order: 6 / 7
+ * the records of slots 1..16 / 17..32 (a slot's patch stays, unless its record is now empty: no patch), a store the
+ * patches of its engine (bit k set: patch k into slot k, whatever the record; bit k clear: slot k's patch cleared when
+ * it is this engine's). The loaders take a patch only when it is the record's engine's (upool.c up_patch_get), so after
+ * a whole backup each slot holds what 0.21 would load. One bank write per pool bank the object touches */
+static uint32_t crb_lid, crb_llen, crb_lbank;
+static int crb_legacy_fill(uint32_t j, uint8_t *slot)
+{
+    const uint8_t *raw = CRB_RAW;
+    uint32_t k = crb_lbank * SP_PER + j, i = k % 16u, h = k / 16u, e, n = 0, on;
+    const uint8_t *src = 0;
+    uint8_t conv[VA_BLOB];
+    if (k >= UP_LEGACY)
+        return 0;
+    if (crb_lid == 6u || crb_lid == 7u) {
+        if (h != crb_lid - 6u)
+            return 0;
+        memset(slot, 0, sizeof(up_rec_t));
+        if (crb_llen)
+            memcpy(slot, raw + 8u + i * sizeof(up_rec_t), sizeof(up_rec_t));
+        if (!up_valid((const up_rec_t *)slot))
+            memset(slot + UPP_HDR, 0, SP_SLOT - UPP_HDR);
+        return 0;
+    }
+    if (crb_lid == CRB_VA) {
+        const va_store_t *s = (const va_store_t *)raw;
+        e = ENGI_VA;
+        if ((on = crb_llen && ((s->used >> k) & 1u)) != 0) {
+            uint8_t old[VA_BLOB];
+            int8_t p[VA_NP];
+            uint32_t sz = s->ver == 1u ? VA_BLOB1 : VA_BLOB;
+            memset(old, 0, sizeof old);
+            memcpy(old, raw + 16u + k * sz, sz);
+            if (s->ver == 3u) {
+                src = raw + 16u + k * VA_BLOB;
+            } else if ((s->ver == 2u || old[1] == 1u) && va_unpack(old, p)) {
+                va_pack(p, conv);                    /* (versions 1 / 2: as va_store_v1 / _v2 converted them) */
+                src = conv;
+            }
+            n = src ? VA_BLOB : 0u;
+        }
+    } else if (crb_lid == CRB_FM6S || crb_lid == CRB_FM6S + 1u) {
+        if (h != crb_lid - CRB_FM6S)
+            return 0;
+        e = ENGI_FM6;
+        if ((on = crb_llen && ((((const fm6u_t *)raw)->used >> i) & 1u)) != 0) {
+            src = raw + 16u + i * FM6_BLOB;
+            n = FM6_BLOB;
+        }
+    } else if (crb_lid == CRB_CZS || crb_lid == CRB_CZS + 1u) {
+        if (h != crb_lid - CRB_CZS)
+            return 0;
+        e = ENGI_CZ;
+        if ((on = crb_llen && ((((const czu_t *)raw)->used >> i) & 1u)) != 0) {
+            src = raw + 16u + i * CZ_BYTES;
+            n = CZ_BYTES;
+        }
+    } else if (crb_lid == CRB_QUAD) {
+        e = ENGI_QUAD;
+        if ((on = crb_llen && ((((const quad_store_t *)raw)->used >> k) & 1u)) != 0) {
+            src = raw + 16u + k * QUAD_BLOB_V3;   /* (the legacy store: versions 1..3, 80 bytes) */
+            n = QUAD_BLOB_V3;
+        }
+    } else {
+        return 0;
+    }
+    if (!n && slot[UPP_HDR] != e + 1u)
+        return 0;                                    /* (another engine's patch, or none: as it is) */
+    memset(slot + UPP_HDR, 0, SP_SLOT - UPP_HDR);
+    if (n) {
+        memcpy(slot + UPP_DATA, src, n);
+        slot[UPP_HDR] = (uint8_t)(e + 1u);
+        slot[UPP_HDR + 1u] = (uint8_t)n;
+    }
+    (void)on;
+    return 0;
+}
+static uint32_t crb_legacy(uint32_t id, uint32_t len)
+{
+    uint32_t b;
+    crb_lid = id;
+    crb_llen = len;
+    for (b = 0; b * SP_PER < UP_LEGACY; b++) {
+        crb_lbank = b;
+        if (sp_commit(b, crb_legacy_fill))
+            return 4;
+        fm1_wdt_feed();
+    }
+    return 0;
+}
+static const uint8_t *crb_bank_src;
+/* a pool bank's PUT (0: empty): its used slots as sent, every other slot written empty (zeros, as upool_put erases
+ * one), so a deleted slot's bytes (the device manager sends the bank as read) never stay in flash (3y78) */
+static int crb_bank_fill(uint32_t j, uint8_t *slot)
+{
+    const uint8_t *s = crb_bank_src ? crb_bank_src + j * SP_SLOT : 0;
+    if (s && s[0] == UP_USED)
+        memcpy(slot, s, SP_SLOT);
+    else
+        memset(slot, 0, SP_SLOT);
+    return 0;
+}
+/* each slot unused (its bytes not read: crb_bank_fill empties it) or a record whose patch header is one up_patch_get
+ * takes: none, or an engine's with that engine's length (FM TONE: also an older slot's 80-byte version 1..3 blob,
+ * which eng_quad.c converts; 3y78: 0.22-beta1 refused a bank holding one, the slots 0.21's FM TONE sounds migrated to),
+ * or a patch of an engine this build keeps none for, its bytes kept as sent (3y121: a GRAIN sound saved on the GRAIN
+ * branch's build, 20 bytes, made every PUT of its bank rc 2 on this one; up_read_engine never reads such a patch,
+ * the slot loads as its record says, and a build that has the engine finds its patch again) */
+static int crb_bank_ok(const uint8_t *raw)
+{
+    uint32_t j, e, n;
+    for (j = 0; j < SP_PER; j++) {
+        const uint8_t *s = raw + j * SP_SLOT;
+        if (s[0] != UP_USED)
+            continue;
+        if (!up_valid((const up_rec_t *)s))
+            return 0;
+        if (!s[UPP_HDR])
+            continue;
+        e = s[UPP_HDR] - 1u;
+        n = s[UPP_HDR + 1u];
+        if (e >= NENGINES || !n || n > UPP_MAX ||
+            (up_patch_len(e) && n != up_patch_len(e) && !(e == ENGI_QUAD && n == QUAD_BLOB_V3)))
+            return 0;
+    }
+    return 1;
+}
+#endif
 static uint32_t crb_commit(void)
 {
     uint8_t *raw = CRB_RAW;
@@ -442,13 +640,36 @@ static uint32_t crb_commit(void)
     } else if (id == CRB_QUAD) {
         if (len && !quad_store_valid((const quad_store_t *)raw))
             return 2;
+#if FELUCCA_CZ
+    } else if (id == CRB_FAVS) {                     /* the marks: stored as sent (an object this firmware cannot read
+                                                      * reads as no marks, cr_favs.c), the RAM copy from flash */
+        if (st_save(OBJ_FAVS, raw, len))
+            return 4;
+        crf_boot();
+        ui.force = 1;
+        return 0;
+#endif
 #endif
     } else if (id == CRB_VA) {
         const va_store_t *s = (const va_store_t *)raw;
-        if (len && (s->magic != VA_STORE_MAGIC || s->nslot != UP_SLOTS ||
+        if (len && (s->magic != VA_STORE_MAGIC || s->nslot != UP_LEGACY ||
                     !(len == sizeof *s ? (s->ver == 3u && va_store_valid(s)) || (s->ver == 2u && s->blob == VA_BLOB)
                                        : s->ver == 1u && s->blob == VA_BLOB1)))
             return 2;                                /* (versions 1 / 2: converted by va_store_boot, as at power-on) */
+#if UP_POOL
+    } else if (crb_is_pool(id)) {
+        if (len && !crb_bank_ok(raw))
+            return 2;
+        if (!len && !sp_used(id - CRB_POOL))
+            return 0;                                /* (an empty bank onto none: nothing to write) */
+        crb_bank_src = len ? raw : 0;
+        if (sp_commit(id - CRB_POOL, crb_bank_fill))
+            return 4;
+        upool_table();
+        crb_reload(id);
+        ui.force = 1;
+        return 0;
+#endif
     } else if (crb_is_loop(id)) {
         uint32_t k = id - CRB_LOOP0;
         if (crl_stage_busy)
@@ -465,6 +686,26 @@ static uint32_t crb_commit(void)
     } else {
         return 1;
     }
+#if UP_POOL
+    if (id != 8u && !crb_is_cz(id)) {                /* a legacy sound object: into the pool, never to its sectors */
+        uint32_t rc = crb_legacy(id, len);
+        upool_table();
+        if (rc)
+            return rc;
+        crb_reload(id);
+        ui.force = 1;
+        return 0;
+    }
+    if (crb_is_cz(id) && id < CRB_CZB) {             /* (the CZ-1 store's halves: legacy, as above) */
+        uint32_t rc = crb_legacy(id, len);
+        upool_table();
+        if (rc)
+            return rc;
+        crb_reload(id);
+        ui.force = 1;
+        return 0;
+    }
+#endif
     if (st_save(crb_obj(id), raw, len))
         return 4;
     if (id == 8u) {                                  /* the mirror from flash; parts on a bank patch reload theirs */
@@ -524,7 +765,9 @@ static uint32_t crb_put(const uint8_t *a, uint32_t n)
             return 1;
         if (crb_busy())
             return 3;                                /* (the session stays: the page sends the commit again) */
+        st_why = ST_WHY_PUT;
         rc = crb_commit();
+        st_why = ST_WHY_OTHER;
         crb.put = rc == 3u;
         return rc;
     }
@@ -570,7 +813,7 @@ static void crb_debug(void)
     v[k++] = cr_dbg.c1_fallback;                     /* 1: core 1 given up this session (one core since) */
     v[k++] = cr_dbg.rail_boot[0];                    /* SYSVDD: the boot loader's, now (11 1.26 V, 14 1.35 V) */
     v[k++] = cr_dbg.rail_now[0];
-    v[k++] = cr_dbg.rail_boot[1];                    /* VDC14 (3 1.40 V, 4 1.45 V) */
+    v[k++] = cr_dbg.rail_boot[1];                    /* VDC14 (3 1.40 V, 5 1.50 V) */
     v[k++] = cr_dbg.rail_now[1];
     for (i = 0; i < CRP_N; i++)
         v[k++] = cr_dbg.avg_us[i];
@@ -673,10 +916,24 @@ static void crb_debug(void)
  * over the halves in which the effects ran, and the largest), then since power-on the flash's: erases, erases that
  * cut a sounding output (holes: 0 is the rule for what the unit writes by itself; a global save, SAVE held, into a
  * sounding output counts here too: the player's own press, 0.18), the settings' and the session's saves. A command of its own because
- * 73 DEBUG is full: its count is one 7-bit byte and it has 127 values */
+ * 73 DEBUG is full: its count is one 7-bit byte and it has 127 values. Values are only appended, and named by
+ * tools/fm1_install.py DEBUG_PEAK (two branches' appends are merged by name: the dual-core fallback's 35..45 are
+ * 69..79 here).
+ * 3y44, values 35..41 (the owner's crackle on P5, docs/PROPHET.md "The crackle"): WHAT THE OVERLOAD SHED DID since the
+ * last read (audio.c shed_check / shed_voice): voices shed, the latest one (0 none, else 0x10000 | part << 12 |
+ * voice << 8 | note) and why (1 a released voice, 2 a held one, 3 asked and none to give), the halves above 85 %, the
+ * time of the half that asked for the latest shed (us, its lag in it); then voice.c's: voices faded for another note
+ * or part or shed (voice_kills) and own voices taken for a new note (voice_steals). A steady count of the last two
+ * while a chord is only HELD would be a voice given up and taken again in a circle */
 static void crb_peak(void)
 {
-    uint32_t v[36], k = 0, i;
+    uint32_t v[80], k = 0, i;                       /* (79 values; 80 room) */
+#ifdef FM1_CRASH_MAGIC                               /* (the device: hal/fm1_irq.h; the host and the emulator have no record) */
+    int crashed = fm1_crash.magic == FM1_CRASH_MAGIC;
+#else
+    struct { uint32_t count, vec, pc, rets, emu, dbg, uptime_ms; } fm1_crash = {0, 0, 0, 0, 0, 0, 0};
+    int crashed = 0;
+#endif
     v[k++] = cr_dbg.pk_all;
     for (i = 0; i < CRP_N; i++)
         v[k++] = cr_dbg.pk[i] / CR_PROF_PER_US;
@@ -713,6 +970,111 @@ static void crb_peak(void)
     v[k++] = CR_KLAT_AVG_US();
     v[k++] = CR_KLAT_US(cr_klat.eng);
     cr_klat.n = cr_klat.sum = cr_klat.pick = cr_klat.eng = 0;
+    v[k++] = shed_count - cr_dbg.shed0;              /* 3y44: the shed (above), 41 values */
+    v[k++] = cr_dbg.shed_last;
+    v[k++] = cr_dbg.shed_why;
+    v[k++] = cr_dbg.shed_over_n;
+    v[k++] = cr_dbg.shed_us;
+    v[k++] = voice_kills - cr_dbg.kill0;
+    v[k++] = voice_steals - cr_dbg.steal0;
+    cr_dbg.shed0 = shed_count;
+    cr_dbg.kill0 = voice_kills;
+    cr_dbg.steal0 = voice_steals;
+    cr_dbg.shed_last = cr_dbg.shed_why = cr_dbg.shed_over_n = cr_dbg.shed_us = 0;
+    /* 3y46, values 42..45: P5 on two cores (cr_cpu1.h cr_dbg): the most P5 voices core 0 and core 1 rendered in one
+     * block, the bass part's most P5 voices, held bass voices given up to the chord part. (Core 1's longest job of a
+     * half is value 3, pk_part1_us: the bass part and core 1's share of the chord's voices) */
+    v[k++] = cr_dbg.p5_c0;
+    v[k++] = cr_dbg.p5_c1;
+    v[k++] = cr_dbg.p5_bass;
+#if FELUCCA_PROPHET
+    v[k++] = p5_bass_gave - cr_dbg.gave0;
+    cr_dbg.gave0 = p5_bass_gave;
+#else
+    v[k++] = 0;
+#endif
+    cr_dbg.p5_c0 = cr_dbg.p5_c1 = cr_dbg.p5_bass = 0;
+    /* 3y48, values 46..53 (the owner's stutter on P5 with an arp, 2026-10-13: "So not sure why it wrote to flash"):
+     * since power-on, never cleared: automatic erases (the Options' or favourites' poll) that started while something
+     * sounded in the second before (the rule: 0), the latest erase's writer (storage_hw.c ST_WHY_*), its object
+     * (storage.c OBJ_*, 0x100 + k a loop slot) and its time (fm1_ms; 0 none); then the time of irq_gap_us (value 28,
+     * a peak: cleared with it), of ua_arm_gap_max_us (since power-on) and of the latest capture under- or overrun
+     * (79 DEBUG's ua_underruns / ua_overruns: the USB stream restarted, a gap the host hears) */
+    v[k++] = st_auto_loud;
+    v[k++] = st_last_why;
+    v[k++] = st_last_obj;
+    v[k++] = st_last_ms;
+    v[k++] = cr_dbg.pk_t5gap_ms;
+#if FELUCCA_UAC
+    v[k++] = ua_dbg.arm_gap_ms;
+    v[k++] = ua.cap_reset_ms;
+#else
+    v[k++] = 0;
+    v[k++] = 0;
+#endif
+    v[k++] = fm1_ms;                                 /* (the clock the times above are on) */
+    /* 3y50, values 55..61 (cr_cpu1.h cr_dbg; docs/FX.md "Each core's half"): since the last read, the largest half's
+     * busy time of core 0 (its stages but its waits, without core 1's job) and of core 1 (its voices and the reverb),
+     * core 0's waits in one half (both joins: pk_wait_us's), the effects' join alone, core 1 idle between its two
+     * jobs; which core ran which effect in the largest whole half (1 chorus, 2 delay, 4 reverb ran, 8 reverb on
+     * core 1); the reverb jobs core 1 ran */
+    v[k++] = cr_dbg.pk_c0_busy / CR_PROF_PER_US;
+    v[k++] = cr_dbg.pk_c1_busy / CR_PROF_PER_US;
+    v[k++] = cr_dbg.pk_w0 / CR_PROF_PER_US;
+    v[k++] = cr_dbg.pk_fxw / CR_PROF_PER_US;
+    v[k++] = cr_dbg.pk_w1 / CR_PROF_PER_US;
+    v[k++] = cr_dbg.pk_fxmap;
+    v[k++] = cr_dbg.c1x_jobs;
+    /* 3y52, values 61..64: the quiet writes (0.22, cr_settings.c, storage.c "erase ahead"; p5-g e31c096's values
+     * 35..38 there, merged by name), all since power-on: the saves the unit did by itself (an Option's, a
+     * favourite's), the erases done ahead (the session's and the favourites', not the settings': at power-on, after a
+     * long idle), the erases the unit started by itself while a voice was active or within 2 s of an input (the rule:
+     * 0), the longest page program in us (the wait for the chip, the interrupts masked) */
+#if CR_HAVE_SETTINGS
+    v[k++] = crq.auto_saves;
+    v[k++] = crq.ahead;
+#else
+    v[k++] = 0;
+    v[k++] = 0;
+#endif
+    v[k++] = st_near;
+    v[k++] = st_prog_us;
+    /* 3y60, values 65..68 (the owner, 2026-10-14: "with all the user presets filled, my FM-1's UI is now very laggy";
+     * docs/PRESETS.md "What browsing reads"), since the last read: a UI frame's own time (input, LEDs, draw: audio.c
+     * ui_ft) the longest and the average in us, then the flash reads (storage_hw.c st_read) per second, calls and
+     * bytes. Browsing reads no record: a full pool turned reads a sound's record and patch per load, no more */
+    {
+        static uint32_t rd0, rb0, ms0;
+        uint32_t dt = fm1_ms - ms0;
+        v[k++] = ui_ft.max_us;
+        v[k++] = ui_ft.n ? ui_ft.sum_us / ui_ft.n : 0u;
+        v[k++] = dt ? (uint32_t)((uint64_t)(st_reads - rd0) * 1000u / dt) : 0u;
+        v[k++] = dt ? (uint32_t)((uint64_t)(st_read_bytes - rb0) * 1000u / dt) : 0u;
+        rd0 = st_reads;
+        rb0 = st_read_bytes;
+        ms0 = fm1_ms;
+        ui_ft.max_us = ui_ft.sum_us = ui_ft.n = 0;
+    }
+    /* 3y70 / 3y72 / 3y73, values 69..79 (the dual-core fallback's branch, its 35..45, merged by name): why this boot
+     * kept core 1 off, then the last crash's record (7: count, vec, pc, rets, EMU_MSG, DBG_MSG, uptime ms), this
+     * boot's reset reason and the last reset's breadcrumb, the voices the shed dropped since power-on */
+    v[k++] = cr_c1_barred;                           /* why this boot kept core 1 off (cr_cpu1.h C1_BAR_*: 1 a crash beside
+                                                      * it, 2 a hang, 3 gave up; 0 none): 73 DEBUG is full */
+    /* the last crash's record (hal/fm1_irq.h fm1_crash, .noinit: what the crash screen showed for 4 s, kept until a
+     * power-off; count 0: none since) and this boot's reset reason and the breadcrumb the last reset left
+     * (cr_bootguard.h): what a reporter cannot read off the screen in time (ChoralRoot#9) */
+    v[k++] = crashed ? fm1_crash.count : 0u;
+    v[k++] = crashed ? fm1_crash.vec : 0u;
+    v[k++] = crashed ? fm1_crash.pc : 0u;
+    v[k++] = crashed ? fm1_crash.rets : 0u;
+    v[k++] = crashed ? fm1_crash.emu : 0u;
+    v[k++] = crashed ? fm1_crash.dbg : 0u;
+    v[k++] = crashed ? fm1_crash.uptime_ms : 0u;
+    v[k++] = bootguard.reason;                       /* P3_RST_SRC bits 0..7, the core reset as bit 8 (bootguard_reason) */
+    v[k++] = felucca_dbg.prev_stage;                 /* BS_* (bootguard_stage_name) */
+    v[k++] = shed_count;                             /* voices dropped by the overload shed since power-on (audio.c
+                                                      * shed_voice: two halves in a row over 85 %); console voices_shed
+                                                      * (value 35, shed_voices, is since the last read) */
     cr_prof_clear();
     crb_b(1);
     crb_b(k);
@@ -880,17 +1242,26 @@ static uint32_t crb_stub(uint32_t op)
  * Melodee, GPL-3.0). ops: 0 report; 1 a misread (the sequence read as +0x00200000 for 1 ms, as an affected unit
  * reads it); 2 a null job at rest (fn 0 and the next sequence for 1 ms: the idle crash Melodee decoded); 3 a stall (a
  * job that never returns: the 8 ms wait); 4 a fault on core 1 (a job that calls address 0); 5 the rails; 6 rail a[1]
- * (0 SYSVDD, 1 VDC14) to level a[2], down too (SYSVDD 6..14, VDC14 0..4: never above the cap). rc: 0 done, 1 refused (core 1 not running for
- * 1..4, a level out of range for 6). Values: c1 state, jobs, rejected, faults, stalls, fallback, SYSVDD boot / now,
- * VDC14 boot / now (the registers), the fault's core / DBG_MSG / pc / rets / EMU_MSG, the last misread, audio halves,
- * the injection's time in us */
+ * (0 SYSVDD, 1 VDC14) to level a[2], down too (SYSVDD 6..14, VDC14 0..5: never above the cap); 7 the bar: the record
+ * a crash beside core 1 leaves (fm1_c1_fault_c: C1_BAR_CRASH), then the restart 72 RESTART does (a soft reset, so the
+ * next boot decides from the reason, as after a real crash report: core 1 off, Dual Core saved Off; cr_cpu1.h
+ * cr_c1_bar_boot); its reply goes out first, but the unit leaves the bus 150 .. 500 ms after it (a tool must not
+ * count on reading it). rc: 0 done, 1 refused (core 1 not running for 1..4 and 7, a level out of range for 6).
+ * Values: c1 state, jobs, rejected, faults, stalls, fallback, SYSVDD boot / now, VDC14 boot / now (the registers), the
+ * fault's core / DBG_MSG / pc / rets / EMU_MSG, the last misread, audio halves, the injection's time in us.
+ * An injected failure is not the unit's: ops 1..4 clear the bar's reason and set cr_c1_injected (no Dual Core Off
+ * saved for a give-up this session: cr_ui.c) */
 #if CR_CPU1 && CR_CORE1_TEST && defined(FM1_HAVE_CPU1)
 static void crb_core1_test(const uint8_t *a, uint32_t na)
 {
     uint32_t op = na ? a[0] : 0u, rc = 0, waited = 0, v[18], i;
-    if (op >= 1u && op <= 4u && cr_dbg.c1 != C1_OK) {
+    if (((op >= 1u && op <= 4u) || op == 7u) && cr_dbg.c1 != C1_OK) {
         rc = 1;
+    } else if (op == 7u) {
+        cr_c1_bar_set(C1_BAR_CRASH);                 /* as fm1_c1_fault_c leaves it before the crash report */
+        crb_reboot_ask(0);                           /* .. and 72 RESTART's soft reset (crb_leave, after this reply) */
     } else if (op >= 1u && op <= 4u) {
+        cr_c1_injected = 1;                          /* (before: the audio ISR may give up during the injection) */
         uint32_t t0 = fm1_ticks();
         fm1_irq_off();                               /* the audio ISR neither hands over nor checks meanwhile */
         if (op <= 2u) {
@@ -902,6 +1273,8 @@ static void crb_core1_test(const uint8_t *a, uint32_t na)
         waited = (fm1_ticks() - t0) / FM1_TICKS_PER_US;
         fm1_irq_on();                                /* (an exception held while masked is taken here) */
         fm1_delay_us(2000);
+        cr_c1_bar_set(C1_BAR_NONE);                  /* an injected failure is not the unit's: no bar at the next boot
+                                                      * (the tool restarts with core 1 On, cr_cpu1.h cr_c1_bar_boot) */
     } else if (op == 6u) {
         fm1_irq_off();
         rc = na == 3u ? (uint32_t)fm1_power_goto(a[1], a[2]) : 1u;
@@ -961,7 +1334,7 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         uint32_t i;
         if (na)
             return 0;
-        for (i = 0; v[i] && i < 24u; i++)
+        for (i = 0; v[i] && i < 32u; i++)            /* a beta single-core string is 28 (hosts read to the NUL) */
             crb_b((uint8_t)v[i]);
         crb_b(0);
         for (i = 0; i < 7u; i++)
@@ -971,7 +1344,17 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         crb_b(3);                                    /* backup read + restore */
         crb_b(0x43);
         crb_b(1);
-        crb_b(2);                                    /* ChoralRoot backup v2: ids 9, 40..49, RESTART; no samples */
+        crb_b(3);                                    /* ChoralRoot backup v3 (0.22): the pool's ids 50..62, 80 IMPORT (v2: ids
+                                                      * 9, 40..49, RESTART; no samples) */
+        if (cr_unit_id[0]) {                         /* 49 08: the unit's ID, 8 hex digits in ASCII (3y66, cr_ui.c
+                                                      * cr_unit_id; none known: no tag, the reply as before). Appended:
+                                                      * the hosts read the version to its NUL, and no host reads a tag
+                                                      * by its place from the end */
+            crb_b(0x49);
+            crb_b(8);
+            for (i = 0; i < 8u; i++)
+                crb_b((uint8_t)cr_unit_id[i]);
+        }
         break;
     }
     case CRB_LIST:
@@ -1022,6 +1405,25 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         if (na)
             return 0;
         crb_usb();
+        break;
+#endif
+#if UP_POOL
+    case CRB_IMPORT:                                 /* 80 IMPORT -> rc, count: the legacy slots (0.21's) into slots
+                                                      * 1..32 again (the device manager; upool.c upool_import). rc 0 done,
+                                                      * 1 no legacy slots, 3 busy, 4 a flash error */
+        if (na)
+            return 0;
+        {
+            int r = crb_busy() || !flash_ok ? -9 : (st_why = ST_WHY_PUT, upool_import());
+            st_why = ST_WHY_OTHER;
+            crb.listed = 0;
+            if (r >= 0) {
+                crb_reload(CRB_IMPORT);
+                ui.force = 1;
+            }
+            crb_b(r >= 0 ? 0u : r == -1 ? 1u : r == -9 ? 3u : 4u);
+            crb_b(r >= 0 ? (uint32_t)r : 0u);
+        }
         break;
 #endif
     case CRB_STUB:                                   /* (the boot stub's test and rescue requests) */

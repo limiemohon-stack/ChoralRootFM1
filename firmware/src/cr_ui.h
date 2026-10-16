@@ -19,7 +19,16 @@
  * SysEx (cr_backup.c CRB_INFO: what fm1_install.py --info prints) all show that string. CR_VERSION is its name here
  * (and the mark of the ChoralRoot unit: cr_settings.c part 2, console.c). Until 2026-10-12 it was a literal of its
  * own, 0.1, which Options > Version showed on every build. */
+#ifndef CR_SINGLE_CORE
+#define CR_SINGLE_CORE 0          /* 1: the single-core package (CR_SINGLE_CORE=1 ./build.sh, ./build.sh --release X.Y's
+                                   * second package; docs/DUALCORE.md "Two packages"): core 1 is never started */
+#endif
+#if CR_SINGLE_CORE                /* the version every reader shows, with the package's mark: ChoralRoot X.Y 1-core
+                                   * (a word after a space: every version parser reads the first word after ChoralRoot) */
+#define CR_VERSION FELUCCA_VERSION " 1-core"
+#else
 #define CR_VERSION FELUCCA_VERSION
+#endif
 #define CR_POPUP_MS 900u          /* a knob's meter stays this long after the last turn (INTEGRATION section 5) */
 #define CR_PANIC_MS 1100u         /* the red PANIC screen */
 #define CR_MSG_MS 1200u           /* a message box */

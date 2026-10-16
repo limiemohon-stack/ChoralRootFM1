@@ -6,13 +6,16 @@
 
 Run on the device by hand (never part of the automated tests), with Options > Dual Core On:
   misread  core 1 reads its sequence as +0x00200000 for 1 ms: refused, counted, never run; the first time core 1
-           keeps working; the second time it is given up (one core, c1_fallback 1); the rails never above 14 / 4
+           keeps working; the second time it is given up (one core, c1_fallback 1); the rails never above 14 / 5
   null     a null job at rest read as the next request: refused, never called (no fault)
   stall    a job that never returns: the 8 ms wait holds core 1, "gave up"
   fault    a job that calls address 0: a fault on core 1, caught; core 1 held, "gave up", no reset
-  report / power / sysvdd=N / vdc14=N   the counters; the rails; a rail to a level (SYSVDD 6..14, VDC14 0..4)
+  report / power / sysvdd=N / vdc14=N   the counters; the rails; a rail to a level (SYSVDD 6..14, VDC14 0..5)
+  bar      (not in the default list: it leaves Dual Core Off) the record a crash beside core 1 leaves, then a soft
+           restart as RESTART's: the next boot keeps core 1 off ("off", fallback 0) and saves Dual Core Off
 Each run ends with the audio still running. Giving up is for the session, so each mode restarts the FM-1 first
-(RESTART, command 72) and waits out the 30 s boot guard (two crashes within 30 s of boot enter SAFE MODE).
+(RESTART, command 72) and waits out the 30 s boot guard (two crashes within 30 s of boot enter SAFE MODE). An
+injected give-up is not saved as Dual Core Off (the firmware knows it injected it); `bar` is the one that is.
 A build without CR_CORE1_TEST answers command 75 with "unsupported": this tool then refuses to run.
 """
 import argparse
@@ -24,11 +27,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fm1_install as fi                                # noqa: E402  (the MIDI link, BackupLink)
 
 CMD = 75
-OPS = {'report': 0, 'misread': 1, 'null': 2, 'stall': 3, 'fault': 4, 'power': 5}
+OPS = {'report': 0, 'misread': 1, 'null': 2, 'stall': 3, 'fault': 4, 'power': 5, 'bar': 7}
 FIELDS = ('c1', 'jobs', 'rejected', 'faults', 'stalls', 'fallback', 'sysvdd_boot', 'sysvdd', 'vdc14_boot', 'vdc14',
           'fault_cpu', 'fault_dbg', 'fault_pc', 'fault_rets', 'fault_emu', 'misread', 'halves', 'waited_us')
 STATE = {0: 'off', 1: 'ok', 2: 'failed', 3: 'gave up'}
 RC = {0: 'ok', 1: 'refused (core 1 not running, or a level out of range)', 2: 'the job finished (it should not)'}
+BAR_NOTE = ("Options > Dual Core shows Off with 'off after a crash on 2 cores'; the record now holds Off: turn Dual Core "
+            "On again and restart before the other modes")
 
 
 class Unsupported(SystemExit):
@@ -80,6 +85,11 @@ def restart(port, settle):
         pass
     finally:
         dev.link.close()                    # (at once: the FM-1 leaves the bus 150 ms after its answer)
+    return back(port, settle, 'RESTART')
+
+
+def back(port, settle, what):
+    """the FM-1 answering command 75 again after a restart, then `settle` s for the boot guard; -> its report"""
     time.sleep(3)
     end = time.monotonic() + 30
     while True:
@@ -90,7 +100,7 @@ def restart(port, settle):
             raise
         except (SystemExit, fi.InstallError, OSError) as e:
             if time.monotonic() > end:
-                raise SystemExit(f'the FM-1 did not come back: waited 33 s after RESTART for it to answer command 75 '
+                raise SystemExit(f'the FM-1 did not come back: waited 33 s after {what} for it to answer command 75 '
                                  f'(the last try: {e})')
             time.sleep(0.5)
     print(f'restarted; waiting {settle:.0f} s for the boot guard')
@@ -98,15 +108,40 @@ def restart(port, settle):
     return command(port, 0)
 
 
+def run_bar(port, settle, do_restart):
+    """op 7: the bar a crash beside core 1 leaves, and a soft restart; the reply may be lost to the restart"""
+    print('== bar')
+    before = restart(port, settle) if do_restart else command(port, 0)
+    show('before', before)
+    if before['c1'] != 1:
+        raise SystemExit('core 1 is not running ("ok"): Options > Dual Core On, then restart')
+    try:
+        hit = command(port, OPS['bar'], timeout=1.0)
+        if hit['rc']:
+            show('bar', hit)
+            print('bar: FAIL (refused)')
+            return False
+    except (SystemExit, fi.InstallError, OSError):
+        pass                                # (expected: the unit restarts 150 .. 500 ms after its answer)
+    after = back(port, settle, 'the bar')
+    show('after ', after)
+    ok = after['c1'] == 0 and after['fallback'] == 0
+    print(f"bar: {'PASS' if ok else 'FAIL'} (core 1 {STATE.get(after['c1'], after['c1'])} after the restart, want off)")
+    print(f'  {BAR_NOTE}')
+    return ok
+
+
 def run(port, mode, settle, do_restart):
+    if mode == 'bar':
+        return run_bar(port, settle, do_restart)
     print(f'== {mode}')
     before = restart(port, settle) if do_restart else command(port, 0)
     show('before', before)
     if before['c1'] != 1:
         raise SystemExit('core 1 is not running ("ok"): Options > Dual Core On, then restart')
-    ok = before['sysvdd'] >= 14 and before['vdc14'] >= 4
+    ok = before['sysvdd'] >= 14 and before['vdc14'] >= 5
     if not ok:
-        print('  the boot rails are not up (want SYSVDD >= 14, VDC14 >= 4)')
+        print('  the boot rails are not up (want SYSVDD >= 14, VDC14 >= 5)')
     hit = command(port, OPS[mode])
     show('inject', hit)
     time.sleep(1.0)
@@ -136,12 +171,18 @@ def run(port, mode, settle, do_restart):
 
 def main():
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument('modes', nargs='*', default=['misread', 'null', 'stall', 'fault'],
-                   choices=[*OPS, *(f'sysvdd={n}' for n in range(6, 15)), *(f'vdc14={n}' for n in range(5))])
+    choices = [*OPS, *(f'sysvdd={n}' for n in range(6, 15)), *(f'vdc14={n}' for n in range(6))]
+    p.add_argument('modes', nargs='*', metavar='MODE',   # (argparse's choices= refuses an empty or default list as one
+                   help='one or more of: ' + ', '.join(choices) + ' (default: misread null stall fault)')   # value)
     p.add_argument('--port', help='MIDI port name (default: found as fm1_install.py finds it)')
     p.add_argument('--settle', type=float, default=31, help='seconds after a restart before injecting')
     p.add_argument('--no-restart', action='store_true', help='inject into the running session')
     a = p.parse_args()
+    if not a.modes:
+        a.modes = ['misread', 'null', 'stall', 'fault']
+    for m in a.modes:
+        if m not in choices:
+            p.error(f"invalid mode {m!r} (choose from {', '.join(choices)})")
     show('build', command(a.port, 0))       # (refuses here on a build without CR_CORE1_TEST)
     results = []
     for mode in a.modes:

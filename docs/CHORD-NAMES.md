@@ -405,7 +405,8 @@ set the older firmware reads the byte as before.
 ## The numeral (the KEY layer's Numerals, 0.22)
 
 GitHub issue 1 asked for "the Roman numeral of the chord being played relative to the selected key ... alongside the
-chord name". The KEY layer's page 2 has **Numerals: Off / On** on KNOB 4 (Off by default). On, with Key Mode on and
+chord name". The KEY layer's page 2 has **Numerals: Off / On** on KNOB 4 (Off by default; a third value, Solfège,
+since after 0.22: below). On, with Key Mode on and
 a chord sounding, the Chord view shows the numeral in the voicing's blue (`CR_COL_BLUE`), centred above the chord
 name (`cr_ui.c cu_numeral`, `cu_numeral_put`; `cr_draw.c cr_p_chord`, `cr_p_arp`; the screen's `numeral`,
 `numeral_on`). Until HISTORY 3y34 it was on the top line, beside the key (`Key: C · V`).
@@ -441,6 +442,40 @@ widest numeral, `#vii°`, is 34 px. Only the Chord view shows it (its plain form
 read-out); the Keyboard, Notes, Geek Out and Scope views, the PERF layer's arp band and the loop editor do not.
 While a loop records or plays the top left is the looper's (`Loop 1`); the numeral is on the panel and still shows,
 Key Mode being on. Stored in bit 1 of the settings block's `bass_on` (docs/SETTINGS.md), saved with SAVE held.
+
+### Solfège (GitHub issue 15)
+
+GitHub issue 15 (shinobi, 2026-10-13, "No support for Fixed Do Solfege") asked for DO RE MI; the owner's scope is the
+numeral: "an option where 'Numerals' is ... to be able to do solfège notation for the scale degrees, so it now becomes
+3 options: off, on, solfège". So KNOB 4 reads **Off / On / Solfège**, and Solfège shows the numeral's degree as a
+**movable-do** syllable in the numeral's place (the same blue, size and position): `cr_engine.c
+cr_chord_solfege(root_pc, quality, tonic, scale, buf)`, which shares the numeral's degree table and rules
+(`crx_degree`: one function, two spellings; `cu_numeral` picks one; `tests/cr_engine_test.c s_solfege` checks C
+major and A minor at all 12 roots, the marks, other tonics, and that all 2304 cells carry their numeral's accidental,
+case and mark).
+
+- **The syllables**: `DO RE MI FA SOL LA TI` for I .. VII, Do on the tonic in either scale (do-based minor: A minor's
+  C is `MI` because it is `III`; la-based minor, where the minor tonic is La, was not taken: the owner's words are Do =
+  the tonic, and it would make one degree two syllables depending on the scale). Ti, not Si: Si is the B of fixed do.
+- **The case carries the third**, exactly as the numeral's: the whole syllable in capitals for MAJ, SUS, the augmented
+  chord, the power chord and a single note (`SOL`), in small letters for MIN, DIM and MIN + SUS (`sol`). Whole-word
+  case rather than `Sol` / `sol`: one letter's case (S / s at 16 px) is too small a difference to read at a glance,
+  and SOL / sol is the numeral's V / v.
+- **The marks**: `°` after a diminished chord (`ti°`), `+` after the augmented one (`SOL+`), as the numeral's.
+- **A root between two degrees** takes the numeral's `b` / `#` before the syllable (`#FA`, `bTI`, A minor's `#MI`).
+  The alternative is the chromatic syllables (raised `DI RI FI SI LI`, lowered `RA ME SE LE TE`); not taken because a
+  prefix reads instantly at 16 px with nothing new to learn after the numeral, and because the chromatic names count
+  from the major scale: in A minor the scale's own C would be `ME`, not the third degree `MI` the owner asked for.
+- **The longest** is 4 characters (`#FA°`, `SOL+`; the numeral's longest is 5, `#vii°`), so the screen's `numeral[6]`
+  holds both. The widest drawn is 39 px (`#MI+` at bold 16 px), in the numeral's gap with the tallest names
+  (`tests/cr_draw_test.c`: 2 px clear of the top line and of the name). The KEY page's cell says `Solfège`: the è is
+  an extra glyph of CRB alone (`tools/gen_aa_font.py CRB_EXTRAS`, 249 bytes).
+- **Fixed do** (Do = C always: the note names of the Romance-language countries, what the issue's title says) is a
+  different thing, a naming of the notes and so a value of Options > Chord Names, not of Numerals. Not built.
+
+Stored in a bit of its own, bit 7 of the settings block's `scale` (`CRS_SOLFEGE`; On stays bit 1 of `bass_on`, and
+each is written alone: docs/SETTINGS.md), saved with SAVE held. 0.17 .. 0.22 read a saved Solfège as Numerals Off
+with the scale Major.
 
 ## Where the option is stored
 

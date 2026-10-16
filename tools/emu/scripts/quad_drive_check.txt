@@ -1,10 +1,10 @@
 # The session and FM TONE's Drive, run 2: a relaunch on run 1's flash (quad_drive_set.txt).
-#  1  at power-on: as saved: both parts on FM TONE with their edited Drives (28, 24), FX off, the parts' own drive
-#     sends (12, 18) waiting
+#  1  at power-on: as saved: both parts on FM TONE with their edited Drives (18, 14), FX off, the parts' own drive
+#     sends (2, 8) waiting
 #  2  the chord sound's AMP Drive turned (KNOB 3 +2: 40)
 #  3  GLO + SAVE held: the revert: as saved again
 #  4  the bass part to the VA (the picker), the chord part to the VA (OPT + PRESETS +1), FX on: the parts' sends are
-#     back: 12 and 18
+#     back: 2 and 8
 #  5  OPT + PRESETS -1 (FM TONE again), the bass part too; Options > Reset Settings: a new unit's: FM6 and the VA,
 #     no drive anywhere
 wait 500

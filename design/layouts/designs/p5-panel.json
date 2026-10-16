@@ -1,0 +1,253 @@
+{
+  "format": "choralroot-layout",
+  "version": 2,
+  "kind": "design",
+  "name": "panel",
+  "style": "p5",
+  "engine": {"index": 16, "name": "P5"},
+  "params_hash": "f5941e824048848d",
+  "header": {"kind": "title-line", "note": "the editor's title line: the sound's name left, the page's name right (fixed)"},
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "screens": [
+        {
+          "type": "free",
+          "title": "OSC A",
+          "elements": [
+            {"id": "fa", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 84, "text": "Oscillator A", "colour": "white", "r": 8},
+            {"id": "a_freq", "type": "knob", "x": 8, "y": 44, "w": 56, "h": 64, "param": "OSC A:FREQ", "label": "FREQ", "size": 36},
+            {"id": "a_saw", "type": "led", "x": 68, "y": 48, "w": 32, "h": 32, "param": "OSC A:SAW", "glyph": "saw"},
+            {"id": "a_pulse", "type": "led", "x": 100, "y": 48, "w": 32, "h": 32, "param": "OSC A:PULSE", "glyph": "square"},
+            {"id": "a_pw", "type": "knob", "x": 136, "y": 44, "w": 56, "h": 48, "param": "OSC A:WIDTH", "label": "PULSE W", "size": 36},
+            {"id": "a_sync", "type": "led", "x": 196, "y": 60, "w": 36, "h": 32, "param": "OSC A+:SYNC", "label": "SYNC", "labelAt": "below"},
+            {"id": "fm", "type": "frame", "x": 4, "y": 136, "w": 232, "h": 84, "text": "Mixer", "colour": "white", "r": 8},
+            {"id": "m_a", "type": "knob", "x": 20, "y": 148, "w": 56, "h": 64, "param": "MIXER:MIX A", "label": "OSC A", "size": 36},
+            {"id": "m_b", "type": "knob", "x": 92, "y": 148, "w": 56, "h": 64, "param": "MIXER:MIX B", "label": "OSC B", "size": 36},
+            {"id": "m_n", "type": "knob", "x": 164, "y": 148, "w": 56, "h": 64, "param": "MIXER:NOISE", "label": "NOISE", "size": 36},
+            {"id": "e11", "type": "label", "x": 68, "y": 80, "w": 64, "h": 12, "text": "-Shape-", "align": "centre"}
+          ],
+          "lanes": [
+            ["a_freq", "a_saw", "a_pulse", null],
+            [null, null, "a_pw", "a_sync"],
+            ["m_a", "m_b", "m_n", null]
+          ]
+        },
+        {
+          "type": "free",
+          "title": "OSC B",
+          "elements": [
+            {"id": "fb", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 168, "text": "Oscillator B", "r": 8},
+            {"id": "b_freq", "type": "knob", "x": 8, "y": 44, "w": 56, "h": 64, "param": "OSC B:FREQ", "label": "FREQ", "size": 36},
+            {"id": "b_fine", "type": "knob", "x": 64, "y": 44, "w": 56, "h": 64, "param": "OSC B:FINE", "label": "FINE", "size": 36},
+            {"id": "b_saw", "type": "led", "x": 120, "y": 48, "w": 32, "h": 32, "param": "OSC B:SAW", "glyph": "saw"},
+            {"id": "b_tri", "type": "led", "x": 160, "y": 48, "w": 32, "h": 32, "param": "OSC B:TRI", "glyph": "triangle"},
+            {"id": "b_pulse", "type": "led", "x": 200, "y": 48, "w": 32, "h": 32, "param": "OSC B+:PULSE", "glyph": "square"},
+            {"id": "b_pw", "type": "knob", "x": 64, "y": 128, "w": 56, "h": 64, "param": "OSC B+:WIDTH", "label": "PULSE W", "size": 36},
+            {"id": "b_lo", "type": "led", "x": 120, "y": 144, "w": 56, "h": 32, "param": "OSC B+:LOFREQ", "label": "LO FREQ", "labelAt": "below"},
+            {"id": "b_kb", "type": "led", "x": 176, "y": 144, "w": 56, "h": 32, "param": "OSC B+:KEYBD", "label": "KEYBOARD", "labelAt": "below"},
+            {"id": "e10", "type": "label", "x": 120, "y": 80, "w": 112, "h": 12, "text": "-SHAPE-", "align": "centre"}
+          ],
+          "lanes": [
+            ["b_freq", "b_fine", null, null],
+            [null, "b_saw", "b_tri", "b_pulse"],
+            [null, "b_pw", "b_lo", "b_kb"]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "screens": [
+        {
+          "type": "free",
+          "title": "FILTER",
+          "elements": [
+            {"id": "ff", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 208, "text": "Filter", "r": 8},
+            {"id": "f_cut", "type": "knob", "x": 56, "y": 44, "w": 56, "h": 64, "param": "FILTER:CUT", "label": "CUTOFF", "size": 36},
+            {"id": "f_res", "type": "knob", "x": 116, "y": 44, "w": 56, "h": 64, "param": "FILTER:RES", "label": "RESO", "size": 36},
+            {"id": "f_env", "type": "knob", "x": 176, "y": 44, "w": 56, "h": 64, "param": "FILTER:FENV", "label": "ENV AMT", "size": 36},
+            {"id": "f_kb", "type": "switch", "x": 176, "y": 180, "w": 56, "h": 56, "param": "FILTER:KTRK", "label": "KEYBOARD", "positions": 3},
+            {"id": "f_rev", "type": "led", "x": 8, "y": 48, "w": 44, "h": 44, "param": "FILTER+:REV", "label": "REV", "leds": 2},
+            {"id": "f_at", "type": "led", "x": 120, "y": 196, "w": 56, "h": 32, "param": "FILTER+:AFTER", "label": "AFTER", "labelAt": "below"},
+            {"id": "e8", "type": "knob", "x": 8, "y": 112, "w": 56, "h": 56, "param": "ENV 2:ATK", "label": "ATTACK", "size": 36},
+            {"id": "e9", "type": "knob", "x": 64, "y": 112, "w": 56, "h": 56, "param": "ENV 2:DEC", "label": "DECAY", "size": 36},
+            {"id": "e10", "type": "knob", "x": 120, "y": 112, "w": 56, "h": 56, "param": "ENV 2:SUS", "label": "SUSTAIN", "size": 36},
+            {"id": "e11", "type": "knob", "x": 176, "y": 112, "w": 56, "h": 56, "param": "ENV 2:REL", "label": "RELEASE", "size": 36},
+            {"id": "e12", "type": "led", "x": 60, "y": 196, "w": 56, "h": 32, "param": "ENV 2+:VEL", "label": "VELOCITY", "labelAt": "below"},
+            {"id": "e13", "type": "label", "x": 8, "y": 168, "w": 224, "h": 12, "text": "-ENVELOPE-", "align": "centre"}
+          ],
+          "lanes": [
+            ["f_rev", "f_cut", "f_res", "f_env"],
+            ["e8", "e9", "e10", "e11"],
+            [null, "e12", "f_at", "f_kb"]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "screens": [
+        {
+          "type": "free",
+          "title": "ENV 1 · amp",
+          "elements": [
+            {"id": "e1", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 128, "text": "Amplifier", "r": 8},
+            {"id": "e1_a", "type": "knob", "x": 8, "y": 44, "w": 56, "h": 64, "param": "ENV 1:ATK", "label": "ATTACK", "size": 36},
+            {"id": "e1_d", "type": "knob", "x": 64, "y": 44, "w": 56, "h": 64, "param": "ENV 1:DEC", "label": "DECAY", "size": 36},
+            {"id": "e1_s", "type": "knob", "x": 120, "y": 44, "w": 56, "h": 64, "param": "ENV 1:SUS", "label": "SUSTAIN", "size": 36},
+            {"id": "e1_r", "type": "knob", "x": 176, "y": 44, "w": 56, "h": 64, "param": "ENV 1:REL", "label": "RELEASE", "size": 36},
+            {"id": "e1_vel", "type": "led", "x": 120, "y": 120, "w": 56, "h": 32, "param": "ENV 1+:VEL", "label": "VELOCITY", "labelAt": "below"},
+            {"id": "e1_rs", "type": "led", "x": 176, "y": 120, "w": 56, "h": 32, "param": "ENV 1+:RELSW", "label": "REL SW", "labelAt": "below"}
+          ],
+          "lanes": [
+            ["e1_a", "e1_d", "e1_s", "e1_r"],
+            [null, null, "e1_vel", "e1_rs"]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "screens": [
+        {
+          "type": "free",
+          "title": "LFO",
+          "elements": [
+            {"id": "fl", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 124, "text": "LFO", "r": 8},
+            {"id": "l_rate", "type": "knob", "x": 64, "y": 44, "w": 56, "h": 64, "param": "LFO:RATE", "label": "FREQ", "size": 36},
+            {"id": "l_amt", "type": "knob", "x": 8, "y": 44, "w": 56, "h": 64, "param": "LFO:AMOUNT", "label": "INIT AMT", "size": 36},
+            {"id": "l_at", "type": "led", "x": 176, "y": 116, "w": 56, "h": 32, "param": "LFO:AFTER", "label": "AFTER", "labelAt": "below"},
+            {"id": "l_saw", "type": "led", "x": 128, "y": 44, "w": 20, "h": 32, "param": "LFO+:SAW", "glyph": "saw"},
+            {"id": "l_tri", "type": "led", "x": 168, "y": 44, "w": 20, "h": 32, "param": "LFO+:TRI", "glyph": "triangle"},
+            {"id": "l_sq", "type": "led", "x": 200, "y": 44, "w": 32, "h": 32, "param": "LFO+:SQUARE", "glyph": "square"},
+            {"id": "e10", "type": "label", "x": 124, "y": 80, "w": 108, "h": 12, "text": "-SHAPE-", "align": "centre"}
+          ],
+          "lanes": [
+            ["l_amt", "l_rate", null, "l_at"],
+            [null, "l_saw", "l_tri", "l_sq"]
+          ]
+        },
+        {
+          "type": "free",
+          "title": "WHEEL",
+          "elements": [
+            {"id": "fw", "type": "frame", "x": 4, "y": 32, "w": 232, "h": 136, "text": "Wheel-mod", "r": 8},
+            {"id": "w_dst", "type": "label", "x": 8, "y": 44, "w": 224, "h": 12, "text": "DESTINATION", "size": 9, "align": "centre", "colour": "mid"},
+            {"id": "w_fa", "type": "led", "x": 12, "y": 128, "w": 40, "h": 32, "param": "WHEEL:FREQ A", "label": "FREQ A", "labelAt": "below"},
+            {"id": "w_fb", "type": "led", "x": 56, "y": 128, "w": 40, "h": 32, "param": "WHEEL:FREQ B", "label": "FREQ B", "labelAt": "below"},
+            {"id": "w_pa", "type": "led", "x": 100, "y": 128, "w": 40, "h": 32, "param": "WHEEL:PW A", "label": "PW A", "labelAt": "below"},
+            {"id": "w_pb", "type": "led", "x": 144, "y": 128, "w": 40, "h": 32, "param": "WHEEL:PW B", "label": "PW B", "labelAt": "below"},
+            {"id": "w_f", "type": "led", "x": 188, "y": 128, "w": 40, "h": 32, "param": "WHEEL+:FILTER", "label": "FILTER", "labelAt": "below"},
+            {"id": "e8", "type": "knob", "x": 8, "y": 60, "w": 56, "h": 64, "param": "LFO:NOISE", "size": 36, "label": "SRC MIX"}
+          ],
+          "lanes": [
+            ["e8", null, "w_fa", "w_fb"],
+            [null, "w_pa", "w_pb", "w_f"]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "screens": [
+        {
+          "type": "free",
+          "title": "POLYMOD",
+          "elements": [
+            {"id": "fp", "type": "frame", "x": 4, "y": 32, "w": 236, "h": 196, "text": "Poly-mod", "r": 8},
+            {"id": "p_src", "type": "label", "x": 8, "y": 96, "w": 112, "h": 12, "text": "-SOURCE AMOUNT-", "size": 9, "align": "centre", "colour": "mid"},
+            {"id": "p_dst", "type": "label", "x": 68, "y": 156, "w": 168, "h": 12, "text": "-DESTINATION-", "size": 9, "align": "centre", "colour": "mid"},
+            {"id": "p_env", "type": "knob", "x": 8, "y": 40, "w": 56, "h": 56, "param": "POLYMOD:ENV", "label": "FILT ENV", "size": 36},
+            {"id": "p_oscb", "type": "knob", "x": 64, "y": 40, "w": 56, "h": 56, "param": "POLYMOD:OSC B", "label": "OSC B", "size": 36},
+            {"id": "p_fa", "type": "led", "x": 68, "y": 120, "w": 56, "h": 32, "param": "POLYMOD:FREQ A", "label": "FREQ A", "labelAt": "below"},
+            {"id": "p_pa", "type": "led", "x": 180, "y": 120, "w": 56, "h": 32, "param": "POLYMOD:PW A", "label": "PW A", "labelAt": "below"},
+            {"id": "p_f", "type": "led", "x": 124, "y": 120, "w": 56, "h": 32, "param": "POLYMOD+:FILTER", "label": "FILTER", "labelAt": "below"}
+          ],
+          "lanes": [
+            ["p_env", "p_oscb", null, null],
+            [null, "p_fa", "p_f", "p_pa"]
+          ]
+        },
+        {
+          "type": "free",
+          "title": "VOICE",
+          "elements": [
+            {"id": "fv", "type": "frame", "x": 4, "y": 32, "w": 164, "h": 168, "text": "Voice", "r": 8},
+            {"id": "v_uni", "type": "led", "x": 112, "y": 52, "w": 52, "h": 32, "param": "VOICE:UNISON", "label": "UNISON", "labelAt": "below"},
+            {"id": "v_voices", "type": "knob", "x": 60, "y": 128, "w": 52, "h": 64, "param": "VOICE:VOICES", "label": "VOICES", "size": 36},
+            {"id": "v_det", "type": "knob", "x": 8, "y": 128, "w": 52, "h": 64, "param": "VOICE:DETUNE", "label": "DETUNE", "size": 36},
+            {"id": "fg", "type": "frame", "x": 176, "y": 32, "w": 60, "h": 84, "text": "Glide", "r": 8},
+            {"id": "v_glide", "type": "knob", "x": 180, "y": 44, "w": 52, "h": 64, "param": "VOICE:GLIDE", "label": "GLIDE", "size": 36},
+            {"id": "v_prio", "type": "knob", "x": 112, "y": 128, "w": 52, "h": 64, "param": "VOICE+:PRIO", "label": "PRIORITY", "size": 36},
+            {"id": "v_vint", "type": "knob", "x": 8, "y": 36, "w": 52, "h": 64, "param": "VOICE+:VINTAGE", "label": "VINTAGE", "size": 36}
+          ],
+          "lanes": [
+            ["v_vint", null, "v_uni", "v_glide"],
+            ["v_det", "v_voices", "v_prio", null]
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "FX",
+          "lanes": [
+            {
+              "title": "FX",
+              "cells": [
+                {"param": "part:33"},
+                {"param": "part:34"},
+                {"param": "part:35"},
+                {"param": "part:36"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "MIX",
+          "lanes": [
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:0"},
+                {"param": "part:39"},
+                {"param": "part:37"},
+                {"param": "part:38"}
+              ]
+            },
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:28"},
+                {"param": "part:44"},
+                {"param": "part:42"},
+                {"param": "part:41"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -203,7 +203,7 @@ static const uint64_t FM6_EXPB[16] = {                   /* e^(b / 256), Q63 */
     0x84102b00893f64c7u, 0x84947d49a77c8498u, 0x851954274e0fac0au, 0x859eb01e53e19398u,
     0x862491b414f45e15u, 0x86aaf96e72e8f4b3u, 0x8731e7d3d584e8bau, 0x87b95d6b2b38db4cu};
 
-static uint64_t fm6_mulhi(uint64_t a, uint64_t b)        /* (a * b) >> 64 */
+CR_HOT_FM6 static uint64_t fm6_mulhi(uint64_t a, uint64_t b)        /* (a * b) >> 64 */
 {
     uint32_t a1 = (uint32_t)(a >> 32), a0 = (uint32_t)a, b1 = (uint32_t)(b >> 32), b0 = (uint32_t)b;
     uint64_t m = (uint64_t)a1 * b0, n = (uint64_t)a0 * b1, l = (uint64_t)a0 * b0;
@@ -330,7 +330,7 @@ static void fm6_eg_go(fm6_eg_t *e, const uint8_t *op, int32_t ol, int32_t rs, ui
 
 /* one block of an operator envelope (Env::getsample); returns its level. Segments 0..2 run
  * while the key is down, 3 after the release */
-static int32_t fm6_eg_step(fm6_eg_t *e, const uint8_t *op, int32_t ol, int32_t rs, int down)
+CR_HOT_FM6 static int32_t fm6_eg_step(fm6_eg_t *e, const uint8_t *op, int32_t ol, int32_t rs, int down)
 {
     if (e->hold) {
         e->hold -= FM6_N;

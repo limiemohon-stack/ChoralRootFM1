@@ -23,7 +23,13 @@ MEMORY
 SECTIONS
 {
     .text : { KEEP(*(.text.crt0)) *(.text*) *(.rodata*) . = ALIGN(4); _etext = .; } > XIP
-    .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) . = ALIGN(4); } > RAMTEXT AT > XIP
+    /* .ram_text*: the flash driver (it runs with the flash off: no call leaves it, tools/build.py checks) and what
+     * P5_RAM puts beside it. .rhot.*: the audio functions a CR_RAM_* switch moves (firmware/src/cr_ram.h, docs/FX.md
+     * "Code in RAM": tools/build.py renames their .text.NAME sections in the object, so no file has such a section
+     * unless a switch is on). They run with the flash on and call into XIP through a register (hal/fm1_cc.h
+     * FM1_FAR). Not KEEPed: what nothing refers to leaves, as in .text. _rt_hot: where they start (the check's
+     * boundary) */
+    .ram_text : { _rt_start = .; KEEP(*(.ram_text*)) . = ALIGN(4); _rt_hot = .; *(.rhot.*) . = ALIGN(4); } > RAMTEXT AT > XIP
     _rt_load = LOADADDR(.ram_text);
     /* the second core's waiting loop (hal/fm1_cpu1.h, docs/DUALCORE.md): right after .ram_text, in RAM and in the
      * image; main.c copies both in one run and the guard's RAM code window (fm1_guard.h) covers both */

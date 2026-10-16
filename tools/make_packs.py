@@ -22,7 +22,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 KIND = {13: "va", 12: "fm6", 14: "cz", 15: "quad"}
-ORDER = [12, 15, 13, 14, 7]                            # the picker's order (docs/DEVICE-MANAGER.md; five since 0.18)
+ORDER = [12, 15, 13, 14, 16, 7]                        # the picker's order (docs/DEVICE-MANAGER.md; five since 0.18, P5 in 0.22)
+# no pack: P5's factory programs are Sequential's data (no licence granted, LICENSING.md): a release carries the shipped
+# ones in the firmware, the site does not offer them as files (docs/PROPHET.md "Open decisions" 2; the owner's to decide)
+NO_PACK = {16: "P5: Sequential's programs, not offered as a pack"}
 
 
 def slug(name):
@@ -39,6 +42,9 @@ def main(src=None, out=None):
     engines = sorted(data, key=lambda e: ORDER.index(int(e)) if int(e) in ORDER else 99)
     for e in engines:
         v, eng = data[e], int(e)
+        if eng in NO_PACK:
+            print(f"packs: no pack for engine {eng} ({NO_PACK[eng]})")
+            continue
         sounds = []
         for p in v["presets"]:
             rec = base64.b64decode(p["record"])

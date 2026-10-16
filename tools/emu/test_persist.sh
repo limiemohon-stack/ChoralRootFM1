@@ -149,7 +149,7 @@ print(n)" "$FLASH" "$P4" "$ER")
 
 # Options > Reset Settings (the owner, 2026-10-12): the last Options entry, OCT+ twice. Run 1 (reset_set.txt, a fresh
 # flash): a user sound saved (U01 ADG), settings changed and saved (SAVE held: Advanced, 137 BPM, Key Mode on, Motion Off, Hold
-# Time, Dual Core On). Run 2 (reset_do.txt, a relaunch): the stored settings are those; the entry asks, cancels (another
+# Time, Dual Core Off: On is the default since 0.22). Run 2 (reset_do.txt, a relaunch): the stored settings are those; the entry asks, cancels (another
 # entry, OCT-, a closed menu), resets on the second OCT+: at once the record a new unit has (the dump's "settings: now"
 # checksum = a fresh unit's, run 3 of above), saved. Run 3 (reset_check.txt, a relaunch): still that, U01 still there.
 # The flash outside the settings object is byte for byte what it was (sounds, patches, loops, banks), and the panel
@@ -167,22 +167,22 @@ ov() { grep -a '^  options:' "$1" | sed -n "$2p" | sed -n "s/.*options: open \([
 R1=$OUT/persist_reset_1.log; R2=$OUT/persist_reset_2.log; R3=$OUT/persist_reset_3.log
 fresh=$(sn "$OUT/persist_reset_fresh.log" 1 | cut -d' ' -f1)
 changed=$(sn "$R1" 1)
-grep -aq '^save: part 0 slot U01 name ADG rc 0' "$R1" && [ "$(sf "$R1" 1)" = "style 1 extadd 0 key 1 motion 2 leds 0 hold 2 dualcore 1 usb 1/0 view 64" ] &&
+grep -aq '^save: part 0 slot U001 name ADG rc 0' "$R1" && [ "$(sf "$R1" 1)" = "style 1 extadd 0 key 1 motion 2 leds 0 hold 2 dualcore 0 usb 1/0 view 0" ] &&
     [ -n "$changed" ] && [ "$changed" = "$(sn "$R2" 1)" ] && [ "$(bpm "$R2")" != "" ] && grep -aq ' bpm 137 ' "$R2" &&
-    ok "reset run 1 / 2: U01 saved; Advanced, 137 BPM, Key Mode on, Motion Off, Hold Time, Dual Core On stored and back after a relaunch" \
+    ok "reset run 1 / 2: U01 saved; Advanced, 137 BPM, Key Mode on, Motion Off, Hold Time, Dual Core Off stored and back after a relaunch" \
     || bad "reset: the changed settings: $(sf "$R1" 1) / $changed / $(sn "$R2" 1)"
-[ "$(ov "$R2" 2)" = "1 25 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 25 of 26 " "$R2" &&
-    ok "Reset Settings is the last Options entry (25 of 25): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
-[ "$(ov "$R2" 3)" = "1 25 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 25 Reset Settings: all options to default" ] &&
-    [ "$(ov "$R2" 5)" = "0 25 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 25 Reset Settings: all options to default" ] &&
+[ "$(ov "$R2" 2)" = "1 29 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 29 of 30 " "$R2" &&
+    ok "Reset Settings is the last Options entry (29 of 29): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
+[ "$(ov "$R2" 3)" = "1 29 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 29 Reset Settings: all options to default" ] &&
+    [ "$(ov "$R2" 5)" = "0 29 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 29 Reset Settings: all options to default" ] &&
     [ "$(sn "$R2" 3)" = "$changed" ] && [ "$(sn "$R2" 4)" = "$changed" ] && [ "$(sn "$R2" 5)" = "$changed" ] && [ "$(sn "$R2" 6)" = "$changed" ] &&
     ! grep -a '^options: settings reset' "$R2" | sed -n 2p | grep -q . &&
     ok "OCT+ asks (OCT+ again); another entry cancels; OCT- leaves and cancels; the menu reopened is not armed; nothing reset: $OUT/reset_ask.ppm" \
     || bad "the confirm: $(ov "$R2" 3) / $(ov "$R2" 4) / $(ov "$R2" 5) / $(ov "$R2" 6); $(sn "$R2" 6)"
-grep -aq '^options: settings reset (Dual Core runs until the restart)' "$R2" && [ -n "$fresh" ] && [ "$(sn "$R2" 7 | cut -d' ' -f1)" = "$fresh" ] &&
-    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 0 usb 1/0 view 0" ] && [ "$(ov "$R2" 7)" = "0 0 Play Style: Simple" ] &&
+grep -aq '^options: settings reset (Dual Core starts at the restart)' "$R2" && [ -n "$fresh" ] && [ "$(sn "$R2" 7 | cut -d' ' -f1)" = "$fresh" ] &&
+    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 1 usb 1/0 view 64" ] && [ "$(ov "$R2" 7)" = "0 0 Play Style: Simple" ] &&
     [ "$(grep -a '^  lock: on' "$R2" | sed -n 7p | cut -c1-25)" = "  lock: on 0 latched 00 t" ] && [ "$(grep -a '^  cr: key' "$R2" | sed -n 7p | sed -n 's/.* bpm \([0-9]*\) view \([0-9]\) layer \([0-9]*\) options \([01]\).*/\1 \2 \3 \4/p')" = "120 0 0 0" ] &&
-    ok "OCT+ twice: every setting at once what a new unit has (the record's checksum $fresh = a fresh unit's): Simple, Key off, 120 BPM, Motion Full, Hold 1, Dual Core Off; on the view, LOCK off: $OUT/reset_done.ppm" \
+    ok "OCT+ twice: every setting at once what a new unit has (the record's checksum $fresh = a fresh unit's): Simple, Key off, 120 BPM, Motion Full, Hold 1, Dual Core On (0.22's default: it starts at the restart); on the view, LOCK off: $OUT/reset_done.ppm" \
     || bad "the reset: now $(sn "$R2" 7) want $fresh; $(sf "$R2" 7); $(ov "$R2" 7)"
 [ "$(sn "$R2" 8)" = "$fresh $fresh" ] && grep -aq '^expect sound .*: ok' "$R2" && grep -a '^  part 0:' "$R2" | sed -n 9p | grep -q 'FM6 / TINE EP, voices 3' &&
     ok "saved (the stored record = the defaults); the unit plays: MAJ + D4 on TINE EP" || bad "after the reset: $(sn "$R2" 8), $(grep -a '^  part 0:' "$R2" | sed -n 9p)"
@@ -239,7 +239,7 @@ grep -q "^deep: part 0 page 1 OP 2 col 0 LEVEL 0 -> " "$OUT/persist_fm6_2.log" &
     ok "FM6 run 2: OP 2's LEVEL is 0 as saved, the sound plays" || bad "FM6 run 2: $(grep -m1 '^deep:' "$OUT/persist_fm6_2.log")"
 # the preset model (docs/PRESETS.md): run 1's SAVE on the edited TINE EP was an Overwrite, a record bound to FM6 01 in
 # U01; run 2: the record's binding survived the relaunch (FM6 01 is U01, with the mark), the chord sound came back
-grep -q '^save: part 0 overwrite slot U01 FM6 01 TINE EP rc 0' "$OUT/persist_fm6_1.log" &&
+grep -q '^save: part 0 overwrite slot U001 FM6 01 TINE EP rc 0' "$OUT/persist_fm6_1.log" &&
     grep -q '^popup: part 0 01 / TINE EP (mark) / FM6 · 01/25$' "$OUT/persist_fm6_2.log" &&
     ok "a bound preset after a relaunch: U01 overwrites FM6 01 TINE EP (the mark), the power-on sound" \
     || bad "bound preset: $(grep '^save: part 0' "$OUT/persist_fm6_1.log") / $(grep '^popup:' "$OUT/persist_fm6_2.log" | tail -1)"
@@ -257,6 +257,73 @@ grep -q "^deep: part 0 page 11 DCW 1+ col 0 L1 [0-9]* -> 0 " "$OUT/persist_cz_1.
 [ -n "$zs" ] && [ "$zs" = "$zl" ] && ok "CZ-1 run 2: U01's tone after a relaunch (crc $zl)" || bad "CZ-1: tone crc saved '${zs}' loaded '${zl}'"
 grep -q "^deep: part 0 page 11 DCW 1+ col 0 L1 0 -> " "$OUT/persist_cz_2.log" && grep -q '^expect sound .*: ok' "$OUT/persist_cz_2.log" &&
     ok "CZ-1 run 2: DCW 1's L1 is 0 as saved, the sound plays" || bad "CZ-1 run 2: $(grep -m1 '^deep:' "$OUT/persist_cz_2.log")"
+
+# P5 (engine 16; docs/PROPHET.md): no store yet, so no user slot: run 1 puts the chord part on a program of the
+# shipped list (assets/prophet5-factory/shipped.txt: its first with UNISON on, so that the part's voice mode is in the
+# case; without one, place 03), turns its cutoff down a detent, marks it as a favourite in the SAVE dialog and saves it
+# (0.22, the sound pool: OCT+ on Overwrite, the edited program into U001 over its place), then the global save (SAVE
+# held); run 2 (the same file) powers on with U001 (the user sound, not edited: the saved program, its cutoff as
+# turned), the part in UNISON as the load left it (voice mode 3; else POLY, 0), and the mark read from flash: on the
+# program's Sequential number, not its place
+PFLASH=$OUT/persist_p5_flash.bin
+rm -f "$PFLASH" "$OUT"/persist_p5_1.log "$OUT"/persist_p5_2.log
+P5POS=$(python3 tools/gen_prophet_factory.py --list | awk '$3 == "U" { print $1; exit }')
+P5MODE=3
+[ -n "$P5POS" ] || { P5POS=3; P5MODE=0; }
+P5NAME=$(python3 tools/gen_prophet_factory.py --list | awk -v p="$P5POS" '$1 == p { sub(/^ *[0-9]+ +[0-9]+ +[U-] +/, ""); print }')
+sed "s/^knob PRESETS +2 .*/knob PRESETS +$((P5POS - 1))/" "$S/prophet_persist_set.txt" > "$OUT/persist_p5_set.txt"
+"$EMU" --headless --flash "$PFLASH" --script "$OUT/persist_p5_set.txt" >"$OUT/persist_p5_1.log" 2>&1 || bad "P5 run 1: exit status"
+"$EMU" --headless --flash "$PFLASH" --script "$S/prophet_persist_check.txt" >"$OUT/persist_p5_2.log" 2>&1 || bad "P5 run 2: exit status"
+p5cut=$(sed -n 's/^deep: part 0 page 5 FILTER col 0 CUT \([0-9]*\) -> \([0-9]*\) .*/\1 \2/p' "$OUT/persist_p5_1.log" | head -1)
+p5a=${p5cut% *}; p5b=${p5cut#* }
+P5ID=$(python3 tools/gen_prophet_factory.py --list | awk -v p="$P5POS" '$1 == p { print $2 }')
+[ -n "$p5cut" ] && [ "$p5a" != "$p5b" ] && ! grep -q '^save: part 0 P5 refused' "$OUT/persist_p5_1.log" &&
+    grep -q '^save: dialog part 0 .* (overwrite)' "$OUT/persist_p5_1.log" &&
+    grep -q "^save: part 0 overwrite slot U001 P5 [0-9]* $P5NAME rc 0" "$OUT/persist_p5_1.log" &&
+    grep -q '^save: global rc 0' "$OUT/persist_p5_1.log" && grep -aq "part 0: P5 / $P5NAME, .* voice mode $P5MODE\$" "$OUT/persist_p5_1.log" &&
+    ok "P5 run 1: place $P5POS $P5NAME (voice mode $P5MODE: the program's UNISON), the cutoff $p5a -> $p5b; SAVE: Overwrite, the program saved into U001 (0.22); the global save" ||
+    bad "P5 run 1: $(grep -m1 '^deep:\|^save:' "$OUT/persist_p5_1.log") / $(grep -a 'part 0:' "$OUT/persist_p5_1.log" | tail -1)"
+grep -q "^fav: part 0 $P5NAME on (tag 16 id $P5ID, 1 marked)" "$OUT/persist_p5_1.log" &&
+    grep -a '^  favs:' "$OUT/persist_p5_1.log" | tail -1 | grep -q "favs: 1 marked, saves 1, pending 0 .* : 16:$P5ID\$" &&
+    grep -a '^  favs:' "$OUT/persist_p5_2.log" | sed -n 1p | grep -q "favs: 1 marked, saves 0, pending 0 (at power-on: read) : 16:$P5ID\$" &&
+    ok "P5: KNOB 4 in the dialog marked the program by Sequential's number ($P5ID, at place $P5POS here); written with the global save; run 2 reads the mark from flash" ||
+    bad "P5's mark: $(grep -m1 '^fav:' "$OUT/persist_p5_1.log") / $(grep -a '^  favs:' "$OUT/persist_p5_1.log" | tail -1) / $(grep -a -m1 '^  favs:' "$OUT/persist_p5_2.log")"
+grep -a 'session chord:' "$OUT/persist_p5_2.log" | sed -n 1p | grep -q "P5 / $P5NAME edited 0 kind 2" &&
+    grep -q "^deep: part 0 page 5 FILTER col 0 CUT $p5b -> " "$OUT/persist_p5_2.log" && grep -q '^expect sound .*: ok' "$OUT/persist_p5_2.log" &&
+    ok "P5 run 2: powers on with U001, $P5NAME as saved (the cutoff reads $p5b: the slot's program), the sound plays" ||
+    bad "P5 run 2: $(grep -a -m1 'session chord:' "$OUT/persist_p5_2.log") / $(grep -m1 '^deep:' "$OUT/persist_p5_2.log")"
+grep -a 'part 0:' "$OUT/persist_p5_2.log" | sed -n 1p | grep -q "part 0: P5 / $P5NAME, .* voice mode $P5MODE\$" &&
+    ok "P5 run 2: the part's voice mode is $P5MODE as it was left (3: UNISON, the program's switch taken by the load)" ||
+    bad "P5 run 2: $(grep -a -m1 'part 0:' "$OUT/persist_p5_2.log")"
+
+# Favourites (0.22, docs/PRESETS.md "Favourites"; cr_favs.c, the object at 0xB6000 / 0xB7000): run 1 marks FM6 01 in
+# the SAVE dialog and FM6 04 in the editor's browser and quits WITHOUT a SAVE held: a mark is written by itself once
+# the unit is quiet; run 2 (the same file) reads both and shows the star on the read-out. With them (version 2 of the
+# object): TINE EP's type Chord, the type Bass of FM BASS whose mark was taken off again (a sound's type is kept
+# without a mark), and the filter On: run 2 turns PRESETS through the chord part's two favourites only, then
+# switches the filter Off (written by itself)
+FFLASH=$OUT/persist_favs_flash.bin
+F1=$OUT/persist_favs_1.log; F2=$OUT/persist_favs_2.log
+rm -f "$FFLASH" "$F1" "$F2" "$OUT"/persist_favs_star.ppm "$OUT"/persist_favs_none.ppm
+"$EMU" --headless --flash "$FFLASH" --script "$S/favs_persist_set.txt" >"$F1" 2>&1 || bad "favourites run 1: exit status"
+"$EMU" --headless --flash "$FFLASH" --script "$S/favs_persist_check.txt" >"$F2" 2>&1 || bad "favourites run 2: exit status"
+ffl() { grep -a '^  favs:' "$1" | sed -n "$2p"; }
+fyel() { od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' |
+    awk '{ v[n++] = $1 } END { c = 0; for (i = 0; i + 2 < n; i += 3) if (v[i] > 200 && v[i+1] > 140 && v[i+2] < 90) c++; print c }'; }
+grep -q '^fav: part 0 TINE EP on (tag 12 id 0, 1 marked)' "$F1" && grep -q '^fav: part 0 BRASS on (tag 12 id 3, 2 marked)' "$F1" &&
+    grep -q '^fav: part 0 FM BASS type Bass (tag 12 id 2, 3 marked)' "$F1" && grep -q '^fav: part 0 FM BASS off (tag 12 id 2, 2 marked)' "$F1" &&
+    grep -q '^fav: filter on' "$F1" &&
+    ! grep -q '^save: global' "$F1" && ffl "$F1" 1 | grep -q 'favs: 2 marked, saves [1-9], pending 0 (at power-on: none), filter on : 12:0c 12:3 ~12:2b$' &&
+    ok "favourites run 1: FM6 01 marked in the SAVE dialog and typed Chord (KNOB 3), FM6 04 in the editor's browser, FM6 03 typed Bass and its mark taken off again, the filter On; no SAVE held: written once the unit was quiet ($(ffl "$F1" 1 | sed -n 's/.*saves \([0-9]*\).*/\1/p') erase cycles for the two)" ||
+    bad "favourites run 1: $(grep '^fav:' "$F1" | tr '\n' ' ') / $(ffl "$F1" 1)"
+ffl "$F2" 1 | grep -q 'favs: 2 marked, saves 0, pending 0 (at power-on: read), filter on : 12:0c 12:3 ~12:2b$' &&
+    grep -q '^popup: part 0 01 / TINE EP (star) / FM6 .* favorites 01/02' "$F2" && grep -q '^popup: part 0 04 / BRASS (star) / FM6 .* favorites 02/02' "$F2" &&
+    [ "$(grep -a '^sound: part 0' "$F2" | head -3 | sed 's/^sound: part 0 pos //' | tr '\n' ';')" = "4 BRASS;1 TINE EP;4 BRASS;" ] &&
+    grep -q '^fav: filter off' "$F2" &&
+    grep -q '^popup: part 0 05 / FM PAD / ' "$F2" && [ "$(fyel "$OUT/persist_favs_star.ppm")" -ge 10 ] && [ "$(fyel "$OUT/persist_favs_none.ppm")" = 0 ] &&
+    ffl "$F2" 2 | grep -q 'favs: 2 marked, saves 1, pending 0 (at power-on: read) : 12:0c 12:3 ~12:2b$' &&
+    ok "favourites run 2 (a relaunch): the marks, TINE EP's type Chord, the unmarked FM BASS's type Bass and the filter On read from flash; PRESETS turns the chord part's two favourites only (04, 01, 04; FM BASS is typed and not marked), their read-outs with the star and the place among them; the filter switched Off: 05 FM PAD, no star, and that is written (one write): $OUT/persist_favs_star.ppm" ||
+    bad "favourites run 2: $(ffl "$F2" 1) / $(grep '^popup: part 0' "$F2" | tr '\n' ' ') / yellow $(fyel "$OUT/persist_favs_star.ppm") $(fyel "$OUT/persist_favs_none.ppm")"
 
 # FM TONE (engine 15, code name QUAD; docs/QUAD.md): run 1 edits FM TONE's EP (Ratio A, KNOB 3 +5 on SYN 1) and saves it in U01: the patch into the QUAD
 # patch store (quad_store.c, 0xB2000 / 0xB3000); run 2 (the same file) powers on with U01: the same patch back
@@ -305,7 +372,7 @@ rm -f "$PFLASH" "$OUT"/persist_page2_1.log "$OUT"/persist_page2_2.log
 "$EMU" --headless --flash "$PFLASH" --script "$S/persist_page2_check.txt" >"$OUT/persist_page2_2.log" 2>&1 || bad "KEY page 2 run 2: exit status"
 grep -q 'kbd: plays notes keyboard full single 2 ' "$OUT/persist_page2_1.log" && grep -q "settings saves 1 " "$OUT/persist_page2_1.log" &&
     ok "KEY page 2 run 1: Key plays Notes, Keyboard Full, Single Split Bass, the settings saved once" || bad "KEY page 2 run 1: $(grep '  kbd:' "$OUT/persist_page2_1.log")"
-[ "$(grep -c 'kbd: plays notes keyboard full single 2 split-note 65 page 1 (engine: notes 1 full 1 single 2)' "$OUT/persist_page2_2.log")" = 3 ] &&
+[ "$(grep -c 'kbd: plays notes keyboard full single 2 split-note 65 page 1 (engine: notes 1 full 1 single 2 snap 0)' "$OUT/persist_page2_2.log")" = 3 ] &&
     grep -q '(record: current)' "$OUT/persist_page2_2.log" &&
     [ "$(grep -c '^  numerals: on ' "$OUT/persist_page2_2.log")" = 3 ] && grep -q '^  numerals: on ' "$OUT/persist_page2_1.log" &&
     [ "$(grep '^  part 1:' "$OUT/persist_page2_2.log" | sed -n 2p | sed -n 's/.* voices \([0-9]*\),.*/\1/p')" = 1 ] &&
@@ -313,6 +380,19 @@ grep -q 'kbd: plays notes keyboard full single 2 ' "$OUT/persist_page2_1.log" &&
     [ "$(grep '^  part 1:' "$OUT/persist_page2_2.log" | sed -n 3p | sed -n 's/.* voices \([0-9]*\),.*/\1/p')" = 0 ] &&
     ok "KEY page 2 run 2: the three back after a relaunch (UI and engine), Numerals On with them; B3 a bass note of the left side, F4 the chord part" \
     || bad "KEY page 2 run 2: $(grep '  kbd:' "$OUT/persist_page2_2.log" | head -1)"
+
+# the KEY layer's Numerals = Solfege (GitHub issue 15): bit 7 of the block's scale (CRS_SOLFEGE), its own bit;
+# run 1 sets it and saves (SAVE held), run 2 (the same file): Solfege at power-on, G4 in C major reads SOL
+NFLASH=$OUT/persist_solfege_flash.bin
+rm -f "$NFLASH" "$OUT"/persist_solfege_1.log "$OUT"/persist_solfege_2.log
+"$EMU" --headless --flash "$NFLASH" --script "$S/persist_solfege_set.txt" >"$OUT/persist_solfege_1.log" 2>&1 || bad "Solfege run 1: exit status"
+"$EMU" --headless --flash "$NFLASH" --script "$S/persist_solfege_check.txt" >"$OUT/persist_solfege_2.log" 2>&1 || bad "Solfege run 2: exit status"
+grep -q '^  numerals: solfege ' "$OUT/persist_solfege_1.log" && grep -q "settings saves 1 " "$OUT/persist_solfege_1.log" &&
+    ok "Numerals Solfege run 1: KNOB 4 +2 on KEY page 2, the settings saved once" || bad "Solfege run 1: $(grep '^  numerals:' "$OUT/persist_solfege_1.log")"
+[ "$(grep -c '^  numerals: solfege ' "$OUT/persist_solfege_2.log")" = 2 ] && grep -q '^  numerals: solfege shown "SOL"' "$OUT/persist_solfege_2.log" &&
+    grep -q '(record: current)' "$OUT/persist_solfege_2.log" &&
+    ok "Numerals Solfege run 2: back after a relaunch (scale's bit 7); G4 in C major reads SOL" \
+    || bad "Solfege run 2: $(grep '^  numerals:' "$OUT/persist_solfege_2.log" | tr '\n' ' ')"
 
 # the engine picker's roots always play (0.18; until then Settings pick_roots, KNOB 4 in the picker: the byte is
 # reserved now, written 0): run 1 turns KNOB 4 there (nothing) and plays D4; run 2 (the same file) the same
@@ -446,16 +526,17 @@ crl() { dl "$1" 'cr: key' "$2" | sed -n 's/.* perform \([0-9]\) mode \([0-9]\) b
 want_state="voicing 2 octave -1 bass 1 lock 1 latched 44"
 want_cr="perform 1 mode 2 bass 1 sound 18 voicing 2 octave -1 view 0 layer 0 options 0"
 # (the FX block by tag, cr_settings.h CSS_FXP_*: 4, 5 the chorus; 26..29 the bass part's sends (reverb 10); 25, 10..17
-# the delay: 10 its division 6 -> 8 (1/8.), 12 its spread 0 -> 1 (3:4), 13 its feedback 58 -> 52, 15 its mode 1 -> 0
-# (Stereo), 16 its tone 70 -> 74; 18..24 the reverb; amt: the chord part's sends, the delay's turned 25 -> 43,
-# three detents of 6; 30 the chorus's Width (0.21) 127 -> 123, two detents of 2)
-want_fx="  session fx: on 1 sel 2 (Delay 2/2) amt 35 45 43 0 sends 35 45 43 0 par 4=40 5=60 26=10 27=0 28=0 29=0 25=91 10=8 11=0 12=1 13=52 14=1 15=0 16=74 17=24 18=88 19=56 20=52 21=16 22=56 23=60 24=127 30=123"
+# the delay: 10 its division 6 -> 8 (1/8.), 12 its spread 0 -> 1 (3:4), 13 its feedback 58 -> 55, 15 its mode 1 -> 0
+# (Stereo), 16 its tone 70 -> 72; 18..24 the reverb; amt: the chord part's sends, the delay's turned 25 -> 33,
+# a flick of three detents in one frame: one, one, six; 30 the chorus's Width (0.21) 127 -> 125, two in one frame:
+# a turn's first two detents count one, the rest the range / 20 each (firmware/src/cr_pages.c kn_turn, 3y93))
+want_fx="  session fx: on 1 sel 2 (Delay 2/2) amt 35 45 33 0 sends 35 45 33 0 par 4=40 5=60 26=10 27=0 28=0 29=0 25=91 10=8 11=0 12=1 13=55 14=1 15=0 16=72 17=24 18=88 19=56 20=52 21=16 22=56 23=60 24=127 30=125"
 c1=$(dl "$S1" 'session chord:' 2); b1=$(dl "$S1" 'session bass:' 2)
 [ "$(sx "$S1" 2 6)" = "$want_state" ] && [ "$(crl "$S1" 2)" = "$want_cr" ] && [ "$(dl "$S1" 'session fx:' 2)" = "$want_fx" ] &&
     echo "$c1" | grep -q 'FM6 / TINE EP edited 1 kind 1 crc [0-9A-F]* level 92 pan 0' &&
-    echo "$b1" | grep -q 'VA / DEEP SUB edited 1 kind 1 crc [0-9A-F]* level 84 pan 0' &&
+    echo "$b1" | grep -q 'VA / DEEP SUB edited 1 kind 1 crc [0-9A-F]* level 78 pan 0' &&
     dl "$S1" 'loop: state' 2 | grep -q 'state 1 cap 0 layers 1 events 2 .* slot 3 .* used 004 ' &&
-    ok "session run 1: the state set: both sounds edited (not saved), Bass on at level 84, Delay picked and set, Arpeggiate on, voicing +2, octave -1, LOCK with MAJ + M7, a loop in slot 3" \
+    ok "session run 1: the state set: both sounds edited (not saved), Bass on at level 78 (KNOB 4 -4 in a frame: one, one, six, six), Delay picked and set, Arpeggiate on, voicing +2, octave -1, LOCK with MAJ + M7, a loop in slot 3" \
     || bad "session run 1: $(sx "$S1" 2 6) / $(crl "$S1" 2) / $(dl "$S1" 'session fx:' 2) / $c1 / $b1"
 [ "$(sx "$S1" 1 1)" = 0 ] && [ "$(sx "$S1" 1 5)" = 1 ] && dl "$S1" 'flash:' 1 | grep -q ', 0 writes, settings saves 0 ' &&
     dl "$S1" 'loop: state' 1 | grep -q ' used 000 ' &&
@@ -474,7 +555,7 @@ grep -aq '^session: applied (parts 1 1, voicing 2, octave -1, bass 1, lock 1 lat
     ok "session run 2: both parts' unsaved edits are back, the same patch checksums, 'edited', Level and Pan ($(echo "$c1" | sed 's/.*crc //') / $(echo "$b1" | sed 's/.*crc //'))" \
     || bad "session run 2: the parts: $(dl "$S2" 'session chord:' 1) / $(dl "$S2" 'session bass:' 1) want $c1 / $b1"
 [ "$(dl "$S2" 'session fx:' 1)" = "$want_fx" ] &&
-    ok "session run 2: the FX layer in full: Delay's second page picked, its division (1/8.), spread (3:4), feedback (52), mode (Stereo) and tone (74) as turned, the reverb's as they were, both parts' sends as left (the chord part's 35 45 37 0, the bass part's reverb 10)" \
+    ok "session run 2: the FX layer in full: Delay's second page picked, its division (1/8.), spread (3:4), feedback (40), mode (Stereo) and tone (82) as turned, the reverb's as they were, both parts' sends as left (the chord part's 35 45 37 0, the bass part's reverb 10)" \
     || bad "session run 2: fx: $(dl "$S2" 'session fx:' 1)"
 dl "$S2" 'loop: state' 1 | grep -q 'state 1 cap 0 layers 1 events 2 .* slot 3 played 0 .* used 004 ' &&
     grep -aq '^expect silence at 800 ms: ok' "$S2" && dl "$S2" 'mods: down' 1 | grep -q 'down 44 active 44 voices free' &&
@@ -528,29 +609,34 @@ SL=$OUT/persist_session_old.log
 ST=$OUT/persist_session_storm.log; SH=$OUT/persist_session_hold.log
 "$EMU" --headless --script "$S/session_storm.txt" >"$ST" 2>&1 || bad "session storm: exit status"
 "$EMU" --headless --script "$S/session_hold.txt" >"$SH" 2>&1 || bad "session hold: exit status"
+# qw LOG N -> "erases ahead boot near autosaves ready lasterase lastinput now"; qwf LOG N -> "saves pending"; qs: stalls
+qw() { dl "$1" 'quiet writes:' "$2" | sed -n 's/.*erases \([0-9]*\) (ahead \([0-9]*\), at power-on \([0-9]*\)), near \([0-9]*\), auto saves \([0-9]*\), masked [0-9]* ms, ready \([01]*\), last erase at \([0-9]*\) ms (input at \([0-9]*\), now \([0-9]*\)).*/\1 \2 \3 \4 \5 \6 \7 \8 \9/p'; }
+qwf() { dl "$1" 'favs:' "$2" | sed -n 's/.*saves \([0-9]*\), pending \([0-9]*\) .*/\1 \2/p'; }
+qs() { dl "$1" 'flash erases' "$2" | sed -n 's/.*audio stalled \([0-9]*\) .*/\1/p'; }
+qe() { qw "$1" "$2" | cut -d' ' -f1-5; }
 fw() { dl "$1" 'flash:' "$2" | sed -n 's/.*, \([0-9]*\) writes, settings saves \([0-9]*\) .*/\1 \2/p'; }
 [ "$(sx "$ST" 1 1) $(sx "$ST" 1 5)" = "0 1" ] && [ "$(fw "$ST" 1)" = "0 0" ] && echo "$(sx "$ST" 1 6)" | grep -q '^voicing 4 ' &&
     ok "KNOB 1 turned for 3 s (20 detents), then 3 s of nothing: no flash write (the state differs from flash until a save)" \
     || bad "session storm, the voicing: $(sv "$ST" 1) / $(fw "$ST" 1)"
-[ "$(sx "$ST" 2 1) $(sx "$ST" 2 5)" = "1 0" ] && [ "$(fw "$ST" 2)" = "11 1" ] && [ "$(sx "$ST" 3 1)" = 1 ] && [ "$(fw "$ST" 3)" = "11 1" ] &&
-    ok "SAVE held, a new unit's first save: both objects written once (the settings: 1 erase + 4 programs; the session: 1 erase + 5); none after" \
+[ "$(sx "$ST" 2 1) $(sx "$ST" 2 5)" = "1 0" ] && [ "$(fw "$ST" 2)" = "10 1" ] && [ "$(sx "$ST" 3 1)" = 1 ] && [ "$(fw "$ST" 3)" = "10 1" ] &&
+    ok "SAVE held, a new unit's first save: both objects written once (the settings: an erase + 4 page programs, 3y52: not erased ahead; the session: 5 programs into its blank copy); none after" \
     || bad "session storm, the save: $(sv "$ST" 2) / $(fw "$ST" 2) / $(fw "$ST" 3)"
-[ "$(sx "$ST" 4 1) $(sx "$ST" 4 5)" = "1 1" ] && [ "$(sx "$ST" 5 1) $(sx "$ST" 5 5)" = "2 0" ] && [ "$(fw "$ST" 5)" = "17 1" ] &&
-    dl "$ST" 'session chord:' 5 | grep -q 'edited 1' && [ "$(fw "$ST" 6)" = "17 1" ] && [ "$(sx "$ST" 6 1)" = 2 ] &&
+[ "$(sx "$ST" 4 1) $(sx "$ST" 4 5)" = "1 1" ] && [ "$(sx "$ST" 5 1) $(sx "$ST" 5 5)" = "2 0" ] && [ "$(fw "$ST" 5)" = "15 1" ] &&
+    dl "$ST" 'session chord:' 5 | grep -q 'edited 1' && [ "$(fw "$ST" 6)" = "15 1" ] && [ "$(sx "$ST" 6 1)" = 2 ] &&
     ok "an editor knob turned for 1.2 s, 3 s: not written; SAVE held: ONE object written (the session: the settings block did not change); SAVE held again with nothing changed: no erase at all" \
     || bad "session storm, the edit: $(sv "$ST" 4) / $(sv "$ST" 5) / $(fw "$ST" 5) / $(fw "$ST" 6)"
-dl "$ST" 'flash erases' 6 | grep -q 'audio stalled 3 (48 blocks' &&
-    ok "each object a save writes: one sector erase (45 ms: 16 audio blocks of silence)" \
+dl "$ST" 'flash erases' 6 | grep -q 'audio stalled 1 (' &&
+    ok "a new unit's saves (the settings once, the session twice): the session's found a blank copy; the settings' one erase (3y52: the settings erase at their save)" \
     || bad "session storm: erases: $(dl "$ST" 'flash erases' 6)"
 [ "$(grep -ac '^expect sound at .*: ok' "$SH")" = 3 ] && [ "$(sx "$SH" 1 1) $(sx "$SH" 1 5)" = "0 1" ] && [ "$(fw "$SH" 1)" = "0 0" ] &&
     ok "a change under a held chord: nothing written (3 s)" || bad "session hold, held: $(sv "$SH" 1) / $(fw "$SH" 1)"
-[ "$(sx "$SH" 2 1) $(sx "$SH" 2 5)" = "1 0" ] && dl "$SH" 'flash erases' 2 | grep -q 'audio stalled 2 (32 blocks' &&
-    ok "SAVE held under the sounding chord: saved at once (the player's own press): an erase an object written (here two, a new unit's first save: 2 x 45 ms of silence in the chord), the chord sounds on" \
+[ "$(sx "$SH" 2 1) $(sx "$SH" 2 5)" = "1 0" ] && dl "$SH" 'flash erases' 2 | grep -q 'audio stalled 1 (' &&
+    ok "SAVE held under the sounding chord: saved at once (the player's own press); the session programmed into its blank copy, the settings erase once (3y52); the chord sounds on" \
     || bad "session hold, the save: $(sv "$SH" 2) / $(dl "$SH" 'flash erases' 2)"
 [ "$(fw "$SH" 3 | cut -d' ' -f2)" = 1 ] && dl "$SH" 'settings: now' 3 | grep -q 'style 1 .* pending 1 ' &&
     [ "$(fw "$SH" 4 | cut -d' ' -f2)" = 2 ] && dl "$SH" 'settings: now' 4 | grep -q 'pending 0 ' &&
-    dl "$SH" 'flash erases' 4 | grep -q 'audio stalled 3 (48 blocks' &&
-    ok "an Option changed under the same chord: the automatic write waits (3 s: nothing), written once the chord and its tail are over" \
+    [ "$(qe "$SH" 4)" = "2 0 0 0 1" ] &&
+    ok "an Option changed under the same chord: the automatic write waits (3 s: nothing), written once the chord and its tail are over (3y52: erasing then, as before 0.22)" \
     || bad "session hold, the Option: $(fw "$SH" 3) / $(fw "$SH" 4) / $(dl "$SH" 'settings: now' 3)"
 
 # Options > Reset Settings clears the session too (the reset runs above): after the reset the session as it would be
@@ -572,22 +658,22 @@ rm -f "$QF" "$Q1" "$Q2"
 "$EMU" --headless --flash "$QF" --script "$S/quad_drive_check.txt" >"$Q2" 2>&1 || bad "FM TONE drive run 2: exit status"
 qd() { dl "$1" 'drive:' "$2" | sed 's/^  drive: //'; }
 qf() { dl "$1" 'session fx:' "$2" | sed -n 's/^  session fx: on \([01]\) .* amt \([0-9 ]*\) sends \([0-9 ]*\) par.* 29=\([0-9]*\) .*/on \1 amt \2 sends \3 bass-send \4/p'; }
-want_d="chord FM TONE track 28 send 12 edited 1 | bass FM TONE track 24 send 18 edited 1"
-want_f="on 0 amt 35 45 25 12 sends 0 0 0 28 bass-send 18"
+want_d="chord FM TONE track 18 send 2 edited 1 | bass FM TONE track 14 send 8 edited 1"
+want_f="on 0 amt 35 45 25 2 sends 0 0 0 18 bass-send 8"
 [ "$(qd "$Q1" 1)" = "$want_d" ] && [ "$(qf "$Q1" 1)" = "$want_f" ] && [ "$(sx "$Q1" 1 1)" = 1 ] && [ "$(sx "$Q1" 1 5)" = 0 ] &&
-    ok "FM TONE drive run 1: both parts on FM TONE, their Drives edited (28, 24) and saved to no preset, FX off, the parts' own sends 12 / 18 behind; SAVE held: the session written" \
+    ok "FM TONE drive run 1: both parts on FM TONE, their Drives edited (18, 14: a turn's first two detents count one) and saved to no preset, FX off, the parts' own sends 2 / 8 behind; SAVE held: the session written" \
     || bad "FM TONE drive run 1: $(qd "$Q1" 1) / $(qf "$Q1" 1) / $(sv "$Q1" 1)"
 [ "$(qd "$Q2" 1)" = "$want_d" ] && [ "$(qf "$Q2" 1)" = "$want_f" ] && [ "$(sx "$Q2" 1 2)" = current ] &&
     [ "$(sx "$Q2" 1 3)" = "$(sx "$Q1" 1 3)" ] && [ "$(sx "$Q2" 1 5)" = 0 ] &&
     [ "$(dl "$Q2" 'session chord:' 1)" = "$(dl "$Q1" 'session chord:' 1)" ] && [ "$(dl "$Q2" 'session bass:' 1)" = "$(dl "$Q1" 'session bass:' 1)" ] &&
-    ok "FM TONE drive run 2 (a relaunch): as it sounded when saved: the Drives 28 / 24 with FX off, both sounds still edited, the session's checksum the stored one ($(sx "$Q2" 1 3))" \
+    ok "FM TONE drive run 2 (a relaunch): as it sounded when saved: the Drives 18 / 14 with FX off, both sounds still edited, the session's checksum the stored one ($(sx "$Q2" 1 3))" \
     || bad "FM TONE drive run 2: $(qd "$Q2" 1) / $(qf "$Q2" 1) / $(sv "$Q2" 1)"
-[ "$(qd "$Q2" 2)" = "chord FM TONE track 40 send 12 edited 1 | bass FM TONE track 24 send 18 edited 1" ] && [ "$(sx "$Q2" 2 5)" = 1 ] &&
+[ "$(qd "$Q2" 2)" = "chord FM TONE track 20 send 2 edited 1 | bass FM TONE track 14 send 8 edited 1" ] && [ "$(sx "$Q2" 2 5)" = 1 ] &&
     grep -aq '^save: reverted' "$Q2" && [ "$(qd "$Q2" 3)" = "$want_d" ] && [ "$(qf "$Q2" 3)" = "$want_f" ] && [ "$(sx "$Q2" 3 5)" = 0 ] &&
-    ok "a Drive turned (28 -> 40), GLO + SAVE held: the revert: 28 / 24 with FX off again, nothing pending" \
+    ok "a Drive turned (18 -> 20), GLO + SAVE held: the revert: 18 / 14 with FX off again, nothing pending" \
     || bad "FM TONE drive, the revert: $(qd "$Q2" 2) -> $(qd "$Q2" 3) / $(qf "$Q2" 3)"
-[ "$(qd "$Q2" 4)" = "chord track 12 send 12 edited 0 | bass track 18 send 18 edited 0" ] &&
-    ok "both parts switched to the VA, FX on: the parts' own drive sends as before FM TONE (12, 18), kept by the session beside the sounds' Drives" \
+[ "$(qd "$Q2" 4)" = "chord track 2 send 2 edited 0 | bass track 8 send 8 edited 0" ] &&
+    ok "both parts switched to the VA, FX on: the parts' own drive sends as before FM TONE (2, 8), kept by the session beside the sounds' Drives" \
     || bad "FM TONE drive, the parts' sends after the relaunch: $(qd "$Q2" 4)"
 [ "$(qd "$Q2" 5)" = "chord track 0 send 0 edited 0 | bass track 0 send 0 edited 0" ] && dl "$Q2" 'session chord:' 5 | grep -q 'FM6 / TINE EP edited 0' && dl "$Q2" 'session bass:' 5 | grep -q 'VA / DEEP SUB edited 0' &&
     ok "Options > Reset Settings from FM TONE on both parts: a new unit's sounds, no drive anywhere" \
@@ -643,5 +729,97 @@ nt=$(python3 tools/emu/seed_trim.py "$TF" -10 -12)
 grep -aq '^save: reverted' "$T2" && [ "$(tr_ "$T2" 2)" = "$want_t" ] && grep -q '^expect sound .*: ok' "$T2" &&
     ok "GLO + SAVE held: the revert reads that session again: trim 0 on both parts; a chord sounds" \
     || bad "trim, the revert: $(tr_ "$T2" 2)"
+# ---- the two packages (docs/DUALCORE.md "Two packages"): the single-core package (CR_SINGLE_CORE=1, build/host/
+# emu_1core) and the standard one read and write the same flash. A user moves between them and keeps everything: the
+# settings and the favourites one writes the other reads; the single-core package never starts core 1 whatever the
+# record says, shows Options > Dual Core as "1 core build" (a turn changes nothing) and the version with " 1-core"; the
+# standard package on that flash starts core 1 again (the record's Dual Core On kept)
+E1=build/host/emu_1core
+if [ ! -x "$E1" ] || [ -n "$(find tools/emu firmware/src tests/hostsim.c -newer "$E1" -name '*.[ch]' 2>/dev/null | head -1)" ]; then
+    CR_SINGLE_CORE=1 sh tools/emu/build.sh >/dev/null || bad "the single-core emulator: build failed"
+fi
+XF=$OUT/persist_1core_flash.bin; YF=$OUT/persist_1core_back_flash.bin; ZF=$OUT/persist_1core_favs_flash.bin
+X1=$OUT/persist_1core_1.log; X2=$OUT/persist_1core_2.log; X3=$OUT/persist_1core_3.log; X4=$OUT/persist_1core_4.log
+X5=$OUT/persist_1core_5.log; X6=$OUT/persist_1core_6.log; X7=$OUT/persist_1core_7.log; X8=$OUT/persist_1core_8.log
+rm -f "$XF" "$YF" "$ZF" "$X1" "$X2" "$X3" "$X4" "$X5" "$X6" "$X7" "$X8" "$OUT"/persist_1core_*.ppm
+c1of() { LC_ALL=C grep -ao "line3 'c1 [a-z]*" "$1" | sort -u | sed "s/line3 '//" | tr '\n' ' ' | sed 's/ $//'; }
+# standard -> single core: the settings (137 BPM, Play Style Advanced, the PLAY menu's mode and keys) and the favourites
+"$EMU" --headless --flash "$XF" --script "$S/persist_set.txt" >"$X1" 2>&1 || bad "two packages, run 1: exit status"
+"$E1" --headless --flash "$XF" --script "$S/persist_check.txt" >"$X2" 2>&1 || bad "two packages, run 2: exit status"
+[ "$(bpm "$X2")" = 137 ] && [ "$(st "$X2")" = 1 ] && [ "$(lm "$X2")" = "3 1" ] && grep -q "record: current" "$X2" &&
+    ok "the standard package's settings on the single-core package: the record read (current), 137 BPM, Play Style Advanced, Replace / Loops" ||
+    bad "standard -> single core: bpm $(bpm "$X2"), style $(st "$X2"), mode/keys '$(lm "$X2")'"
+"$EMU" --headless --flash "$ZF" --script "$S/favs_persist_set.txt" >"$X3" 2>&1 || bad "two packages, favourites run 1: exit status"
+"$E1" --headless --flash "$ZF" --script "$S/favs_persist_check.txt" >"$X4" 2>&1 || bad "two packages, favourites run 2: exit status"
+ffl "$X4" 1 | grep -q 'favs: 2 marked, saves 0, pending 0 (at power-on: read), filter on : 12:0c 12:3 ~12:2b$' &&
+    grep -q '^popup: part 0 01 / TINE EP (star) / FM6 .* favorites 01/02' "$X4" && grep -q '^popup: part 0 04 / BRASS (star) / FM6 .* favorites 02/02' "$X4" &&
+    ok "the standard package's favourites on the single-core package: the two marks, the types, the filter On, PRESETS through the two" ||
+    bad "standard -> single core, favourites: $(ffl "$X4" 1)"
+# the single-core package: Options, the version, one core on a flash whose record says Dual Core On
+EMU_UI_LOG=1 "$E1" --headless --flash "$XF" --script "$S/persist_1core_opt.txt" >"$X5" 2>&1 || bad "two packages, Options: exit status"
+want1="$(grep -a -m1 '^  version:' "$X5" | sed -n "s/.* build '\(.*\)'$/\1/p") 1-core"
+grep -aq "^  options: open 1 entry 25 of 3[0-9] 'Dual Core' value '1 core build'" "$X5" &&
+    grep -aq "^  options: open 1 entry 27 of 3[0-9] 'Version' value '$want1'" "$X5" &&
+    grep -a -m1 '^  version:' "$X5" | grep -q "options '$want1' identity '$want1' " &&
+    ok "the single-core package: Options > Dual Core '1 core build' (KNOB 1 changes nothing), Version and the SysEx identity '$want1': $OUT/persist_1core_opt.ppm, persist_1core_version.ppm" ||
+    bad "the single-core package's Options: $(grep -a 'options: open 1' "$X5" | tr '\n' ' ') / $(grep -a -m1 '^  version:' "$X5")"
+EMU_STAGES=1 EMU_UI_LOG=0 "$E1" --headless --flash "$XF" --script "$S/persist_1core_geek.txt" >"$X6" 2>&1 || bad "two packages, GEEK OUT: exit status"
+[ "$(c1of "$X6")" = "c1 off" ] && ok "the single-core package on a record that says Dual Core On: core 1 never started (GEEK OUT: c1 off)" ||
+    bad "the single-core package: '$(c1of "$X6")'"
+# single core -> standard: the record written by the single-core package (the settings, Dual Core still On) read back
+"$E1" --headless --flash "$YF" --script "$S/persist_set.txt" >"$X7" 2>&1 || bad "two packages, run 7: exit status"
+grep -q '^save: global rc 0' "$X7" || bad "the single-core package: no global save"
+EMU_UI_LOG=1 "$E1" --headless --flash "$YF" --script "$S/persist_1core_opt.txt" >/dev/null 2>&1
+"$EMU" --headless --flash "$YF" --script "$S/persist_check.txt" >"$X8" 2>&1 || bad "two packages, run 8: exit status"
+EMU_STAGES=1 EMU_UI_LOG=0 "$EMU" --headless --flash "$YF" --script "$S/persist_1core_geek.txt" >"$X6.std" 2>&1
+[ "$(bpm "$X8")" = 137 ] && [ "$(st "$X8")" = 1 ] && [ "$(lm "$X8")" = "3 1" ] && grep -q "record: current" "$X8" && [ "$(c1of "$X6.std")" = "c1 ok" ] &&
+    ok "the single-core package's record on the standard package: 137 BPM, Advanced, Replace / Loops, and Dual Core still On (c1 ok: the turn on '1 core build' wrote nothing over it)" ||
+    bad "single core -> standard: bpm $(bpm "$X8"), style $(st "$X8"), mode/keys '$(lm "$X8")', '$(c1of "$X6.std")'"
+rm -f "$X6.std"
+
+
+# The quiet writes (0.22, docs/SETTINGS.md "When flash is written"; cr_settings.c, storage.c "erase ahead"). The owner's
+# unit, marking favourites while playing: every mark's write erased a sector (the interrupts masked for the erase), a
+# second after the output fell silent: where the next note is. quiet_writes.txt marks and plays a chord 1.6 s after
+# each mark; the dump's "quiet writes" line has the flash model's erases, those done ahead, those the unit started by
+# itself near playing, its own saves and when the last erase started against the last input.
+QF=$OUT/persist_quiet_flash.bin
+Q1=$OUT/persist_quiet_1.log; Q2=$OUT/persist_quiet_2.log; Q3=$OUT/persist_quiet_3.log
+rm -f "$QF" "$Q1" "$Q2" "$Q3"
+"$EMU" --headless --flash "$QF" --script "$S/quiet_writes.txt" >"$Q1" 2>&1 || bad "quiet writes run 1: exit status"
+"$EMU" --headless --flash "$QF" --script "$S/quiet_writes_boot.txt" >"$Q2" 2>&1 || bad "quiet writes run 2: exit status"
+"$EMU" --headless --flash "$QF" --script "$S/quiet_writes_boot.txt" >"$Q3" 2>&1 || bad "quiet writes run 3: exit status"
+QS=$OUT/persist_quiet_save.log
+"$EMU" --headless --script "$S/quiet_writes_save.txt" >"$QS" 2>&1 || bad "quiet writes, SAVE held: exit status"
+[ "$(qwf "$Q1" 1)" = "1 0" ] && [ "$(qe "$Q1" 1)" = "0 0 0 0 1" ] && [ "$(qs "$Q1" 1)" = 0 ] &&
+    [ "$(qwf "$Q1" 2)" = "2 0" ] && [ "$(qe "$Q1" 2)" = "0 0 0 0 2" ] && [ "$(qs "$Q1" 2)" = 0 ] &&
+    ok "a mark, a chord 1.6 s later, twice (a new unit: two blank copies): each mark written before its chord, by itself, with no erase at all" \
+    || bad "quiet writes, marks 1 and 2: $(qwf "$Q1" 1) / $(qw "$Q1" 1) // $(qwf "$Q1" 2) / $(qw "$Q1" 2)"
+[ "$(qwf "$Q1" 3)" = "2 1" ] && [ "$(qe "$Q1" 3)" = "0 0 0 0 2" ] &&
+    ok "the third mark has to erase (no erase ahead yet): 2.9 s after its chord nothing is written, nothing erased" \
+    || bad "quiet writes, mark 3 waiting: $(qwf "$Q1" 3) / $(qw "$Q1" 3)"
+set -- $(qw "$Q1" 4)
+[ "$(qwf "$Q1" 4)" = "3 0" ] && [ "$(qe "$Q1" 4)" = "1 0 0 0 3" ] && [ "$(qs "$Q1" 4)" = 1 ] && [ "$(( ${7:-0} - ${8:-0} ))" -ge 4000 ] &&
+    ok "written once 4 s passed without a sound or an input: one erase, $(( ${7:-0} - ${8:-0} )) ms after the last input, none near playing" \
+    || bad "quiet writes, mark 3 written: $(qwf "$Q1" 4) / $(qw "$Q1" 4)"
+set -- $(qw "$Q1" 5)
+[ "$(qe "$Q1" 5)" = "2 1 0 0 3" ] && [ "${6:-x}" = 011 ] && [ "$(( ${7:-0} - ${8:-0} ))" -ge 10000 ] &&
+    ok "10 s without a sound or an input: the erase ahead ($(( ${7:-0} - ${8:-0} )) ms after the last input); every spare copy blank" \
+    || bad "quiet writes, the erase ahead: $(qw "$Q1" 5)"
+set -- $(qw "$Q1" 6)
+[ "$(qwf "$Q1" 6)" = "4 0" ] && [ "$(qe "$Q1" 6)" = "2 1 0 0 4" ] && [ "${6:-x}" = 010 ] && [ "$(qs "$Q1" 6)" = 2 ] &&
+    ok "the fourth mark programs only; a knob every 6 s for 27 s: no erase ahead meanwhile (an input puts it off)" \
+    || bad "quiet writes, inputs: $(qwf "$Q1" 6) / $(qw "$Q1" 6)"
+set -- $(qw "$Q1" 7)
+[ "$(qe "$Q1" 7)" = "3 2 0 0 4" ] && [ "${6:-x}" = 011 ] && [ "$(( ${7:-0} - ${8:-0} ))" -ge 10000 ] &&
+    ok ".. and 10 s after the last one it runs" || bad "quiet writes, the erase ahead after the inputs: $(qw "$Q1" 7)"
+[ "$(qwf "$Q2" 1)" = "1 0" ] && [ "$(qe "$Q2" 1)" = "0 0 0 0 1" ] && [ "$(qw "$Q2" 1 | cut -d' ' -f6)" = 010 ] &&
+    [ "$(qwf "$Q3" 1)" = "1 0" ] && [ "$(qe "$Q3" 1)" = "1 1 1 0 1" ] && [ "$(qs "$Q3" 1)" = 0 ] &&
+    dl "$Q3" 'favs:' 1 | grep -q '(at power-on: read)' &&
+    ok "switched off before the erase ahead (run 2), switched on (run 3): the stale copy erased at power-on, before the audio (no stall); the marks read; the next mark programs only" \
+    || bad "quiet writes, power-on: $(qwf "$Q2" 1) / $(qw "$Q2" 1) // $(qwf "$Q3" 1) / $(qw "$Q3" 1) / stalls $(qs "$Q3" 1)"
+[ "$(sx "$QS" 1 1)" = 3 ] && [ "$(qe "$QS" 1)" = "2 0 0 0 0" ] && [ "$(qs "$QS" 1)" = 2 ] && grep -q '^expect sound at .*: ok' "$QS" &&
+    ok "SAVE held three times under a held chord: the third session save has to erase and does so at once (the player's own press, as before), and the settings' save erases (3y52: not erased ahead): two erases, in the chord; not counted as near (that is for what the unit starts itself)" \
+    || bad "quiet writes, SAVE held: $(sv "$QS" 1) / $(qw "$QS" 1) / stalls $(qs "$QS" 1)"
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

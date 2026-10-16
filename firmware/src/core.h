@@ -7,6 +7,7 @@
  * engine or the SAMPLE engine's PERC set (General MIDI map) on any part.
  * Sections: sizes, parameters, voices and engines, tracks and the song, system. */
 #include <stdint.h>
+#include "cr_ram.h"              /* the CR_RAM_* build switches (code in RAM: docs/FX.md) */
 
 /* ------------------------------------------------------------ sizes --- */
 #define NVOICE 16                /* voice slots per part (FM6 plays Dexed's 16; Melodee's voice model) */
@@ -80,18 +81,37 @@
                                   * FELUCCA_CZ (15 on ChoralRoot); Felucca builds without it (choralroot.c, the emulator and
                                   * tests/regress.c set 1) */
 #endif
-#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD)   /* SLICE (13), VA, CZ-1 and QUAD come last:
-                                                                                  * the other engines keep their numbers */
+#ifndef FELUCCA_PROPHET
+#define FELUCCA_PROPHET 0        /* Melodee's Prophet-5 engine (eng_prophet_test.c, docs/PROPHET.md): engine 13 + FELUCCA_SLICE +
+                                  * FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD (16 on ChoralRoot); Felucca builds without it
+                                  * (choralroot.c, the emulator and tests/regress.c set 1). FELUCCA_P5_FACTORY (its file):
+                                  * Sequential's 200 factory programs with it */
+#endif
+#define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD + FELUCCA_PROPHET)   /* SLICE (13), VA, CZ-1,
+                                                                                  * QUAD and PROPHET come last: the other
+                                                                                  * engines keep their numbers */
 #define ENGI_CZ (13u + FELUCCA_SLICE + FELUCCA_VA)   /* engines.c ENGINES[] (append-only): 14 on ChoralRoot (Melodee: 15) */
 #if FELUCCA_QUAD
 #define ENGI_QUAD (13u + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ)   /* engines.c ENGINES[]: 15 on ChoralRoot */
+#endif
+#if FELUCCA_PROPHET
+#define ENGI_PROPHET (13u + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD)   /* engines.c ENGINES[]: 16 on ChoralRoot
+                                                                                       * (Melodee: 19) */
 #endif
 #define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM - !FELUCCA_ANALOG - \
                     !FELUCCA_PHASE - !FELUCCA_LOFI - !FELUCCA_VOICE - !FELUCCA_TRIO - !FELUCCA_NOISE - !FELUCCA_PHYS)
                                  /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
                                   * of engines.c ENGINE_ORDER (the retired slots are not among them) */
+#if FELUCCA_VA && FELUCCA_CZ && FELUCCA_QUAD
+#define UP_POOL 1                /* ChoralRoot 0.22: the sound pool (upool.c, storage.c sp_*): 128 slots shared by every
+                                  * engine, a slot the record and its engine's patch */
+#define UP_SLOTS 128u            /* user sounds (upreset.c, upool.c); 7-bit SysEx slot numbers: at most 128 */
+#else
+#define UP_POOL 0
 #define UP_SLOTS 32u             /* user presets (upreset.c) */
+#endif
+#define UP_LEGACY 32u            /* the slots of the legacy objects (0.21's: OBJ_UPRESET0 / 1 and the engine stores) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 
 /* ------------------------------------------------------- parameters --- */
@@ -100,9 +120,17 @@ enum {
     F_ONOFF, F_OCT, F_STEPS,
     F_OFS, F_FMNOTE, F_FMFRQ,   /* FM6's pages: 0 at the middle of the range, the DX7 break point, an operator's frequency
                                  * (params.c param_format; F_FMFRQ: Melodee's operator pages, here a plain number) */
-    F_TIMEI                     /* F_TIME with 127 = "INF" (QUAD's filter / amp REL: the release holds, the Digitone's
-                                 * 0..126 + INF); the editor protocol's fmt 17 */
+    F_TIMEI,                    /* F_TIME with 127 = "INF" (a release that holds, the Digitone's 0..126 + INF; QUAD's
+                                 * filter REL until 2026-10-14, now F_INTI: its times are the Digitone's, not
+                                 * F_TIME's); the editor protocol's fmt 17 */
+    F_FIX2,                     /* a hi-res value in hundredths (FM TONE, the Digitone's two decimals): 4201 = "42.01",
+                                 * a range below 0 signed ("+41.34", "-64.00"); its finest step 1, its whole-number step
+                                 * 100; names[0] (if any) = the word for the top whole number (AMP REL: "INF" at
+                                 * 127.00 and up); the editor protocol's fmt 18 */
+    F_INTI                      /* a number with its max = "INF" (FM TONE's AMP DEC and REL, its filter REL: 0..126 +
+                                 * INF, the Digitone's); the editor protocol's fmt 19 */
 };
+#define FMT_HI(f) ((f) == F_FIX2)   /* a hundredths format (cr_pages.c kn_whole: finest step 1, whole numbers 100) */
 
 typedef struct {
     const char *label;
@@ -256,8 +284,19 @@ enum { ENG_C_RULE,               /* the editor's rule (the kind of the value: a 
        ENG_C_TEXT,               /* the value's text ("Free", "x16", "LP"), no bar */
        ENG_C_KNOB,               /* a knob (bipolar when the range is), the value's text */
        ENG_C_BAR,                /* a bar glyph, the number */
-       ENG_C_WAVEPH };           /* this column (an LFO wave, CR_LW_* order) and the next (its start phase, its range a
+       ENG_C_WAVEPH,             /* this column (an LFO wave, CR_LW_* order) and the next (its start phase, its range a
                                   * cycle) as one double-width cell: the wave drawn from the phase, "Tri \267 90" (degrees) */
+       /* the Prophet-5's controls as the cell's glyph (cr_screen.h CR_G_P5*), the value on the cell's row ("64", "On",
+        * "Half", "1/2", "Low R"); no engine's plan uses them yet: the layout tool's mock-ups (docs/LAYOUT-TOOL.md) */
+       ENG_C_P5KNOB,             /* the ticked dial (bipolar from 12 o'clock when the range is) */
+       ENG_C_P5LED,              /* the LED button, no icon */
+       ENG_C_P5LED_SAW, ENG_C_P5LED_TRI, ENG_C_P5LED_SQR,   /* .. with its wave's one-cycle icon over the cap */
+       ENG_C_P5LED2,             /* the two-LED button (a parameter of two values: the minimum red, the maximum yellow) */
+       ENG_C_P5SWITCH };         /* the lever of a three-position enum */
+/* the layout tool's preview only (tools/layout/layout_web.c, cr_edit.c under CR_LAYOUT_PREVIEW): a design's sketch glyph
+ * ("sketch:<name>", web/fm1sketch.js): the cell drawn with its label, value, bars and hot block and nothing in its
+ * glyph box, which the page draws (docs/LAYOUT-TOOL.md "Sketch glyphs"); no build has it */
+#define ENG_C_SKETCH (ENG_C_P5SWITCH + 1)
 typedef struct {
     uint8_t sec;                 /* the group: eng_deep_t.section's index (0 OSC, 1 FILTER, 2 ENV, 3 LFO, 4 MOD) */
     uint8_t pg[2];               /* row A's page, row B's (0xFF: one row) */
@@ -335,6 +374,9 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     void (*mono_key)(struct track *t, uint32_t note);
     /* the part's block after its voices (FM6: Dexed's DC filter); nr: voices rendered */
     void (*post)(struct track *t, int32_t *out, uint32_t n, uint32_t nr);
+    /* asked after post when none of the part's voices was rendered: 1 = the part still sounds (P5: its output's
+     * capacitor discharging, p5_post), the mix takes the block as if a voice had */
+    uint32_t (*tail)(struct track *t);
     /* the voice cap of the part now, instead of poly */
     uint32_t (*cap)(const struct track *t);
     /* the voice budget units one of its voices takes now (default: 1 above NPOLY voices, else 2) */
@@ -342,6 +384,14 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     /* optional: 1 = the voice would sound on after its release (QUAD's REL INF): trk_all_off (panic, all notes off, a
      * sound load) kills it instead of releasing it */
     int (*endless)(const struct track *t, const voice_t *v);
+    /* optional (P5, 3y45; voice.c VOICE_STEAL_FADE): a voice of the part's own taken for a note that waits for it
+     * (voice_alloc, the fade-and-defer steal) fades over the engine's own number of blocks, not one. steal: that
+     * voice was just given up; fade: asked once a block while it fades (env_tick, stage 4): the level (Q15) this
+     * block ends at, 0: this is its last block. An engine without them: one block, as ever */
+#if FELUCCA_PROPHET
+    void (*steal)(struct track *t, voice_t *v);
+    int32_t (*fade)(struct track *t, voice_t *v);
+#endif
 } engine_t;
 /* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
  * engine_t.note_on may read it */
@@ -485,6 +535,7 @@ static inline uint32_t swing_step_len(const track_t *t, uint32_t base, uint32_t 
 /* ----------------------------------------------------------- system --- */
 #define RING_PUBLISH() __asm__ volatile("" ::: "memory")   /* slot store before the index update */
 static volatile uint32_t fm1_ms;  /* milliseconds since boot (TIMER4-based, TIMER5 ISR in main.c) */
+#define ST_NOW_MS() fm1_ms                /* (storage.c st_note, 3y48: the last erase's time) */
 /* boot-loop guard (main.c, cr_bootguard.h): crash-type resets within 30 s of a boot counted; 2 -> SAFE MODE (no flash
  * object loads), 4 -> UBOOT; a power-on clears it */
 #include "cr_bootguard.h"

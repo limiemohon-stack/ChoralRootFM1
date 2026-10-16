@@ -2,7 +2,7 @@
  * cr_screen_t (firmware/src/cr_screen.h); `anim` is the animation that leads into the state */
 #pragma once
 
-#define CR_NSCREENS 92u
+#define CR_NSCREENS 94u
 
 static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
     {   /* 1: 1 · idle (CHORD view) */
@@ -459,7 +459,33 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 27: Device · Calibration step (press FX) */
+    {   /* 27: Device · Geek Out 2 (two cores; the peaks as ticks) */
+        .kind = CR_K_EDIT8,
+        .cell = {{{"CORE 0", "31%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 79, 113, 0}, {"CORE 1", "4%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 10, 23, 0}, {"RAM", "83%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 212, 0, 0}, {"POOL", "92%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 235, 0, 0}}},
+        .n_rows = 1,
+        .active = 0,
+        .title = "GEEK OUT 2",
+        .title_col = CR_COL_WHITE,
+        .page = "2 cores",
+        .tall = 2,
+        .batt = 3,
+        .pos = -1,
+        .anim = 0,
+    },
+    {   /* 28: Device · Geek Out 2 (one core: CORE 1 off, grey) */
+        .kind = CR_K_EDIT8,
+        .cell = {{{"CORE 0", "52%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 133, 156, 0}, {"CORE 1", "off", CR_CF_ON | CR_CF_PCT | CR_CF_DIM, CR_G_BAR, 0, 0, 0}, {"RAM", "83%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 212, 0, 0}, {"POOL", "92%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 235, 0, 0}}},
+        .n_rows = 1,
+        .active = 0,
+        .title = "GEEK OUT 2",
+        .title_col = CR_COL_WHITE,
+        .page = "1 core",
+        .tall = 2,
+        .batt = 4,
+        .pos = -1,
+        .anim = 0,
+    },
+    {   /* 29: Device · Calibration step (press FX) */
         .batt = 255,
         .ring_on = 1,
         .ring = 0,
@@ -473,7 +499,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 28: Device · Calibration step (turn KNOB 1) */
+    {   /* 30: Device · Calibration step (turn KNOB 1) */
         .batt = 255,
         .ring_on = 1,
         .ring = 207,
@@ -487,7 +513,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 29: Device · Calibration done */
+    {   /* 31: Device · Calibration done */
         .batt = 255,
         .ring_on = 1,
         .ring = 256,
@@ -501,7 +527,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 30: Editor 1 · EDIT tapped: the editor on WARM PAD, the four oscillators (OSC 1 on the knobs) */
+    {   /* 32: Editor 1 · EDIT tapped: the editor on WARM PAD, the four oscillators (OSC 1 on the knobs) */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Wave", "Level", "Coarse", "Fine"},
@@ -515,7 +541,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 31: Editor 3 · OSC held: bank B (shape, key track, sync / ring), OSC 2 active */
+    {   /* 33: Editor 3 · OSC held: bank B (shape, key track, sync / ring), OSC 2 active */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Shape", "Key trk", "Sync/Ring", ""},
@@ -529,7 +555,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 32: Editor 4 · FILT tapped: the filter, row A on the knobs, KNOB 2 (Cutoff) turning */
+    {   /* 34: Editor 4 · FILT tapped: the filter, row A on the knobs, KNOB 2 (Cutoff) turning */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Cutoff", "643 Hz", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 125, 128, 0}, {"Reso", "8%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 20, 128, 0}, {"F.type", "LP", CR_CF_ON | CR_CF_PCT, CR_G_DOTS, 0, 128, 0}, {"Env amt", "+32", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_BAR, 194, 128, 0}}, {{"Key trk", "50%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"Spread", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}, {"Drive", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}}},
@@ -545,7 +571,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 33: Editor 6 · ENV tapped: ENV 1 (amp), KNOB 2 (Decay) turning */
+    {   /* 35: Editor 6 · ENV tapped: ENV 1 (amp), KNOB 2 (Decay) turning */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Attack", "1.88 s", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 210, 128, 0}, {"Decay", "683 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 182, 128, 0}, {"Sustain", "91%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 233, 128, 0}, {"Release", "790 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 185, 128, 0}}, {{"Hold", "0 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}, {"Velocity", "60%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 154, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -561,7 +587,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 34: Editor 8 · ENV tapped: ENV 2 (filter), row A */
+    {   /* 36: Editor 8 · ENV tapped: ENV 2 (filter), row A */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Attack", "10 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 64, 128, 0}, {"Decay", "420 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 168, 128, 0}, {"Sustain", "20%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 51, 128, 0}, {"Release", "300 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 158, 128, 0}}, {{"Hold", "0 ms", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -575,7 +601,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 35: Editor 9 · LFO tapped: the four LFOs, LFO 1 on the knobs */
+    {   /* 37: Editor 9 · LFO tapped: the four LFOs, LFO 1 on the knobs */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Rate", "Wave", "Depth", "Fade"},
@@ -589,7 +615,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 36: Editor 11 · MOD tapped: the matrix, slot 1 on the knobs */
+    {   /* 38: Editor 11 · MOD tapped: the matrix, slot 1 on the knobs */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Source", "Dest", "Amount", ""},
@@ -603,7 +629,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 37: Editor 15 · MIX tapped again: row B (transpose, detune, priority, glide mode) */
+    {   /* 39: Editor 15 · MIX tapped again: row B (transpose, detune, priority, glide mode) */
         .kind = CR_K_EDIT8,
         .cell = {{{"Level", "92", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 185, 128, 0}, {"Pan", "C", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_BAR, 128, 128, 0}, {"Voice", "POLY", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Glide", "0", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}}, {{"Trans", "0", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_BAR, 128, 128, 0}, {"Detune", "12", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 24, 128, 0}, {"Priority", "LAST", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Gl. mode", "OFF", CR_CF_ON, CR_G_NONE, 128, 128, 0}}},
         .n_rows = 2,
@@ -615,7 +641,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 38: Editor 16 · SHIFT + EDIT: the bass sound (PUNCH BASS), the oscillators */
+    {   /* 40: Editor 16 · SHIFT + EDIT: the bass sound (PUNCH BASS), the oscillators */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Wave", "Level", "Coarse", "Fine"},
@@ -629,7 +655,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 39: Editor device · OSC mixer (fine) */
+    {   /* 41: Editor device · OSC mixer (fine) */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"OSC 1", "100%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 255, 128, 0}, {"OSC 2", "49%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 125, 128, 0}, {"OSC 3", "31%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 79, 128, 0}, {"OSC 4", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}}},
@@ -645,7 +671,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 40: Editor device · OSC modes (MORPH, NOISE) */
+    {   /* 42: Editor device · OSC modes (MORPH, NOISE) */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Wave", "Level", "Coarse", "Fine"},
@@ -661,7 +687,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 41: Editor device · OSC noises (WHITE, BROWN) and TRI */
+    {   /* 43: Editor device · OSC noises (WHITE, BROWN) and TRI */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Wave", "Level", "Coarse", "Fine"},
@@ -675,7 +701,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 42: Editor device · FILTER morphing LP>BP */
+    {   /* 44: Editor device · FILTER morphing LP>BP */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Cutoff", "643 Hz", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 125, 128, 0}, {"Reso", "30%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 77, 128, 0}, {"F.type", "LP>BP", CR_CF_ON | CR_CF_PCT, CR_G_DOTS, 32, 128, 0}, {"Env amt", "+32", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_BAR, 194, 128, 0}}, {{"Key trk", "50%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"Spread", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}, {"Drive", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}}},
@@ -691,7 +717,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 43: Editor device · FILTER modulated (ENV2 +12, marks) */
+    {   /* 45: Editor device · FILTER modulated (ENV2 +12, marks) */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Cutoff", "ENV2 +12", CR_CF_ON | CR_CF_PCT | CR_CF_MARK(CR_COL_WHITE), CR_G_BAR, 141, 128, 0}, {"Reso", "11%", CR_CF_ON | CR_CF_PCT | CR_CF_MARK(CR_COL_RED), CR_G_BAR, 28, 128, 0}, {"F.type", "LP", CR_CF_ON | CR_CF_PCT, CR_G_DOTS, 0, 128, 0}, {"Env amt", "+10", CR_CF_ON | CR_CF_PCT | CR_CF_BIP | CR_CF_MARK(CR_COL_YELLOW), CR_G_BAR, 148, 128, 0}}, {{"Key trk", "50%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"Spread", "0%", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 0, 128, 0}, {"Drive", "0%", CR_CF_ON | CR_CF_PCT | CR_CF_MARK(CR_COL_BLUE), CR_G_BAR, 0, 128, 0}}},
@@ -708,7 +734,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 44: Editor device · OSC stack modulated (marks) */
+    {   /* 46: Editor device · OSC stack modulated (marks) */
         .batt = 255,
         .kind = CR_K_STACK,
         .head = {"Wave", "Level", "Coarse", "Fine"},
@@ -725,7 +751,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 45: FX 2 · knob row: Reverb */
+    {   /* 47: FX 2 · knob row: Reverb */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -746,7 +772,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 46: FX 3 · knob row: Delay, KNOB 2 just turned (hot) */
+    {   /* 48: FX 3 · knob row: Delay, KNOB 2 just turned (hot) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -769,7 +795,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 47: FX 4 · knob row: Chorus (three parameters since 0.21: Width) and Drive (amount only) */
+    {   /* 49: FX 4 · knob row: Chorus (three parameters since 0.21: Width) and Drive (amount only) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -790,7 +816,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 48: FX 5 · knob row: Drive, FX off */
+    {   /* 50: FX 5 · knob row: Drive, FX off */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -811,7 +837,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 49: FX 5b · knob row: Reverb 2 (SELECT's second page) */
+    {   /* 51: FX 5b · knob row: Reverb 2 (SELECT's second page) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -834,7 +860,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 50: FX 6 · the glyphs change with the value (low row, high row) */
+    {   /* 52: FX 6 · the glyphs change with the value (low row, high row) */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Size", "20", CR_CF_ON | CR_CF_PCT, CR_G_ROOM, 38, 128, 0}, {"Time", "1/16", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 38, 128, 0}, {"Feedback", "10", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 115, 26, 0}, {"Drive", "10", CR_CF_ON | CR_CF_PCT, CR_G_CLIP, 26, 128, 0}}, {{"Size", "120", CR_CF_ON | CR_CF_PCT, CR_G_ROOM, 243, 128, 0}, {"Time", "1/2", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 243, 128, 0}, {"Feedback", "110", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 115, 243, 0}, {"Drive", "120", CR_CF_ON | CR_CF_PCT, CR_G_CLIP, 243, 128, 0}}},
@@ -846,7 +872,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 51: FX 7 · the glyphs change with the value, continued */
+    {   /* 53: FX 7 · the glyphs change with the value, continued */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Damp", "110", CR_CF_ON | CR_CF_PCT, CR_G_MOON, 38, 128, 0}, {"Rate", "0.1 Hz", CR_CF_ON | CR_CF_PCT, CR_G_LFO, 13, 128, 0}, {"Depth", "10", CR_CF_ON | CR_CF_PCT, CR_G_LFO, 77, 26, 0}, {"Amount", "10", CR_CF_ON | CR_CF_PCT, CR_G_MIX, 26, 128, 0}}, {{"Damp", "10", CR_CF_ON | CR_CF_PCT, CR_G_MOON, 243, 128, 0}, {"Rate", "6 Hz", CR_CF_ON | CR_CF_PCT, CR_G_LFO, 243, 128, 0}, {"Depth", "120", CR_CF_ON | CR_CF_PCT, CR_G_LFO, 77, 243, 0}, {"Amount", "90", CR_CF_ON | CR_CF_PCT, CR_G_MIX, 230, 128, 0}}},
@@ -858,7 +884,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 52: FX 10 · the same grammar: the perform layer */
+    {   /* 54: FX 10 · the same grammar: the perform layer */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -879,7 +905,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 53: FX 11 · the same grammar: the bass layer */
+    {   /* 55: FX 11 · the same grammar: the bass layer */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -900,7 +926,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 54: FX 12 · knob row: Delay 2 (SELECT's second page) */
+    {   /* 56: FX 12 · knob row: Delay 2 (SELECT's second page) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -921,7 +947,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 55: FX 13 · the 0.18 glyphs change with the value (low row, high row) */
+    {   /* 57: FX 13 · the 0.18 glyphs change with the value (low row, high row) */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Decay", "0.4 s", CR_CF_ON | CR_CF_PCT, CR_G_TAIL, 20, 128, 0}, {"Pre-delay", "5 ms", CR_CF_ON | CR_CF_PCT, CR_G_PRE, 13, 128, 0}, {"Low cut", "24 Hz", CR_CF_ON | CR_CF_PCT, CR_G_CUT, 26, 128, 0}, {"Width", "20", CR_CF_ON | CR_CF_PCT, CR_G_WIDTH, 38, 128, 0}}, {{"Decay", "38 s", CR_CF_ON | CR_CF_PCT, CR_G_TAIL, 230, 128, 0}, {"Pre-delay", "120 ms", CR_CF_ON | CR_CF_PCT, CR_G_PRE, 230, 128, 0}, {"Low cut", "430 Hz", CR_CF_ON | CR_CF_PCT, CR_G_CUT, 236, 128, 0}, {"Width", "120", CR_CF_ON | CR_CF_PCT, CR_G_WIDTH, 243, 128, 0}}},
@@ -933,7 +959,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 56: FX 14 · the 0.18 glyphs, continued */
+    {   /* 58: FX 14 · the 0.18 glyphs, continued */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Spread", "x1.00", CR_CF_ON | CR_CF_PCT, CR_G_SPREAD, 154, 0, 0}, {"Sync", "Free", CR_CF_ON | CR_CF_PCT, CR_G_SYNC, 0, 128, 0}, {"Mode", "Stereo", CR_CF_ON | CR_CF_PCT, CR_G_PING, 0, 128, 0}, {"Time", "40 ms", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 38, 128, 0}}, {{"Spread", "x0.50", CR_CF_ON | CR_CF_PCT, CR_G_SPREAD, 154, 255, 0}, {"Sync", "Tempo", CR_CF_ON | CR_CF_PCT, CR_G_SYNC, 255, 128, 0}, {"Mode", "Ping-pong", CR_CF_ON | CR_CF_PCT, CR_G_PING, 255, 128, 0}, {"Time", "1/2", CR_CF_ON | CR_CF_PCT, CR_G_ECHOES, 243, 128, 0}}},
@@ -945,7 +971,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 57: FX 15 · knob row: Sends (the first page) */
+    {   /* 59: FX 15 · knob row: Sends (the first page) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -966,7 +992,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 58: LAYERS 1 · KEY · A: the keyboard stays, the knob row under it */
+    {   /* 60: LAYERS 1 · KEY · A: the keyboard stays, the knob row under it */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -990,7 +1016,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 59: LAYERS 3 · KEY · A, TRANSPOSE just turned to +5 */
+    {   /* 61: LAYERS 3 · KEY · A, TRANSPOSE just turned to +5 */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1016,7 +1042,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 60: LAYERS 6 · LOOP · B: stopped, no ring (for comparison) */
+    {   /* 62: LAYERS 6 · LOOP · B: stopped, no ring (for comparison) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1037,7 +1063,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 61: LAYERS 7 · SEQ · the metronome: the time signature over the click level */
+    {   /* 63: LAYERS 7 · SEQ · the metronome: the time signature over the click level */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1058,7 +1084,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 62: PRESETS 1 · PRESETS turned: the next preset of the current engine */
+    {   /* 64: PRESETS 1 · PRESETS turned: the next preset of the current engine */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1077,7 +1103,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_FILL,
     },
-    {   /* 63: PRESETS 2 · OPT held + PRESETS turned: change the engine */
+    {   /* 65: PRESETS 2 · OPT held + PRESETS turned: change the engine */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1097,7 +1123,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 64: PRESETS 3 · SAVE tapped: overwrite the current preset, or save as new */
+    {   /* 66: PRESETS 3 · SAVE tapped: overwrite the current preset, or save as new */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1117,7 +1143,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 65: PRESETS 5 · PRESETS on a factory preset the user overwrote */
+    {   /* 67: PRESETS 5 · PRESETS on a factory preset the user overwrote */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1137,7 +1163,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 66: PRESETS 6 · SAVE held 1 s in the dialog: reset to factory (or delete) */
+    {   /* 68: PRESETS 6 · SAVE held 1 s in the dialog: reset to factory (or delete) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1153,7 +1179,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 67: LOOP 7 · overdub armed while playing (REC lit) */
+    {   /* 69: LOOP 7 · overdub armed while playing (REC lit) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1174,7 +1200,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SQUEEZE,
     },
-    {   /* 68: LOOP 9a · REC armed: the dial's REC dot (no loop yet) */
+    {   /* 70: LOOP 9a · REC armed: the dial's REC dot (no loop yet) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1195,7 +1221,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SQUEEZE,
     },
-    {   /* 69: LOOP 9b · recording the first loop: the track red */
+    {   /* 71: LOOP 9b · recording the first loop: the track red */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1215,7 +1241,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 70: LOOP 9c · overdubbing: the playing arc and the REC dot */
+    {   /* 72: LOOP 9c · overdubbing: the playing arc and the REC dot */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1236,7 +1262,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SQUEEZE,
     },
-    {   /* 71: LOOP 10 · the ring stays on the loop's own screens: the count-in */
+    {   /* 73: LOOP 10 · the ring stays on the loop's own screens: the count-in */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1255,7 +1281,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 72: QUAD 1 · QUAD · OSC 1: the SYN1 page under the algorithm diagram */
+    {   /* 74: QUAD 1 · QUAD · OSC 1: the SYN1 page under the algorithm diagram */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Algo", "3", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio C", "1.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio A", "2.00", CR_CF_ON | CR_CF_BIG, CR_G_NONE, 128, 128, 0}, {"Ratio B", "0.50", CR_CF_ON, CR_G_RATIO, 2, 4, 0}}, {{"Harm", "+8", CR_CF_ON | CR_CF_PCT, CR_G_HARM, 167, 128, 0}, {"Dtune", "40", CR_CF_ON | CR_CF_PCT, CR_G_DETUNE, 81, 128, 0}, {"Feedback", "40", CR_CF_ON | CR_CF_PCT, CR_G_BAR, 81, 128, 0}, {"Mix", "+12", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 152, 128, 0}}},
@@ -1269,7 +1295,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 73: QUAD 2 · QUAD · OSC 2: the ratio offsets of C, A, B1, B2 */
+    {   /* 75: QUAD 2 · QUAD · OSC 2: the ratio offsets of C, A, B1, B2 */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Offset C", "+0.00", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Offset A", "+0.00", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Offset B1", "+0.00", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Offset B2", "+0.01", CR_CF_ON, CR_G_NONE, 128, 128, 0}}},
@@ -1281,7 +1307,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 74: QUAD 3 · QUAD · ENV 1: the operator envelopes A and B */
+    {   /* 76: QUAD 3 · QUAD · ENV 1: the operator envelopes A and B */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"A Attack", "12", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 26, 128, 0}, {"A Decay", "60", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 120, 128, 0}, {"A End", "20", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 41, 128, 0}, {"A Level", "90", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 182, 128, 0}}, {{"B Attack", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B Decay", "80", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 161, 128, 0}, {"B End", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B Level", "70", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 141, 128, 0}}},
@@ -1295,7 +1321,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 75: QUAD 4 · QUAD · ENV 2: delays, trig modes, resets */
+    {   /* 77: QUAD 4 · QUAD · ENV 2: delays, trig modes, resets */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"A Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"A Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"A Reset", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Phase", "All", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"B Delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B Trig", "On", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"B Reset", "Off", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -1307,7 +1333,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 76: QUAD 5 · QUAD · FILT 1: the multimode filter and its envelope */
+    {   /* 78: QUAD 5 · QUAD · FILT 1: the multimode filter and its envelope */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Attack", "10", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 20, 128, 0}, {"Decay", "50", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 102, 128, 0}, {"Sustain", "60", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 120, 128, 0}, {"Release", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 79, 128, 0}}, {{"Freq", "2.1k", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 154, 128, 0}, {"Reso", "30", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 61, 128, 0}, {"Type", "LP12", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Env depth", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 177, 128, 0}}},
@@ -1321,7 +1347,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 77: QUAD 6 · QUAD · FILT 2: envelope delay, key track, the base-width filter */
+    {   /* 79: QUAD 6 · QUAD · FILT 2: envelope delay, key track, the base-width filter */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Env delay", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"Key track", "50", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 100, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}, {{"Base", "20", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 41, 128, 0}, {"Width", "90", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 182, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -1335,7 +1361,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 78: QUAD 7 · QUAD · AMP: the master envelope */
+    {   /* 80: QUAD 7 · QUAD · AMP: the master envelope */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Attack", "5", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 10, 128, 0}, {"Decay", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 79, 128, 0}, {"Sustain", "80", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 161, 128, 0}, {"Release", "35", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 72, 128, 0}}, {{"Level", "100", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 202, 128, 0}, {"Pan", "0", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 128, 128, 0}, {"Drive", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -1349,7 +1375,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 79: QUAD 8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each) */
+    {   /* 81: QUAD 8 · QUAD · LFO 1 (LFO 2 and LFO 3 the same, a screen each) */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"Speed", "+24", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_KNOB, 176, 128, 0}, {"Mult", "16", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Fade", "-20", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 88, 128, 0}, {"Dest", "Harm", CR_CF_ON, CR_G_NONE, 128, 128, 0}}, {{"Wave \267 Phase", "Tri \267 90", CR_CF_ON | CR_CF_PCT | CR_CF_SPAN2, CR_G_LFOWAVE, 64, 128, CR_LW_TRI}, {"Trig", "Free", CR_CF_ON, CR_G_NONE, 128, 128, 0}, {"Depth", "+30", CR_CF_ON | CR_CF_PCT | CR_CF_BIP, CR_G_NONE, 189, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -1361,7 +1387,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 80: QUAD 10 · QUAD · ENV 3: key scaling of A, B1, B2 */
+    {   /* 82: QUAD 10 · QUAD · ENV 3: key scaling of A, B1, B2 */
         .batt = 255,
         .kind = CR_K_EDIT8,
         .cell = {{{"A Key", "0", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 0, 128, 0}, {"B1 Key", "40", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 81, 128, 0}, {"B2 Key", "20", CR_CF_ON | CR_CF_PCT, CR_G_NONE, 40, 128, 0}, {"", "", 0, CR_G_NONE, 0, 0, 0}}},
@@ -1373,7 +1399,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = 0,
     },
-    {   /* 81: LOOPER 1 · PLAY menu: idle, slot 3, Overwrite, 4 bars (Keys = Play) */
+    {   /* 83: LOOPER 1 · PLAY menu: idle, slot 3, Overwrite, 4 bars (Keys = Play) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1398,7 +1424,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 82: LOOPER 2 · GLO tapped in the menu: Keys = Loops (the slot shortcuts) */
+    {   /* 84: LOOPER 2 · GLO tapped in the menu: Keys = Loops (the slot shortcuts) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1425,7 +1451,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 83: LOOPER 3 · ALGORITHM turned: the record mode on Overdub */
+    {   /* 85: LOOPER 3 · ALGORITHM turned: the record mode on Overdub */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1450,7 +1476,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 84: LOOPER 4 · PRESETS turned: slot 5 (empty) */
+    {   /* 86: LOOPER 4 · PRESETS turned: slot 5 (empty) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1476,7 +1502,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 85: LOOPER 5 · Overwrite, REC tapped (Free): armed */
+    {   /* 87: LOOPER 5 · Overwrite, REC tapped (Free): armed */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1507,7 +1533,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 86: LOOPER 6 · recording the first take (Free), bar 2 */
+    {   /* 88: LOOPER 6 · recording the first take (Free), bar 2 */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1543,7 +1569,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 87: LOOPER 7 · playing: 4 bars, two layers, bar 3 */
+    {   /* 89: LOOPER 7 · playing: 4 bars, two layers, bar 3 */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1574,7 +1600,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 88: LOOPER 8 · Overdub: overdubbing (Am held) */
+    {   /* 90: LOOPER 8 · Overdub: overdubbing (Am held) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1608,7 +1634,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 89: LOOPER 9 · Replace: a chord held over bar 3 (G held) */
+    {   /* 91: LOOPER 9 · Replace: a chord held over bar 3 (G held) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1644,7 +1670,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 90: LOOPER 10 · Advance: REC tapped on slot 3 jumps to slot 4 */
+    {   /* 92: LOOPER 10 · Advance: REC tapped on slot 3 jumps to slot 4 */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1676,7 +1702,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 91: LOOPER 11 · Step: entering Dm7 at step 7 (LOCK held) */
+    {   /* 93: LOOPER 11 · Step: entering Dm7 at step 7 (LOCK held) */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1710,7 +1736,7 @@ static const cr_screen_t CR_SCREENS[CR_NSCREENS] = {
         .pos = -1,
         .anim = CR_A_SLIDE,
     },
-    {   /* 92: LOOPER 12 · Step: every key released, the cursor on step 8 */
+    {   /* 94: LOOPER 12 · Step: every key released, the cursor on step 8 */
         .header = 1,
         .icon = CR_ICON_NONE,
         .batt = 255,
@@ -1772,6 +1798,8 @@ static const char *const CR_SCREEN_NAMES[CR_NSCREENS] = {
     "24 - a chord change, mid-squeeze (Dmaj7 -> Em, frame 2 of 6)",
     "Device - Scope view (D major held)",
     "Device - Scope view (silence)",
+    "Device - Geek Out 2 (two cores; the peaks as ticks)",
+    "Device - Geek Out 2 (one core: CORE 1 off, grey)",
     "Device - Calibration step (press FX)",
     "Device - Calibration step (turn KNOB 1)",
     "Device - Calibration done",
@@ -1866,70 +1894,72 @@ static const char *const CR_SCREEN_SLUGS[CR_NSCREENS] = {
     "24_a_chord_change_mid_squeeze",
     "25_scope_view_d_major_held",
     "26_scope_view_silence",
-    "27_calibration_step_press_fx",
-    "28_calibration_step_turn_knob_1",
-    "29_calibration_done",
-    "30_edit_tapped_the_editor_on_warm",
-    "31_osc_held_bank_b_shape_key",
-    "32_filt_tapped_the_filter_row_a",
-    "33_env_tapped_env_1_amp_knob_2",
-    "34_env_tapped_env_2_filter_row_a",
-    "35_lfo_tapped_the_four_lfos_lfo_1",
-    "36_mod_tapped_the_matrix_slot_1",
-    "37_mix_tapped_again_row_b",
-    "38_shift_edit_the_bass_sound",
-    "39_osc_mixer_fine",
-    "40_osc_modes_morph_noise",
-    "41_osc_noises_white_brown_and_tri",
-    "42_filter_morphing_lp_bp",
-    "43_filter_modulated_env2_12_marks",
-    "44_osc_stack_modulated_marks",
-    "45_knob_row_reverb",
-    "46_knob_row_delay_knob_2_just",
-    "47_knob_row_chorus_three",
-    "48_knob_row_drive_fx_off",
-    "49_knob_row_reverb_2_select_s",
-    "50_the_glyphs_change_with_the",
-    "51_the_glyphs_change_with_the",
-    "52_the_same_grammar_the_perform",
-    "53_the_same_grammar_the_bass",
-    "54_knob_row_delay_2_select_s",
-    "55_the_0_18_glyphs_change_with",
-    "56_the_0_18_glyphs_continued",
-    "57_knob_row_sends_the_first_page",
-    "58_key_a_the_keyboard_stays_the",
-    "59_key_a_transpose_just_turned_to",
-    "60_loop_b_stopped_no_ring_for",
-    "61_seq_the_metronome_the_time",
-    "62_presets_turned_the_next_preset",
-    "63_opt_held_presets_turned_change",
-    "64_save_tapped_overwrite_the",
-    "65_presets_on_a_factory_preset",
-    "66_save_held_1_s_in_the_dialog",
-    "67_overdub_armed_while_playing",
-    "68_rec_armed_the_dial_s_rec_dot",
-    "69_recording_the_first_loop_the",
-    "70_overdubbing_the_playing_arc",
-    "71_the_ring_stays_on_the_loop_s",
-    "72_quad_osc_1_the_syn1_page_under",
-    "73_quad_osc_2_the_ratio_offsets",
-    "74_quad_env_1_the_operator",
-    "75_quad_env_2_delays_trig_modes",
-    "76_quad_filt_1_the_multimode",
-    "77_quad_filt_2_envelope_delay_key",
-    "78_quad_amp_the_master_envelope",
-    "79_quad_lfo_1_lfo_2_and_lfo_3_the",
-    "80_quad_env_3_key_scaling_of_a_b1",
-    "81_play_menu_idle_slot_3",
-    "82_glo_tapped_in_the_menu_keys",
-    "83_algorithm_turned_the_record",
-    "84_presets_turned_slot_5_empty",
-    "85_overwrite_rec_tapped_free",
-    "86_recording_the_first_take_free",
-    "87_playing_4_bars_two_layers_bar",
-    "88_overdub_overdubbing_am_held",
-    "89_replace_a_chord_held_over_bar",
-    "90_advance_rec_tapped_on_slot_3",
-    "91_step_entering_dm7_at_step_7",
-    "92_step_every_key_released_the",
+    "27_geek_out_2_two_cores_the_peaks",
+    "28_geek_out_2_one_core_core_1_off",
+    "29_calibration_step_press_fx",
+    "30_calibration_step_turn_knob_1",
+    "31_calibration_done",
+    "32_edit_tapped_the_editor_on_warm",
+    "33_osc_held_bank_b_shape_key",
+    "34_filt_tapped_the_filter_row_a",
+    "35_env_tapped_env_1_amp_knob_2",
+    "36_env_tapped_env_2_filter_row_a",
+    "37_lfo_tapped_the_four_lfos_lfo_1",
+    "38_mod_tapped_the_matrix_slot_1",
+    "39_mix_tapped_again_row_b",
+    "40_shift_edit_the_bass_sound",
+    "41_osc_mixer_fine",
+    "42_osc_modes_morph_noise",
+    "43_osc_noises_white_brown_and_tri",
+    "44_filter_morphing_lp_bp",
+    "45_filter_modulated_env2_12_marks",
+    "46_osc_stack_modulated_marks",
+    "47_knob_row_reverb",
+    "48_knob_row_delay_knob_2_just",
+    "49_knob_row_chorus_three",
+    "50_knob_row_drive_fx_off",
+    "51_knob_row_reverb_2_select_s",
+    "52_the_glyphs_change_with_the",
+    "53_the_glyphs_change_with_the",
+    "54_the_same_grammar_the_perform",
+    "55_the_same_grammar_the_bass",
+    "56_knob_row_delay_2_select_s",
+    "57_the_0_18_glyphs_change_with",
+    "58_the_0_18_glyphs_continued",
+    "59_knob_row_sends_the_first_page",
+    "60_key_a_the_keyboard_stays_the",
+    "61_key_a_transpose_just_turned_to",
+    "62_loop_b_stopped_no_ring_for",
+    "63_seq_the_metronome_the_time",
+    "64_presets_turned_the_next_preset",
+    "65_opt_held_presets_turned_change",
+    "66_save_tapped_overwrite_the",
+    "67_presets_on_a_factory_preset",
+    "68_save_held_1_s_in_the_dialog",
+    "69_overdub_armed_while_playing",
+    "70_rec_armed_the_dial_s_rec_dot",
+    "71_recording_the_first_loop_the",
+    "72_overdubbing_the_playing_arc",
+    "73_the_ring_stays_on_the_loop_s",
+    "74_quad_osc_1_the_syn1_page_under",
+    "75_quad_osc_2_the_ratio_offsets",
+    "76_quad_env_1_the_operator",
+    "77_quad_env_2_delays_trig_modes",
+    "78_quad_filt_1_the_multimode",
+    "79_quad_filt_2_envelope_delay_key",
+    "80_quad_amp_the_master_envelope",
+    "81_quad_lfo_1_lfo_2_and_lfo_3_the",
+    "82_quad_env_3_key_scaling_of_a_b1",
+    "83_play_menu_idle_slot_3",
+    "84_glo_tapped_in_the_menu_keys",
+    "85_algorithm_turned_the_record",
+    "86_presets_turned_slot_5_empty",
+    "87_overwrite_rec_tapped_free",
+    "88_recording_the_first_take_free",
+    "89_playing_4_bars_two_layers_bar",
+    "90_overdub_overdubbing_am_held",
+    "91_replace_a_chord_held_over_bar",
+    "92_advance_rec_tapped_on_slot_3",
+    "93_step_entering_dm7_at_step_7",
+    "94_step_every_key_released_the",
 };

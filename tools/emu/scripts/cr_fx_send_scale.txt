@@ -8,6 +8,7 @@
 # Both ends from each place: the popup (11, 12), the Send cell (13 .. 15), the Sends page (16 .. 18), the editor
 # (19 .. 21). The Send cells of Chorus (22, 23), Delay 1 (24, 25) and Drive (26, 27), the Sends page (28), KNOB 4 with
 # Drive picked (29). The bass part's: its editor (30 .. 33), CC 91 on its channel (34).
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 knob KNOB4 +1
 wait 200

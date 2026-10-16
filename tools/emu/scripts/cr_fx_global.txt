@@ -3,6 +3,8 @@
 # are turned (KNOB 4 +3, KNOB 1 +5, KNOB 3 +4) and the delay's Feedback (Delay 1, KNOB 3 -4); the first dump. Then PRESETS +3 (another factory sound) and OPT +
 # PRESETS +2 (another engine) and the second dump: the effects' parameters and the sends ("amt") are the same values.
 # FX tapped off: no part sends (the third dump's "sends" are 0); tapped on again.
+knobs quick                   # every detent the quickest (the checks count 6 a detent; since 3y91 a turn's first two
+                              # detents would count one at the real pace)
 wait 300
 btn FX down
 wait 500

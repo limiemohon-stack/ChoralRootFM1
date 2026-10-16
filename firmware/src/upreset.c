@@ -51,9 +51,14 @@ typedef struct {
 } up_bank_t;
 _Static_assert(sizeof(up_rec_t) == 192, "user preset record layout");
 _Static_assert(P_COUNT <= UP_PMAX * 2u && P_COUNT < 128, "user preset record: P_COUNT");
+#if UP_POOL
+static up_rec_t *up_rec(uint32_t k);             /* upool.c: the 128 slots in flash, read on demand */
+static int up_used(uint32_t k);
+#else
 static up_bank_t up_bank[UP_SLOTS / UP_PER_BANK];
 
 static up_rec_t *up_rec(uint32_t k) { return &up_bank[k / UP_PER_BANK].r[k % UP_PER_BANK]; }
+#endif
 
 static int up_valid(const up_rec_t *r)
 {
@@ -63,7 +68,9 @@ static int up_valid(const up_rec_t *r)
     return 1;
 }
 
+#if !UP_POOL
 static int up_used(uint32_t k) { return k < UP_SLOTS && up_valid(up_rec(k)); }
+#endif
 
 static int up_grid(const up_rec_t *r) { return r->ver == 3u || r->ver == UP_VER_GRID; }
 static int16_t up_value(const up_rec_t *r, uint32_t k) { return r->ver >= 4u ? (int16_t)r->packed[k] - 64 : r->p[k]; }
@@ -83,6 +90,7 @@ static void up_migrate(up_rec_t *r)
     }
 }
 
+#if !UP_POOL
 static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len bytes, -1 = none): wrong shape -> empty */
 {
     up_bank_t *bk = &up_bank[b];
@@ -94,6 +102,7 @@ static void up_bank_check(uint32_t b, int len)  /* after loading bank b (len byt
         if (up_valid(&bk->r[i]))
             up_migrate(&bk->r[i]);
 }
+#endif
 
 /* the record's values in today's P_* order (mapped by count, see above); def = the defaults */
 static void up_params(const up_rec_t *r, int16_t *out, const int16_t *def)
@@ -114,6 +123,9 @@ static int up_name_ok(const uint8_t *s, uint32_t n)   /* 1..12 printable ASCII *
     return 1;
 }
 
+#if UP_POOL
+static void up_name(uint32_t k, char *b);
+#else
 static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
 {
     const up_rec_t *r = up_rec(k);
@@ -122,6 +134,7 @@ static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b ho
         b[i] = r->name[i] >= 'a' && r->name[i] <= 'z' ? (char)(r->name[i] - 32) : r->name[i];
     b[i] = 0;
 }
+#endif
 
 static void up_pat_norm(uint8_t *note, uint8_t *flags)   /* tie: no note; rest: no flags */
 {
@@ -214,13 +227,26 @@ static int up_parse(const uint8_t *a, uint32_t na, up_rec_t *r, uint32_t *slot)
 #if FELUCCA_QUAD
 #include "quad_store.c"                        /* ChoralRoot: the QUAD patches, one per slot */
 #endif
+#if UP_POOL
+#include "upool.c"                             /* ChoralRoot 0.22: the 128 shared slots (the stores above: legacy) */
+static void up_name(uint32_t k, char *b)       /* upper case, 0-terminated: b holds 13 */
+{
+    const char *n = k < UP_SLOTS ? upn[k].name : "";
+    uint32_t i;
+    for (i = 0; i < 12u && n[i]; i++)
+        b[i] = n[i] >= 'a' && n[i] <= 'z' ? (char)(n[i] - 32) : n[i];
+    b[i] = 0;
+}
+#endif
 static uint8_t up_va_keep;                     /* up_rename: the slot's stored VA / FM6 patch stays */
 #endif
 static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for its engine */
 {
     int16_t def[P_COUNT];
     uint32_t i;
-#if FELUCCA_VA
+#if UP_POOL
+    up_loading(r);                             /* its slot's patch on the load (the engines' X_track_loaded) */
+#elif FELUCCA_VA
     va_store_loading(r);                       /* a VA record: its slot's patch on the load (va_track_loaded) */
     fm6u_loading(r);                           /* an FM6 record: its slot's blob on the load (fm6_track_loaded) */
 #if FELUCCA_CZ
@@ -251,7 +277,10 @@ static void up_values(const up_rec_t *r, int16_t *v)   /* mapped and clamped for
 #endif
 static void up_boot(void)                      /* persist_boot: the banks from flash */
 {
-#if FELUCCA_FLASH
+#if UP_POOL
+    CR_STAGE(BS_USER_SOUNDS);
+    upool_boot();                              /* the table; the first time, the migration of the legacy slots */
+#elif FELUCCA_FLASH
     uint32_t b;
     CR_STAGE(BS_USER_SOUNDS);
     for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
@@ -259,17 +288,19 @@ static void up_boot(void)                      /* persist_boot: the banks from f
 #endif
     CR_STAGE(BS_FM6_BANK);
     fm6_bank_boot();
-#if FELUCCA_VA
+#if FELUCCA_VA && !UP_POOL
     CR_STAGE(BS_VA_STORE);
     va_store_boot();
     CR_STAGE(BS_FM6_STORE);
     fm6u_boot();
 #endif
 #if FELUCCA_CZ
+#if !UP_POOL
     czu_boot();                                /* the CZ-1 tone store and banks (no breadcrumb of their own) */
+#endif
     cz_bank_boot();
 #endif
-#if FELUCCA_QUAD
+#if FELUCCA_QUAD && !UP_POOL
     quad_store_boot();                         /* the QUAD patch store (no breadcrumb of its own) */
 #endif
 #ifdef FELUCCA_FAVORITES
@@ -282,8 +313,13 @@ static void up_boot(void)                      /* persist_boot: the banks from f
  * written), 3 no flash (kept in RAM) */
 static int up_put(uint32_t k, const up_rec_t *r)
 {
+#if !UP_POOL
     up_bank_t *bk;
-#if FELUCCA_FLASH
+#endif
+#ifdef CR_FAVS
+    int was_used;
+#endif
+#if FELUCCA_FLASH && !UP_POOL
     up_rec_t old;
     uint32_t magic;
     uint16_t rsize, nslot;
@@ -294,6 +330,15 @@ static int up_put(uint32_t k, const up_rec_t *r)
         ui_message("STOP TO SAVE");
         return 2;
     }
+#ifdef CR_FAVS
+    was_used = up_used(k);
+#endif
+#if UP_POOL
+    if (!flash_ok)
+        return 2;                                      /* (no RAM mirror: nothing to keep a sound in) */
+    if (upool_put(k, r, up_va_keep))
+        return 2;
+#else
     bk = &up_bank[k / UP_PER_BANK];
 #if FELUCCA_FLASH
     old = *up_rec(k);
@@ -317,6 +362,11 @@ static int up_put(uint32_t k, const up_rec_t *r)
         return 2;
     }
 #endif
+#endif /* !UP_POOL */
+#ifdef CR_FAVS
+    if (!r || !was_used)
+        crf_slot_new(k);                               /* (cr_favs.c: the slot's mark was another sound's) */
+#endif
     if (!r) {
 #ifdef FELUCCA_FAVORITES
         if (favorite_set(NENGINES, k, 0)) settings_save();
@@ -327,7 +377,7 @@ static int up_put(uint32_t k, const up_rec_t *r)
                 trk[i].user = 0;
     }
     up_gen++;
-#if FELUCCA_VA
+#if FELUCCA_VA && !UP_POOL
     if (!up_va_keep) {                                 /* the VA / FM6 patch of the sound saved (va_store.c,
                                                         * fm6_ustore.c), or none */
         va_store_saved(k, r);
@@ -347,6 +397,18 @@ static int up_put(uint32_t k, const up_rec_t *r)
     return 3;
 }
 
+#if UP_POOL
+#define UP_LABEL 5u                                /* "U107": the label's bytes with its 0 */
+static void up_slot_label(char *b, uint32_t k)  /* "U007" .. "U128" */
+{
+    b[0] = 'U';
+    b[1] = (char)('0' + (k + 1u) / 100u);
+    b[2] = (char)('0' + (k + 1u) / 10u % 10u);
+    b[3] = (char)('0' + (k + 1u) % 10u);
+    b[4] = 0;
+}
+#else
+#define UP_LABEL 4u
 static void up_slot_label(char *b, uint32_t k)  /* "U07" */
 {
     b[0] = 'U';
@@ -354,6 +416,7 @@ static void up_slot_label(char *b, uint32_t k)  /* "U07" */
     b[2] = (char)('0' + (k + 1u) % 10u);
     b[3] = 0;
 }
+#endif
 
 /* the engine a record of engine e plays on: e, or a retired engine's heir (DIGITAL: FM6; ANALOG without
  * FELUCCA_ANALOG: the VA, cr_ui.c cu_load_user) */
@@ -370,11 +433,11 @@ static uint32_t up_heir(uint32_t e)
 /* the automatic name of engine e's sound in slot k: engine name + slot number ("FM TONE 07"); b holds 13 */
 static void up_auto_name(char *b, uint32_t e, uint32_t k)
 {
-    char l[4];
+    char l[UP_LABEL];
     str_cpy(b, ENGINES[up_heir(e)]->name, 9);   /* (a DIGITAL record plays as FM6) */
     up_slot_label(l, k);
     str_cpy(b + str_len(b), " ", 2);
-    str_cpy(b + str_len(b), l + 1, 3);
+    str_cpy(b + str_len(b), l + 1, UP_LABEL - 1u);
 }
 
 /* the record's name = name (at most 12), 0 or "": the automatic one */
@@ -483,7 +546,11 @@ static int up_load(uint32_t k)
 }
 
 /* the patterns of the user presets (SEQ > PATTERNS lists them after the factory ones, ui.c pat_count) */
+#if UP_POOL
+static int up_has_pat(uint32_t k) { return up_used(k) && (upn[k].flags & UPN_PAT); }
+#else
 static int up_has_pat(uint32_t k) { return up_used(k) && !up_pat_empty(up_rec(k)); }
+#endif
 
 static uint32_t up_pat_count(void)
 {
@@ -533,6 +600,12 @@ static void up_pat_load(track_t *t, uint32_t k)
 #if FELUCCA_QUAD
     quad_user_pending = 0;
 #endif
+#if UP_POOL
+    fm6_user_pending = 0;
+#if FELUCCA_PROPHET
+    p5_user_pending = 0;
+#endif
+#endif
 #endif
     for (i = P_SDIV; i <= P_SGATE; i++)
         t->p[i] = v[i];
@@ -540,7 +613,11 @@ static void up_pat_load(track_t *t, uint32_t k)
 }
 
 /* the engine a used slot's sound plays on (a DIGITAL record: FM6, without FELUCCA_FM4) */
+#if UP_POOL
+static uint32_t up_engine(uint32_t k) { return up_heir(k < UP_SLOTS ? upn[k].engine : 0u); }
+#else
 static uint32_t up_engine(uint32_t k) { return up_heir(up_rec(k)->engine); }
+#endif
 
 static uint32_t up_count(void)                 /* used slots */
 {
@@ -570,7 +647,7 @@ static uint32_t up_rank(uint32_t slot)         /* used slots before it */
 /* SAVE > USER page actions, with the message in the top bar. name: the save's or the rename's (0 or "": automatic) */
 static void up_ui_named(uint32_t op, uint32_t k, const char *name)   /* 0 load, 1 erase, 2 save, 3 rename */
 {
-    char l[4];
+    char l[UP_LABEL];
     int rc;
     up_slot_label(l, k);
     if ((op < 2u || op == 3u) && !up_used(k)) {

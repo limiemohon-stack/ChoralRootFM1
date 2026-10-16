@@ -1,13 +1,14 @@
-# ChoralRoot: the sound editor on a platform engine (SOFT FLUTE: OPT + PRESETS to WHEEL, the fifth engine,
+# ChoralRoot: the sound editor on a platform engine (SOFT FLUTE: OPT + PRESETS to WHEEL, the sixth engine,
 # PRESETS +3; no deep pages; TRIO's CHIP CHOIR until 0.18, TRIO retired). EDIT tap: OSC = EDIT 1;
 # ENV: the platform ENV under the envelope band; KNOB 2 +1: DEC 64 -> 70 (a detent: 5% of 0..127 = 6); SHIFT (GLO)
 # held + KNOB 2 +1: 70 -> 71 (fine); KNOB 2 +30: clamps at 127; KNOB 1 +7: ATK 0 -> 42; LFO: KNOB 2 +1 WAVE one
 # step; MOD: the platform MOD as 4 slots, KNOB 3 the first's amount; MIX: KNOB 3 +1 VOICE one step and back; HOME;
 # then MAJ + D4 (compared with cr_editor_ref.txt: the same without the knobs)
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 100                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100
-knob PRESETS +4               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA -> CZ-1 -> WHEEL), on OPT's release
+knob PRESETS +5               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA -> CZ-1 -> P5 -> WHEEL), on OPT's release
 wait 100
 btn GLO up
 wait 50

@@ -1,0 +1,36 @@
+# ChoralRoot: GEEK OUT 2, the sixth view: four meters (the audio load of core 0 and of core 1, the RAM and the POOL in
+# use). tools/emu/test_cr.sh runs it on a flash whose settings say Dual Core On, EMU_STAGES=1 (core 1's figures). A
+# chord held (as cr_dualcore.txt) and the bass on (core 1's job); the view menu (HOME held), B4 (the sixth white
+# root): Geek Out 2, OCT+ ok; 1.5 s for the second's cpu window to close and the bars to glide; then the keys up and
+# HOME tapped six times: round the six views back to it
+wait 300
+knob ALGORITHM +19            # OFF -> VA 18 PUNCH BASS (as cr_dualcore.txt): the bass part plays the root
+wait 300
+key F3 down
+btn D4 down
+wait 1500                     # (the read-out gone)
+btn HOME 800
+wait 300
+btn B4
+wait 300
+btn OCT+
+wait 1500
+shot build/emu/test/cr_geek2.ppm
+dump                          # 1: view 5, the four cells
+btn D4 up
+key F3 up
+wait 300
+btn HOME
+wait 200
+btn HOME
+wait 200
+btn HOME
+wait 200
+btn HOME
+wait 200
+btn HOME
+wait 200
+dump                          # 2: view 4 (Scope): five taps from Geek Out 2
+btn HOME
+wait 300
+dump                          # 3: view 5 again: the sixth tap

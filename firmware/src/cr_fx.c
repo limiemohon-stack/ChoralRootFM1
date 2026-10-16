@@ -6,7 +6,8 @@
  * on Felucca's line, left and right; SLOOP 2.6's design, credited there and in LICENSING.md).
  *
  * THE RATES (build flags; docs/FX.md "Half rate or full"). CR_FX_DELAY_DS 1: the delay runs at the full 44.1 kHz,
- * straight on the send and into the mix: its repeats are heard beside the dry sound and keep its band. CR_FX_REVERB_DS
+ * straight on the send and into the mix: its repeats are heard beside the dry sound and keep its band (0.18 .. 0.21;
+ * since 0.22 the default is 2, the half rate in half the line: the owner's ear, 65 KB of POOL). CR_FX_REVERB_DS
  * 2: the reverb runs at 22.05 kHz between a half-band filter down (xf_down) and a pair of them up (xf_up): a
  * two-path polyphase all-pass (tools/fx_halfband.py: 2 + 2 first-order sections, one multiply each, -54 dB above
  * 12.5 kHz, flat to 9.5 kHz). Either can be built the other way (1 or 2) to compare.
@@ -54,7 +55,9 @@
  * (xf_coefs). Memory, all in .pool: 2 x 32768 x 2 (delay) + 16384 x 2 + 4096 x 2 (reverb) + the state. */
 
 #ifndef CR_FX_DELAY_DS
-#define CR_FX_DELAY_DS 1                 /* 1: the delay at FS; 2: at FS / 2 (a line then holds 1.49 s) */
+#define CR_FX_DELAY_DS 2                 /* 2: the delay at FS / 2 (0.22: the owner heard it on the unit 2026-10-14,
+                                          * "sounded good"; 65 KB of POOL back, XD_N below); 1: at FS, 0.18 .. 0.21's
+                                          * (CR_FX_DELAY_DS=1 ./build.sh) */
 #endif
 #ifndef CR_FX_REVERB_DS
 #define CR_FX_REVERB_DS 2                /* 2: the reverb at FS / 2; 1: at FS (twice the lines' memory and work) */
@@ -68,6 +71,10 @@
 #ifndef CR_FX_RAM
 #define CR_FX_RAM 0                      /* 1 (device builds only): the four per-sample loops in .ram_text, called
                                           * through a pointer as the flash driver is: no XIP cache miss in them */
+#endif
+#include "cr_ram.h"
+#if CR_FX_RAM && CR_RAM_FX
+#error "cr_fx.c: CR_FX_RAM (the four loops alone, 0.18's measurement) or CR_RAM_FX (the stage: cr_ram.h), not both"
 #endif
 #if (CR_FX_DELAY_DS != 1 && CR_FX_DELAY_DS != 2) || (CR_FX_REVERB_DS != 1 && CR_FX_REVERB_DS != 2)
 #error "cr_fx.c: CR_FX_DELAY_DS and CR_FX_REVERB_DS are 1 or 2"
@@ -106,13 +113,20 @@ enum { XP_DTIME,                 /* the delay's time, free: 0..127 = 16 ms .. XD
                                   * ears the same tap, the mono return of 0.18; 127: a quarter). KNOB 3 of the
                                   * Chorus page since 0.21 (cr_ui.c CU_FXP), kept in the session (CSS_FXP_XC_WIDTH);
                                   * xc_block glides to it */
+       XP_FLOW,                  /* THE MASTER FILTER's (0.22, "The master filter" below; the FX layer's Filter page):
+                                  * the low cut, 0 Off, 1..127 = 20 Hz .. 2 kHz (xq_low_hz) */
+       XP_FHIGH,                 /* .. the high cut, 0..126 = 200 Hz .. 16 kHz (xq_high_hz), 127 Off */
+       XP_FSLOPE,                /* .. 0: 6 dB an octave (one stage a cut), 1: 12 dB (two) */
+       XP_FON,                   /* .. 0 Off, 1 On (the cell on KNOB 4; a cutoff turned switches it on) */
        XP_N };
+#define XP_NFX XP_FLOW            /* the delay's, the reverb's and the chorus's (xf_prep's hash); the filter's own after */
 static const struct { int16_t min, max, def; } XFP[XP_N] = {
     [XP_DTIME] = {0, 127, 91}, [XP_DDIV] = {0, 12, 6}, [XP_DSPREAD] = {0, 127, 0}, [XP_DRATIO] = {0, 3, 0},
     [XP_DFDBK] = {0, 127, 58}, [XP_DSYNC] = {0, 1, 1}, [XP_DMODE] = {0, 1, 1}, [XP_DTONE] = {0, 127, 70},
     [XP_DWOW] = {0, 127, 24}, [XP_RSIZE] = {0, 127, 88}, [XP_RDAMP] = {0, 127, 56}, [XP_RDECAY] = {0, 127, 52},
     [XP_RPRE] = {0, 127, 16}, [XP_RMOD] = {0, 127, 56}, [XP_RLOW] = {0, 127, 60}, [XP_RWIDTH] = {0, 127, 127},
-    [XP_CWIDTH] = {0, 127, 127}};
+    [XP_CWIDTH] = {0, 127, 127},
+    [XP_FLOW] = {0, 127, 0}, [XP_FHIGH] = {0, 127, 127}, [XP_FSLOPE] = {0, 1, 1}, [XP_FON] = {0, 1, 0}};
 static int16_t xfp[XP_N];                 /* the values (xf_defaults at power-on, then the session's) */
 static uint16_t xf_bpm = 120;             /* the tempo the synced delay follows (cr_ui.c: the engine's, 20..300) */
 
@@ -132,10 +146,15 @@ _Static_assert(CTL == 32, "cr_fx.c: a block is 32 samples (the ramps' shifts)");
 #define XF_NH (CTL / 2u)                  /* a block at the half rate */
 #define XF_IN 1u                          /* the lines' scale: the send >> 1 (xd_sat's comment) */
 
-#define XD_N 32768u                       /* a delay line, samples (int16): 0.743 s at 44.1 kHz */
+#ifndef XD_N
+#define XD_N (32768u / CR_FX_DELAY_DS)    /* a delay line, samples (int16): 0.743 s at 44.1 kHz; at the half rate
+                                           * (CR_FX_DELAY_DS 2) half the samples for the same 0.743 s, 65 KB of POOL
+                                           * back (XD_N=32768 with it: 1.49 s in the same memory) */
+#endif
 #define XD_M (XD_N - 1u)
-#define XD_MAX (XD_N - 128u)              /* the longest time: the wow's swing (<= 89 samples) and the interpolator's
-                                           * points above it */
+#define XD_MAX (XD_N - 128u / CR_FX_DELAY_DS)   /* the longest time: the wow's swing (<= 89 samples at 44.1 kHz: a
+                                           * time, so half as many at the half rate) and the interpolator's points
+                                           * above it */
 #define XD_MS_MAX (XD_MAX * 1000u / XD_FS > 1000u ? 1000u : XD_MAX * 1000u / XD_FS)   /* 740 ms (half rate: 1000) */
 
 static void xf_defaults(void)
@@ -166,6 +185,14 @@ static uint32_t xf_lowcut_hz(uint32_t p)  /* XP_RLOW -> Hz: 20 .. 500 */
 static uint32_t xf_pre_ms(uint32_t p)     /* XP_RPRE -> ms: 0 .. 138 (24 samples at 22.05 kHz a step) */
 {
     return p * 24000u / 22050u;
+}
+static uint32_t xq_low_hz(uint32_t p)     /* XP_FLOW 1..127 -> Hz: 20 .. 2088 (an octave every 19 steps) */
+{
+    return xf_oct(20, p ? p - 1u : 0u, 19);
+}
+static uint32_t xq_high_hz(uint32_t p)    /* XP_FHIGH 0..126 -> Hz: 200 .. 16640 (an octave every 20 steps) */
+{
+    return xf_oct(200, p > 126u ? 126u : p, 20);
 }
 
 /* ------------------------------------------------------------------ the state --- */
@@ -268,7 +295,7 @@ XF_AI int32_t xf_ap(xf_hb_t *h, uint32_t k, int32_t a, int32_t x)
     return y;
 }
 /* n samples of a send -> n / 2 at half its level (the lines' scale: XF_IN), saturated */
-XF_HOT void xf_down(xf_hb_t *h, const int32_t *in, int32_t *out, uint32_t n)
+CR_HOT_FX XF_HOT void xf_down(xf_hb_t *h, const int32_t *in, int32_t *out, uint32_t n)
 {
     uint32_t i;
     for (i = 0; i + 1u < n; i += 2u) {
@@ -278,7 +305,7 @@ XF_HOT void xf_down(xf_hb_t *h, const int32_t *in, int32_t *out, uint32_t n)
     }
 }
 /* nh samples of wet (saturated at +-131068) -> 2 nh, added to out */
-XF_HOT void xf_up(xf_hb_t *h, const int32_t *in, int32_t *out, uint32_t nh)
+CR_HOT_FX XF_HOT void xf_up(xf_hb_t *h, const int32_t *in, int32_t *out, uint32_t nh)
 {
     uint32_t j;
     xf_hb_t s = *h;                                     /* (the states in registers for the block: 49 instructions a
@@ -441,7 +468,7 @@ XF_AI uint32_t xf_seg(uint32_t p, uint32_t m, uint32_t left)
  * own writes: the samples are the per-sample loop's. A side at rest (its time reached, no wow, a whole number of
  * samples) reads straight from the line; a side that moves reads between two samples (linear: the first builds' cubic
  * was 35 instructions a read), its time a ramp over the block: the glide's step and the wow's, once a block */
-XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint32_t n, uint32_t sh)
+CR_HOT_FX XF_HOT void xd_run(const int32_t *in, int32_t *ol, int32_t *orr, uint32_t n, uint32_t sh)
 {
     uint32_t w = xf.d_w, j, k, e;
     int32_t pk = 0, st = 0, fb, kc, kh = xf.d_kh, pt = xf.d_ping ? 256 : 0, q = xf.d_q, pm = xf.d_pm;
@@ -621,7 +648,7 @@ XF_AI int32_t xr_sat(int32_t v)           /* itself up to 3/4 of the line's rang
  * clear of what the stage before it writes (XR_APB, XR_BASE), so a block's reads never see its own writes. The
  * lines' two gains are one multiply: g_i x 181 / 512 (the Hadamard's scale) goes in front of the mix (gm, Q17), and
  * the one rounding a pass is the line's own */
-XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint32_t n, uint32_t sh)
+CR_HOT_FX XF_HOT void xr_run(const int32_t *in, int32_t *ol, int32_t *orr, uint32_t n, uint32_t sh)
 {
     uint32_t w = xf.r_w0, pw = xf.r_pw, j, i, e;
     int32_t act = 0, pk = 0, kc, lk = xf.r_lk, ig, q = xf.r_q, t;
@@ -864,7 +891,7 @@ static uint32_t xc_live;
 static struct { int32_t dc, oc, ra, rb; } xc;
 #define XC_POS(ph, d) ((400 << 8) + (((osc_sine(ph) + 32768) * (d)) >> 12))   /* Q8 samples back (fx_buses's own; d: x16) */
 #define XC_GLIDE(c, t) ((c) + (((t) - (c) + ((t) > (c) ? (1 << XC_GL) - 1 : 0)) >> XC_GL))
-static __attribute__((noinline)) void xc_block(const int32_t *in, int32_t *ml, int32_t *mr, uint32_t n)
+CR_HOT_FX static __attribute__((noinline)) void xc_block(const int32_t *in, int32_t *ml, int32_t *mr, uint32_t n)
 {
     int32_t dt = song.g[G_CDEPTH] * (6 << 4), ot = xfp[XP_CWIDTH] * (int32_t)(XC_TURN / 127u);
     int32_t any = 0, dc, oc, ra, rb, da, db, ea, eb;
@@ -920,16 +947,27 @@ static __attribute__((noinline)) void xc_block(const int32_t *in, int32_t *ml, i
     xc_live = any ? CHO_LEN : xc_live > n ? xc_live - n : 0u;
 }
 
-/* a block of the two sends (the mono buses of fx.c) -> the stereo wet added to ml, mr. n: CTL */
-static __attribute__((noinline)) void xf_block(const int32_t *dly_in, const int32_t *rev_in, int32_t *ml,
-                                               int32_t *mr, uint32_t n)
+/* a block of the two sends (the mono buses of fx.c) -> the stereo wet added to ml, mr. n: CTL.
+ * 3y50, THE REVERB ON EITHER CORE (fx.c mix_fx_split, docs/DUALCORE.md "What each core runs"): the block is three
+ * pieces. xf_prep (core 0: the coefficients, what runs), xf_delay (the delay's line, into ml / mr) and xf_reverb (the
+ * sends' half-band, the reverb's lines, the wet's up-sampler, into its own ml / mr). Each of the two writes only its
+ * own state (xf.d_*, xd_buf, xf.tf; xf.r_*, xf.dn[1], xf.up, xf.up_live, xf.t[1..3], xf.tr, xf.tx, xr_buf, xr_pbuf)
+ * and ADDS its wet into the mix: a sum of integers, the same whatever runs first, so the reverb can run on core 1
+ * into buffers of its own that core 0 adds afterwards, and the samples are one core's, bit for bit. xf_block is the
+ * three in a row, as to 3y48. With the delay at the half rate (CR_FX_DELAY_DS 2, the default since 0.22) the delay
+ * writes the reverb's wet buffer too (xf.t[2..3], one up-sampler for both): then core 1's job is the reverb's lines
+ * alone, into half-rate buffers of its own (XF_SPLIT_HALF: xf_reverb with up 0), and core 0 runs the delay into
+ * xf.t[2..3], adds core 1's after the join and runs the up-sampler (xf_reverb with rev 0): the same integer sums as
+ * the three in a row, bit for bit. The delay at the half rate with the reverb at the full one (a build switch):
+ * the block whole on core 0 (XF_SPLIT 0) */
+#define XF_SPLIT_HALF (CR_FX_DELAY_DS == 2 && CR_FX_REVERB_DS == 2)
+#define XF_SPLIT (CR_FX_DELAY_DS == 1 || XF_SPLIT_HALF)
+static uint32_t xf_prep(const int32_t *dly_in, const int32_t *rev_in, uint32_t n)   /* bit 0: the delay, bit 1: the
+                                                         * reverb, bit 2: the up-sampler's tail; 0: nothing runs */
 {
-    uint32_t i, h = xf_bpm, nh = n >> 1;
-    int32_t in_d = 0, in_r = 0, any = 0;
-    int32_t *hd = xf.t[0], *hr = xf.t[1], *ol = xf.t[2], *orr = xf.t[3];
-    (void)hd;                                           /* (the delay at the full rate: no half-rate send) */
-    int dly, rev;
-    for (i = 0; i < XP_N; i++)
+    uint32_t i, h = xf_bpm;
+    int32_t in_d = 0, in_r = 0;
+    for (i = 0; i < XP_NFX; i++)                        /* (the filter's four are xq_block's own hash) */
         h = h * 31u + (uint16_t)xfp[i];
     if (h != xf.hash || !xf.on) {                       /* a parameter or the tempo moved (or power-on) */
         xf.hash = h;
@@ -956,33 +994,51 @@ static __attribute__((noinline)) void xf_block(const int32_t *dly_in, const int3
             in_d |= dly_in[i];
             in_r |= rev_in[i];
         }
-    dly = in_d || xf.d_live;
-    rev = in_r || xf.r_live;
-    if (!dly && !rev && !xf.up_live)
-        return;                                         /* nothing sent, the tails over: nothing runs */
-#if XF_HALF
-    for (i = 0; i < nh; i++)
+    return (uint32_t)(in_d || xf.d_live) | (uint32_t)(in_r || xf.r_live) << 1 | (uint32_t)!!xf.up_live << 2;
+}
+/* the delay (its line at FS: into ml, mr; at FS / 2: into the half-rate wet, xf.t[2..3]) */
+CR_HOT_FX static __attribute__((noinline)) void xf_delay(const int32_t *dly_in, int32_t *ml, int32_t *mr, uint32_t n)
+{
+    int32_t *hd = xf.t[0], *ol = xf.t[2], *orr = xf.t[3];
+    (void)hd; (void)ol; (void)orr;
+    /* the wow, once a block: a 0.33 Hz sine and an eighth as much of a 3.1 Hz one */
+    xf.d_ph[0] += (uint32_t)(((uint64_t)330u << 32) * CTL / (1000u * FS));
+    xf.d_ph[1] += (uint32_t)(((uint64_t)3100u << 32) * CTL / (1000u * FS));
+    xf.d_wt = ((osc_sine(xf.d_ph[0]) + (osc_sine(xf.d_ph[1]) >> 3)) * (xf.d_wow >> 3)) >> 12;
+#if CR_FX_DELAY_DS == 2
+    XF_CALL(xf_down)(&xf.dn[0], dly_in, hd, n);
+    CR_PROFX(CRX_DOWN);
+    XF_CALL(xd_run)(hd, ol, orr, n >> 1, 0);
+#else
+    XF_CALL(xd_run)(dly_in, ml, mr, n, XF_IN);
+#endif
+    CR_PROFX(CRX_DELAY);
+    if (!xf.d_live) {                                   /* silent: the half-band's last fractions with it */
+        xf_hb_clear(&xf.dn[0]);
+        xf.d_lp[0] = xf.d_lp[1] = xf.d_hp[0] = xf.d_hp[1] = 0;
+    }
+}
+/* the reverb and the half rate's up-sampler, into ml, mr. tm 0: its parts on the fx stage's marks (core 0); else
+ * (core 1's job, fx.c c1_fx_job) its own: the down-sampler's, the lines' and the up-sampler's time into tm[CRX_*],
+ * which core 0 adds to the stage's parts after the join (the marks are core 0's words). ol / orr: the half-rate wet
+ * (xf.t[2..3]; core 1's own with XF_SPLIT_HALF); up 0: the lines alone (core 1's job with XF_SPLIT_HALF: core 0 runs
+ * the up-sampler after the join, rev 0) */
+#if CR_CPU1
+#define XR_MARK(k) do { if (tm) { uint32_t t_ = cr_prof_now(); tm[k] += cr_prof_less(t_ - *mk); *mk = t_; } else CR_PROFX(k); } while (0)
+#else
+#define XR_MARK(k) ((void)tm, (void)mk)
+#endif
+CR_HOT_FX static __attribute__((noinline)) void xf_reverb(const int32_t *rev_in, int32_t *ml, int32_t *mr, uint32_t n,
+                                                          int rev, uint32_t *tm, uint32_t *mk, int32_t *ol,
+                                                          int32_t *orr, int up)
+{
+    uint32_t i, nh = n >> 1;
+    int32_t any = 0;
+    int32_t *hr = xf.t[1];
+#if XF_HALF && CR_FX_DELAY_DS == 1
+    for (i = 0; i < nh; i++)                            /* (the delay at FS: the wet buffer is the reverb's alone) */
         ol[i] = orr[i] = 0;
 #endif
-    CR_PROFX_START();                                   /* (cr_cpu1.h: the stage's parts, for 73 DEBUG and perf.sh) */
-    if (dly) {
-        /* the wow, once a block: a 0.33 Hz sine and an eighth as much of a 3.1 Hz one */
-        xf.d_ph[0] += (uint32_t)(((uint64_t)330u << 32) * CTL / (1000u * FS));
-        xf.d_ph[1] += (uint32_t)(((uint64_t)3100u << 32) * CTL / (1000u * FS));
-        xf.d_wt = ((osc_sine(xf.d_ph[0]) + (osc_sine(xf.d_ph[1]) >> 3)) * (xf.d_wow >> 3)) >> 12;
-#if CR_FX_DELAY_DS == 2
-        XF_CALL(xf_down)(&xf.dn[0], dly_in, hd, n);
-        CR_PROFX(CRX_DOWN);
-        XF_CALL(xd_run)(hd, ol, orr, nh, 0);
-#else
-        XF_CALL(xd_run)(dly_in, ml, mr, n, XF_IN);
-#endif
-        CR_PROFX(CRX_DELAY);
-        if (!xf.d_live) {                               /* silent: the half-band's last fractions with it */
-            xf_hb_clear(&xf.dn[0]);
-            xf.d_lp[0] = xf.d_lp[1] = xf.d_hp[0] = xf.d_hp[1] = 0;
-        }
-    }
     if (rev) {
         /* the four swings, once a block: lines 1 and 5 on a 0.31 Hz sine and its quarter turn, 3 and 7 on a 0.47 Hz one */
         xf.r_ph[0] += (uint32_t)(((uint64_t)310u << 32) * CTL / (1000u * FS));
@@ -991,16 +1047,18 @@ static __attribute__((noinline)) void xf_block(const int32_t *dly_in, const int3
             xf.r_mt[i] = (osc_sine(xf.r_ph[i >> 1] + ((i & 1u) << 30)) * xf.r_mod) >> 15;
 #if CR_FX_REVERB_DS == 2
         XF_CALL(xf_down)(&xf.dn[1], rev_in, hr, n);
-        CR_PROFX(CRX_DOWN);
+        XR_MARK(CRX_DOWN);
         XF_CALL(xr_run)(hr, ol, orr, nh, 0);
 #else
         XF_CALL(xr_run)(rev_in, ml, mr, n, XF_IN);
 #endif
-        CR_PROFX(CRX_REVERB);
+        XR_MARK(CRX_REVERB);
         if (!xf.r_live)
             xf_hb_clear(&xf.dn[1]);
     }
 #if XF_HALF
+    if (!up)                                            /* (core 1's job, XF_SPLIT_HALF: core 0 up-samples the sum) */
+        return;
     for (i = 0; i < nh; i++)
         any |= ol[i] | orr[i];
     if (any)
@@ -1010,12 +1068,192 @@ static __attribute__((noinline)) void xf_block(const int32_t *dly_in, const int3
     if (any || xf.up_live) {
         XF_CALL(xf_up)(&xf.up[0], ol, ml, nh);
         XF_CALL(xf_up)(&xf.up[1], orr, mr, nh);
-        CR_PROFX(CRX_UP);
+        XR_MARK(CRX_UP);
     } else {
         xf_hb_clear(&xf.up[0]);
         xf_hb_clear(&xf.up[1]);
     }
 #else
-    (void)any; (void)hd; (void)hr; (void)ol; (void)orr; (void)nh;
+    (void)any; (void)hr; (void)ol; (void)orr; (void)nh; (void)up;
 #endif
+    (void)tm; (void)mk;
+}
+CR_HOT_FX static __attribute__((noinline)) void xf_block(const int32_t *dly_in, const int32_t *rev_in, int32_t *ml,
+                                               int32_t *mr, uint32_t n)
+{
+    uint32_t f = xf_prep(dly_in, rev_in, n);
+    if (!f)
+        return;                                         /* nothing sent, the tails over: nothing runs */
+#if XF_HALF && CR_FX_DELAY_DS == 2                     /* (the delay's wet and the reverb's share it: from 0) */
+    {
+        uint32_t i;
+        for (i = 0; i < (n >> 1); i++)
+            xf.t[2][i] = xf.t[3][i] = 0;
+    }
+#endif
+    CR_PROFX_START();                                   /* (cr_cpu1.h: the stage's parts, for 73 DEBUG and perf.sh) */
+    if (f & 1u)
+        xf_delay(dly_in, ml, mr, n);
+    xf_reverb(rev_in, ml, mr, n, (int)(f >> 1 & 1u), 0, 0, xf.t[2], xf.t[3], 1);
+}
+
+/* ------------------------------------------------------------ the master filter --- */
+/* THE MASTER FILTER (0.22; GitHub issue 16: "many of the patches contain a lot of harsh upper tones", "a simple single
+ * knob lpf/hpf"; docs/FX.md "The master filter"). A LOW CUT and a HIGH CUT on the stereo master, after the effects
+ * (the reverb's and the delay's wash is tamed with the parts) and before Options > Output's chain (the limiter and the
+ * clip see what the filter leaves). The FX layer's Filter page (cr_ui.c CU_FXP): Low cut (Off, 20 Hz .. 2 kHz), High
+ * cut (200 Hz .. 16 kHz, Off), Slope (6 or 12 dB an octave), Filter (Off / On; a cutoff turned switches it on).
+ * A cut is one stage (6 dB) or two in a row (12 dB) of a one-pole, the low cut's stage x minus its low-pass; the knob
+ * reads the cut's -3 dB corner, so a 12 dB cut's two poles sit at 1.554 times it (two identical poles are 3 dB down at
+ * 0.6436 of their own corner). Every product keeps its remainder (xf_rs), as the loops above do: no dead band at a
+ * low k, no offset, exact zeros after silence. The k is Q12 and the mix into a cut is held to +-XQ_MAX (3 x full
+ * scale, 15 dB over the Classic limiter's threshold: a sample out there is 15 dB into the limiter's work and in the
+ * clip): the products fit 32 bits with the second stage's difference at 4 x XQ_MAX.
+ * OFF TOUCHES NOTHING: with FX off, Filter Off, or both cuts at their Off ends (the default) the block returns before
+ * it reads a sample, and its states are at rest: the master is bit for bit what it was (cr_fx_test.c proves it). A
+ * cut switched in or out FADES: its wet share w (Q12) goes 0 .. 4096 by XQ_STEP a block, a straight line across each
+ * block (16 blocks of CTL, 11.6 ms: Options > Output's fade), the cut's stages running from rest under the fade; a cut
+ * whose w is 0 and wanted 0 does not run. A cutoff turned EASES: the k in use moves an eighth of itself towards the
+ * knob's each block (xq_ease: an octave in 6 blocks; no zipper). The slope eases the same way: the second stage's k
+ * goes to 4096 (y = x, exactly) when 12 dB goes to 6, and the stage is skipped once there; 6 to 12 starts it at its
+ * stage's input and eases its k down (a quarter of the way a block there stepped the stage's slew by a third at
+ * once: a click under a tone; cr_fx_test.c). Only a cut that is in costs anything.
+ * COST on the unit (the listing, tools/fx_loops.py; docs/FX.md "The master filter"): a cut's loop is ~20
+ * instructions a sample at 12 dB (~13 at 6 dB) a side: one 12 dB cut ~25 us a half, both ~50; 6 dB half of that. */
+#define XQ_MAX 98304                      /* the input's clamp: 3 x 32768 */
+#define XQ_STEP 256                       /* a cut fades in or out over 4096 / XQ_STEP = 16 blocks */
+#define XQ_KS 3                           /* a k eases an eighth of itself a block (xq_ease): an octave in 6 */
+typedef struct { int32_t y[2], e[2]; } xq_st_t;       /* a cut's two stages on one side: the one-poles, their remainders */
+static struct {
+    uint32_t hash;                        /* the four parameters and fx_off as last seen */
+    uint8_t on;                           /* the coefficients are set (power-on: no fades, no eases) */
+    uint8_t in[2];                        /* each cut wanted in: 0 the low cut, 1 the high cut */
+    int32_t kt[2][2], k[2][2];            /* each cut's two stages' k (Q12): the knob's, and the one in use */
+    int32_t w[2];                         /* each cut's wet share, 0 .. 4096 */
+    xq_st_t s[2][2];                      /* [cut][side] */
+    int32_t t[CTL];                       /* a fade's block of the wet */
+} xq __attribute__((section(".pool")));
+
+static int32_t xq_k12(uint32_t hz)        /* a one-pole's k (Q12) for the corner hz: 1 .. 4095 */
+{
+    int32_t k = (xf_k(hz, FS) + 4) >> 3;
+    return k < 1 ? 1 : k > 4095 ? 4095 : k;
+}
+static __attribute__((noinline)) void xq_coefs(void)   /* (when a parameter or FX moved: the divides out of the block) */
+{
+    uint32_t lo = (uint32_t)xfp[XP_FLOW], hi = (uint32_t)xfp[XP_FHIGH], two = xfp[XP_FSLOPE] != 0, c;
+    int act = xfp[XP_FON] && !fx_off;
+    xq.in[0] = (uint8_t)(act && lo > 0u);
+    xq.in[1] = (uint8_t)(act && hi < 127u);
+    for (c = 0; c < 2u; c++) {
+        uint32_t hz = c ? xq_high_hz(hi) : xq_low_hz(lo);
+        if (two)
+            hz = hz * 1554u / 1000u;      /* the pair's corner at the knob's: each pole at 1 / 0.6436 of it */
+        xq.kt[c][0] = xq_k12(hz);
+        xq.kt[c][1] = two ? xq.kt[c][0] : 4096;     /* (4096: the second stage is y = x: skipped once it is there) */
+    }
+}
+/* a cut over a block of one side, in place: hp 0 the high cut (the low-pass), 1 the low cut (x minus it); two: the
+ * second stage runs (the states in registers for the block) */
+XF_AI void xq_loop(int32_t *b, uint32_t n, xq_st_t *p, int32_t k1, int32_t k2, int hp, int two)
+{
+    int32_t y1 = p->y[0], e1 = p->e[0], y2 = p->y[1], e2 = p->e[1];
+    uint32_t i;
+    for (i = 0; i < n; i++) {
+        int32_t x = xf_clamp(b[i], -XQ_MAX, XQ_MAX), y;
+        y1 += xf_rs((x - y1) * k1, &e1, 12);
+        y = hp ? x - y1 : y1;
+        if (two) {
+            y2 += xf_rs((y - y2) * k2, &e2, 12);
+            y = hp ? y - y2 : y2;
+        }
+        b[i] = y;
+    }
+    p->y[0] = y1;
+    p->e[0] = e1;
+    p->y[1] = y2;
+    p->e[1] = e2;
+}
+CR_HOT_FX static __attribute__((noinline)) void xq_cut(int32_t *b, uint32_t n, xq_st_t *p, int32_t k1, int32_t k2, uint32_t hp)
+{
+    if (k2 == 4096) {
+        if (hp)
+            xq_loop(b, n, p, k1, k2, 1, 0);
+        else
+            xq_loop(b, n, p, k1, k2, 0, 0);
+        p->y[1] = hp ? 0 : p->y[0];                     /* (the second stage at its input: it may start from here) */
+        p->e[1] = 0;
+    } else if (hp) {
+        xq_loop(b, n, p, k1, k2, 1, 1);
+    } else {
+        xq_loop(b, n, p, k1, k2, 0, 1);
+    }
+}
+/* .. under a fade: the wet share a straight line from w0 to w1 across the block (CTL samples: n == CTL) */
+CR_HOT_FX static __attribute__((noinline)) void xq_fade(int32_t *b, uint32_t n, xq_st_t *p, int32_t k1, int32_t k2,
+                                                        uint32_t hp, int32_t w0, int32_t w1)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        xq.t[i] = b[i];
+    xq_cut(xq.t, n, p, k1, k2, hp);
+    for (i = 0; i < n; i++) {
+        int32_t x = xf_clamp(b[i], -XQ_MAX, XQ_MAX), w = w0 + (((w1 - w0) * (int32_t)(i + 1u)) >> CTL_LOG2);
+        b[i] = x + (((xq.t[i] - x) * w) >> 12);
+    }
+}
+static int32_t xq_ease(int32_t k, int32_t t)          /* a 2^-XQ_KS of ITSELF a block (an octave in 2^XQ_KS x 0.7
+                                                       * blocks either way: the stage's slew never changes by more than
+                                                       * that in a block, a slope change included), and it arrives */
+{
+    if (k < t) {
+        k += (k >> XQ_KS) + 1;
+        return k > t ? t : k;
+    }
+    if (k > t) {
+        k -= (k >> XQ_KS) + 1;
+        return k < t ? t : k;
+    }
+    return k;
+}
+/* the master's block (fx.c mix_block: after the effects, before out_master); ml, mr: the mix, in place */
+CR_HOT_FX static __attribute__((noinline)) void xq_block(int32_t *ml, int32_t *mr, uint32_t n)
+{
+    uint32_t h = (uint32_t)fx_off, c, i;
+    for (i = XP_NFX; i < XP_N; i++)
+        h = h * 31u + (uint16_t)xfp[i];
+    if (h != xq.hash || !xq.on) {
+        xq.hash = h;
+        xq_coefs();
+        if (!xq.on) {                                   /* power-on: as set, no fade, no ease */
+            for (c = 0; c < 2u; c++) {
+                xq.k[c][0] = xq.kt[c][0];
+                xq.k[c][1] = xq.kt[c][1];
+                xq.w[c] = xq.in[c] ? 4096 : 0;
+            }
+            xq.on = 1;
+        }
+    }
+    for (c = 0; c < 2u; c++) {
+        int32_t w0 = xq.w[c], wt = xq.in[c] ? 4096 : 0, w1 = w0 + xf_clamp(wt - w0, -XQ_STEP, XQ_STEP), k1, k2;
+        if (!w0 && !w1) {                               /* out: nothing runs, nothing read; at rest for the next time */
+            if (xq.k[c][0] != xq.kt[c][0] || xq.k[c][1] != xq.kt[c][1] || xq.s[c][0].y[0] | xq.s[c][0].y[1] | xq.s[c][1].y[0] | xq.s[c][1].y[1]) {
+                xq.k[c][0] = xq.kt[c][0];
+                xq.k[c][1] = xq.kt[c][1];
+                for (i = 0; i < 2u; i++)
+                    xq.s[c][i].y[0] = xq.s[c][i].y[1] = xq.s[c][i].e[0] = xq.s[c][i].e[1] = 0;
+            }
+            continue;
+        }
+        k1 = xq.k[c][0] = xq_ease(xq.k[c][0], xq.kt[c][0]);
+        k2 = xq.k[c][1] = xq_ease(xq.k[c][1], xq.kt[c][1]);
+        if (w0 == 4096 && w1 == 4096) {
+            xq_cut(ml, n, &xq.s[c][0], k1, k2, c == 0u);
+            xq_cut(mr, n, &xq.s[c][1], k1, k2, c == 0u);
+        } else {
+            xq_fade(ml, n, &xq.s[c][0], k1, k2, c == 0u, w0, w1);
+            xq_fade(mr, n, &xq.s[c][1], k1, k2, c == 0u, w0, w1);
+        }
+        xq.w[c] = w1;
+    }
 }

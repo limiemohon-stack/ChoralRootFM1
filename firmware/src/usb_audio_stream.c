@@ -76,6 +76,7 @@ static struct {
     uint32_t cw, cr, cap_frac;
     int32_t cap_fill_q8;                        /* the fill, low-passed per frame (diagnostics: --debug) */
     uint32_t cap_underruns, cap_overruns;
+    uint32_t cap_reset_ms;                      /* 3y48: fm1_ms of the latest under- or overrun (0: none) */
     uint32_t tx_packets, missed_frames;
     uint32_t poll_max_ticks, service_max_ticks;
     int16_t cap[UA_CAP_RING * UA_CAP_CHANNELS];
@@ -186,6 +187,7 @@ static uint32_t ua_transmit(uint8_t *p)
             take = 1;
         else {
             ua.cap_underruns++;
+            ua.cap_reset_ms = fm1_ms | 1u;
             ua_cap_reset();
         }
     }
@@ -217,6 +219,7 @@ static inline __attribute__((always_inline)) void ua_feed(const int16_t *stage, 
         return;                                 /* (the host closed the stream during the block, or reads not yet) */
     if (ua.cw - ua.cr + n > UA_CAP_RING) {
         ua.cap_overruns++;
+        ua.cap_reset_ms = fm1_ms | 1u;
         ua_cap_reset();
     }
     for (i = 0; i < n; i++) {

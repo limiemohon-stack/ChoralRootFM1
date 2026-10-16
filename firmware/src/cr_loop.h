@@ -129,6 +129,12 @@ typedef struct {
     uint8_t ed_nf;                             /* .. ed_n is a part of a step: 1 .. 3 quarters (0: whole steps) */
     uint8_t ed_flat;                           /* .. an edit was made: the loop is one layer */
     uint32_t ed_t0, ed_len;
+    uint8_t pre, pre_end;                      /* the step preview (cr_loop_ed_preview): bit lv = loop voice lv sounds
+                                                * the cursor's step, struck on a cursor move while the loop is stopped
+                                                * (not a hit of the loop: not counted, not its "now playing"); pre_end:
+                                                * a key was played by hand (cr_loop_gesture) or the step cleared: the
+                                                * preview ends at the next cr_loop_tick (never inside the engine's
+                                                * gesture hook) */
     uint32_t step_len;                         /* a set Length: the ticks the cursor wraps at (whole bars, CRL_STEPS
                                                 * steps at most; 0: Free) */
     uint16_t gen;                              /* + 1 whenever the events change (the UI's timeline cache) */
@@ -221,6 +227,14 @@ int  cr_loop_ed_setnlen(cr_loop_t *lp, uint32_t n);   /* .. its notes n steps lo
 int  cr_loop_ed_len(cr_loop_t *lp, uint32_t len);     /* the loop's length in ticks (the events beyond it are kept,
                                                 * unheard and unsaved, until the editor closes); 0: refused */
 int  cr_loop_ed_vel(cr_loop_t *lp, int delta); /* the step's events' velocity; the highest after, 0: no event */
+/* the step preview (GitHub issue 8; docs/LOOPER.md "The loop editor", "Step preview"): the cursor's step heard once,
+ * as the loop would play it, when the cursor lands on it while the loop is STOPPED: its live events (both sides) each
+ * on a loop voice as crl_play_ev strikes them (the velocity by the Level, the step's voicing and ratchet, a bass-side
+ * note on the bass part, the notes' own length), its condition and chance not asked (a preview always sounds). A
+ * preview sounding is ended first (an empty step: silence). Nothing else: no event, no capture, the position where it
+ * was, not counted as played, not the loop's "now playing". While the loop plays, or outside the editor: nothing.
+ * Returns the events struck */
+int  cr_loop_ed_preview(cr_loop_t *lp, cr_t *c);
 int  cr_loop_ed_transpose(cr_loop_t *lp, int semis);   /* the step's notes (chord roots, single notes, bass-side notes)
                                                 * semis up or down, chromatically: the events' roots are rewritten, nothing
                                                 * else moves and nothing new is stored. 1 done; 0 refused: no event, or

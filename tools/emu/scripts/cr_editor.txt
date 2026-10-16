@@ -8,6 +8,7 @@
 # SHIFT + EDIT: the bass sound and back; PERF held (ARP): the perform layer over the editor, OCT- back to it (and HOME
 # back to it); SAVE: the naming screen over the editor, OCT- cancels back to it; HOME leaves; EDIT tap again: the
 # group, screen and lane it was left in (MIX row B); SAVE SAVE saves (U01); EDIT tap leaves.
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 100                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
 wait 100

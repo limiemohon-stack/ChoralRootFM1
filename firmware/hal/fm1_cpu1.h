@@ -102,6 +102,24 @@ static inline __attribute__((always_inline)) int fm1_c1_poll(uint32_t *done)
     return -1;
 }
 
+/* DBG_MSG's sources (SDK cpu/wl82/debug.c debug_msg[], as Melodee PR 21) by core: the MMU read/write, the PC and
+ * write limits, the bus-invalid fetch/read/write; and the other masters' (FM1_DBG_PRP): the watchdog (0), the
+ * peripherals' MMU and write limit (1..3), an AXI master's invalid read / write (4, 5: a DMA, the USB, the DAC), the
+ * DMC and DBG pendings (14, 15) */
+#define FM1_DBG_C1 ((1u << 6) | (1u << 8) | (1u << 10) | (1u << 11) | (7u << 16))
+#define FM1_DBG_C0 ((1u << 7) | (1u << 9) | (1u << 12) | (1u << 13) | (7u << 19))
+#define FM1_DBG_PRP (0x3Fu | (3u << 14))
+/* a crash of core 0's own beside a running core 1 bars it (docs/DUALCORE.md "The persistent fallback"): the misreads
+ * the reports describe come as core 0's debug sources (fc79's records: DBG_MSG 0x1000 the PC limit, 0x200000 a bus
+ * read) or as a plain CPU exception with no debug source at all (EMU_MSG says what: an illegal instruction read from
+ * RAM). A fault that only another master raised is not core 0 misreading: seen on the owner's unit, axi_rd_inv (bit 4)
+ * in the restart's soft reset itself (fm1_reboot's P33 write, uptime 37.6 s: a DMA still reading as the unit leaves),
+ * which barred Dual Core for nothing. The crash report either way; the bar only for core 0's kinds */
+static inline int fm1_c1_crash_bars(uint32_t dbg)
+{
+    return (dbg & FM1_DBG_C0) || !(dbg & FM1_DBG_PRP);
+}
+
 #ifndef FM1_CPU1_LOGIC_ONLY
 #define FM1_HAVE_CPU1 1                 /* firmware/src/cr_cpu1.h: the real core, not the host's inline stub */
 #include "fm1_power.h"              /* the core rails (cr_cpu1.h: up before core 1 starts) */
@@ -120,6 +138,12 @@ static uint8_t fm1_c1_on;                       /* started and answering: core 0
  * the faulting core's EMU_MSG, its pc and rets */
 static struct { volatile uint32_t count; uint32_t echoes, cpu, dbg, emu, pc, rets; } fm1_c1_fault;
 static volatile uint32_t fm1_c1_stalls;         /* jobs not done in 8 ms */
+/* the bar (docs/DUALCORE.md "Reliability"; ChoralRoot#9, fm1-x0x#21): survives a warm reset (.noinit, as fm1_crash in
+ * fm1_irq.h), read by cr_cpu1.h cr_c1_bar_boot at the next boot. ran: core 1 was started and answered in this boot;
+ * barred: why core 1 must not start at the next boot (0 none, else cr_cpu1.h's C1_BAR_*: 1 crash, 2 hang, 3 gave up) */
+#define FM1_C1_BAR_MAGIC 0x43314241u            /* "C1BA" */
+struct fm1_c1_bar { uint32_t magic, ran, barred; };
+struct fm1_c1_bar fm1_c1_bar __attribute__((section(".noinit")));
 
 void fm1_c1_main(void);
 void FM1_C1_TEXT __attribute__((noreturn, used)) fm1_c1_main(void)
@@ -138,6 +162,17 @@ static void fm1_cpu1_hold(void)
     FM1_C1_CON &= ~0x8u;
     FM1_C1_SYNC();
     fm1_c1_on = 0;
+}
+
+/* main.c fm1_cstart, first thing at every reset, before the .bss / .pool / RAM-text copies: a core 1 the reset did
+ * not hold would read the RAM being cleared (Jangada, fm1-x0x#10; fm1-x0x does the same). Registers only */
+static void fm1_cpu1_halt(void) { fm1_cpu1_hold(); }
+
+/* core 1 must not start at the next boot: why (cr_cpu1.h C1_BAR_*) */
+static void fm1_cpu1_bar(uint32_t why)
+{
+    fm1_c1_bar.magic = FM1_C1_BAR_MAGIC;
+    fm1_c1_bar.barred = why;
 }
 
 /* 0 = core 1 runs and answered; else it is held again. The top of RAM must be writable
@@ -171,6 +206,8 @@ static int fm1_cpu1_start(void)
         fm1_cpu1_hold();
         return -1;
     }
+    fm1_c1_bar.magic = FM1_C1_BAR_MAGIC;        /* (a crash or a hang from here on is one beside core 1) */
+    fm1_c1_bar.ran = 1;
     fm1_c1_on = 1;
     return 0;
 }
@@ -205,10 +242,6 @@ static inline int fm1_cpu1_wait(void)
     }
 }
 
-/* DBG_MSG's sources by core (SDK cpu/wl82/debug.c, as Melodee PR 21): the MMU read/write, the PC and write limits,
- * the bus-invalid fetch/read/write */
-#define FM1_DBG_C1 ((1u << 6) | (1u << 8) | (1u << 10) | (1u << 11) | (7u << 16))
-#define FM1_DBG_C0 ((1u << 7) | (1u << 9) | (1u << 12) | (1u << 13) | (7u << 19))
 static inline uint32_t fm1_cnum(void) { uint32_t v; __asm__ volatile("%0 = cnum" : "=r"(v)); return v; }
 
 /* 1: a fault about core 1, handled (core 0 resumes); 0: core 0's own (the crash report). After Melodee PR 21's
@@ -278,7 +311,16 @@ static void fm1_c1_test_fault(uint32_t u) { void (*volatile z)(uint32_t) = 0; z(
 void fm1_c1_fault_c(uint32_t *f);
 void fm1_c1_fault_c(uint32_t *f)
 {
-    if (!fm1_c1_fault_take(f))
+    if (!fm1_c1_fault_take(f)) {
+        if (fm1_c1_on) {                            /* beside a running core 1: held before the report */
+            fm1_cpu1_hold();
+            if (fm1_c1_crash_bars(FM1_DBG_MSG))     /* core 0's own kinds: the misread the reports describe
+                                                     * (ChoralRoot#9, fm1-x0x#21); the next boot keeps core 1 off and
+                                                     * saves Dual Core Off (cr_cpu1.h cr_c1_bar_boot). Another master's
+                                                     * fault (fm1_c1_crash_bars): the report alone */
+                fm1_cpu1_bar(1u /* C1_BAR_CRASH */);
+        }
         fm1_fault_c(f);                             /* the crash report: never returns */
+    }
 }
 #endif

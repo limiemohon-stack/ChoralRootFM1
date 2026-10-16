@@ -5,7 +5,8 @@
 
   python3 tools/fetch_packages.py [DIR]        (default: build/scratch/packages)
 
-Each choralroot-X.Y.fwsc is downloaded from its GitHub release (the tag in releases.json) unless a file with the
+Each choralroot-X.Y.fwsc (and choralroot-X.Y-1core.fwsc, the single-core package, for a release that lists its
+sha256_1core) is downloaded from its GitHub release (the tag in releases.json) unless a file with the
 right sha256 is already there, and checked against the sha256 in releases.json: a file that does not match is
 removed and the script fails. The download is Python's own (urllib); when that fails (on a Mac whose Python has
 no CA certificates it does: CERTIFICATE_VERIFY_FAILED) the script says so and fetches the same URL with `curl -sL`,
@@ -48,10 +49,13 @@ def main(out):
     data = json.loads((ROOT / "web" / "releases.json").read_text(encoding="utf-8"))
     out.mkdir(parents=True, exist_ok=True)
     failed = 0
-    for r in data["releases"]:
-        name = f"choralroot-{r['version']}.fwsc"
+    # each release's package, and its single-core package where the release lists one (sha256_1core, docs/DUALCORE.md
+    # "Two packages"; 0.16 .. 0.21 have none)
+    wanted = [(r, f"choralroot-{r['version']}.fwsc", r["sha256"]) for r in data["releases"]]
+    wanted += [(r, f"choralroot-{r['version']}-1core.fwsc", r["sha256_1core"]) for r in data["releases"] if r.get("sha256_1core")]
+    for r, name, want in wanted:
         dst = out / name
-        if dst.is_file() and hashlib.sha256(dst.read_bytes()).hexdigest() == r["sha256"]:
+        if dst.is_file() and hashlib.sha256(dst.read_bytes()).hexdigest() == want:
             print(f"{name}: there, sha256 ok")
             continue
         url = f"{data['repo']}/releases/download/{r['tag']}/{name}"
@@ -61,16 +65,16 @@ def main(out):
             failed += 1
             continue
         got = hashlib.sha256(raw).hexdigest()
-        if got != r["sha256"]:
-            print(f"{name}: FAILED: {how}, but its sha256 is {got} and web/releases.json says {r['sha256']} (not kept)")
+        if got != want:
+            print(f"{name}: FAILED: {how}, but its sha256 is {got} and web/releases.json says {want} (not kept)")
             if dst.is_file():
                 dst.unlink()
             failed += 1
             continue
         dst.write_bytes(raw)
         print(f"{name}: {how}, {len(raw)} B, sha256 ok")
-    print(f"{out}: " + (f"{failed} of {len(data['releases'])} package(s) FAILED" if failed
-                        else f"all {len(data['releases'])} packages there, each with the sha256 of web/releases.json"))
+    print(f"{out}: " + (f"{failed} of {len(wanted)} package(s) FAILED" if failed
+                        else f"all {len(wanted)} packages there, each with the sha256 of web/releases.json"))
     return 1 if failed else 0
 
 

@@ -1,0 +1,9 @@
+# test_persist.sh, Numerals = Solfege run 2 (the same flash file): Solfege at power-on; G4 in C major reads SOL
+wait 500
+dump
+btn G4 down
+wait 400
+dump
+btn G4 up
+wait 300
+quit

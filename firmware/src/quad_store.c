@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca) */
-/* The QUAD patch store (eng_quad.c, docs/QUAD.md): one packed patch (QUAD_BLOB = 80 bytes, 'Q' version 1) per user
+/* The QUAD patch store (eng_quad.c, docs/QUAD.md): one packed patch (QUAD_BLOB_V3 = 80 bytes, 'Q' versions 1..3; since
+ * 0.22 read once, the migration into the pool, whose slots keep version 4's 96) per user
  * slot, slot k <-> patch k, in one storage.c object (OBJ_QUADSTORE: A/B at 0xB2000 / 0xB3000, the user sample slot
  * 2's flash, unused since the all-synth change), mirrored in the pool so loading a sound never reads flash. The commit
  * protocol is storage.c's. The payload: a 16-byte header ("QUDS", version 1, 32 slots, the used mask, the blob size)
@@ -16,39 +17,42 @@
 #define QUAD_STORE_VER 1u
 typedef struct {
     uint32_t magic;
-    uint16_t ver, nslot;                         /* QUAD_STORE_VER, UP_SLOTS */
+    uint16_t ver, nslot;                         /* QUAD_STORE_VER, UP_LEGACY */
     uint32_t used;                               /* bit k: slot k holds a patch */
-    uint16_t blob, rsv;                          /* QUAD_BLOB, 0 */
-    uint8_t p[UP_SLOTS][QUAD_BLOB];
+    uint16_t blob, rsv;                          /* QUAD_BLOB_V3, 0 */
+    uint8_t p[UP_LEGACY][QUAD_BLOB_V3];
 } quad_store_t;
-_Static_assert(sizeof(quad_store_t) == 16u + UP_SLOTS * QUAD_BLOB && sizeof(quad_store_t) == 2576u &&
+_Static_assert(sizeof(quad_store_t) == 16u + UP_LEGACY * QUAD_BLOB_V3 && sizeof(quad_store_t) == 2576u &&
                sizeof(quad_store_t) <= 4096u - 256u, "QUAD store layout: header + 32 patches in one object");
+#if !UP_POOL
 static quad_store_t quad_store __attribute__((section(".pool")));
+#endif
 
 static int quad_store_valid(const quad_store_t *s)
 {
     uint32_t k;
-    if (s->magic != QUAD_STORE_MAGIC || s->ver != QUAD_STORE_VER || s->nslot != UP_SLOTS || s->blob != QUAD_BLOB)
+    if (s->magic != QUAD_STORE_MAGIC || s->ver != QUAD_STORE_VER || s->nslot != UP_LEGACY || s->blob != QUAD_BLOB_V3)
         return 0;
-    for (k = 0; k < UP_SLOTS; k++)
-        if (((s->used >> k) & 1u) && !quad_blob_ok(s->p[k]))
+    for (k = 0; k < UP_LEGACY; k++)
+        if (((s->used >> k) & 1u) && (s->p[k][1] > 3u || !quad_blob_ok(s->p[k])))   /* (versions 1..3: 80 bytes) */
             return 0;
     return 1;
 }
 
+#if !UP_POOL       /* (since 0.22 the pool, upool.c, keeps the patches: the store above is read once, the migration) */
 #if defined(CR_TRACE) && CR_TRACE
 static uint16_t quad_crc16(const uint8_t *b)    /* the trace's "patch crc": storage.c's CRC-32, low 16 bits */
 {
-    return (uint16_t)st_crc32(b, QUAD_BLOB);
+    return (uint16_t)st_crc32(b, QUAD_BLOB_V3);
 }
 #endif
 
 /* eng_quad.c quad_store_read: slot k's blob, 0 = there is one */
 static int quad_store_get(uint32_t k, uint8_t *b)
 {
-    if (k >= UP_SLOTS || quad_store.magic != QUAD_STORE_MAGIC || !((quad_store.used >> k) & 1u))
+    if (k >= UP_LEGACY || quad_store.magic != QUAD_STORE_MAGIC || !((quad_store.used >> k) & 1u))
         return 1;
-    memcpy(b, quad_store.p[k], QUAD_BLOB);
+    memcpy(b, quad_store.p[k], QUAD_BLOB_V3);
 #if defined(CR_TRACE) && CR_TRACE
     printf("quad: load slot %u patch crc %04x\n", (unsigned)k + 1u, (unsigned)quad_crc16(b));
 #endif
@@ -70,33 +74,33 @@ static void quad_store_boot(void)                /* persist_boot (upreset.c up_b
  * mirror kept as it was) */
 static int quad_store_put(uint32_t k, const uint8_t *b)
 {
-    uint8_t old[QUAD_BLOB];
+    uint8_t old[QUAD_BLOB_V3];
     uint32_t used = quad_store.used, magic = quad_store.magic;
-    if (k >= UP_SLOTS)
+    if (k >= UP_LEGACY)
         return 1;
     if (!quad_store_valid(&quad_store))
         memset(&quad_store, 0, sizeof quad_store);
     if (!b && !((quad_store.used >> k) & 1u))
         return 0;                                /* (nothing stored: no flash write) */
-    if (b && ((quad_store.used >> k) & 1u) && !memcmp(quad_store.p[k], b, QUAD_BLOB))
+    if (b && ((quad_store.used >> k) & 1u) && !memcmp(quad_store.p[k], b, QUAD_BLOB_V3))
         return 0;
-    memcpy(old, quad_store.p[k], QUAD_BLOB);
+    memcpy(old, quad_store.p[k], QUAD_BLOB_V3);
     quad_store.magic = QUAD_STORE_MAGIC;
     quad_store.ver = QUAD_STORE_VER;
-    quad_store.nslot = UP_SLOTS;
-    quad_store.blob = QUAD_BLOB;
+    quad_store.nslot = UP_LEGACY;
+    quad_store.blob = QUAD_BLOB_V3;
     quad_store.rsv = 0;
     if (b) {
-        memcpy(quad_store.p[k], b, QUAD_BLOB);
+        memcpy(quad_store.p[k], b, QUAD_BLOB_V3);
         quad_store.used |= 1u << k;
     } else {
-        memset(quad_store.p[k], 0, QUAD_BLOB);
+        memset(quad_store.p[k], 0, QUAD_BLOB_V3);
         quad_store.used &= ~(1u << k);
     }
     quad_store_read = quad_store_get;
 #if FELUCCA_FLASH
     if (flash_ok && st_save(OBJ_QUADSTORE, &quad_store, sizeof quad_store)) {
-        memcpy(quad_store.p[k], old, QUAD_BLOB);
+        memcpy(quad_store.p[k], old, QUAD_BLOB_V3);
         quad_store.used = used;
         quad_store.magic = magic;
         return 2;
@@ -147,7 +151,8 @@ static void quad_store_loading(const up_rec_t *r)
     quad_user_pending = 0;
     if (r->engine != ENGI_QUAD)
         return;
-    for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
+    for (b = 0; b < UP_LEGACY / UP_PER_BANK; b++)
         if (r >= up_bank[b].r && r < up_bank[b].r + UP_PER_BANK)
             quad_user_pending = (uint8_t)(b * UP_PER_BANK + (uint32_t)(r - up_bank[b].r) + 1u);
 }
+#endif /* !UP_POOL */

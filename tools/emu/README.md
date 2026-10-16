@@ -90,7 +90,7 @@ Firmware key index = MIDI note - 53 (0 = F3 .. 26 = G5).
 | End | OCT- and OCT+ together (panic) |
 | F5 F6 F7 F8 F9 F10 | the top button row: FX SEL ENV LFO EDIT GLO (ChoralRoot: FX KEY BASS LATCH EDIT OPT; in the editor: OSC FILT ENV LFO EDIT SHIFT) |
 | `7 8 9 0 - =` | the bottom button row: HOME SAVE ARP SEQ PLAY REC (ChoralRoot: HOME SAVE PERF METRO LOOP REC; in the editor: HOME SAVE PERF MOD FX MIX) |
-| Shift + Up / Down | fine steps in the editor (the firmware's SHIFT: GLO held); outside it, OPT's second function (OPT + KNOB 1 = split point, OPT + SELECT = metronome level) |
+| Shift + Up / Down | OPT snap in the editor (the firmware's SHIFT: GLO held); outside it, OPT's second function (OPT + KNOB 1 = split point, OPT + SELECT = metronome level) |
 | Page Down / Page Up | select the next / previous knob of SELECT, KNOB1 .. KNOB4 (wraps; the selected knob has a ring) |
 | Up / Down | turn the selected knob one detent clockwise / counter-clockwise (repeats while held; MASTER: 32 of 1023) |
 | mouse wheel over a knob | turn that knob (MASTER, PRESETS, ALGORITHM: the mouse only; a click selects a knob for Up / Down) |
@@ -115,9 +115,12 @@ a run is deterministic: the same script gives the same LCD and the same audio, b
 frames of 15 ms (`--frames N`; without it, to the end of the script, else 600 frames), then prints the
 peak / rms, the block render time, the host instructions per audio block and UI frame with the device estimate
 (`EMU_CPU_LOG=PCT` lists every block above PCT % of the device's budget; `EMU_STAGES=1` adds the audio ISR's stages,
-`cpu: stages ...` (docs/DUALCORE.md); the second core is off unless the flash's settings say Options > Dual Core On
-(`cr_dualcore_on.txt` on a `--flash` file, then relaunch with it); then `EMU_C1=nostart` / `EMU_C1=hang`: it does not
-answer at power-on / never finishes a job (the stub otherwise runs the bass part's job inline); `EMU_OUTPUT=classic`
+`cpu: stages ...` (docs/DUALCORE.md); the second core runs (inline: Options > Dual Core is On by default since 0.22) unless
+the flash's settings say Off (`cr_dualcore_opt.txt` on a `--flash` file, then relaunch with it); then `EMU_C1=nostart` / `EMU_C1=hang`: it does not
+answer at power-on / never finishes a job (the stub otherwise runs the bass part's job inline), `EMU_C1=thread`: the
+job runs on a real second thread while the chord part renders, as on the unit (the WAV must be the inline job's:
+`test_cr.sh`; with a ThreadSanitizer build of the firmware, `tests/run_c1_thread_test.sh`, every word both sides touch
+is named; not in the browser emulator); `EMU_OUTPUT=classic`
 holds Options > Output at Classic whatever the settings say, `EMU_CHORUS=mono` returns the chorus as 0.18 did (one tap
 to both sides: the unit has only the stereo return), `EMU_MASTER=ADC` puts the MASTER pot at ADC (0..1023) at
 power-on (docs/AUDIO-QUALITY.md "Round 3"); `EMU_UI_LOG=N` every UI frame above N
@@ -138,6 +141,8 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `wait MS` | move the clock on: `200`, `200ms`, `1.5s` (`frames N` = N x 15 ms) |
 | `key KEY down` / `key KEY up` | a computer key of the map, as if typed: `key S down` (D4), `key RETURN up`, `key UP down` |
 | `key KEY [MS]` | press KEY for MS (default 100) ms; the clock moves on by MS |
+| `btn KEY down VEL`, `btn KEY MS VEL` | a note key held (or pressed MS) **at velocity VEL**, 1..127: with Options > Key Touch on, the sensing (firmware/src/cr_sense.c, fed by `emu_fw.c emu_touch_feed`) reads the key as landing with that velocity on Velo's scale at Velocity Curve 0, about 9 ms after it went down (a key with no velocity given lands at 100; Key Touch Fixed ignores it); the top seven keys (C#5 .. G5) through the PA10 probe's model, velocity alone |
+| `lean KEY PCT` | a held note key pressed harder: PCT (0..100) of full aftertouch, once its rest has settled (~300 ms after it landed); `lean KEY 0` eases off. The traces: `touch: key K vel V sensed|context|fixed` as a key plays, `touch: at N` as the pressure changes |
 | `btn NAME [down\|up\|MS]` | a panel control by name: `FX SEL ENV LFO EDIT GLO HOME SAVE ARP SEQ PLAY REC OCT- OCT+` or a note key `F3`..`G5` (`D#4`); default a 100 ms tap |
 | `knob NAME +-N` | turn `SELECT ALGORITHM PRESETS KNOB1..KNOB4` N detents (+ clockwise); `MASTER`: N x 16 of 1023 |
 | `master ADC` | set the MASTER pot, 0..1023 |
@@ -145,7 +150,7 @@ own clock in ms from power-on; commands run in order and only `wait` (and the ti
 | `expect led NAME on\|dim\|off` | check a key's or button's LED now (`on` = lit); `GREEN` is PLAY's green LED |
 | `expect sound` / `expect silence` | non-zero samples since the previous `expect sound\|silence` (or power-on) |
 | `probe N` | (window) the next N presented frames: each button cap's level read back from the frame, with its LED state (`probe: present ... FX=247/2 SEL=121/1 ...`) |
-| `dump` | print the input state (as F12); its `cr: key` line ends with the KEY layer's keys (`kkeys` 0 pick, 1 play); the `lock:` line gives LOCK, the latched chord keys (bits DIM 01 MIN 02 MAJ 04 SUS 08, 6 10, m7 20, M7 40, 9 80) and the LOCK layer's two styles; its `loop:` line also gives the record mode, the PLAY menu's keys, the step cursor and the events a Replace layer hid (`mode keys step hidden`); `loop3:` the loop editor's page, its cursor step and that step's ratchet / condition / voicing / chance (-1: none), its notes' part of a step, the pass of the loop (mod 12), the steps that have a property and the loop voices in use (`epage cursor ratchet cond voicing chance frac pass props loopv`); `loop4:` the cursor step's events as root/qx in the array's order with their count, and the chord the loop struck last since it started (`step-events 72/20 count 1 hit 62/30`; `hit -`: none), and every UI frame's line (`EMU_UI_LOG`) has the editor's playing name (`now '...'`); `lcd:` says whether the UI's screen is off (a black frame) and counts the LCD writes; `pa2:` the PA2 line (below) |
+| `dump` | print the input state (as F12); its `cr: key` line ends with the KEY layer's keys (`kkeys` 0 pick, 1 play); the `lock:` line gives LOCK, the latched chord keys (bits DIM 01 MIN 02 MAJ 04 SUS 08, 6 10, m7 20, M7 40, 9 80) and the LOCK layer's two styles; its `loop:` line also gives the record mode, the PLAY menu's keys, the step cursor and the events a Replace layer hid (`mode keys step hidden`); `loop3:` the loop editor's page, its cursor step and that step's ratchet / condition / voicing / chance (-1: none), its notes' part of a step, the pass of the loop (mod 12), the steps that have a property, the loop voices in use and those the step preview holds (`epage cursor ratchet cond voicing chance frac pass props loopv pre`); `loop4:` the cursor step's events as root/qx in the array's order with their count, and the chord the loop struck last since it started (`step-events 72/20 count 1 hit 62/30`; `hit -`: none), and every UI frame's line (`EMU_UI_LOG`) has the editor's playing name (`now '...'`); `lcd:` says whether the UI's screen is off (a black frame) and counts the LCD writes; `pa2:` the PA2 line (below) |
 | `pa2 high` / `pa2 low` | drive the PA2 line by hand (the firmware never raises it): high = the panel black, no LED lit, no key, button or knob read, as on the unit |
 | `strike KEY [MS]` | (headless) a note key pressed at the worst moment for its latency: as the next UI frame begins, just past its scan; let go MS (default 100) later. Prints the strips that frame's redraw composed (`strike: G4 down at 1805 ms as a frame began: a redraw of 6 strips, over at 1821 ms`). With `EMU_STRIP_US` (below) |
 | `rec` | start / stop recording the LCD frames (as Insert) |
@@ -192,6 +197,24 @@ EMU_STRIP_US=2700 build/host/emu --headless --script tools/emu/scripts/cr_keylat
 EMU_STRIP_US=2700 EMU_PUMP=0 build/host/emu --headless --script tools/emu/scripts/cr_keylat.txt  # worst 19 ms
 python3 tools/emu/keylat.py tools/emu/scripts/perf_d.txt     # 40 keys at random times, both ways, two strip times
 ```
+
+### Overload, modelled
+
+The host renders a half buffer in microseconds, so `audio.c`'s shed (two halves in a row above 85 % of the 2902 us
+fade a voice, one more each half while it lasts) never runs here by itself. Two switches give `shed_check` a half of
+90 % whenever a model says the unit would be over (`emu_firmware.h` `emu_shed_model`; nothing else changes, and a run
+without them is the same bytes as before):
+
+```sh
+EMU_SHED_OVER=4 build/host/emu --headless --script S    # a half that ends with 4 or more voices sounding is over
+EMU_SHED_AT=3200:3400 build/host/emu --headless --script S   # every half between 3.2 and 3.4 s of audio is over
+```
+
+The dump then has a `shed:` line (the halves over 85 %, the latest voice shed as `1PVNN` = part, voice, note in hex,
+why: 1 a released voice, 2 a held one, 3 none to give, and the half's time), beside `voices: given up N (.. overload
+sheds N)`. What is modelled is the shed's decision; no half is made late or stale, so this cannot show what a late half
+sounds like. `test_cr.sh` runs P5's five-note-then-four-note gesture with it (docs/PROPHET.md "The crackle"). On the
+unit the same counts are 78 PEAK's `shed_*` (`tools/fm1_install.py --debug`).
 
 ### test.sh
 

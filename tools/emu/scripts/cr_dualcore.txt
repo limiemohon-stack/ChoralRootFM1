@@ -1,8 +1,9 @@
-# ChoralRoot: the second core (docs/DUALCORE.md). Options > Dual Core is Off by default (settings v12), so tools/emu/
-# test_cr.sh runs this on a flash whose settings say On (cr_dualcore_on.txt first). GEEK OUT (HOME x3 with a chord held)
+# ChoralRoot: the second core (docs/DUALCORE.md). Options > Dual Core is On by default since 0.22 (Off from 0.16);
+# tools/emu/test_cr.sh runs this on a fresh unit, on a flash whose settings say Off (cr_dualcore_opt.txt first: "c1
+# off") and on one set back to On (cr_dualcore_on.txt). GEEK OUT (HOME x3 with a chord held)
 # shows "c1 ok <jobs> . stk <bytes>" and the ISR's stages; then perf.sh (j)'s case: an 8-note VA chord + the bass over
 # MIDI, all 9 voices sounding while core 1 is alive. Run again with EMU_C1=nostart / hang ("c1 failed" / "c1 gave up")
-# and on a fresh flash (the default: "c1 off"): one core's shared budget, one voice given up
+# and with Dual Core Off ("c1 off"): one core's shared budget, voices given up
 wait 300
 key F3 down
 btn D4 down

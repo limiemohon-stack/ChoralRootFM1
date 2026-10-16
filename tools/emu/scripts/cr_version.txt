@@ -5,7 +5,7 @@ wait 300
 shot build/emu/test/cr_version_splash.ppm    # the splash: the version under the stripes
 btn GLO                       # Options
 wait 200
-knob SELECT +23               # Version (entry 23: after USB Rate, Dual Core and Output)
+knob SELECT +27               # Version (entry 23: after USB Rate, Dual Core and Output)
 wait 300
 shot build/emu/test/cr_version.ppm
 dump

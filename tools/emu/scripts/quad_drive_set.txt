@@ -1,7 +1,7 @@
 # The session and FM TONE's Drive (test_persist.sh; docs/FX.md "FM TONE's Drive"), run 1 on a fresh flash.
-# The chord part: its drive send 12 (FM6, the Sends page), then FM TONE 10 WOBBLE (Drive 10), its AMP Drive turned to 28
-# and NOT saved to a preset. The bass part: on (VA), its drive send 18 (its editor's FX group), then FM TONE (the
-# picker: 01 EP, Drive 0), its AMP Drive turned to 24, not saved. FX off. SAVE held: the global save. Dump 1.
+# The chord part: its drive send 2 (FM6, the Sends page: two detents in a frame, a turn's first two count one), then FM TONE 10 WOBBLE (Drive 10), its AMP Drive turned to 18
+# and NOT saved to a preset. The bass part: on (VA), its drive send 8 (its editor's FX group), then FM TONE (the
+# picker: 01 EP, Drive 0), its AMP Drive turned to 14, not saved. FX off. SAVE held: the global save. Dump 1.
 wait 500
 btn FX down
 wait 500

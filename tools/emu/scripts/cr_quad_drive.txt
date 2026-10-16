@@ -22,6 +22,7 @@
 # The picker's preview (the chord part, FX still off):
 # 20  EDIT, EDIT held + SELECT +1: the VA previewed: its drive is the part's send, gated: 0
 # 21  OCT- (cancel): FM TONE WOBBLE as it was: 28
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 btn FX down
 wait 500

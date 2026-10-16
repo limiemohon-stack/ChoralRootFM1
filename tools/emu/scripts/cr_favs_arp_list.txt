@@ -1,0 +1,52 @@
+# ChoralRoot 3y48 (the owner, 2026-10-13: a stutter while an arp played, "I did not do anything around then, I marked
+# favorite maybe 30 seconds earlier. So not sure why it wrote to flash"). An arp latched (ARP held, SELECT +3, OCT-;
+# LATCH on, a chord played and released), a mark while it plays (SAVE, Favorite, KNOB 4 +1, SAVE): 30 s of it, a backup LIST (65) and
+# the debug reads (73, 78, 79) in the middle: nothing written (dumps 1..3: the mark pending, the erases unchanged);
+# PANIC, 3 s of quiet: the favourites' poll writes it (dump 4).
+wait 300
+btn ARP down
+wait 500
+btn ARP up
+wait 300
+knob SELECT +3
+wait 300
+btn OCT-
+wait 300
+btn LFO
+wait 200
+key F3 down
+wait 40
+btn D4 down
+wait 500
+btn D4 up
+key F3 up
+wait 300
+btn SAVE
+wait 300
+knob SELECT +1
+wait 300
+knob KNOB4 +1
+wait 300
+btn SAVE
+wait 1000
+wait 2000
+dump                          # 1: arping, the mark pending
+sysex F07D464C41F7
+wait 300
+sysex F07D464C49F7
+wait 300
+sysex F07D464C4EF7
+wait 300
+sysex F07D464C4FF7
+wait 300
+dump                          # 2: after LIST / DEBUG / PEAK / USB: nothing written
+wait 30000
+dump                          # 3: 30 s more of the arp: still nothing written
+btn OCT- down
+btn OCT+ down
+wait 200
+btn OCT+ up
+btn OCT- up
+wait 4000
+dump                          # 4: quiet: the poll wrote the mark
+quit

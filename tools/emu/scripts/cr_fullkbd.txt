@@ -1,6 +1,7 @@
 # ChoralRoot: the Full keyboard (the owner, 2026-10-11): the KEY layer's page 2, Keyboard = Full: all 27 keys F3..G5
 # are single notes of the chord part at their own pitch; no chord key, no LOCK (B3 is a note); KNOB 1 on the view is
-# the octave; Key Mode on blocks the notes out of the scale and lights the scale on all 27 keys; Single: Split Bass:
+# the octave; Key Mode on lights the scale on all 27 keys and, with Key plays Chords, a key plays the key's chord (0.22;
+# with Key plays Notes it blocks the notes out of the scale); Single: Split Bass:
 # F3..E4 play the bass part alone, F4..G5 the chord part alone (the split at the second F, fixed); Split Oct: F3..E4
 # an octave lower. The LOCK latch made before is untouched when the mode is left.
 wait 300
@@ -171,15 +172,16 @@ expect led C#4 off
 dump                          # 33: key leds 101010120 101101010120101101
 shot build/emu/test/cr_fullkbd_key.ppm
 wait 2500
-dump                          # 34: silent before the blocked key
-btn F#3 down                  # out of the scale: nothing
+dump                          # 34: silent before the key out of the scale
+btn F#3 down                  # out of the scale, Key plays Chords: its alternate chord (0.22; nothing until then)
 wait 400
 expect led F#3 off
-dump                          # 35: voices 0, notes-out as 34
+dump                          # 35: voices 1, a chord
 btn F#3 up
-btn G3 down                   # in the scale: its note (no chord: Key Mode makes none here)
 wait 300
-dump                          # 36: chord G notes 55
+btn G3 down                   # in the scale: the key's chord, G major (0.22; its note alone until then)
+wait 300
+dump                          # 36: chord G notes 55 59 62
 btn G3 up
 btn SEL                       # Key Mode off
 wait 300

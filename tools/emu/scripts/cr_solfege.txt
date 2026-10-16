@@ -1,0 +1,92 @@
+# ChoralRoot: the KEY layer's Numerals = Solfege (GitHub issue 15): page 2, KNOB 4 is Off / On / Solfege. Solfege
+# shows the degree the numeral counts (from the tonic, Transpose taken out) as a movable-do syllable in the numeral's
+# place, blue above the chord name: DO RE MI FA SOL LA TI, upper case with a major third and lower with a minor one,
+# the degree sign and "+" as the numeral's, an accidental before it ("#FA"). Display only: the notes are the same.
+wait 300
+btn SEL                       # tap: Key Mode on, C major
+wait 300
+btn SEL down                  # the KEY layer, page 2
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 200
+knob KNOB4 +1                 # Numerals: On
+wait 200
+knob KNOB4 +1                 # .. Solfege
+wait 200
+knob KNOB4 +1                 # .. the last value: it stays
+wait 300
+shot build/emu/test/cr_solfege_page2.ppm
+dump                          # 1: numerals solfege, nothing sounding: shown ""
+btn OCT-
+wait 300
+btn G4 down                   # G in C major: SOL (V)
+wait 400
+shot build/emu/test/cr_solfege_major.ppm
+dump                          # 2: shown "SOL", chord GM
+btn G4 up
+wait 300
+btn D4 down                   # Dm: re (ii)
+wait 400
+dump                          # 3: shown "re"
+btn D4 up
+wait 300
+btn B4 down                   # Bdim: ti and the degree sign (vii°)
+wait 400
+shot build/emu/test/cr_solfege_dim.ppm
+dump                          # 4: shown "ti\260", chord Bdim
+btn B4 up
+wait 300
+btn SEL down                  # the KEY layer (it opens on page 1): Transpose +1
+wait 500
+btn SEL up
+wait 300
+knob KNOB3 +1
+wait 200
+btn OCT-
+wait 300
+btn C5 down                   # the tonic chord played, C#M sounding: DO
+wait 400
+dump                          # 5: shown "DO", chord C#M
+btn C5 up
+wait 300
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+knob KNOB3 -1                 # Transpose 0 again
+wait 200
+btn A4                        # A minor (A4 = the tonic, MIN = the scale): Do is A
+wait 200
+btn G#3
+wait 300
+btn OCT-
+wait 300
+btn D4 down                   # Dm in A minor: fa (iv)
+wait 400
+shot build/emu/test/cr_solfege_minor.ppm
+dump                          # 6: shown "fa"
+btn D4 up
+wait 300
+btn C5 down                   # C in A minor: MI (III)
+wait 400
+dump                          # 7: shown "MI", chord CM
+btn C5 up
+wait 300
+btn SEL down                  # KNOB 4 back to On: the Roman numeral again, the notes the same
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 200
+knob KNOB4 -1
+wait 200
+btn OCT-
+wait 300
+btn D4 down
+wait 400
+dump                          # 8: numerals on, shown "iv"
+btn D4 up
+wait 2500
+dump                          # 9: silent

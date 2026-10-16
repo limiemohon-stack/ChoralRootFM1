@@ -537,8 +537,8 @@ def editor_fields(p, kind):
     f.append(f".title_col = {col(p.get('titleCol'), 'NONE')}")
     if p.get("right"):
         f.append(f".page = {cstr(p['right'], 16)}")
-    if p.get("tall"):
-        f.append(".tall = 1")
+    if p.get("tall"):                                   # (True / 1: the mixer; 2: a read-out, Geek Out 2)
+        f.append(f".tall = {int(p['tall'])}")
     if p.get("fine"):
         f.append(".fine = 1")
     w = p.get("wide") if kind == "edit8" else None
@@ -596,6 +596,21 @@ DEVICE_STATES = [
      "screen": {"header": {"mid": "D", "batt": False}, "panel": {"kind": "scope", "freqs": [293.66, 369.99, 440.0]}}},
     {"name": "Device · Scope view (silence)",
      "screen": {"header": {"mid": "", "batt": False}, "panel": {"kind": "scope"}}},
+    {"name": "Device · Geek Out 2 (two cores; the peaks as ticks)",     # cr_ui.c cu_geek2: the sixth view, tall 2
+     "screen": {"panel": {"kind": "edit8", "title": "GEEK OUT 2", "titleCol": "white", "right": "2 cores", "tall": 2,
+                          "batt": 3, "active": 0,
+                          "rows": [[{"label": "CORE 0", "value": "31%", "glyph": "bar", "pct": 0.31, "pct2": 0.44},
+                                    {"label": "CORE 1", "value": "4%", "glyph": "bar", "pct": 0.04, "pct2": 0.09},
+                                    {"label": "RAM", "value": "83%", "glyph": "bar", "pct": 0.828, "pct2": 0},
+                                    {"label": "POOL", "value": "92%", "glyph": "bar", "pct": 0.917, "pct2": 0}]]}}},
+    {"name": "Device · Geek Out 2 (one core: CORE 1 off, grey)",
+     "screen": {"panel": {"kind": "edit8", "title": "GEEK OUT 2", "titleCol": "white", "right": "1 core", "tall": 2,
+                          "batt": 4, "active": 0,
+                          "rows": [[{"label": "CORE 0", "value": "52%", "glyph": "bar", "pct": 0.52, "pct2": 0.61},
+                                    {"label": "CORE 1", "value": "off", "glyph": "bar", "pct": 0, "pct2": 0,
+                                     "dim": True},
+                                    {"label": "RAM", "value": "83%", "glyph": "bar", "pct": 0.828, "pct2": 0},
+                                    {"label": "POOL", "value": "92%", "glyph": "bar", "pct": 0.917, "pct2": 0}]]}}},
     {"name": "Device · Calibration step (press FX)",
      "screen": {"ring": 0, "ringCol": "yellow",
                 "panel": {"kind": "big", "value": "FX", "sub": "1/21", "label": "press", "size": 40}}},

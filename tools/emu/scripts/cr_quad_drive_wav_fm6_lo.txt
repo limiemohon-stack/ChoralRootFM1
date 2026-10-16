@@ -1,6 +1,7 @@
 # ChoralRoot: FM TONE's Drive sounds with FX off, another engine's does not (docs/FX.md "FM TONE's Drive"; test_cr.sh
 # compares the four renders cr_quad_drive_wav_{tone,fm6}_{hi,lo}). FM6 TINE EP (the power-on sound): the Sends page's Drive (KNOB 1) to 127 and back to 0,
 # FX tapped off, then MAJ + D4 held 1.5 s.
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 300
 wait 100
 wait 100

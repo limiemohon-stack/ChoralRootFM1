@@ -8,6 +8,179 @@
   },
   "releases": [
     {
+      "version": "0.23",
+      "date": "2026-10-16",
+      "tag": "v0.23",
+      "sha256": "a779884b458b9ba921e201127e0d2ca2fbef6349c89464a0de40b9fbfc48f51d",
+      "sha256_1core": "a7d424edce02111fb8afe3e4b11148ea9136853ac9dac49834ab061668aefb23",
+      "title": "FM TONE at the right level and without pops, Velocity Curve, Solfège",
+      "bullets": [
+        "FM TONE plays at the other engines' level: INIT and imported Digitone sounds were 4 to 9 dB louder; the factory presets sound as they did.",
+        "No more pops on FM TONE's voices when a chord is struck again, when chords sharing notes change, or when an arpeggio runs over its own tails.",
+        "Imported Digitone sounds no longer click where an envelope or an LFO switches a filter in or out, and MIX moved by an LFO is smooth.",
+        "Options > Velocity Curve (-3 to +3): how hard you play to reach the loudest notes, MIDI velocity included.",
+        "Key Mode's Numerals has a third value, Solfège: the chord's degree as a movable-do syllable (SOL, la, ti°) in the numeral's place.",
+        "The device manager places sounds again in a group of ten that holds a sound saved on another build (it was refused with rc 2)."
+      ],
+      "notes": [
+        "Updating from 0.22 keeps your settings, sounds, loops and favorites.",
+        "FM TONE sounds at the Digitone's own levels (INIT, imported sounds and those made from them) play about 6 dB quieter, as loud as the other engines; BASS, SQUARE LEAD and WOBBLE are about 3.5 dB softer."
+      ]
+    },
+    {
+      "version": "0.22",
+      "date": "2026-10-15",
+      "tag": "v0.22",
+      "sha256": "1728d97e567c0f8c5efd44b6832be152f54865dfdd7eafb27b468d1223cbe992",
+      "sha256_1core": "5a64e5bf4b2d9b7808bffb65bf5eb680bcba493b305083a2276a300504401d98",
+      "title": "P5, 128 sound slots, favorites, velocity and a Filter on everything",
+      "bullets": [
+        "A new engine, P5: the Prophet-5 model of Melodee, with 115 of Sequential's factory programs, an editor drawn as the Prophet-5's own knobs and switches, and up to eight voices with Dual Core on.",
+        "128 sound slots shared by all engines (until now 32): your 32 sounds are copied over at the first start. P5 sounds can be saved too.",
+        "Favorites: mark any sound in the SAVE menu, give it a type (Both, Chord or Bass) and turn the filter on to step through your favorites only.",
+        "FM TONE in the Digitone's ranges and times (measured on a Digitone), with two decimals where the Digitone has them and all 57 LFO destinations; Digitone .dnsnd sounds import in the device manager.",
+        "A Filter on the whole sound (the FX layer's eighth page): a low cut and a high cut after the effects, 6 or 12 dB an octave, Off until you turn a cutoff; KNOB 4 takes it out and back to compare.",
+        "Snap in Key Mode: a key outside the scale plays the nearest scale note or chord tone instead of staying silent; with Key plays Chords the Full keyboard plays the key's chords; chord numerals on the Chord view.",
+        "Velocity and aftertouch from the FM-1's own keys (Options > Key Touch), and per sound an EXPR screen that sends velocity and aftertouch where you want.",
+        "The knobs accelerate (slow for fine steps, quick for big ones; hold OPT to snap to round values); the VA's modulation amounts step in tenths below 6, its filter envelope depth has two decimals, a synced LFO 42 rates.",
+        "The loop editor previews a step: with the loop stopped, turning PRESETS onto a step plays it as the loop would (its length, voicing and ratchet); nothing is recorded.",
+        "Dual Core is on for a new FM-1 and after Reset Settings, runs at 1.50 V and turns itself off after a crash; a Single core package is offered under Advanced for FM-1s that have trouble with it.",
+        "The device manager has a P5 tab and restores or deletes sounds in bulk; several FM-1s on one computer each have a unit ID (Options > Version).",
+        "The delay runs at half rate, the screen updates faster, Geek Out 2 shows both cores at work, LATCH turns Strum's or the arp's Hold off, and flash writes pause the sound less often."
+      ],
+      "notes": [
+        "Updating from 0.21, 0.20 or any 0.22 beta keeps your settings, sounds and loops; from 0.21 or 0.20 your 32 sounds are copied into U001 to U032 at the first start.",
+        "FM TONE sounds from before 0.22 are converted to the new ranges (close, not always exact) and keep their time numbers, which now mean the Digitone's times: mostly longer.",
+        "Coming from 0.20, you also get 0.21's chorus: Depth no longer pops while you turn it, and KNOB 3 of the Chorus page sets its Width.",
+        "The 0.22 betas stay listed behind Show beta releases; 0.22 is 0.22-beta4 with the VA's finer modulation amounts. A VA sound saved with an amount in tenths plays INIT on a beta."
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops and favorites stay. FM TONE is 6 dB louder again with its pops, and 0.23's Velocity Curve and Solfège are not there.",
+        "points": [
+          "INIT, imported and your own FM TONE sounds play as in 0.22, pops included; a sound saved in 0.23 from a factory FM TONE preset plays about 6 dB louder.",
+          "A Velocity Curve other than 0 is not read, and 0.22 then resets Output, USB Rate, Chord Names and 6th with 7th to their defaults: set the Curve to 0 before going back.",
+          "Numerals on Solfège: 0.22 shows no numeral and reads the scale as Major until you set them again.",
+          "A sound saved on another build (a GRAIN test sound) blocks its group of ten in the device manager again."
+        ]
+      }
+    },
+    {
+      "version": "0.22-beta4",
+      "beta": true,
+      "date": "2026-10-15",
+      "tag": "v0.22-beta4",
+      "sha256": "28beab0dd7d0ba92f272569e991f4cefe9612b8f7970e1f933721caf1a76f8c4",
+      "sha256_1core": "80d3b7583788ce6d474a98bedc14738e8b8f40898c65bc84daffd548865853ce",
+      "title": "Beta 4: a Filter on everything, the loop editor's step preview",
+      "bullets": [
+        "New since beta 3: a Filter on the whole sound (FX layer, its eighth page): a low cut and a high cut after the effects, 6 or 12 dB an octave, Off until you turn a cutoff; KNOB 4 takes it out and back to compare.",
+        "New since beta 3: the loop editor previews a step: with the loop stopped, turning PRESETS onto a step plays it as the loop would (its length, voicing and ratchet); an empty step is silence, and nothing is recorded.",
+        "Snap in Key Mode (KEY layer, page 2, KNOB 3): with Key plays Notes, a key outside the scale plays the nearest scale note or chord tone instead of staying silent; with Chords the Full keyboard plays the key's chords.",
+        "P5's sound editor is rows of up to four controls, drawn as the Prophet-5's own knobs, LED buttons and levers; a turn's first two clicks are always the finest step, EXPR amounts read -64 to +63, and LATCH turns Strum's or the arp's Hold off.",
+        "A new engine, P5: the Prophet-5 model of Melodee, with 115 of Sequential's factory programs and up to eight voices with Dual Core on.",
+        "128 sound slots shared by all engines (until now 32): your 32 sounds are copied over at the first start. P5 sounds can be saved too.",
+        "Favorites: mark any sound in the SAVE menu, give it a type (Both, Chord or Bass) and turn the filter on to step through your favorites only.",
+        "FM TONE in the Digitone's ranges and times (measured on a Digitone), with two decimals where the Digitone has them and all 57 LFO destinations; Digitone .dnsnd sounds import in the device manager.",
+        "The knobs accelerate (slow for fine steps, quick for big ones; hold OPT to snap to round values); the VA's filter envelope depth has two decimals and a synced LFO 42 rates; chord numerals in Key Mode; a cursor for naming a sound.",
+        "Dual Core is on for a new FM-1 and after Reset Settings, and turns itself off after a crash; a Single core package is offered under Advanced for FM-1s that have trouble with it.",
+        "Velocity and aftertouch from the FM-1's own keys (Options > Key Touch), and per sound an EXPR screen that sends velocity and aftertouch where you want.",
+        "The device manager has a P5 tab and restores or deletes sounds in bulk; several FM-1s on one computer each have a unit ID (Options > Version); the delay runs at half rate, the screen updates faster, and Geek Out 2 shows both cores at work."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.22, replaces it. Please report problems on GitHub.",
+        "Updating from 0.22-beta3, 0.22-beta2 or 0.22-beta1 keeps everything as it is. Going back to one of them loses the Filter; if you had changed it before holding SAVE, that beta starts with the effects' settings and the chord part's sends at their defaults.",
+        "Going back to 0.22-beta2 or 0.22-beta1 with Snap on reads Key Mode as off there, with Key plays and Keyboard at Chords, until you set them again.",
+        "Updating from 0.21 keeps your settings, sounds and loops. FM TONE sounds from before are converted to the new ranges (close, not always exact) and keep their time numbers, which now mean the Digitone's times: mostly longer.",
+        "Going back to 0.21 later finds its 32 sounds as they were when you updated; the sounds saved on the beta, P5 and the favorites are not there (they wait for your return); after a Filter you had changed and saved, its effects and the chord part's sends start at their defaults. The full notes have the rest."
+      ]
+    },
+    {
+      "version": "0.22-beta3",
+      "beta": true,
+      "date": "2026-10-15",
+      "tag": "v0.22-beta3",
+      "sha256": "6837868f7dcd9618f63bde8d2c9f649d6c91b68c52e9c3a0d784fce63691cf47",
+      "sha256_1core": "498ca109a1ccf21ca925b742e68d1ea511224fdb58d4449638fe64b3a0dadfdb",
+      "title": "Beta 3: Snap in Key Mode, the Full keyboard's chords",
+      "bullets": [
+        "New since beta 2: Snap (KEY layer, page 2, KNOB 3): with Key plays Notes, a key outside the scale plays the nearest scale note, or the nearest tone of the chord sounding, yours or a loop's, instead of staying silent; it glows faintly.",
+        "New since beta 2: the Full keyboard with Key Mode on follows Key plays: with Chords every key plays the key's chord of its note, as a lone root does on the Chords keyboard; with Notes it is single notes, as before.",
+        "P5's sound editor is rows of up to four controls, drawn as the Prophet-5's own knobs, LED buttons and levers; a turn's first two clicks are always the finest step, EXPR amounts read -64 to +63, and LATCH turns Strum's or the arp's Hold off.",
+        "A new engine, P5: the Prophet-5 model of Melodee, with 115 of Sequential's factory programs and up to eight voices with Dual Core on.",
+        "128 sound slots shared by all engines (until now 32): your 32 sounds are copied over at the first start. P5 sounds can be saved too.",
+        "Favorites: mark any sound in the SAVE menu, give it a type (Both, Chord or Bass) and turn the filter on to step through your favorites only.",
+        "FM TONE in the Digitone's ranges and times (measured on a Digitone), with two decimals where the Digitone has them and all 57 LFO destinations; Digitone .dnsnd sounds import in the device manager.",
+        "The knobs accelerate: slow for fine steps, quick for big ones. Hold OPT to snap to round values.",
+        "The VA's filter envelope depth has two decimals and a synced LFO 42 rates; chord numerals in Key Mode (KEY layer, page 2); a cursor for naming a sound.",
+        "Dual Core is on for a new FM-1 and after Reset Settings, and turns itself off after a crash; a Single core package is offered under Advanced for FM-1s that have trouble with it.",
+        "Velocity and aftertouch from the FM-1's own keys (Options > Key Touch), and per sound an EXPR screen that sends velocity and aftertouch where you want.",
+        "The device manager has a P5 tab and restores or deletes sounds in bulk; several FM-1s on one computer each have a unit ID (Options > Version); the delay runs at half rate, the screen updates faster, and Geek Out 2 shows both cores at work."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.22, replaces it. Please report problems on GitHub.",
+        "Updating from 0.22-beta2 or 0.22-beta1 keeps everything as it is. Going back to either loses nothing, except that with Snap on it reads Key Mode as off, with Key plays and Keyboard at Chords, until you set them again there.",
+        "Updating from 0.21 keeps your settings, sounds and loops. FM TONE sounds from before are converted to the new ranges (close, not always exact) and keep their time numbers, which now mean the Digitone's times: mostly longer.",
+        "Going back to 0.21 later finds its 32 sounds as they were when you updated; the sounds saved on the beta, P5 and the favorites are not there (they wait for your return). The full notes have the rest."
+      ]
+    },
+    {
+      "version": "0.22-beta2",
+      "beta": true,
+      "date": "2026-10-15",
+      "tag": "v0.22-beta2",
+      "sha256": "a3865f9c4fd2e2a32c4a11629fa31042a3ae48817591027fd3e9f52215499122",
+      "sha256_1core": "6210c7df399848310e27b7343eb4f9674ae5ffcd3667182cbb0bfb3ebb815df7",
+      "title": "Beta 2: P5's editor in rows, finer knob steps",
+      "bullets": [
+        "New since beta 1: P5's sound editor is rows of up to four controls, as on every engine, each drawn as the Prophet-5's own knob, LED button or lever, with the knobs in the order of the screen.",
+        "New since beta 1: the first two clicks of a knob turn are always the finest step, the EXPR amounts read -64 to +63 one at a time, and LATCH turns Strum's or the arp's Hold off.",
+        "A new engine, P5: the Prophet-5 model of Melodee, with 115 of Sequential's factory programs and up to eight voices with Dual Core on.",
+        "128 sound slots shared by all engines (until now 32): your 32 sounds are copied over at the first start. P5 sounds can be saved too.",
+        "Favorites: mark any sound in the SAVE menu, give it a type (Both, Chord or Bass) and turn the filter on to step through your favorites only.",
+        "FM TONE in the Digitone's ranges and times (measured on a Digitone), with two decimals where the Digitone has them and all 57 LFO destinations; Digitone .dnsnd sounds import in the device manager.",
+        "The knobs accelerate: slow for fine steps, quick for big ones. Hold OPT to snap to round values.",
+        "The VA's filter envelope depth has two decimals and a synced LFO 42 rates; chord numerals in Key Mode (KEY layer, page 2); a cursor for naming a sound.",
+        "Dual Core is on for a new FM-1 and after Reset Settings, and turns itself off after a crash; a Single core package is offered under Advanced for FM-1s that have trouble with it.",
+        "Velocity and aftertouch from the FM-1's own keys (Options > Key Touch), and per sound an EXPR screen that sends velocity and aftertouch where you want.",
+        "The device manager has a P5 tab, restores several factory presets at once, and deletes all your sounds or resets to factory in one step.",
+        "Several FM-1s on one computer each have a unit ID (Options > Version); the delay runs at half rate, the screen updates faster, and Geek Out 2 shows both cores at work."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.22, replaces it. Please report problems on GitHub.",
+        "Updating from 0.22-beta1 keeps everything as it is, and going back to 0.22-beta1 loses nothing.",
+        "Updating from 0.21 keeps your settings, sounds and loops. FM TONE sounds from before are converted to the new ranges (close, not always exact) and keep their time numbers, which now mean the Digitone's times: mostly longer.",
+        "Going back to 0.21 later finds its 32 sounds as they were when you updated; the sounds saved on the beta, P5 and the favorites are not there (they wait for your return). The full notes have the rest."
+      ]
+    },
+    {
+      "version": "0.22-beta1",
+      "beta": true,
+      "date": "2026-10-15",
+      "tag": "v0.22-beta1",
+      "sha256": "16d52533ffd06f1e095406f75519d51824f9de645efc5753189bba4e7b53bfa5",
+      "sha256_1core": "6cc9a4cda5bae515818d7d8d3918ed1cbcf0a88ab8051930274879e51bd4520e",
+      "title": "Beta: P5, velocity and aftertouch, 128 sound slots, favorites",
+      "bullets": [
+        "A new engine, P5: the Prophet-5 model of Melodee, with 115 of Sequential's factory programs, up to eight voices with Dual Core on, and a sound editor drawn as the Prophet-5's front panel.",
+        "128 sound slots shared by all engines (until now 32): your 32 sounds are copied over at the first start. P5 sounds can be saved too.",
+        "Favorites: mark any sound in the SAVE menu, give it a type (Both, Chord or Bass) and turn the filter on to step through your favorites only.",
+        "FM TONE in the Digitone's ranges and times (measured on a Digitone), with two decimals where the Digitone has them and all 57 LFO destinations; Digitone .dnsnd sounds import in the device manager.",
+        "The knobs accelerate: slow for fine steps, quick for big ones. Hold OPT to snap to round values.",
+        "The VA's filter envelope depth has two decimals, and a synced LFO has 42 rates, from 8 bars to 1/256 and a few milliseconds.",
+        "Chord numerals in Key Mode (KEY layer, page 2), and a cursor for naming a sound.",
+        "Dual Core is on for a new FM-1 and after Reset Settings, and turns itself off after a crash; a Single core package is offered under Advanced for FM-1s that have trouble with it.",
+        "Velocity and aftertouch from the FM-1's own keys (Options > Key Touch), and per sound an EXPR screen that sends velocity and aftertouch where you want.",
+        "The device manager has a P5 tab, restores several factory presets at once, and deletes all your sounds or resets to factory in one step.",
+        "Several FM-1s on one computer: each has a unit ID (Options > Version), and the installer tools can target one by its ID.",
+        "The delay runs at half rate (lighter on the chip), the screen updates faster, and Geek Out 2 shows what both cores are doing."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.22, replaces it. Please report problems on GitHub.",
+        "Updating from 0.21 keeps your settings, sounds and loops. FM TONE sounds from before are converted to the new ranges (close, not always exact) and keep their time numbers, which now mean the Digitone's times: mostly longer.",
+        "Going back to 0.21 later finds its 32 sounds as they were when you updated; the sounds saved on the beta, P5 and the favorites are not there (they wait for your return). The full notes have the rest."
+      ]
+    },
+    {
       "version": "0.21",
       "date": "2026-10-12",
       "tag": "v0.21",
@@ -22,7 +195,18 @@
       "notes": [
         "Updating from 0.20 keeps your settings, sounds and loops.",
         "Nothing sounds different until you turn the new Width knob."
-      ]
+      ],
+      "going_back": {
+        "short": "Your settings, loops and the 32 sounds you had when you updated stay. You lose P5, the 128 slots, the favorites, the Filter and the rest of 0.22; sounds saved on 0.22 wait for your return.",
+        "points": [
+          "0.21 shows its 32 slots as they were when you updated. Sounds saved on 0.22 are not there; they are still in the 128 slots when you come back (the device manager's Import the 0.21 slots brings sounds saved on 0.21 over).",
+          "A part left on a P5 sound, or on an FM TONE or VA sound in its 0.22 form, may start on another sound or on INIT. The favorites are ignored and kept for your return.",
+          "Numerals, Snap and Key Touch are not there: with Snap on, Key Mode reads as off until you set it again; once 0.21 saves its settings, they are off (Key Touch Fixed) when you come back.",
+          "If you had changed the Filter before you last held SAVE, 0.21 starts with the effects' settings and the chord part's sends at their defaults.",
+          "Dual Core keeps its setting, at 1.45 V again and without turning itself off after a crash; 0.21 has no single-core package, so on an FM-1 that needs one core set Dual Core to Off straight after installing.",
+          "A backup made on 0.22 brings back the settings, the FM6 and CZ-1 banks and the loops on 0.21, not the sounds or the favorites. The knobs move in fixed steps again."
+        ]
+      }
     },
     {
       "version": "0.20",

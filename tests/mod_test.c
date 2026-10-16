@@ -393,6 +393,75 @@ static int pan_e2e(void)                       /* MODW -> PAN moves the pan the 
     return r > 20 * l && l > 0 && trk[0].p[P_PAN] == 0;
 }
 
+/* Options > Key Touch (mod.c cr_touch_*; docs/VELOCITY.md): the velocity law on the VEL source, the default VEL -> AMP
+ * and AT -> CUT of a sound whose Expression slots (3 and 4) are unset, nothing at all with it Fixed, an explicit slot
+ * instead of its default */
+static void test_touch(void)
+{
+    track_t *t = &trk[0];
+    vmod_t m;
+    voice_t *v;
+    int32_t g0, g64, g100, g127, l0, h0;
+    cr_touch_vsens = 0;
+    g0 = cr_touch_gain(0); g64 = cr_touch_gain(64); g100 = cr_touch_gain(100); g127 = cr_touch_gain(127);
+    check("the law at Mid: 0 -> half, 64 -> ~0.70, 100 -> ~1, 127 -> 1 (clamped)",
+          g0 == 16384 && g64 > 22500 && g64 < 23300 && g100 > 32000 && g127 == 32767);
+    cr_touch_vsens = 1; l0 = cr_touch_gain(0);
+    cr_touch_vsens = 2; h0 = cr_touch_gain(0);
+    check("Low leaves 3/4 at velocity 0, High nothing", l0 == 24576 && h0 <= 1);
+    cr_touch_vsens = 0;
+    fresh(0, 0);
+    slot(t, 2, 0, 0, 0);
+    slot(t, 3, 0, 0, 0);
+    cr_touch_mode = CR_TOUCH_FIXED;
+    t->at = 100;
+    check("Key Touch Fixed, the Expression slots unset: no matrix work at all (as before)", mod_begin(t) == 0 && !MODP(t).on);
+    cr_touch_mode = CR_TOUCH_VEL;
+    check("Dynamic: the default VEL -> AMP at the full amount, nothing on the cutoff",
+          mod_begin(t) == 1 && MODP(t).on && MODP(t).amp && MODP(t).nv == 1u && MODP(t).vsrc[0] == MS_VEL &&
+          MODP(t).vdst[0] == MD_AMP && MODP(t).vamt[0] == CR_TOUCH_VEL_DEF_AMT && MODP(t).cut == 0);
+    mod_end(t);
+    cr_touch_mode = CR_TOUCH_VEL_AT;
+    cr_touch_atsens = 0;
+    mod_begin(t);
+    check("Velocity + Aftertouch: AT 100 -> CUT by Aftertouch Sens Mid (+40)", MODP(t).cut == ((100 * 258) * 40) >> 7);
+    mod_end(t);
+    cr_touch_atsens = 2;
+    mod_begin(t);
+    check("Aftertouch Sens High: +63", MODP(t).cut == ((100 * 258) * 63) >> 7);
+    mod_end(t);
+    cr_touch_atsens = 0;
+    t->at = 0;
+    check("no pressure: no cutoff term (the VEL default alone)", mod_begin(t) == 1 && MODP(t).cut == 0 && MODP(t).nv == 1u);
+    mod_end(t);
+    /* the VEL source through the law: a voice at velocity 64 */
+    mod_begin(t);
+    memset(&m, 0, sizeof m);
+    m.envq15 = 32767;
+    m.amp1 = 20000;
+    v = &t->v[0];
+    v->mvel = 64;
+    mod_voice(t, v, &m, 0);
+    check("the default VEL -> AMP: velocity 64 gives the law's gain (~0.70)",
+          m.amp1 == mulq15(20000, mulq15(32767, mod_gain(MS_VEL, cr_touch_gain(64), CR_TOUCH_VEL_DEF_AMT))) && m.amp1 > 13500 && m.amp1 < 14500);
+    mod_end(t);
+    /* an explicit Expression slot replaces its default */
+    slot(t, 2, MS_VEL, MD_CUT, 20);
+    t->at = 100;
+    slot(t, 3, MS_AT, MD_PAN, 10);
+    mod_begin(t);
+    check("explicit slots (VEL -> CUT, AT -> PAN): no default VEL -> AMP, no default AT -> CUT",
+          !MODP(t).amp && MODP(t).nv == 1u && MODP(t).vdst[0] == MD_CUT && MODP(t).cut == 0 && t->p[P_PAN] > 0);
+    mod_end(t);
+    slot(t, 2, MS_VEL, 0, 0);                        /* DST OFF: the default off for the sound */
+    check("DST OFF on the VEL slot: its default off (SRC set, nothing routed)", mod_begin(t) == 1 && !MODP(t).amp && MODP(t).nv == 0u);
+    mod_end(t);
+    cr_touch_mode = CR_TOUCH_FIXED;
+    slot(t, 2, 0, 0, 0);
+    slot(t, 3, 0, 0, 0);
+    t->at = 0;
+}
+
 static void test_midi(void)
 {
     static const uint8_t TRS[] = {0xB0, 1, 0x40, 1, 0x7F, 0xF8, 11, 0x20, 0xD2, 0x33, 0x34, 0x90, 60, 0, 0xB4, 1, 9};
@@ -612,6 +681,7 @@ int main(int argc, char **argv)
 {
     test_off();
     test_math();
+    test_touch();
     test_midi();
     test_cost();
     if (argc > 1)

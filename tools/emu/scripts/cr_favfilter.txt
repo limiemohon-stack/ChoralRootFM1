@@ -1,0 +1,260 @@
+# ChoralRoot 0.22, the SAVE menu in the Options' grammar, the favourites' filter and type (docs/PRESETS.md
+# "Favourites"; the owner, 2026-10-13). tools/emu/test_cr.sh reads the "save:", "fav:", "popup:", "home read-out:" and
+# "sound:" lines and the dumps' "favs:" lines. On FM6 TINE EP (01), the bass VA (off):
+# 1. the menu. SAVE: Save as new (shot); KNOB 1 there: nothing (no value). SELECT -1: Overwrite (shot); KNOB 1: nothing;
+#    KNOB 4 +1 there: the sound's mark (shot: the star), -1: off. SELECT +2: Favorite, "Not a favorite" (shot);
+#    KNOB 1 +1: its value On: marked (shot). SELECT +1: Favorites filter, "Filter off" (shot). SELECT +1: Favorite
+#    type, "Both" (shot); KNOB 1 +1: Chord (shot), +1: Bass (shot), +3: still Bass (a turn a step, the end), -1:
+#    Chord. OCT+ there: nothing saved. KNOB 4 -1 on the type: the mark off, the type still Chord, no star, "type . not
+#    a favorite" (shot); KNOB 1 +1: Bass, and marked by the turn; -1: Chord. SELECT +3: still the type (the end).
+#    Dump 1. OCT-.
+# 2. more marks. PRESETS +2 (03 FM BASS): SAVE (Save as new), KNOB 3 +1 there: the type Chord and the mark, the
+#    message "Type: Chord" (shot); KNOB 3 +1: Bass; +1: Bass (the end); KNOB 4 -1 +1: the mark off and on, Bass still;
+#    the message gone: Save as new with the star (shot); OCT-. PRESETS +1 (04 BRASS): SAVE, KNOB 4 +1 on Save as new:
+#    marked (Both); SELECT +2: the filter;
+#    KNOB 1 +1: "Filter on" (shot); OCT-. Dump 2: FM6 01 Chord, 03 Bass, 04 Both, the filter on.
+# 3. the chord part's turns: PRESETS +1: 01 TINE EP (past the end: round to the first; 03 is Bass only), the read-out
+#    with "favorites 01/02" in the star's colour (shot); +1: 04; -1: 01; -1: 04 (round the other way).
+# 4. the bass part, VA: no favourite of it: ALGORITHM +1: the whole pool (VA 01), "no favorites: all" (shot); +1: 02.
+#    GLO + ALGORITHM (the bass engine) to FM6: it lands on FM6's first favourite of the bass part, 03 FM BASS, not on
+#    the place remembered (shot). ALGORITHM +1: 04 BRASS; +1: OFF; +1: 03; -1: OFF; -1: 04 (round); -1: 03.
+# 5. the mark of the sound playing taken off: the chord part is on 04 BRASS: SAVE, KNOB 4 -1; KNOB 2 -1 there (Save as
+#    new): the filter Off, the message "Filter off" (shot); KNOB 2 +1: On again; OCT-: BRASS still plays
+#    (dump 3); PRESETS -1: the nearest favourite that way, 01 TINE EP; PRESETS +1: 01 still (the only one).
+# 6. a user sound: SAVE on TINE EP, SELECT to Save as new, OCT+, three keys, OCT+: FM6 26 (U01; the new slot starts
+#    unmarked). SAVE, KNOB 4 +1 on Overwrite: marked by its slot. PRESETS +1: 01; +1: 26; +1: 01.
+# 7. an engine change with the filter on. GLO + PRESETS +1: FM TONE, no favourite: its remembered place, "no
+#    favorites: all"; PRESETS +1 +1 there: the whole pool. GLO + PRESETS -1: FM6: its first favourite, 01 TINE EP,
+#    not 26 where it was left (shot). Dump 4.
+# 8. not filtered: a program change (C0 04: FM6 05 FM PAD, no favourite): loaded; the read-out says "--" of 2 (shot);
+#    PRESETS +1: the nearest favourite after it, 26 ADG.
+# 9. the filter off again: SAVE, SELECT to the filter, KNOB 1 -1; OCT-; PRESETS +1: 00 INIT (the whole pool), the
+#    read-out as ever (shot). Dump 5.
+wait 300
+btn SAVE
+wait 300
+shot build/emu/test/cr_ff_e2.ppm
+knob KNOB1 +1
+wait 200
+shot build/emu/test/cr_ff_e2_k1.ppm
+knob SELECT -1
+wait 300
+shot build/emu/test/cr_ff_e1.ppm
+knob KNOB1 -1
+wait 100
+knob KNOB4 +1
+wait 300
+shot build/emu/test/cr_ff_e1_star.ppm
+knob KNOB4 -1
+wait 100
+knob SELECT +1
+wait 100
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_ff_e3_off.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_ff_e3_on.ppm
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_ff_e4_off.ppm
+knob SELECT +1
+wait 300
+shot build/emu/test/cr_ff_e5_both.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_ff_e5_chord.ppm
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_ff_e5_bass.ppm
+knob KNOB1 +3
+wait 100
+knob KNOB1 -1
+wait 100
+btn OCT+
+wait 200
+knob KNOB4 -1
+wait 300
+shot build/emu/test/cr_ff_e5_none.ppm
+knob KNOB1 +1
+wait 100
+knob KNOB1 -1
+wait 100
+knob SELECT +3
+wait 200
+dump                              # 1
+btn OCT-
+wait 1500
+# ---- 2
+knob PRESETS +2
+wait 1500
+btn SAVE
+wait 200
+knob KNOB3 +1
+wait 300
+shot build/emu/test/cr_ff_k3.ppm
+knob KNOB3 +1
+wait 50
+knob KNOB3 +1
+wait 50
+knob KNOB4 -1
+wait 50
+knob KNOB4 +1
+wait 1800
+shot build/emu/test/cr_ff_k3_after.ppm
+btn OCT-
+wait 300
+knob PRESETS +1
+wait 1500
+btn SAVE
+wait 200
+knob KNOB4 +1
+wait 100
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 100
+knob KNOB1 +1
+wait 300
+shot build/emu/test/cr_ff_e4_on.ppm
+btn OCT-
+wait 300
+dump                              # 2
+# ---- 3
+knob PRESETS +1
+wait 600
+shot build/emu/test/cr_ff_pop.ppm
+wait 1000
+knob PRESETS +1
+wait 1500
+knob PRESETS -1
+wait 1500
+knob PRESETS -1
+wait 1500
+# ---- 4
+knob ALGORITHM +1
+wait 600
+shot build/emu/test/cr_ff_pop_none.ppm
+wait 1000
+knob ALGORITHM +1
+wait 1500
+btn GLO down
+wait 50
+knob ALGORITHM -2
+wait 300
+btn GLO up
+wait 600
+shot build/emu/test/cr_ff_pop_bass.ppm
+wait 1000
+knob ALGORITHM +1
+wait 1500
+knob ALGORITHM +1
+wait 1500
+knob ALGORITHM +1
+wait 1500
+knob ALGORITHM -1
+wait 1500
+knob ALGORITHM -1
+wait 1500
+knob ALGORITHM -1
+wait 1500
+# ---- 5
+btn SAVE
+wait 200
+knob KNOB4 -1
+wait 200
+knob KNOB2 -1
+wait 300
+shot build/emu/test/cr_ff_k2.ppm
+knob KNOB2 +1
+wait 1800
+btn OCT-
+wait 300
+dump                              # 3
+knob PRESETS -1
+wait 1500
+knob PRESETS +1
+wait 1500
+# ---- 6
+btn SAVE
+wait 200
+knob SELECT -1
+wait 50
+knob SELECT +1
+wait 100
+btn OCT+
+wait 150
+key A4 down
+wait 30
+key A4 up
+wait 30
+key D4 down
+wait 30
+key D4 up
+wait 30
+key G4 down
+wait 30
+key G4 up
+wait 30
+btn OCT+
+wait 1800
+btn SAVE
+wait 200
+knob KNOB4 +1
+wait 200
+btn OCT-
+wait 300
+knob PRESETS +1
+wait 1500
+knob PRESETS +1
+wait 1500
+knob PRESETS +1
+wait 1500
+knob PRESETS -1
+wait 1500
+# ---- 7
+btn GLO down
+wait 50
+knob PRESETS +1
+wait 300
+btn GLO up
+wait 600
+shot build/emu/test/cr_ff_pop_other.ppm
+wait 1000
+knob PRESETS +1
+wait 1500
+knob PRESETS +1
+wait 1500
+btn GLO down
+wait 50
+knob PRESETS -1
+wait 300
+btn GLO up
+wait 600
+shot build/emu/test/cr_ff_pop_land.ppm
+wait 1000
+dump                              # 4
+# ---- 8
+midi C0 04
+wait 300
+knob PRESETS +1
+wait 1500
+# ---- 9
+btn SAVE
+wait 200
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 100
+knob KNOB1 -1
+wait 300
+shot build/emu/test/cr_ff_e4_back.ppm
+btn OCT-
+wait 300
+knob PRESETS +1
+wait 600
+shot build/emu/test/cr_ff_pop_off.ppm
+wait 4000
+dump                              # 5

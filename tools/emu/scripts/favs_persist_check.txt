@@ -1,0 +1,31 @@
+# test_persist.sh, favourites run 2 (the same flash file): the dump's "favs:" line has both marks, TINE EP's type
+# (Chord), the type of FM BASS which is not marked (Bass) and the filter on, read at power-on. The filter is on:
+# PRESETS -1: 04 BRASS, +1: the read-out of FM6 01 TINE EP with its star (shot); +3: 04, 01, 04 BRASS with its star
+# (the chord part's two favourites, round). Then SAVE on BRASS (Save as new), SELECT +2 (Favorites filter), KNOB 1 -1
+# (Off), OCT-; PRESETS +1: 05 FM PAD without a star (shot): the whole pool again. 4 s: the filter Off is written
+wait 500
+dump
+knob PRESETS -1
+wait 300
+knob PRESETS +1
+wait 600
+shot build/emu/test/persist_favs_star.ppm
+wait 1200
+knob PRESETS +3
+wait 1500
+btn SAVE
+wait 300
+knob SELECT +1
+wait 50
+knob SELECT +1
+wait 50
+knob KNOB1 -1
+wait 200
+btn OCT-
+wait 300
+knob PRESETS +1
+wait 600
+shot build/emu/test/persist_favs_none.ppm
+wait 4000
+dump
+quit

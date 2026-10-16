@@ -4,7 +4,7 @@
 wait 300
 btn GLO 80                     # Options
 wait 100
-knob SELECT +12              # MIDI Clock
+knob SELECT +16              # MIDI Clock
 knob KNOB1 +2                # Off/Out -> In
 wait 100
 btn GLO 80

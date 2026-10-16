@@ -7,7 +7,8 @@
 //   Felucca     0 the music now, 1 settings, 2..5 projects, 6 7 user preset banks, 8 the FM6 bank, 32..34 samples
 //   ChoralRoot  1 settings, 6 7 user sound banks, 8 the FM6 bank, 9 the VA patches, 10 11 the FM6 patches (user sounds
 //               1-16, 17-32: voice + function settings), 12 13 the CZ-1 tones (user sounds 1-16, 17-32), 14..21 the
-//               CZ-1 banks A..H, 22 the FM TONE patches (0.14), 40..49 loop slots (no samples: the
+//               CZ-1 banks A..H, 22 the FM TONE patches (0.14), 23 the favorites (0.22: the marks on sounds; a
+//               firmware before it does not list 23, so a restore there leaves it in the file), 40..49 loop slots (no samples: the
 //               all-synth firmware has no SAMPLE engine; ChoralRoot 0.1 archives with 32 33 restore without them)
 // so a Felucca archive restores its settings, banks and FM6 bank on ChoralRoot (its samples are reported skipped), and
 // a ChoralRoot archive those (its settings record cut back to Felucca's) on Felucca; the rest stays in the file.
@@ -16,9 +17,9 @@ const BACKUP_IDS_V1 = BACKUP_IDS.filter((id) => id !== 8);              // Feluc
 const idsOf = (n) => (n === BACKUP_IDS.length ? BACKUP_IDS : n === BACKUP_IDS_V1.length ? BACKUP_IDS_V1 : null);
 export const CR_LOOP_IDS = Array.from({ length: 10 }, (_, k) => 40 + k);
 export const CR_CZ_BANK_IDS = Array.from({ length: 8 }, (_, k) => 14 + k);
-export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13, ...CR_CZ_BANK_IDS, 22, ...CR_LOOP_IDS];  // ChoralRoot's (9:
+export const CR_BACKUP_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13, ...CR_CZ_BANK_IDS, 22, 23, ...CR_LOOP_IDS];  // ChoralRoot's (9:
                                          // the VA patches, 10 11: the FM6 patches, 12 13: the CZ-1 tones, 14..21: the
-                                         // CZ-1 banks, 22: the FM TONE patches, 40..49: loops)
+                                         // CZ-1 banks, 22: the FM TONE patches, 23: the favorites, 40..49: loops)
 const KNOWN = new Set([...BACKUP_IDS, ...CR_BACKUP_IDS]);
 export const BACKUP_CMD = { INFO: 1, LIST: 65, GET: 66, PUT: 67, RESTART: 72 };
 const BACKUP_CHUNK = 256;
@@ -35,8 +36,13 @@ export function objectName(id) {
   if (id === 12 || id === 13) return `CZ-1 tones ${id === 12 ? "1-16" : "17-32"}`;
   if (id >= 14 && id <= 21) return `CZ-1 bank ${String.fromCharCode(51 + id)}`;
   if (id === 22) return "FM TONE patches";
+  if (id === 23) return "favorites";
   if (isSample(id)) return `sample slot ${id - 31}`;
   if (id >= 40 && id <= 49) return `loop slot ${id - 39}`;
+  if (id >= 50 && id <= 62) {               // 0.22, the sound pool: a bank of 10 slots (the last: 121..128)
+    const a = (id - 50) * 10 + 1;
+    return `user sounds ${String(a).padStart(3, "0")}-${String(Math.min(a + 9, 128)).padStart(3, "0")}`;
+  }
   return `object ${id}`;
 }
 export const bkU32 = (n) => Array.from({ length: 5 }, (_, i) => (n >>> (i * 7)) & (i === 4 ? 15 : 127));
@@ -214,12 +220,25 @@ export async function restoreBackup(request, file, onProgress = () => {}, opts =
   }
   return { ...archive, restored, skipped };
 }
-// INFO -> {version, family}; null when the firmware does not answer (stock, an update loader)
+// the unit's ID in ChoralRoot's INFO reply (cr_backup.c CRB_INFO, docs/INSTALL-COMPAT.md "Several FM-1s"): after the
+// version's NUL, Felucca's 7 bytes (no engines), the tagged fields (tag, length, value): 42 01 03, 43 01 03, then 49 08
+// and the ID's 8 hex digits -> "A1B2C3D4"; null without that tag (a ChoralRoot from before it, SAFE MODE)
+export function unitIdOf(a) {
+  let p = a.indexOf(0);
+  if (p < 0) return null;
+  for (p += 8; p + 2 <= a.length && p + 2 + a[p + 1] <= a.length; p += 2 + a[p + 1]) {
+    const v = String.fromCharCode(...a.slice(p + 2, p + 2 + a[p + 1]));
+    if (a[p] === 0x49 && /^[0-9A-F]{8}$/.test(v)) return v;
+  }
+  return null;
+}
+// INFO -> {version, family, unitId (ChoralRoot's, or null)}; null when the firmware does not answer (stock, an update loader)
 export async function deviceInfo(request) {
   let a;
   try { a = await request([BACKUP_CMD.INFO, []], { timeout: 1500, retries: 0 }); } catch (_) { return null; }
   const end = a.indexOf(0), version = String.fromCharCode(...a.slice(0, end < 0 ? a.length : end));
-  return { version, family: backupFamily(version) };
+  const family = backupFamily(version);
+  return { version, family, unitId: family === "choralroot" ? unitIdOf(a) : null };
 }
 // ChoralRoot: restart after a restore, so everything restored loads from flash (its settings wait for it)
 export async function restartDevice(request) {

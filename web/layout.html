@@ -1,0 +1,1387 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+     The layout tool, step 2: a read-only viewer of the sound editor's pages (docs/LAYOUT-TOOL.md). The picture is the
+     firmware's own renderer: crlayout.js beside this page (tools/layout/build_layout.sh) carries the whole firmware as
+     WebAssembly. Built by web/make_site.py (or tools/layout/make_page.py): the LIB mark = fm1layout.js inlined.
+     ?engine=P5&group=FILT&screen=1&lane=2&preset=1  a place (numbers from 1; group by name or index)
+     ?view=sheet                                     the contact sheet
+     ?selftest=1                                     web/test_layout.mjs: checks itself, paints the result squares -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>ChoralRoot FM-1 · layout designer</title>
+<style>
+  @font-face { font-family: "Inter Tight"; src: url(../../InterTight.woff2) format("woff2");
+               font-weight: 100 900; font-display: swap; }
+  :root { --ground: #080808; --cream: #F6F2EE; --red: #E63829; --orange: #F67918; --yellow: #F6B600; --blue: #2950CD;
+          --green: #29B27B; --grey: #6A696A; --dark: #313031; --deep: #1A191A; --dim: #9A999A;
+          --mono: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  * { box-sizing: border-box; }
+  html { background: var(--ground); }
+  body { margin: 0; background: var(--ground); color: var(--cream);
+         font: 400 16px/1.45 "Inter Tight", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 1320px; margin: 0 auto; padding: 20px 16px 56px; }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--orange); }
+  button { font: inherit; border: 0; border-radius: 2px; cursor: pointer; color: var(--cream); background: var(--dark); }
+  button:disabled { opacity: .3; cursor: default; }
+  button:focus-visible, select:focus-visible, [tabindex]:focus-visible, input:focus-visible { outline: 3px solid var(--cream); outline-offset: 2px; }
+  select { font: inherit; font-size: 14px; font-weight: 700; background: var(--dark); color: var(--cream); border: 0;
+           padding: 6px 8px; border-radius: 2px; max-width: 100%; }
+  .top { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: baseline; justify-content: space-between; }
+  .home { font-size: 14px; font-weight: 600; color: var(--dim); text-decoration: none; }
+  .home:hover { color: var(--cream); }
+  h1 { font-size: clamp(36px, 7vw, 60px); font-weight: 900; letter-spacing: -0.045em; line-height: .95; margin: 14px 0 0; }
+  .stripes { display: grid; gap: 4px; margin: 16px 0 14px; }
+  .stripes i { display: block; height: 8px; }
+  .stripes i:nth-child(1) { background: var(--blue); } .stripes i:nth-child(2) { background: var(--orange); }
+  .stripes i:nth-child(3) { background: var(--cream); } .stripes i:nth-child(4) { background: var(--green); }
+  .small { color: var(--dim); font-size: 13px; margin: 4px 0; }
+  .pill { display: inline-block; padding: 3px 10px; border-radius: 99px; background: var(--yellow); color: #000;
+          font-size: 12px; font-weight: 800; }
+  #status { min-height: 1.5em; margin: 8px 0; font-size: 16px; font-weight: 800; }
+  #status.err { color: var(--red); }
+  .bar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 12px 0; padding: 10px 0;
+         border-top: 3px solid var(--dark); border-bottom: 3px solid var(--dark); }
+  .bar button { padding: 8px 12px; font-weight: 800; font-size: 14px; }
+  .bar button:not(:disabled):hover { background: var(--cream); color: #000; }
+  .bar button[aria-pressed=true] { background: var(--cream); color: #000; }
+  .bar .sp { flex: 1; }
+  .engines { display: flex; flex-wrap: wrap; gap: 4px; }
+  .engines button { padding: 6px 11px; font-size: 14px; font-weight: 800; }
+  .engines button[aria-pressed=true] { background: var(--orange); color: #000; }
+  .grid { display: grid; grid-template-columns: 250px minmax(0, 500px) minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 1080px) { .grid { grid-template-columns: 220px minmax(0, 1fr); } .grid > .insp { grid-column: 1 / -1; } }
+  @media (max-width: 720px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+  .pane { background: var(--deep); border-top: 6px solid var(--c, var(--grey)); min-width: 0; padding-bottom: 10px; }
+  .pane h2 { margin: 0; padding: 10px 14px 6px; font-size: 22px; font-weight: 900; letter-spacing: -0.03em; }
+  .pane h3 { margin: 12px 14px 4px; font-size: 13px; font-weight: 800; color: var(--dim); text-transform: uppercase; letter-spacing: .04em; }
+  .pane h3 span { text-transform: none; font-weight: 500; letter-spacing: 0; }
+  .pane p, .pane dl { margin: 6px 14px; }
+  nav.list { max-height: 640px; overflow-y: auto; padding-bottom: 6px; }
+  @media (max-width: 720px) { nav.list { max-height: 260px; } }
+  nav.list button { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; width: 100%; text-align: left;
+                    padding: 5px 14px; background: none; border-radius: 0; font-size: 14px; }
+  nav.list button:hover { background: #242324; }
+  nav.list button[aria-current=true] { background: var(--orange); color: #000; }
+  nav.list button[aria-current=true] .pos { color: #000; }
+  .pos { font: 12px/1.6 var(--mono); color: var(--dim); }
+  .nm { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lcd { position: relative; width: min(480px, 100%); aspect-ratio: 1; margin: 0 auto; background: #000; }
+  .lcd canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; image-rendering: crisp-edges; }
+  .lcd .box { position: absolute; border: 2px solid var(--red); pointer-events: none; }
+  .lcd .box.ellipsis { border: 2px dashed var(--yellow); }
+  .lcd .box.text { border: 1px solid rgba(41, 178, 123, .8); }
+  .stage { padding: 10px; }
+  .knobs { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; margin: 10px auto 0; width: min(480px, 100%); }
+  .knob { background: var(--dark); border-top: 5px solid var(--k, var(--grey)); padding: 6px 4px 6px; text-align: center; min-width: 0; }
+  .knob .cap { font-size: 11px; font-weight: 800; color: var(--dim); white-space: nowrap; overflow: hidden; }
+  .knob .dial { margin: 5px auto; width: 44px; height: 44px; border-radius: 50%; background: var(--k, var(--grey));
+                cursor: ns-resize; touch-action: none; position: relative; user-select: none; }
+  .knob .dial::after { content: ""; position: absolute; left: 50%; top: 4px; width: 3px; height: 14px; margin-left: -1.5px;
+                       background: #000; transform-origin: 50% 18px; transform: rotate(var(--a, 0deg)); }
+  .knob .val { font: 700 12px/1.3 var(--mono); min-height: 2.6em; overflow: hidden; word-break: break-word; }
+  .knob .val b { display: block; color: var(--dim); font-weight: 500; }
+  .knob .pm { display: flex; gap: 4px; justify-content: center; }
+  .knob .pm button { width: 30px; height: 28px; font-weight: 900; font-size: 16px; line-height: 1; background: #000; }
+  .knob .pm button:hover { background: var(--cream); color: #000; }
+  .ctl { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 10px auto 0; width: min(480px, 100%); font-size: 13px; color: var(--dim); }
+  .ctl label { display: flex; gap: 6px; align-items: center; }
+  .ctl button { padding: 6px 10px; font-size: 13px; font-weight: 800; }
+  ul.lint { list-style: none; margin: 4px 0; padding: 0; font-size: 13px; }
+  ul.lint li { padding: 4px 14px; border-left: 4px solid var(--red); margin: 3px 0; }
+  ul.lint li.ellipsis, ul.lint li.rule { border-left-color: var(--yellow); }
+  ul.lint li.ok { border-left-color: var(--green); color: var(--dim); }
+  ul.lint code, dl code { font: 12px var(--mono); color: var(--yellow); }
+  .cells { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 8px; padding: 0 14px; }
+  .cell { background: #000; border-top: 5px solid var(--k, var(--grey)); padding: 8px 10px; min-width: 0; }
+  .cell h4 { margin: 0; font-size: 17px; font-weight: 900; }
+  .cell h4 small { font: 500 12px var(--mono); color: var(--dim); margin-left: 6px; }
+  .cell dl, dl.kv { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 2px 10px; margin: 6px 0 0; font-size: 13px; }
+  dl.kv { margin: 6px 14px; }
+  dt { color: var(--dim); } dd { margin: 0; overflow-wrap: anywhere; }
+  #sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  #sheet figure { margin: 0; background: var(--deep); padding: 8px; }
+  #sheet canvas { display: block; width: 100%; max-width: 240px; margin: 0 auto; aspect-ratio: 1; image-rendering: pixelated; cursor: pointer; }
+  #sheet figcaption { display: flex; gap: 6px; align-items: center; justify-content: space-between; margin-top: 6px; font-size: 12px; font-weight: 700; }
+  #sheet figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #sheet figcaption i { font-style: normal; color: var(--red); font-family: var(--mono); }
+  #sheet figcaption button { padding: 3px 7px; font-size: 11px; font-weight: 800; flex: none; }
+  #selftest { position: fixed; left: 0; top: 0; display: flex; z-index: 9; }
+  #selftest i { display: block; width: 20px; height: 20px; }
+  .bar .mode { background: #000; border: 2px solid var(--dark); }
+  .bar .mode[aria-pressed=true] { background: var(--orange); color: #000; border-color: var(--orange); }
+  .vbar { display: contents; }
+  .dgrid { display: grid; grid-template-columns: 260px minmax(0, 500px) minmax(0, 1fr); gap: 14px; align-items: start; }
+  @media (max-width: 1080px) { .dgrid { grid-template-columns: 240px minmax(0, 1fr); } .dgrid > .insp { grid-column: 1 / -1; } }
+  @media (max-width: 720px) { .dgrid { grid-template-columns: minmax(0, 1fr); } }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 14px; }
+  .row button, .dtools button { padding: 5px 9px; font-size: 13px; font-weight: 800; }
+  input, textarea { font: inherit; font-size: 14px; background: #000; color: var(--cream); border: 1px solid var(--dark); padding: 5px 7px; border-radius: 2px; min-width: 0; }
+  .dtools { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 auto 8px; width: min(480px, 100%); }
+  .dtools .new { cursor: grab; touch-action: none; user-select: none; }
+  #d-align { margin-top: 8px; }
+  .overlay { position: absolute; inset: 0; }
+  .overlay .el { position: absolute; outline: 1px dashed rgba(246, 242, 238, .35); cursor: move; touch-action: none; }
+  .overlay .el.t-frame { outline-color: rgba(154, 153, 154, .3); }
+  .overlay .el.sel { outline: 2px solid var(--yellow); z-index: 2; }
+  .overlay .el.bad { outline: 2px solid var(--red); }
+  .overlay .el .tag { position: absolute; right: 0; top: -14px; font: 700 10px/12px var(--mono); padding: 0 3px; color: #000; background: var(--k, var(--grey)); pointer-events: none; }
+  .overlay .el .rs { position: absolute; right: -5px; bottom: -5px; width: 10px; height: 10px; background: var(--yellow); cursor: nwse-resize; }
+  .overlay.grid { background-image: linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+                  background-size: calc(100% / 60) calc(100% / 60); }
+  .overlay .hdr { position: absolute; left: 0; right: 0; top: 0; height: calc(100% * 28 / 240); background: repeating-linear-gradient(45deg, rgba(0,0,0,0) 0 6px, rgba(255,255,255,.04) 6px 12px); pointer-events: none; }
+  .dtag { display: flex; gap: 8px; align-items: center; justify-content: space-between; margin: 6px auto 0; width: min(480px, 100%); font-size: 13px; font-weight: 700; }
+  .pill.nb { background: var(--red); color: var(--cream); }
+  .pill.okb { background: var(--green); color: #000; }
+  .lane { display: grid; grid-template-columns: 64px repeat(4, minmax(0, 1fr)) auto; gap: 4px; align-items: stretch; margin: 4px 14px; }
+  .lane.on { background: #242324; }
+  .lane .ln { font: 700 12px var(--mono); color: var(--dim); align-self: center; cursor: pointer; }
+  .lane .ln input { width: 100%; font-size: 12px; padding: 2px 4px; }
+  .slot { background: #000; border-top: 4px solid var(--k); padding: 4px 6px; font-size: 12px; font-weight: 700; min-height: 34px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; position: relative; }
+  .slot small { display: block; color: var(--dim); font-weight: 500; font-family: var(--mono); font-size: 10px; }
+  .slot.empty { color: var(--grey); }
+  .slot.cur { outline: 2px solid var(--yellow); }
+  .slot.drop, .overlay .el.drop { outline: 2px solid var(--green); }
+  .lane .ops { display: flex; gap: 2px; }
+  .lane .ops button { padding: 2px 6px; font-size: 12px; }
+  nav.list .scr { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 4px; align-items: center; }
+  nav.list .scr .k { font: 700 10px var(--mono); color: var(--dim); }
+  nav.list button[aria-current=true] .k { color: #000; }
+  nav.list .ops { display: flex; gap: 2px; padding: 2px 14px 6px 44px; flex-wrap: wrap; }
+  nav.list .ops button, nav.list .ops select { padding: 2px 6px; font-size: 12px; width: auto; display: inline-block; background: var(--dark); }
+  .plist { max-height: 520px; overflow-y: auto; padding: 0 14px; }
+  .plist h4 { margin: 10px 0 2px; font-size: 12px; color: var(--dim); text-transform: uppercase; }
+  .plist .p { display: flex; justify-content: space-between; gap: 6px; padding: 3px 6px; background: #000; margin: 2px 0; font-size: 13px; font-weight: 700; cursor: grab; touch-action: none; user-select: none; }
+  .plist .p small { font: 11px var(--mono); color: var(--dim); }
+  .plist .p.used { color: var(--dim); }
+  .plist .p.used::after { content: "placed"; font: 700 10px var(--mono); color: var(--green); }
+  #d-insp dl { margin: 6px 14px; }
+  #d-insp label { display: grid; grid-template-columns: 90px minmax(0, 1fr); gap: 6px; align-items: center; margin: 4px 14px; font-size: 13px; color: var(--dim); }
+  #d-insp input, #d-insp select { width: 100%; }
+  .ghost { position: fixed; z-index: 20; pointer-events: none; padding: 3px 8px; background: var(--yellow); color: #000; font-size: 12px; font-weight: 800; }
+  #d-sheetview .grp { margin: 18px 0; }
+  #d-sheetview .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 720px) { #d-sheetview .cols { grid-template-columns: 1fr; } }
+  #d-sheetview .col { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; align-content: start; background: var(--deep); padding: 8px; }
+  #d-sheetview figure { margin: 0; }
+  #d-sheetview canvas { width: 100%; aspect-ratio: 1; image-rendering: pixelated; display: block; }
+  #d-sheetview figcaption { font-size: 12px; font-weight: 700; margin-top: 4px; display: flex; gap: 6px; justify-content: space-between; }
+  #d-sheetview figcaption i { font-style: normal; color: var(--red); }
+  #d-sheetview h4 { margin: 0 0 6px; font-size: 13px; color: var(--dim); grid-column: 1 / -1; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <a class="home" href="../../">&larr; ChoralRoot FM-1</a>
+    <span class="small" id="fw">loading the firmware&hellip;</span>
+  </div>
+  <h1>Layout designer</h1>
+  <div class="stripes" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+  <p class="small"><span class="pill">steps 1 to 4 of 5: the designer</span> The sound editor's pages drawn by the
+    firmware's own renderer (the whole firmware, compiled to WebAssembly, on its real engines and factory sounds).
+    <b>Viewer</b>: today's pages as the unit shows them (P5: the owner's rows, compiled from p5-rows.json). <b>Design</b>: rearrange today's pages or lay out new free screens, and
+    export the design as JSON. Every screen, free ones too, is drawn and turned by the firmware's own editor and
+    renderer, as the unit would. A design is compiled into the firmware build (tools/gen_layout.py), never loaded by a
+    unit; a screen the build would refuse (a flat free screen, a band, an element off the grid ..) says why.</p>
+  <div id="status" role="status"></div>
+
+  <div class="bar">
+    <button id="m-view" class="mode" aria-pressed="true">Viewer</button>
+    <button id="m-design" class="mode" aria-pressed="false">Design</button>
+    <div class="engines" id="engines" role="group" aria-label="Engine"></div>
+    <span class="sp"></span>
+    <span id="viewer-bar" class="vbar">
+    <button id="v-screen" aria-pressed="true">Screen</button>
+    <button id="v-sheet" aria-pressed="false">Contact sheet</button>
+    <button id="dl-json" title="today's built-in layout of this engine, in the layout file format (generated, read-only)">Download catalog JSON</button>
+    </span>
+  </div>
+
+  <div id="view-screen" class="grid">
+    <section class="pane" style="--c: var(--orange)" aria-label="Screens">
+      <h2>Screens</h2>
+      <p class="small" id="counts"></p>
+      <nav class="list" id="nav" aria-label="Groups, screens and lanes"></nav>
+    </section>
+
+    <section class="pane" style="--c: var(--cream)" aria-label="Preview">
+      <div class="stage">
+        <div class="lcd" id="lcd"><canvas id="screen" width="240" height="240" aria-label="the FM-1's screen, 240 by 240, twice the size"></canvas></div>
+        <div class="knobs" id="knobs"></div>
+        <div class="ctl">
+          <label>Sound <select id="preset" aria-label="Sound (the engine's pool)"></select></label>
+          <button id="reload" title="the sound as stored: every knob turn undone">Reload sound</button>
+          <label><input type="checkbox" id="show-text"> text boxes</label>
+        </div>
+        <p class="small" style="text-align:center">Wheel, drag or arrow keys on a knob, or its &minus; / + buttons: one detent each, as on the unit.</p>
+      </div>
+      <h3>Lint <span id="lint-sum"></span></h3>
+      <ul class="lint" id="lint"></ul>
+    </section>
+
+    <section class="pane insp" style="--c: var(--green)" aria-label="Inspector">
+      <h2 id="i-title">Lane</h2>
+      <dl class="kv" id="i-screen"></dl>
+      <h3>The four cells <span>(read-only)</span></h3>
+      <div class="cells" id="i-cells"></div>
+    </section>
+  </div>
+
+  <div id="view-sheet" hidden>
+    <div class="bar" style="border-top:0;margin-top:0">
+      <span id="sheet-title" style="font-weight:800"></span>
+      <span class="sp"></span>
+      <label class="small">Sound <select id="preset2" aria-label="Sound for the sheet"></select></label>
+      <button id="dl-sheet">Download sheet PNG</button>
+    </div>
+    <div id="sheet"></div>
+  </div>
+  <div id="view-design" hidden>
+    <div class="bar" style="border-top:0;margin-top:0">
+      <label class="small">Design <input id="d-name" size="14" aria-label="the design's name"></label>
+      <label class="small" title="how the free screens' elements look: flat (the editor's) or p5 (the Prophet-5's panel)">Style <select id="d-style" aria-label="the design's element style"><option value="flat">flat</option><option value="p5">p5</option></select></label>
+      <select id="d-example" aria-label="Open a design shipped with the tool"></select>
+      <button id="d-today" title="a new design: today's layout, every screen classic">New from today</button>
+      <button id="d-import" title="open a design JSON file">Import&hellip;</button>
+      <input type="file" id="d-file" accept=".json,application/json" hidden>
+      <button id="d-export" title="the design as JSON (choralroot-layout version 2)">Export JSON</button>
+      <button id="d-png" title="this screen as a 240 x 240 PNG">PNG</button>
+      <button id="d-sheet" aria-pressed="false" title="every screen x lane, today's beside the design's">Contact sheet</button>
+      <label class="small">Sound <select id="d-preset" aria-label="Sound for the design's preview"></select></label>
+      <span class="sp"></span>
+      <button id="d-undo" title="undo (Ctrl+Z)">Undo</button>
+      <button id="d-redo" title="redo (Ctrl+Shift+Z)">Redo</button>
+    </div>
+    <div id="d-msg" class="small"></div>
+    <div id="d-main" class="dgrid">
+      <section class="pane" style="--c: var(--orange)" aria-label="Groups and screens">
+        <h2>Screens</h2>
+        <nav class="list" id="d-nav" aria-label="Groups and screens of the design"></nav>
+        <h3>New screen</h3>
+        <div class="row">
+          <select id="d-new-group" aria-label="the group"></select>
+          <select id="d-new-kind" aria-label="the kind">
+            <option value="free">free</option><option value="edit8">classic: edit8</option><option value="stack">classic: stack</option>
+          </select>
+          <button id="d-add">Add</button>
+        </div>
+        <div class="row">
+          <select id="d-today-scr" aria-label="one of today's screens"></select>
+          <button id="d-add-today" title="a copy of today's page, as a classic screen">Copy today's</button>
+        </div>
+        <p class="small">Up to 8 lanes and 24 elements a screen (the firmware's 8 x 4 cells). No element is ever on a key: the
+          keys always play.</p>
+      </section>
+      <section class="pane" style="--c: var(--cream)" aria-label="The screen">
+        <div class="stage">
+          <div class="dtools" id="d-palette" aria-label="Elements: drag one onto the screen"></div>
+          <div class="lcd" id="d-lcd"><canvas id="d-screen" width="240" height="240" aria-label="the design's screen, 240 by 240, twice the size"></canvas>
+            <div id="d-overlay" class="overlay"></div></div>
+          <div class="dtag"><span id="d-where"></span> <span id="d-build" class="pill"></span></div>
+          <div class="dtools" id="d-align">
+            <button data-al="left" title="align the selected: left edges">&#8676; left</button>
+            <button data-al="top" title="align the selected: top edges">&#8673; top</button>
+            <button data-al="right" title="align the selected: right edges">right &#8677;</button>
+            <button data-al="hspace" title="the selected spread evenly, left to right">spread</button>
+            <button data-al="dup" title="duplicate the selected (Ctrl+D)">duplicate</button>
+            <button data-al="copy" title="copy the selected (Ctrl+C / Cmd+C), to paste on any screen">copy</button>
+            <button data-al="paste" title="paste the copied elements on this screen at their places, in no lane (Ctrl+V / Cmd+V)">paste</button>
+            <button data-al="del" title="delete the selected (Delete)">delete</button>
+          </div>
+          <div class="knobs" id="d-knobs"></div>
+          <p class="small" style="text-align:center">Arrows nudge 4 px (Shift: 16), drag on the grid, Shift+click adds to the selection. p5 style: a text under a dial or a cap sits 12 px under it and a label's baseline is its box's bottom, so boxes on the grid line up.</p>
+        </div>
+        <h3>Lanes <span>(KNOB 1..4 in each; SELECT moves between lanes)</span></h3>
+        <div id="d-lanes"></div>
+        <h3>Lint <span id="d-lint-sum"></span></h3>
+        <ul class="lint" id="d-lint"></ul>
+      </section>
+      <section class="pane insp" style="--c: var(--green)" aria-label="Inspector and parameters">
+        <h2 id="d-i-title">Inspector</h2>
+        <div id="d-insp"></div>
+        <h3>Parameters <span id="d-pcount"></span></h3>
+        <div class="row"><input id="d-search" placeholder="search" aria-label="search the parameters"></div>
+        <div id="d-params" class="plist"></div>
+      </section>
+    </div>
+    <div id="d-sheetview" hidden></div>
+  </div>
+  <div id="selftest" hidden></div>
+</main>
+<script src="crlayout.js"></script>
+<script type="module">
+/*LIB*/
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") e.className = v; else if (k === "text") e.textContent = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v);
+  }
+  for (const k of kids) e.append(k);
+  return e;
+};
+const KCOL = { blue: "var(--blue)", orange: "var(--orange)", white: "var(--cream)", green: "var(--green)" };
+const kcol = (i) => KCOL[KNOB_COLOURS[i]];
+const params = new URLSearchParams(location.search);
+const st = { m: null, version: null, engine: null, cat: null, tiles: [], tile: null, preset: 1, view: "screen", mode: "view",
+             turned: [0, 0, 0, 0, 0], hotTimer: 0 };
+
+function status(text, err) { $("status").textContent = text || ""; $("status").className = err ? "err" : ""; }
+function download(name, blob) {
+  const a = el("a", { href: URL.createObjectURL(blob), download: name });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const slug = () => layoutFileName(st.cat.engine.name).replace(/\.json$/, "");
+function remember() {   // the place in the address, so a link opens it (file:// may refuse: ignored)
+  const t = st.tile, q = new URLSearchParams();
+  q.set("engine", st.cat.engine.name);
+  if (st.view === "sheet") q.set("view", "sheet");
+  else if (t) { q.set("group", t.groupName); q.set("screen", t.screen + 1); q.set("lane", t.lane + 1); }
+  q.set("preset", st.preset);
+  try { history.replaceState(null, "", location.pathname + "?" + q); } catch (e) { /* file:// */ }
+}
+
+// ------------------------------------------------------------------ the screen ---
+function paint(canvas, rgba) { canvas.getContext("2d").putImageData(new ImageData(rgba, SCREEN, SCREEN), 0, 0); }
+function draw() {
+  const m = st.m;
+  paint($("screen"), m.render());
+  const lint = m.lint(), state = m.state(), lcd = $("lcd");
+  lcd.querySelectorAll(".box").forEach((b) => b.remove());
+  const box = (b, cls, title) => lcd.append(el("div", { class: "box " + cls, title,
+    style: `left:${b[0] / 2.4}%;top:${b[1] / 2.4}%;width:${(b[2] - b[0]) / 2.4}%;height:${(b[3] - b[1]) / 2.4}%` }));
+  if ($("show-text").checked) for (const t of lint.texts) box(t.box, "text", t.text);
+  const ul = $("lint");
+  ul.textContent = "";
+  for (const f of lint.findings) {
+    box(f.box, f.kind === "ellipsis" ? "ellipsis" : "", `${f.kind}: ${f.text}`);
+    if (f.other) box(f.other.box, "", `${f.kind}: ${f.other.text}`);
+    ul.append(el("li", { class: f.kind }, el("b", { text: f.kind + " " }), el("code", { text: `"${f.text}" [${f.box.join(", ")}]` }),
+                 f.other ? el("code", { text: ` / "${f.other.text}" [${f.other.box.join(", ")}]` }) : ""));
+  }
+  const c = lintCounts(lint), faults = c["off-screen"] + c.overlap;
+  if (!lint.findings.length) ul.append(el("li", { class: "ok", text: `No finding: ${lint.texts.length} texts, none off the screen, overlapping or cut.` }));
+  for (const n of ruleNotes(st.cat, st.tile)) ul.append(el("li", { class: "rule", text: n.text }));
+  $("lint-sum").textContent = `(${faults} fault${faults === 1 ? "" : "s"}, ${c.ellipsis} cut text${c.ellipsis === 1 ? "" : "s"})`;
+  // the knobs' read-outs: the active lane's cells as the screen model has them now
+  for (let k = 0; k < 4; k++) {
+    const cell = state.cells[k], v = $("kv" + (k + 1));
+    v.textContent = "";
+    v.append(el("b", { text: cell.on ? cell.label || " " : "–" }), cell.on ? cell.value : "");
+    $("kd" + (k + 1)).setAttribute("aria-valuetext", cell.on ? `${cell.label} ${cell.value}` : "no parameter");
+    $("kd" + (k + 1)).style.setProperty("--a", `${st.turned[k + 1] * 18}deg`);
+  }
+  $("kd0").style.setProperty("--a", `${st.turned[0] * 18}deg`);
+  $("kv0").textContent = "";
+  $("kv0").append(el("b", { text: "lane" }), `${state.lane + 1} of ${state.lanes}`);
+  inspector(state);
+  return { lint, state };
+}
+function show(tile) {
+  st.tile = tile;
+  st.turned = [0, 0, 0, 0, 0];
+  st.m.show(st.cat.engine.index, st.preset, tile.group, tile.screen, tile.lane);
+  nav();
+  remember();
+  return draw();
+}
+// SELECT and the knobs move the module; the place follows what the editor says (SELECT runs across the screens)
+function follow() {
+  const s = st.m.state();
+  const t = st.tiles.find((x) => x.group === s.group && x.screen === s.screen && x.lane === s.lane);
+  if (t && t !== st.tile) { st.tile = t; nav(); remember(); }
+}
+function turn(k, n) {   // k 0: SELECT, 1..4: the knobs
+  if (!st.m || !st.tile) return;
+  st.turned[k] += n;
+  if (k) st.m.knob(k, n); else st.m.select(n);
+  follow();
+  draw();
+  clearTimeout(st.hotTimer);   // the hot cell's mark lasts 800 ms on the unit: let it end here too
+  st.hotTimer = setTimeout(() => { st.m.step(800); draw(); }, 850);
+}
+function knobs(hostId = "knobs", turnFn = turn, pre = "") {
+  const host = $(hostId);
+  host.textContent = "";
+  for (let k = 0; k <= 4; k++) {
+    const name = k ? `KNOB ${k}` : "SELECT";
+    const dial = el("div", { class: "dial", id: pre + "kd" + k, tabindex: "0", role: "slider", "aria-label": name,
+                             "aria-valuetext": "", title: `${name}: wheel, drag, arrow keys` });
+    const turn = turnFn;
+    dial.addEventListener("wheel", (e) => { e.preventDefault(); turn(k, e.deltaY < 0 ? 1 : -1); }, { passive: false });
+    dial.addEventListener("keydown", (e) => {
+      const d = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1, PageUp: 5, PageDown: -5 }[e.key];
+      if (d) { e.preventDefault(); turn(k, d); }
+    });
+    let y0 = null;
+    dial.addEventListener("pointerdown", (e) => { y0 = e.clientY; dial.setPointerCapture(e.pointerId); });
+    dial.addEventListener("pointermove", (e) => {
+      if (y0 === null) return;
+      const d = Math.trunc((y0 - e.clientY) / 8);
+      if (d) { y0 -= d * 8; turn(k, d); }
+    });
+    const up = () => { y0 = null; };
+    dial.addEventListener("pointerup", up);
+    dial.addEventListener("pointercancel", up);
+    host.append(el("div", { class: "knob", style: `--k: ${k ? kcol(k - 1) : "var(--grey)"}` },
+      el("div", { class: "cap", text: name }), dial, el("div", { class: "val", id: pre + "kv" + k }),
+      el("div", { class: "pm" },
+        el("button", { id: `${pre}k${k}-minus`, "aria-label": `${name} one detent down`, text: "−", onclick: () => turn(k, -1) }),
+        el("button", { id: `${pre}k${k}-plus`, "aria-label": `${name} one detent up`, text: "+", onclick: () => turn(k, 1) }))));
+  }
+}
+
+// --------------------------------------------------------------- the lists ---
+function nav() {
+  const host = $("nav");
+  host.textContent = "";
+  for (const g of st.cat.groups) {
+    host.append(el("h3", {}, g.name + " ", el("span", { text: `button ${g.button} · ${g.screens.length} screen${g.screens.length === 1 ? "" : "s"}` })));
+    for (const t of st.tiles.filter((x) => x.group === g.group))
+      host.append(el("button", { "aria-current": String(t === st.tile), title: tileLabel(t), onclick: () => show(t) },
+        el("span", { class: "pos", text: `${t.screen + 1}.${t.lane + 1}` }), el("span", { class: "nm", text: t.title })));
+  }
+  const cur = host.querySelector("[aria-current=true]");
+  if (cur && cur.scrollIntoView && host.scrollHeight > host.clientHeight) host.scrollTop = Math.max(0, cur.offsetTop - host.offsetTop - 120);
+}
+function inspector(state) {
+  const t = st.tile;
+  $("i-title").textContent = `${t.groupName} · screen ${t.screen + 1} · lane ${t.lane + 1} of ${t.lanes}`;
+  const kv = $("i-screen");
+  kv.textContent = "";
+  const row = (k, v) => kv.append(el("dt", { text: k }), el("dd", { text: v }));
+  row("Title line", `${state.title}  |  ${state.page}`);
+  row("Screen kind", `${t.kind} (${t.type})${t.tall ? ", tall bars" : ""}`);
+  row("Band", t.band + (t.plan !== null ? ` · from the engine's screen plan, screen ${t.plan + 1}` : t.type === "platform" ? " · the platform's page" : " · derived from the page titles"));
+  if (t.headings) row("Column headings", t.headings.map((h) => h || "–").join(" · "));
+  if (t.pages.length) row("Parameter pages", t.pages.map((p) => `${p} "${st.cat.pages[p].title}"`).join(", "));
+  row("Header", st.cat.header ? "shared header" : "none (rule 1: every page gets one shared header; not built yet)");
+  const host = $("i-cells");
+  host.textContent = "";
+  t.cells.forEach((c, i) => {
+    const now = state.cells[i];
+    const d = el("dl");
+    const r = (k, v) => d.append(el("dt", { text: k }), el("dd", { text: v }));
+    r("Bound to", cellBinding(c));
+    if (c.min !== undefined) {
+      r("Range", cellRange(c));
+      r("Format", c.fmt + (c.unit ? `, unit ${c.unit}` : "") + (c.style ? ` · style ${c.style}` : ""));
+      if (c.names) r("Values", c.names.length > 14 ? `${c.names.slice(0, 12).join(", ")}, … (${c.names.length})` : c.names.join(", "));
+      if (c.by_mode) r("Note", "the engine may show another label or names by the sound's mode");
+      if (now && now.on) r("Now", now.value);
+    }
+    host.append(el("div", { class: "cell", style: `--k: ${kcol(i)}` },
+      el("h4", {}, c.label || (c.bind === "text" ? c.text : "–"), el("small", { text: `KNOB ${i + 1}${c.short ? " · " + c.short : ""}` })), d));
+  });
+}
+
+// ---------------------------------------------------------- the contact sheet ---
+function sheet() {
+  const host = $("sheet"), m = st.m, e = st.cat.engine;
+  host.textContent = "";
+  let faults = 0;
+  for (const t of st.tiles) {
+    m.show(e.index, st.preset, t.group, t.screen, t.lane);
+    const c = el("canvas", { width: SCREEN, height: SCREEN, title: "open this screen" });
+    paint(c, m.render());
+    const n = lintFaults(m.lint()).length;
+    faults += n;
+    c.addEventListener("click", () => { view("screen"); show(t); });
+    host.append(el("figure", { "data-key": t.key },
+      c, el("figcaption", {}, el("span", { text: tileLabel(t), title: tileLabel(t) }), n ? el("i", { text: `${n}!` }) : "",
+        el("button", { text: "PNG", "aria-label": `download ${tileLabel(t)} as PNG`,
+                       onclick: () => c.toBlob((b) => download(`${slug()}-${t.groupName.toLowerCase()}-${t.screen + 1}-${t.lane + 1}.png`, b)) }))));
+  }
+  const names = m.presets(e.index);
+  $("sheet-title").textContent = `${e.name}: ${st.tiles.length} screens × lanes on "${names[st.preset]}" · ${faults} lint fault${faults === 1 ? "" : "s"}`;
+  if (st.tile) m.show(e.index, st.preset, st.tile.group, st.tile.screen, st.tile.lane);
+}
+function sheetPng() {
+  const figs = [...$("sheet").querySelectorAll("figure")];
+  const g = sheetGeometry(figs.length, Math.min(6, Math.max(1, figs.length)));
+  const c = el("canvas", { width: g.width, height: g.height }), x = c.getContext("2d");
+  x.fillStyle = "#16161a"; x.fillRect(0, 0, g.width, g.height);
+  x.fillStyle = "#d8d8dc"; x.font = "bold 16px system-ui, sans-serif"; x.textBaseline = "middle";
+  x.fillText(`${$("sheet-title").textContent} · ${st.version.firmware}`, g.gap, g.top / 2);
+  x.font = "12px system-ui, sans-serif";
+  figs.forEach((f, i) => {
+    const p = g.at(i);
+    x.drawImage(f.querySelector("canvas"), p.x, p.y);
+    x.fillText(f.querySelector("figcaption span").textContent, p.x, p.y + g.tile + g.cap / 2, g.tile);
+  });
+  c.toBlob((b) => download(`${slug()}-sheet.png`, b));
+}
+function view(v) {
+  st.view = v;
+  $("view-screen").hidden = v !== "screen";
+  $("view-sheet").hidden = v !== "sheet";
+  $("v-screen").setAttribute("aria-pressed", String(v === "screen"));
+  $("v-sheet").setAttribute("aria-pressed", String(v === "sheet"));
+  if (v === "sheet") sheet();
+  remember();
+}
+
+// ------------------------------------------------------------------ engines ---
+function presets() {
+  const names = st.m.presets(st.cat.engine.index);
+  if (st.preset >= names.length) st.preset = names.length > 1 ? 1 : 0;
+  for (const id of ["preset", "preset2", "d-preset"]) {
+    const s = $(id);
+    s.textContent = "";
+    names.forEach((n, i) => s.append(el("option", { value: i, text: `${String(i).padStart(2, "0")} ${n}` })));
+    s.value = String(st.preset);
+  }
+}
+function engine(index, place) {
+  st.engine = index;
+  st.cat = st.m.catalog(index);
+  st.tiles = tiles(st.cat);
+  if (!place || place.preset === undefined) st.preset = 1; else st.preset = place.preset;
+  presets();
+  const c = counts(st.cat);
+  $("counts").textContent = `${c.groups} groups, ${c.screens} screens, ${c.lanes} lanes, ${c.cells} cells bound to a parameter` +
+    (c.pages ? `; ${c.pages} parameter pages (${c.pageCells} cells)` : "; no pages of its own") + `. params_hash ${st.cat.params_hash}`;
+  for (const b of $("engines").children) b.setAttribute("aria-pressed", String(+b.dataset.index === index));
+  const t = (place && st.tiles.find((x) => (x.group === place.group || x.groupName === place.group) && x.screen === place.screen && x.lane === place.lane)) || st.tiles[0];
+  if (st.mode === "design") { dEngine(); return; }
+  show(t);
+  if (st.view === "sheet") sheet();
+}
+
+
+// ================================================================== the designer (Design mode) ===
+// The design is the model (ds.design: a choralroot-layout version 2 file, web/fm1layout.js); every change goes through
+// commit() (undo, the autosave, the preview again). The preview is designSession: classic screens through lay_load
+// and the real editor, free screens through the draw API.
+const ds = { design: null, session: null, params: [], pidx: null, gi: 0, si: 0, sel: new Set(), cell: null,
+             undo: [], redo: [], sheet: false, hotTimer: 0, drag: null, last: null };
+const SCALE = () => $("d-screen").getBoundingClientRect().width / SCREEN;
+const KTOK = ["blue", "orange", "white", "green"];
+const curScreen = () => (ds.design.groups[ds.gi] || { screens: [] }).screens[ds.si];
+const store = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { /* no storage */ } return null; };
+const saveKey = () => `crlayout.design.${st.cat.engine.name}`;
+function dmsg(text, err) { $("d-msg").textContent = text || ""; $("d-msg").style.color = err ? "var(--red)" : ""; }
+
+function dOpen(design, why) {
+  const v = validateDesign(design, st.cat);
+  if (v.errors.length) { dmsg(`${why || "design"}: not opened: ${v.errors.slice(0, 4).join("; ")}${v.errors.length > 4 ? " .." : ""}`, true); return false; }
+  ds.design = design;
+  ds.params = paramList(st.cat);
+  ds.pidx = paramIndex(ds.params);
+  ds.session = designSession(st.m, st.cat, ds.design, st.preset);
+  ds.gi = Math.max(0, ds.design.groups.findIndex((g) => g.screens.length));
+  ds.si = 0;
+  ds.sel.clear();
+  ds.cell = null;
+  ds.undo = [];
+  ds.redo = [];
+  dmsg(v.warnings.length ? `${why || "design"} opened, ${v.warnings.length} warning(s): ${v.warnings.slice(0, 3).join("; ")}` : `${why || "design"} opened.`);
+  try { ds.session.reload(); } catch (e) { dmsg(String(e.message || e), true); }
+  ds.session.open(ds.gi, ds.si, 0);
+  dRender();
+  return true;
+}
+function dEngine() {   // the engine changed (or Design mode opened): the autosaved design, else today's
+  let d = null;
+  const saved = store(saveKey());
+  if (saved) try { d = JSON.parse(saved); } catch (e) { d = null; }
+  if (!d || validateDesign(d, st.cat).errors.length) d = designFromCatalog(st.cat, "my-design");
+  dOpen(d, saved ? "the autosaved design" : "today's layout");
+  todayList();
+}
+// every change: the undo snapshot, the change, the autosave, the preview again
+function commit(fn, keepPlace) {
+  ds.undo.push(JSON.stringify(ds.design));
+  if (ds.undo.length > 200) ds.undo.shift();
+  ds.redo = [];
+  fn(ds.design);
+  afterChange(keepPlace);
+}
+function afterChange() {
+  store(saveKey(), JSON.stringify(ds.design));
+  const lane = ds.session.at.lane;
+  ds.session = designSession(st.m, st.cat, ds.design, st.preset);
+  const g = ds.design.groups[ds.gi];
+  if (!g || !g.screens.length) { ds.gi = Math.max(0, ds.design.groups.findIndex((x) => x.screens.length)); ds.si = 0; }
+  else if (ds.si >= g.screens.length) ds.si = g.screens.length - 1;
+  try { ds.session.reload(); } catch (e) { dmsg(String(e.message || e), true); }
+  const s = curScreen();
+  ds.session.open(ds.gi, ds.si, s ? Math.min(lane, Math.max(1, s.lanes.length) - 1) : 0);
+  dRender();
+}
+function undoRedo(from, to) {
+  if (!from.length) return;
+  to.push(JSON.stringify(ds.design));
+  const d = JSON.parse(from.pop());
+  ds.design.groups = d.groups;
+  ds.design.name = d.name;
+  if (d.style) ds.design.style = d.style; else delete ds.design.style;
+  ds.sel.clear();
+  afterChange();
+}
+function dGo(gi, si, lane = 0) {
+  ds.gi = gi; ds.si = si; ds.sel.clear(); ds.cell = null;
+  ds.session.open(gi, si, lane);
+  dRender();
+}
+function dturn(k, n) {
+  if (!ds.session) return;
+  if (k) ds.session.knob(k, n); else ds.session.select(n);
+  const a = ds.session.at;
+  ds.gi = a.gi; ds.si = a.si;
+  dRender();
+  clearTimeout(ds.hotTimer);
+  ds.hotTimer = setTimeout(() => { ds.session.cool(); dScreen(); }, 850);
+}
+
+// ------------------------------------------------------------------ render ---
+function dRender() {
+  if (!ds.design) return;
+  $("d-name").value = ds.design.name || "";
+  $("d-style").value = ds.design.style || "flat";
+  dNav();
+  dScreen();
+  dLanes();
+  dInspector();
+  dParams();
+  $("d-undo").disabled = !ds.undo.length;
+  $("d-redo").disabled = !ds.redo.length;
+  if (ds.sheet) dSheet();
+}
+function dScreen() {
+  const s = curScreen();
+  if (!s) { $("d-where").textContent = "no screen"; return null; }
+  const r = ds.session.render();
+  ds.last = r;
+  paint($("d-screen"), r.rgba);
+  const g = ds.design.groups[ds.gi], a = ds.session.at;
+  $("d-where").textContent = `${g.name} · screen ${ds.si + 1} of ${g.screens.length} · lane ${a.lane + 1} of ${Math.max(1, s.lanes.length)} · ${s.type === "free" ? "free" : "classic " + s.kind}`;
+  const b = $("d-build");
+  b.textContent = r.unbuildable ? "design: not buildable yet" : "buildable today";
+  b.className = "pill " + (r.unbuildable ? "nb" : "okb");
+  b.title = r.unbuildable || "the firmware's editor draws this screen as designed (lay_load)";
+  dOverlay(s, r);
+  // the knobs' read-outs
+  const cells = ds.session.lane();
+  for (let k = 0; k < 4; k++) {
+    const c = cells[k], v = $("dkv" + (k + 1));
+    if (!v) continue;
+    v.textContent = "";
+    v.append(el("b", { text: c ? c.label || " " : "–" }), c ? c.value : "");
+  }
+  if ($("dkv0")) { $("dkv0").textContent = ""; $("dkv0").append(el("b", { text: "lane" }), `${a.lane + 1} of ${Math.max(1, s.lanes.length)}`); }
+  // lint: the firmware's text lint, the design's checks, the design-wide ones
+  const ul = $("d-lint");
+  ul.textContent = "";
+  const li = (cls, head, text) => ul.append(el("li", { class: cls }, el("b", { text: head + " " }), text));
+  for (const f of r.lint.findings) li(f.kind, f.kind, `"${f.text}" [${f.box.join(", ")}]` + (f.other ? ` / "${f.other.text}"` : ""));
+  for (const c of r.checks) li(c.kind === "title" ? "ellipsis" : c.kind === "order" || c.kind === "sketch" ? "rule" : "", c.kind, c.text);
+  for (const u of usedTwice(ds.design)) li("rule", "used twice", `${u.param}: ${u.where.join(", ")}`);
+  if (r.unbuildable) li("rule", "not buildable yet", r.unbuildable);
+  for (const n of ds.session.pack.notes) li("rule", "note", n);
+  const faults = lintFaults(r.lint).length + r.checks.length;
+  if (!ul.children.length) li("ok", "clean", `${r.lint.texts.length} texts; no text cut, off the screen or overlapping; the design's checks pass.`);
+  $("d-lint-sum").textContent = `(${faults} finding${faults === 1 ? "" : "s"})`;
+  return r;
+}
+function dOverlay(s, r) {
+  const ov = $("d-overlay");
+  ov.textContent = "";
+  ov.className = "overlay" + (s.type === "free" ? " grid" : "");
+  ov.append(el("div", { class: "hdr", title: "the shared header: the editor's title line (fixed)" }));
+  if (s.type !== "free") return;
+  const { at } = laneMap(s), bad = new Set(r.checks.flatMap((c) => c.ids || []));
+  const pc = (v) => `${(v * 100) / SCREEN}%`;
+  for (const e of s.elements) {
+    const a = at.get(e.id);
+    const d = el("div", { class: `el t-${e.type}${ds.sel.has(e.id) ? " sel" : ""}${bad.has(e.id) ? " bad" : ""}`, "data-el": e.id,
+                          title: `${e.id}: ${e.type}${e.param ? " · " + e.param : ""}${a ? ` · lane ${a.lane + 1} knob ${a.slot + 1}` : ""}`,
+                          style: `left:${pc(e.x)};top:${pc(e.y)};width:${pc(e.w)};height:${pc(e.h)};${a ? `--k:${kcol(a.slot)}` : ""}` });
+    if (a) d.append(el("span", { class: "tag", text: `${a.lane + 1}·${a.slot + 1}` }));
+    if (ds.sel.has(e.id) && ds.sel.size === 1) d.append(el("div", { class: "rs", "data-rs": e.id }));
+    ov.append(d);
+  }
+}
+function dNav() {
+  const host = $("d-nav");
+  host.textContent = "";
+  ds.design.groups.forEach((g, gi) => {
+    host.append(el("h3", {}, g.name + " ", el("span", { text: `${g.screens.length} screen${g.screens.length === 1 ? "" : "s"}` })));
+    g.screens.forEach((s, si) => {
+      const cur = gi === ds.gi && si === ds.si;
+      host.append(el("button", { class: "scr", "aria-current": String(cur), onclick: () => dGo(gi, si) },
+        el("span", { class: "pos", text: `${si + 1}` }), el("span", { class: "nm", text: s.title || "(untitled)" }),
+        el("span", { class: "k", text: s.type === "free" ? "free" : s.kind })));
+      if (cur) {
+        const mv = el("select", { "aria-label": "move to group", title: "move this screen to another group" });
+        mv.append(el("option", { value: "", text: "move to.." }));
+        ds.design.groups.forEach((x, i) => { if (i !== gi) mv.append(el("option", { value: i, text: x.name })); });
+        mv.addEventListener("change", () => {
+          const to = +mv.value;
+          commit((d) => { const [x] = d.groups[gi].screens.splice(si, 1); d.groups[to].screens.push(x); });
+          dGo(to, ds.design.groups[to].screens.length - 1);
+        });
+        host.append(el("div", { class: "ops" },
+          el("button", { text: "↑", title: "earlier", onclick: () => si && (commit((d) => { const a = d.groups[gi].screens; [a[si - 1], a[si]] = [a[si], a[si - 1]]; }), dGo(gi, si - 1)) }),
+          el("button", { text: "↓", title: "later", onclick: () => si < g.screens.length - 1 && (commit((d) => { const a = d.groups[gi].screens; [a[si + 1], a[si]] = [a[si], a[si + 1]]; }), dGo(gi, si + 1)) }),
+          el("button", { text: "dup", title: "duplicate", onclick: () => { commit((d) => d.groups[gi].screens.splice(si + 1, 0, JSON.parse(JSON.stringify(s)))); dGo(gi, si + 1); } }),
+          el("button", { text: "del", title: "delete this screen", onclick: () => { commit((d) => d.groups[gi].screens.splice(si, 1)); dGo(ds.gi, Math.max(0, Math.min(ds.si, ds.design.groups[ds.gi].screens.length - 1))); } }),
+          mv));
+      }
+    });
+  });
+  const ng = $("d-new-group"), keep = ng.value;
+  ng.textContent = "";
+  ds.design.groups.forEach((g, i) => ng.append(el("option", { value: i, text: g.name })));
+  ng.value = keep && +keep < ds.design.groups.length ? keep : String(ds.gi);
+}
+function todayList() {
+  const sel = $("d-today-scr");
+  sel.textContent = "";
+  st.cat.groups.forEach((g) => g.screens.forEach((s, k) =>
+    sel.append(el("option", { value: `${g.group}.${k}`, text: `${g.name} ${k + 1} · ${s.lanes[0] ? s.lanes[0].title : ""}` }))));
+}
+function dLanes() {
+  const host = $("d-lanes"), s = curScreen();
+  host.textContent = "";
+  if (!s) return;
+  const a = ds.session.at;
+  if (s.type === "classic") {
+    s.lanes.forEach((l, li) => {
+      const row = el("div", { class: "lane" + (li === a.lane ? " on" : "") });
+      const t = el("input", { value: l.title || "", "aria-label": `lane ${li + 1} title`, title: "the lane's title (the header's right text)" });
+      t.addEventListener("change", () => commit((d) => { d.groups[ds.gi].screens[ds.si].lanes[li].title = t.value.slice(0, 15); }));
+      row.append(el("div", { class: "ln" }, el("span", { text: `lane ${li + 1}`, onclick: () => dGo(ds.gi, ds.si, li) }), t));
+      l.cells.forEach((c, k) => {
+        const p = c && c.param ? ds.pidx.get(c.param) : null;
+        const cur = ds.cell && ds.cell.lane === li && ds.cell.k === k;
+        row.append(el("div", { class: `slot${c ? "" : " empty"}${cur ? " cur" : ""}`, style: `--k:${kcol(k)}`, "data-slot": `${li}.${k}`,
+                               title: "drop a parameter here; click to select (the inspector)",
+                               onclick: () => classicSlot(li, k) },
+          c ? (c.label || (p ? p.label : c.text || "?")) : "—", el("small", { text: c ? (c.param || c.fixed) + (c.style ? ` · ${c.style}` : "") : `KNOB ${k + 1}` })));
+      });
+      row.append(el("div", { class: "ops" },
+        el("button", { text: "↑", title: "lane earlier", onclick: () => li && commit((d) => { const x = d.groups[ds.gi].screens[ds.si].lanes; [x[li - 1], x[li]] = [x[li], x[li - 1]]; }) }),
+        el("button", { text: "×", title: "delete this lane", onclick: () => s.lanes.length > 1 && commit((d) => d.groups[ds.gi].screens[ds.si].lanes.splice(li, 1)) })));
+      host.append(row);
+    });
+    if (s.lanes.length < MAX_LANES)
+      host.append(el("div", { class: "row" }, el("button", { text: "+ lane", onclick: () => commit((d) => d.groups[ds.gi].screens[ds.si].lanes.push({ title: s.title, cells: [null, null, null, null] })) })));
+    return;
+  }
+  s.lanes.forEach((l, li) => {
+    const row = el("div", { class: "lane" + (li === a.lane ? " on" : "") });
+    row.append(el("div", { class: "ln", text: `lane ${li + 1}`, title: "show this lane", onclick: () => { ds.session.open(ds.gi, ds.si, li); dRender(); } }));
+    for (let k = 0; k < LANE_SLOTS; k++) {
+      const id = l[k] === undefined ? null : l[k], e = id && s.elements.find((x) => x.id === id), p = e && e.param ? ds.pidx.get(e.param) : null;
+      row.append(el("div", { class: `slot${e ? "" : " empty"}`, style: `--k:${kcol(k)}`, "data-slot": `${li}.${k}`,
+                             title: "select an element, then click a slot: it goes there; click a filled slot to select its element",
+                             onclick: () => slotClick(li, k) },
+        e ? (e.label || (p ? p.label : e.id)) : "—", el("small", { text: e ? e.id : `KNOB ${k + 1}` })));
+    }
+    row.append(el("div", { class: "ops" },
+      el("button", { text: "↑", title: "lane earlier", onclick: () => li && commit((d) => { const x = d.groups[ds.gi].screens[ds.si].lanes; [x[li - 1], x[li]] = [x[li], x[li - 1]]; }) }),
+      el("button", { text: "×", title: "delete this lane (its elements stay, in no lane)", onclick: () => commit((d) => d.groups[ds.gi].screens[ds.si].lanes.splice(li, 1)) })));
+    host.append(row);
+  });
+  if (s.lanes.length < MAX_LANES)
+    host.append(el("div", { class: "row" }, el("button", { text: "+ lane", onclick: () => commit((d) => d.groups[ds.gi].screens[ds.si].lanes.push([null, null, null, null])) }),
+      el("span", { class: "small", text: `${s.elements.length} of ${MAX_ELEMENTS} elements, ${s.lanes.length} of ${MAX_LANES} lanes` })));
+}
+// a classic slot selected (the inspector): its lane shown; from the slot under the screen or a click on the picture
+function classicSlot(li, k) {
+  ds.sel.clear();
+  if (li !== ds.session.at.lane) dGo(ds.gi, ds.si, li);
+  ds.cell = { lane: li, k };
+  dRender();
+}
+function slotClick(li, k) {
+  const s = curScreen(), id = s.lanes[li][k];
+  const pick = [...ds.sel].map((x) => s.elements.find((e) => e.id === x)).find((e) => e && BINDABLE.has(e.type));
+  if (pick && pick.id !== id) {
+    commit((d) => {
+      const sc = d.groups[ds.gi].screens[ds.si];
+      for (const l of sc.lanes) for (let j = 0; j < l.length; j++) if (l[j] === pick.id) l[j] = null;
+      while (sc.lanes[li].length < 4) sc.lanes[li].push(null);
+      sc.lanes[li][k] = pick.id;
+    });
+  } else if (id) { ds.sel = new Set([id]); dRender(); }
+}
+function field(label, input) { return el("label", {}, label, input); }
+function dInspector() {
+  const host = $("d-insp"), s = curScreen();
+  host.textContent = "";
+  if (!s) return;
+  const set = (fn) => commit((d) => fn(d.groups[ds.gi].screens[ds.si]));
+  const inp = (val, on, attrs = {}) => { const i = el("input", { value: val ?? "", ...attrs }); i.addEventListener("change", () => on(i.value)); return i; };
+  const sel = (opts, val, on) => { const x = el("select"); for (const o of opts) x.append(el("option", { value: o, text: o })); x.value = val ?? ""; x.addEventListener("change", () => on(x.value)); return x; };
+  const paramSel = (val, on) => {
+    const x = el("select");
+    x.append(el("option", { value: "", text: "(none)" }));
+    for (const p of ds.params) x.append(el("option", { value: p.id, text: `${p.label} · ${p.id}` }));
+    x.value = val || "";
+    x.addEventListener("change", () => on(x.value || null));
+    return x;
+  };
+  host.append(field("Screen title", inp(s.title, (v) => set((x) => { x.title = v; }), { maxlength: 15 })));
+  if (s.type === "classic") {
+    $("d-i-title").textContent = "Classic screen";
+    host.append(field("Kind", sel(CLASSIC_KINDS, s.kind, (v) => set((x) => { x.kind = v; }))));
+    host.append(field("Band", sel(BANDS, s.band, (v) => set((x) => { x.band = v; }))));
+    if (ds.cell && s.lanes[ds.cell.lane]) {
+      const { lane, k } = ds.cell, c = s.lanes[lane].cells[k], p = c && c.param ? ds.pidx.get(c.param) : null;
+      host.append(el("h3", { text: `Lane ${lane + 1}, KNOB ${k + 1}` }));
+      host.append(field("Parameter", paramSel(c && c.param, (v) => set((x) => { x.lanes[lane].cells[k] = v ? { param: v } : null; }))));
+      if (c && c.param) host.append(field("Label", inp(c.label || "", (v) => set((x) => { x.lanes[lane].cells[k].label = v || undefined; if (!v) delete x.lanes[lane].cells[k].label; }), { placeholder: p ? p.label : "", maxlength: 13 })));
+      if (c && c.param) {                          // the cell's look: the editor's rule, or a Prophet-5 control in the cell
+        const x = el("select", { "aria-label": "the cell's style", title: "how the cell draws its parameter: the editor's rule, or a Prophet-5 control (knob, LED button with its wave icon, two LEDs, lever) in the cell" });
+        x.append(el("option", { value: "", text: "the editor's rule" }));
+        const fw = el("optgroup", { label: "firmware (p5)" }), sk = el("optgroup", { label: "sketch (the page draws it; not buildable)" });
+        for (const o of P5_CELL_STYLES) fw.append(el("option", { value: o, text: o }));
+        for (const n of SKETCH_NAMES) {             // the sketch glyphs (web/fm1sketch.js): an LED's with each wave too
+          const g = SKETCHES[n];
+          sk.append(el("option", { value: `sketch:${n}`, text: `sketch:${n} · ${g.kind}`, title: g.note }));
+          if (g.kind === "led") for (const w of SKETCH_WAVES) sk.append(el("option", { value: `sketch:${n}-${w}`, text: `sketch:${n}-${w}`, title: g.note }));
+        }
+        x.append(fw, sk);
+        if (c.style && !P5_CELL_STYLES.includes(c.style) && !parseSketch(c.style)) x.append(el("option", { value: c.style, text: c.style }));
+        x.value = c.style || "";
+        x.addEventListener("change", () => set((y) => { const cc = y.lanes[lane].cells[k]; if (x.value) cc.style = x.value; else delete cc.style; }));
+        host.append(field("Style", x));
+        const skc = parseSketch(c.style);
+        if (skc) host.append(el("p", { class: "small sketch-note", text: `sketch ${skc.name} (round ${SKETCHES[skc.name].round}): ${SKETCHES[skc.name].note} ` +
+                                       "Drawn by this page in the cell's glyph box; the unit cannot show it until it is ported into the firmware." }));
+      }
+      if (p) host.append(el("p", { class: "small", text: `${p.id}: ${p.min} .. ${p.max} (${p.fmt}); today on ${p.where || "no screen"}` }));
+    } else host.append(el("p", { class: "small", text: "Click a knob slot in the lanes to bind it or give it a label; drag a parameter onto a slot." }));
+    return;
+  }
+  const ids = [...ds.sel], e = ids.length === 1 ? s.elements.find((x) => x.id === ids[0]) : null;
+  if (!e) {
+    $("d-i-title").textContent = "Free screen";
+    host.append(el("p", { class: "small", text: ids.length ? `${ids.length} elements selected: align them, nudge them with the arrows, or delete them.` :
+      "Drag an element from the strip above the screen onto it; click one to inspect it; drag a parameter onto an element to bind it." }));
+    return;
+  }
+  $("d-i-title").textContent = `Element ${e.id}`;
+  const eset = (fn) => set((x) => fn(x.elements.find((y) => y.id === e.id)));
+  host.append(field("Type", el("span", { text: e.type })));
+  if (BINDABLE.has(e.type)) host.append(field("Parameter", paramSel(e.param, (v) => eset((y) => { y.param = v; }))));
+  if (e.type === "frame" || e.type === "label") host.append(field("Text", inp(e.text, (v) => eset((y) => { y.text = v; }), { maxlength: 30 })));
+  if (["knob", "switch", "led", "bar"].includes(e.type)) host.append(field("Label", inp(e.label || "", (v) => eset((y) => { if (v) y.label = v; else delete y.label; }), { placeholder: e.param && ds.pidx.get(e.param) ? ds.pidx.get(e.param).label : "", maxlength: 13 })));
+  for (const k of ["x", "y", "w", "h"]) host.append(field(k, inp(e[k], (v) => eset((y) => { y[k] = Math.max(0, snap(+v || 0)); }), { type: "number", step: GRID })));
+  if (e.type === "switch") host.append(field("Positions", sel(["2", "3"], String(e.positions), (v) => eset((y) => { y.positions = +v; }))));
+  if (e.type === "led") host.append(field("Glyph", sel(["", ...Object.keys(LED_GLYPHS)], e.glyph || "", (v) => eset((y) => { y.glyph = v || null; }))));
+  if (e.type === "led") {   // (the p5 style: two LEDs for one parameter of two values; two leds whose caps meet as one)
+    host.append(field("LEDs", sel(["1", "2"], String(e.leds || 1), (v) => eset((y) => {
+      if (v === "2") { y.leds = 2; y.glyph = null; if (ds.design.style === "p5") { y.w = Math.max(y.w, P5_LED2_SIZE[0]); y.h = Math.max(y.h, P5_LED2_SIZE[1]); } } else delete y.leds; }))));
+    host.append(field("Pair", sel(["", "left", "right"], e.pair || "", (v) => eset((y) => { if (v) y.pair = v; else delete y.pair; }))));
+    host.append(field("Label at", sel(["above", "below"], e.labelAt || (e.leds === 2 ? "below" : "above"), (v) => eset((y) => { y.labelAt = v; }))));
+  }
+  if (e.type === "frame") host.append(field("Corners", sel(["", "0", "2", "4", "6", "8", "10", "12"], e.r === undefined ? "" : String(e.r), (v) => eset((y) => { if (v === "") delete y.r; else y.r = +v; }))));
+  if (e.type === "glyph") host.append(field("Glyph", sel(GLYPHS.slice(1), e.glyph, (v) => eset((y) => { y.glyph = v; }))));
+  if (e.type === "band") host.append(field("Band", sel(BANDS.slice(1), e.band, (v) => eset((y) => { y.band = v; }))));
+  if (e.type === "knob") { const st5 = ds.design.style === "p5" ? "p5" : "flat"; host.append(field("Dial size", sel(KNOB_SIZES[st5].map(String), String(knobSize(e, st5)), (v) => eset((y) => { y.size = +v; })))); }
+  if (e.type === "label") {
+    host.append(field("Size", sel(["9", "10", "11", "12", "13", "15", "17"], String(e.size || 11), (v) => eset((y) => { y.size = +v; }))));
+    host.append(field("Align", sel(["left", "centre", "right"], e.align || "left", (v) => eset((y) => { y.align = v; }))));
+  }
+  host.append(field("Colour", sel(["auto", ...Object.keys(COLOURS)], e.colour || "auto", (v) => eset((y) => { if (v === "auto") delete y.colour; else y.colour = v; }))));
+  host.append(el("p", { class: "small", text: "auto: the active lane's knob colour (blue, orange, white, green), grey otherwise, as the editor does." }));
+}
+function dParams() {
+  const host = $("d-params"), q = $("d-search").value.trim().toLowerCase();
+  host.textContent = "";
+  const used = new Set();
+  for (const g of ds.design.groups) for (const s of g.screens)
+    if (s.type === "classic") s.lanes.forEach((l) => l.cells.forEach((c) => c && c.param && used.add(c.param)));
+    else s.elements.forEach((e) => e.param && used.add(e.param));
+  let last = null, n = 0;
+  for (const p of ds.params) {
+    const hint = PARAM_HINTS[p.id] || "";
+    if (q && !`${p.label} ${p.id} ${p.pageTitle} ${hint}`.toLowerCase().includes(q)) continue;
+    if (p.pageTitle !== last) { host.append(el("h4", { text: p.pageTitle })); last = p.pageTitle; }
+    const d = el("div", { class: "p" + (used.has(p.id) ? " used" : ""), "data-param": p.id, title: `${p.id}: ${p.min} .. ${p.max} (${p.fmt}). Drag onto a slot or an element; click to bind the selection` },
+      el("span", { text: p.label }), el("small", { text: hint ? `${p.short} (${hint})` : p.short }));
+    d.addEventListener("pointerdown", (ev) => startDrag(ev, { kind: "param", id: p.id, text: p.label }));
+    host.append(d);
+    n++;
+  }
+  $("d-pcount").textContent = `(${n} of ${ds.params.length}; ${used.size} placed)`;
+}
+function bindParam(id, target) {   // a parameter onto a classic slot, or onto a free element
+  const s = curScreen();
+  if (target.slot && s.type === "classic") {
+    const [li, k] = target.slot.split(".").map(Number);
+    commit((d) => { d.groups[ds.gi].screens[ds.si].lanes[li].cells[k] = { param: id }; });
+  } else if (target.slot && s.type === "free") {   // onto a free lane slot: a new knob for it
+    const [li, k] = target.slot.split(".").map(Number);
+    commit((d) => {
+      const sc = d.groups[ds.gi].screens[ds.si], e = newElement(sc, "knob", 8, HEADER_H + 4, id, d.style);
+      sc.elements.push(e);
+      sc.lanes[li][k] = e.id;
+    });
+  } else if (target.el) {
+    const e = s.elements.find((x) => x.id === target.el);
+    if (e && BINDABLE.has(e.type)) commit((d) => { d.groups[ds.gi].screens[ds.si].elements.find((x) => x.id === e.id).param = id; });
+  }
+}
+
+// ------------------------------------------------------------- dragging ---
+// one pointer drag at a time: a new element from the strip, a parameter from the list, a move, a resize
+function startDrag(ev, drag) {
+  ev.preventDefault();
+  ds.drag = { ...drag, x0: ev.clientX, y0: ev.clientY, moved: false };
+  if (drag.kind === "new" || drag.kind === "param") {
+    ds.drag.ghost = el("div", { class: "ghost", text: drag.text });
+    document.body.append(ds.drag.ghost);
+    moveGhost(ev);
+  }
+}
+function moveGhost(ev) { if (ds.drag && ds.drag.ghost) { ds.drag.ghost.style.left = ev.clientX + 10 + "px"; ds.drag.ghost.style.top = ev.clientY + 10 + "px"; } }
+function screenPoint(ev) {
+  const r = $("d-overlay").getBoundingClientRect(), k = SCREEN / r.width;
+  return { x: (ev.clientX - r.left) * k, y: (ev.clientY - r.top) * k, inside: ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom };
+}
+function dropTarget(ev) {
+  const t = document.elementFromPoint(ev.clientX, ev.clientY);
+  const slot = t && t.closest && t.closest("[data-slot]"), e = t && t.closest && t.closest("[data-el]");
+  return { slot: slot ? slot.dataset.slot : null, el: e ? e.dataset.el : null };
+}
+document.addEventListener("pointermove", (ev) => {
+  const d = ds.drag;
+  if (!d) return;
+  moveGhost(ev);
+  const dx = Math.round((ev.clientX - d.x0) / SCALE() / GRID) * GRID, dy = Math.round((ev.clientY - d.y0) / SCALE() / GRID) * GRID;
+  if (d.kind === "move" || d.kind === "resize") {
+    if (!d.moved && (dx || dy)) { d.moved = true; d.before = JSON.stringify(ds.design); }
+    const s = curScreen();
+    for (const o of d.orig) {
+      const e = s.elements.find((x) => x.id === o.id);
+      if (d.kind === "move") { e.x = Math.max(0, Math.min(SCREEN - e.w, o.x + dx)); e.y = Math.max(0, Math.min(SCREEN - e.h, o.y + dy)); }
+      else { e.w = Math.max(GRID * 2, o.w + dx); e.h = Math.max(GRID * 2, o.h + dy); }
+    }
+    dScreen();
+  }
+});
+document.addEventListener("pointerup", (ev) => {
+  const d = ds.drag;
+  if (!d) return;
+  ds.drag = null;
+  if (d.ghost) d.ghost.remove();
+  if (d.kind === "new") {
+    const p = screenPoint(ev), s = curScreen();
+    if (!p.inside || !s) return;
+    if (s.type !== "free") { dmsg("Elements go on free screens: add one with New screen > free.", true); return; }
+    let id = null;
+    commit((x) => {
+      const sc = x.groups[ds.gi].screens[ds.si], e = newElement(sc, d.type, p.x, Math.max(HEADER_H + 4, p.y), null, x.style);
+      e.x = Math.min(e.x, SCREEN - e.w); e.y = Math.min(e.y, SCREEN - e.h);
+      sc.elements.push(e);
+      id = e.id;
+    });
+    ds.sel = new Set([id]);
+    dRender();
+  } else if (d.kind === "param") {
+    const t = dropTarget(ev);
+    if (t.slot || t.el) bindParam(d.id, t);
+    else if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < 4) {   // a click: bind the selection
+      const s = curScreen();
+      if (s.type === "classic" && ds.cell) bindParam(d.id, { slot: `${ds.cell.lane}.${ds.cell.k}` });
+      else if (s.type === "free" && ds.sel.size === 1) bindParam(d.id, { el: [...ds.sel][0] });
+    }
+  } else if (d.moved) {
+    const after = JSON.stringify(ds.design);
+    ds.design.groups = JSON.parse(d.before).groups;
+    commit((x) => { x.groups = JSON.parse(after).groups; });
+  }
+});
+$("d-overlay").addEventListener("pointerdown", (ev) => {
+  const rs = ev.target.closest("[data-rs]"), t = ev.target.closest("[data-el]"), s = curScreen();
+  if (s && s.type === "classic") {   // a click on a classic screen's picture: that cell's slot (as the slot under it)
+    const b = $("d-screen").getBoundingClientRect(), c = cellAt(ds.last && ds.last.state, (ev.clientX - b.left) / SCALE(), (ev.clientY - b.top) / SCALE());
+    if (c && c.lane < s.lanes.length) classicSlot(c.lane, c.k);
+    return;
+  }
+  if (!s || s.type !== "free") return;
+  if (!t) { ds.sel.clear(); dRender(); return; }
+  const id = t.dataset.el;
+  if (ev.shiftKey) { if (ds.sel.has(id)) ds.sel.delete(id); else ds.sel.add(id); }
+  else if (!ds.sel.has(id)) ds.sel = new Set([id]);
+  const ids = rs ? [rs.dataset.rs] : [...ds.sel];
+  startDrag(ev, { kind: rs ? "resize" : "move", orig: ids.map((x) => ({ ...s.elements.find((e) => e.id === x) })) });
+  dOverlay(s, ds.last || { checks: [] });
+  dInspector();
+});
+function dPalette() {
+  const host = $("d-palette");
+  host.textContent = "";
+  for (const t of ELEMENT_TYPES) {
+    const b = el("button", { class: "new", "data-new": t, text: "+ " + t, title: `drag a ${t} onto a free screen` });
+    b.addEventListener("pointerdown", (ev) => startDrag(ev, { kind: "new", type: t, text: t }));
+    host.append(b);
+  }
+}
+function alignSel(how) {
+  if (how === "copy" || how === "paste") return clipboard(how);
+  const s = curScreen();
+  if (!s || s.type !== "free" || !ds.sel.size) return;
+  const ids = [...ds.sel];
+  if (how === "del") { commit((d) => { const sc = d.groups[ds.gi].screens[ds.si]; sc.elements = sc.elements.filter((e) => !ds.sel.has(e.id)); sc.lanes = sc.lanes.map((l) => l.map((x) => (ds.sel.has(x) ? null : x))); }); ds.sel.clear(); dRender(); return; }
+  if (how === "dup") {
+    const made = [];
+    commit((d) => { const sc = d.groups[ds.gi].screens[ds.si]; for (const id of ids) { const o = sc.elements.find((e) => e.id === id), e = newElement(sc, o.type, o.x + 8, o.y + 8, null, d.style); Object.assign(e, { ...o, id: e.id, x: Math.min(o.x + 8, SCREEN - o.w), y: Math.min(o.y + 8, SCREEN - o.h) }); if (e.param) e.param = null; sc.elements.push(e); made.push(e.id); } });
+    ds.sel = new Set(made); dRender(); return;
+  }
+  commit((d) => {
+    const es = d.groups[ds.gi].screens[ds.si].elements.filter((e) => ds.sel.has(e.id));
+    if (how === "left") { const v = Math.min(...es.map((e) => e.x)); es.forEach((e) => { e.x = v; }); }
+    if (how === "top") { const v = Math.min(...es.map((e) => e.y)); es.forEach((e) => { e.y = v; }); }
+    if (how === "right") { const v = Math.max(...es.map((e) => e.x + e.w)); es.forEach((e) => { e.x = v - e.w; }); }
+    if (how === "hspace" && es.length > 2) {
+      es.sort((a, b) => a.x - b.x);
+      const x0 = es[0].x, x1 = es[es.length - 1].x;
+      es.forEach((e, i) => { e.x = snap(x0 + ((x1 - x0) * i) / (es.length - 1)); });
+    }
+  });
+}
+// copy: the selected elements into the page's clipboard (and the system's as JSON text when it lets us; no error if not);
+// paste: onto the current free screen at their places (pasteElements: fresh ids, no lane), one undo step
+function clipboard(how) {
+  const s = curScreen();
+  if (!s || s.type !== "free") { if (how === "paste") dmsg("Elements are pasted on a free screen.", true); return; }
+  if (how === "copy") {
+    if (!ds.sel.size) return;
+    ds.clip = JSON.parse(JSON.stringify(s.elements.filter((e) => ds.sel.has(e.id))));
+    try { if (navigator.clipboard) navigator.clipboard.writeText(JSON.stringify({ "choralroot-elements": ds.clip })).catch(() => {}); } catch (e) { /* not allowed: the page's own clipboard is enough */ }
+    dmsg(`${ds.clip.length} element(s) copied: open a screen and paste (Ctrl+V).`);
+    return;
+  }
+  if (!ds.clip || !ds.clip.length) { dmsg("Nothing copied yet: select elements and copy (Ctrl+C).", true); return; }
+  let made = [];
+  commit((d) => { made = pasteElements(d.groups[ds.gi].screens[ds.si], ds.clip).map((e) => e.id); });
+  ds.sel = new Set(made);
+  dmsg(`${made.length} element(s) pasted, in no lane: put them in lanes and rebind as needed.`);
+  dRender();
+}
+document.addEventListener("keydown", (ev) => {
+  if (st.mode !== "design" || !ds.design) return;
+  if (ev.target.closest && ev.target.closest("input, select, textarea, .dial")) return;
+  const mod = ev.ctrlKey || ev.metaKey;
+  if (mod && ev.key.toLowerCase() === "z") { ev.preventDefault(); if (ev.shiftKey) undoRedo(ds.redo, ds.undo); else undoRedo(ds.undo, ds.redo); return; }
+  if (mod && ev.key.toLowerCase() === "y") { ev.preventDefault(); undoRedo(ds.redo, ds.undo); return; }
+  const s = curScreen();
+  if (!s || s.type !== "free") return;
+  if (mod && ev.key.toLowerCase() === "a") { ev.preventDefault(); ds.sel = new Set(s.elements.map((e) => e.id)); dRender(); return; }
+  if (mod && ev.key.toLowerCase() === "d") { ev.preventDefault(); alignSel("dup"); return; }
+  if (mod && ev.key.toLowerCase() === "c" && ds.sel.size) { ev.preventDefault(); clipboard("copy"); return; }
+  if (mod && ev.key.toLowerCase() === "v") { ev.preventDefault(); clipboard("paste"); return; }
+  if (!ds.sel.size) return;
+  if (ev.key === "Delete" || ev.key === "Backspace") { ev.preventDefault(); alignSel("del"); return; }
+  const step = ev.shiftKey ? 16 : GRID, mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[ev.key];
+  if (mv) {
+    ev.preventDefault();
+    commit((d) => d.groups[ds.gi].screens[ds.si].elements.filter((e) => ds.sel.has(e.id)).forEach((e) => {
+      e.x = Math.max(0, Math.min(SCREEN - e.w, e.x + mv[0])); e.y = Math.max(0, Math.min(SCREEN - e.h, e.y + mv[1]));
+    }));
+  }
+});
+
+// -------------------------------------------------------- the contact sheet ---
+// per group: today's screens x lanes beside the design's
+function dSheet() {
+  const host = $("d-sheetview"), m = st.m, E = st.cat.engine.index;
+  host.textContent = "";
+  const today = tiles(st.cat), mine = designTiles(ds.design);
+  const fig = (rgba, cap, n, extra) => {
+    const c = el("canvas", { width: SCREEN, height: SCREEN });
+    paint(c, rgba);
+    return el("figure", {}, c, el("figcaption", {}, el("span", { text: cap }), n ? el("i", { text: `${n}!` }) : "", extra || ""));
+  };
+  const todayFigs = new Map();
+  m.unload();
+  for (const t of today) {
+    m.show(E, st.preset, t.group, t.screen, t.lane);
+    const r = m.render();
+    if (!todayFigs.has(t.groupName)) todayFigs.set(t.groupName, []);
+    todayFigs.get(t.groupName).push(fig(r, `today · ${tileLabel(t)}`, lintFaults(m.lint()).length));
+  }
+  const s = designSession(m, st.cat, ds.design, st.preset);
+  s.reload();
+  const mineFigs = new Map();
+  let faults = 0, nb = 0;
+  for (const t of mine) {
+    s.open(t.gi, t.si, t.lane);
+    const r = s.render(), n = lintFaults(r.lint).length + r.checks.length;
+    faults += n;
+    nb += r.unbuildable ? 1 : 0;
+    if (!mineFigs.has(t.group)) mineFigs.set(t.group, []);
+    const f = fig(r.rgba, `design · ${t.group} ${t.si + 1}${t.lanes > 1 ? "." + (t.lane + 1) : ""} · ${t.title}`, n,
+                  r.unbuildable ? el("span", { class: "pill nb", text: "not buildable yet", title: r.unbuildable }) : "");
+    f.querySelector("canvas").addEventListener("click", () => { dSheetToggle(false); dGo(t.gi, t.si, t.lane); });
+    mineFigs.get(t.group).push(f);
+  }
+  host.append(el("p", { class: "small", text: `${st.cat.engine.name} on "${m.presets(E)[st.preset]}": today ${today.length} screens x lanes, the design ${mine.length} (${nb} not buildable yet, ${faults} finding${faults === 1 ? "" : "s"}). A click on a design tile opens it.` }),
+              el("div", { class: "row", style: "margin-left:0" }, el("button", { text: "Download sheet PNG", onclick: dSheetPng })));
+  for (const g of ds.design.groups) {
+    const a = el("div", { class: "col" }, el("h4", { text: "today" }), ...(todayFigs.get(g.name) || []));
+    const b = el("div", { class: "col" }, el("h4", { text: `design: ${ds.design.name || ""}` }), ...(mineFigs.get(g.name) || []));
+    host.append(el("div", { class: "grp" }, el("h3", { text: g.name, style: "margin:0 0 6px" }), el("div", { class: "cols" }, a, b)));
+  }
+  ds.session.reload();
+}
+function dSheetPng() {
+  const figs = [...$("d-sheetview").querySelectorAll("figure")];
+  const g = sheetGeometry(figs.length, Math.min(6, Math.max(1, figs.length)));
+  const c = el("canvas", { width: g.width, height: g.height }), x = c.getContext("2d");
+  x.fillStyle = "#16161a"; x.fillRect(0, 0, g.width, g.height);
+  x.fillStyle = "#d8d8dc"; x.font = "bold 16px system-ui, sans-serif"; x.textBaseline = "middle";
+  x.fillText(`${st.cat.engine.name}: today and design "${ds.design.name}" · ${st.version.firmware}`, g.gap, g.top / 2);
+  x.font = "12px system-ui, sans-serif";
+  figs.forEach((f, i) => { const p = g.at(i); x.drawImage(f.querySelector("canvas"), p.x, p.y); x.fillText(f.querySelector("figcaption span").textContent, p.x, p.y + g.tile + g.cap / 2, g.tile); });
+  c.toBlob((b) => download(`${designFileName(ds.design).replace(/\.json$/, "")}-sheet.png`, b));
+}
+function dSheetToggle(on) {
+  ds.sheet = on;
+  $("d-sheet").setAttribute("aria-pressed", String(on));
+  $("d-main").hidden = on;
+  $("d-sheetview").hidden = !on;
+  if (on) dSheet();
+}
+function exportText() { return formatDesign(ds.design); }
+
+// ----------------------------------------------------------------- wiring ---
+function designWire() {
+  dPalette();
+  knobs("d-knobs", dturn, "d");
+  for (const b of $("d-align").querySelectorAll("button")) b.addEventListener("click", () => alignSel(b.dataset.al));
+  $("d-name").addEventListener("change", () => commit((d) => { d.name = $("d-name").value.trim() || "design"; }));
+  $("d-style").addEventListener("change", () => commit((d) => { if ($("d-style").value === "p5") d.style = "p5"; else delete d.style; }));
+  $("d-search").addEventListener("input", dParams);
+  $("d-undo").addEventListener("click", () => undoRedo(ds.undo, ds.redo));
+  $("d-redo").addEventListener("click", () => undoRedo(ds.redo, ds.undo));
+  $("d-today").addEventListener("click", () => dOpen(designFromCatalog(st.cat, "my-design"), "today's layout"));
+  $("d-export").addEventListener("click", () => download(designFileName(ds.design), new Blob([exportText()], { type: "application/json" })));
+  $("d-png").addEventListener("click", () => $("d-screen").toBlob((b) => download(`${designFileName(ds.design).replace(/\.json$/, "")}-${ds.design.groups[ds.gi].name.toLowerCase()}-${ds.si + 1}.png`, b)));
+  $("d-sheet").addEventListener("click", () => dSheetToggle(!ds.sheet));
+  $("d-import").addEventListener("click", () => $("d-file").click());
+  $("d-file").addEventListener("change", async () => {
+    const f = $("d-file").files[0];
+    if (!f) return;
+    try {
+      const d = JSON.parse(await f.text());
+      if (d.engine && d.engine.index !== st.cat.engine.index) engine(d.engine.index);
+      dOpen(d, f.name);
+    } catch (e) { dmsg(`${f.name}: ${e.message}`, true); }
+    $("d-file").value = "";
+  });
+  const ex = $("d-example"), shipped = globalThis.CR_DESIGNS || {};
+  ex.append(el("option", { value: "", text: "open a shipped design.." }));
+  for (const k of Object.keys(shipped)) ex.append(el("option", { value: k, text: k }));
+  ex.addEventListener("change", () => {
+    const d = shipped[ex.value];
+    ex.value = "";
+    if (!d) return;
+    if (d.engine.index !== st.cat.engine.index) engine(d.engine.index);
+    dOpen(JSON.parse(JSON.stringify(d)), "the shipped design");
+  });
+  $("d-add").addEventListener("click", () => {
+    const gi = +$("d-new-group").value, kind = $("d-new-kind").value;
+    commit((d) => d.groups[gi].screens.push(kind === "free" ? newFreeScreen(d.groups[gi].name) : newClassicScreen(kind, d.groups[gi].name)));
+    dGo(gi, ds.design.groups[gi].screens.length - 1);
+  });
+  $("d-add-today").addEventListener("click", () => {
+    const [g, k] = $("d-today-scr").value.split(".").map(Number), gi = ds.design.groups.findIndex((x) => x.group === g);
+    if (gi < 0) return;
+    commit((d) => d.groups[gi].screens.push(classicScreenFromToday(st.cat, g, k)));
+    dGo(gi, ds.design.groups[gi].screens.length - 1);
+  });
+}
+function mode(mo) {
+  st.mode = mo;
+  $("m-view").setAttribute("aria-pressed", String(mo === "view"));
+  $("m-design").setAttribute("aria-pressed", String(mo === "design"));
+  $("viewer-bar").hidden = mo !== "view";
+  $("view-design").hidden = mo !== "design";
+  if (mo === "design") { $("view-screen").hidden = true; $("view-sheet").hidden = true; if (!ds.design || ds.design.engine.index !== st.cat.engine.index) dEngine(); else afterChange(); }
+  else { st.m.unload(); if (ds.session) ds.session = null, ds.design = null; view(st.view); show(st.tile); }
+}
+
+// ?demo=osc|classic|sheet: the places docs/LAYOUT-TOOL.md's screenshots show (the P5 example)
+function demo(what) {
+  mode("design");
+  const d = (globalThis.CR_DESIGNS || {})["p5-osc-panel"];
+  if (d) dOpen(JSON.parse(JSON.stringify(d)), "the shipped design");
+  if (what === "osc") { dGo(0, 0, 0); ds.sel = new Set(["a_pw"]); dRender(); }
+  if (what === "classic") {   // FILT: Cutoff and Reso swapped, Cutoff relabelled; KNOB 2's slot selected
+    const gi = ds.design.groups.findIndex((g) => g.name === "FILT");
+    commit((x) => { const c = x.groups[gi].screens[0].lanes[0].cells; [c[0], c[1]] = [c[1], c[0]]; c[1].label = "Bright"; });
+    dGo(gi, 0, 0);
+    dturn(2, 3);
+    ds.cell = { lane: 0, k: 1 };
+    dRender();
+  }
+  if (what === "sheet") dSheetToggle(true);
+}
+
+// web/test_layout.mjs (?selftest=design): Design mode on the P5 example; a free screen; an element added by a
+// scripted drag; the export equals the model. Squares as the viewer's self-test.
+async function selftestDesign() {
+  const res = [];
+  mode("design");
+  const shipped = globalThis.CR_DESIGNS || {}, k = Object.keys(shipped).find((x) => /p5-osc-panel/.test(x));
+  res.push(!!k && dOpen(JSON.parse(JSON.stringify(shipped[k])), "the shipped design"));            // 1: the example opens
+  const gi = ds.design.groups.findIndex((g) => g.screens.some((s) => s.type === "free"));
+  dGo(Math.max(0, gi), Math.max(0, gi >= 0 ? ds.design.groups[gi].screens.findIndex((s) => s.type === "free") : 0));
+  const px = () => $("d-screen").getContext("2d").getImageData(0, 0, SCREEN, SCREEN).data;
+  const a = px();
+  res.push(inkCount(a) > 500 && curScreen().type === "free" && $("d-build").textContent.includes("not buildable"));   // 2
+  $("dk1-plus").click();
+  res.push(diffCount(a, px()) > 0);                                                              // 3: a knob turns a dial
+  const n0 = curScreen().elements.length, src = document.querySelector('[data-new="knob"]').getBoundingClientRect();
+  const ov = $("d-overlay").getBoundingClientRect();
+  const at = (x, y) => ({ clientX: x, clientY: y, bubbles: true, pointerId: 1, button: 0 });
+  const tx = ov.left + ov.width * 0.75, ty = ov.top + ov.height * 0.85;
+  document.querySelector('[data-new="knob"]').dispatchEvent(new PointerEvent("pointerdown", at(src.left + 5, src.top + 5)));
+  document.dispatchEvent(new PointerEvent("pointermove", at(tx, ty)));
+  document.dispatchEvent(new PointerEvent("pointerup", at(tx, ty)));
+  const added = curScreen().elements.length === n0 + 1 ? curScreen().elements[n0] : null;
+  res.push(!!added && added.type === "knob" && added.x % GRID === 0 && added.y % GRID === 0 && ds.undo.length === 1);   // 4
+  res.push(JSON.stringify(JSON.parse(exportText())) === JSON.stringify(ds.design) && !validateDesign(JSON.parse(exportText()), st.cat).errors.length);   // 5
+  dSheetToggle(true);
+  res.push($("d-sheetview").querySelectorAll("figure").length === tiles(st.cat).length + designTiles(ds.design).length);   // 6
+  dSheetToggle(false);
+  const k5 = Object.keys(shipped).find((x) => /p5-panel/.test(x));                                // 7: the p5-style panel
+  res.push(!!k5 && dOpen(JSON.parse(JSON.stringify(shipped[k5])), "the shipped design") && $("d-style").value === "p5" &&
+           curScreen().type === "free" && ds.last && ds.last.state.kind === "free" && !ds.last.unbuildable &&
+           $("d-build").textContent === "buildable today" && inkCount(px()) > 500);
+  {                                                                                              // 8: copy, paste on another screen
+    const src = curScreen().elements.find((e) => e.type === "knob"), u0 = ds.undo.length;
+    ds.sel = new Set([src.id]);
+    clipboard("copy");
+    const g2 = ds.design.groups.findIndex((g, i) => i !== ds.gi && g.screens.some((s) => s.type === "free"));
+    dGo(g2, ds.design.groups[g2].screens.findIndex((s) => s.type === "free"));
+    const ids0 = new Set(curScreen().elements.map((e) => e.id));
+    clipboard("paste");
+    const ex = JSON.parse(exportText()).groups[ds.gi].screens[ds.si].elements, got = ex.find((e) => !ids0.has(e.id));
+    res.push(!!got && got.param === src.param && got.type === "knob" && got.id !== src.id && ds.undo.length === u0 + 1 &&
+             ds.sel.has(got.id) && !curScreen().lanes.some((l) => l.includes(got.id)));
+  }
+  {                                                                                              // 9: click a cell of a classic screen
+    const kr = Object.keys(shipped).find((x) => /p5-rows/.test(x)), ovr = () => $("d-overlay").getBoundingClientRect();
+    const click = (x, y) => { const b = ovr(); $("d-overlay").dispatchEvent(new PointerEvent("pointerdown", at(b.left + x * b.width / SCREEN, b.top + y * b.height / SCREEN))); };
+    let good = !!kr && dOpen(JSON.parse(JSON.stringify(shipped[kr])), "the shipped design");
+    if (good) {
+      dGo(0, 0, 0);                                    // OSC A: two lanes, no band: row B (134..234), KNOB 3
+      click(150, 180);
+      good = !!ds.cell && ds.cell.lane === 1 && ds.cell.k === 2 && ds.session.at.lane === 1 && !!document.querySelector('[data-slot="1.2"].cur');
+      const fi = ds.design.groups.findIndex((g) => g.name === "FILT");
+      dGo(fi, 0, 0);                                   // FILTER: one lane under the band, full size (124..224), KNOB 4
+      click(200, 210);
+      good = good && ds.last.state.band !== "none" && !!ds.cell && ds.cell.lane === 0 && ds.cell.k === 3;
+      click(100, 60);                                  // the band: no cell
+      good = good && ds.cell.k === 3;
+    }
+    res.push(good);
+  }
+  {                                                                                              // 10: a sketch glyph on a slot
+    const kr = Object.keys(shipped).find((x) => /p5-rows/.test(x));
+    let good = !!kr && dOpen(JSON.parse(JSON.stringify(shipped[kr])), "the shipped design");
+    if (good) {
+      dGo(0, 0, 0);                                    // OSC A, KNOB 1 (Freq, p5knob): the firmware's K6d, then the sketch K1
+      const a = px();
+      ds.cell = { lane: 0, k: 0 };
+      commit((d) => { d.groups[0].screens[0].lanes[0].cells[0].style = "sketch:k1"; });
+      const b = px();
+      good = diffCount(a, b) > 0 && $("d-build").textContent.includes("not buildable") && /sketch glyph \(k1\)/.test($("d-build").title) &&
+             !!document.querySelector(".sketch-note") && [...$("d-lint").querySelectorAll("li")].some((li) => /a sketch glyph \(k1\)/.test(li.textContent));
+    }
+    res.push(good);
+  }
+  const host = $("selftest");
+  host.hidden = false;
+  host.dataset.result = res.map((r) => (r ? 1 : 0)).join("");
+  for (const r of res) host.append(el("i", { style: `background:${r ? "#00ff00" : "#ff0000"}` }));
+  host.append(el("i", { style: "background:#0000ff" }));
+}
+
+async function main() {
+  if (!globalThis.CRLayoutModule) {
+    status("crlayout.js is not beside this page: build it with sh tools/layout/build_layout.sh, then python3 tools/layout/make_page.py (docs/LAYOUT-TOOL.md).", true);
+    return;
+  }
+  const t0 = performance.now();
+  st.m = wrap(await CRLayoutModule.load());
+  st.version = st.m.version();
+  st.m.reset();
+  $("fw").textContent = `${st.version.firmware} · preview API ${st.version.api} · layout format ${st.version.format} v${st.version.format_version} · loaded in ${Math.round(performance.now() - t0)} ms`;
+  for (const e of st.version.engines)
+    $("engines").append(el("button", { "data-index": e.index, "aria-pressed": "false", text: e.name, title: `engine ${e.index}, params_hash ${e.params_hash}`,
+                                       onclick: () => engine(e.index) }));
+  knobs();
+  $("preset").addEventListener("change", (e) => { st.preset = +e.target.value; $("preset2").value = e.target.value; show(st.tile); });
+  $("d-preset").addEventListener("change", (e) => { st.preset = +e.target.value; $("preset").value = $("preset2").value = e.target.value; if (ds.design) afterChange(); });
+  $("preset2").addEventListener("change", (e) => { st.preset = +e.target.value; $("preset").value = e.target.value; sheet(); remember(); });
+  $("reload").addEventListener("click", () => show(st.tile));
+  $("show-text").addEventListener("change", draw);
+  $("v-screen").addEventListener("click", () => { view("screen"); show(st.tile); });
+  $("v-sheet").addEventListener("click", () => view("sheet"));
+  $("dl-sheet").addEventListener("click", sheetPng);
+  $("dl-json").addEventListener("click", () => download(layoutFileName(st.cat.engine.name), new Blob([formatLayout(st.cat)], { type: "application/json" })));
+  const want = (params.get("engine") || "").toLowerCase();
+  const e = st.version.engines.find((x) => x.name.toLowerCase() === want || String(x.index) === want || layoutFileName(x.name) === want + ".json") ||
+            st.version.engines.find((x) => x.name === "P5") || st.version.engines[0];
+  const g = params.get("group"), num = (k) => Math.max(0, (parseInt(params.get(k) || "1", 10) || 1) - 1);
+  engine(e.index, { group: g === null ? 0 : /^\d+$/.test(g) ? +g : g.toUpperCase(), screen: num("screen"), lane: num("lane"),
+                    preset: params.has("preset") ? parseInt(params.get("preset"), 10) || 0 : undefined });
+  // the shipped designs (tools/layout/make_page.py writes designs.js beside the page; optional: the site has none yet)
+  await new Promise((ok) => { const x = document.createElement("script"); x.src = "designs" + ".js"; x.onload = x.onerror = ok; document.head.append(x); });
+  designWire();
+  $("m-view").addEventListener("click", () => mode("view"));
+  $("m-design").addEventListener("click", () => mode("design"));
+  if (params.get("view") === "sheet") view("sheet");
+  if (params.get("selftest") === "design") await selftestDesign();
+  else if (params.has("selftest")) selftest();
+  else if (params.get("demo")) demo(params.get("demo"));
+  else if (params.get("mode") === "design") mode("design");
+}
+
+// web/test_layout.mjs reads these squares from a screenshot: green = the check held, red = it did not
+function selftest() {
+  const res = [], px = () => $("screen").getContext("2d").getImageData(0, 0, SCREEN, SCREEN).data;
+  view("screen");
+  show(st.tiles.find((t) => t.cells[0].bind === "deep" || t.cells[0].bind === "track") || st.tiles[0]);
+  const a = px();
+  res.push(inkCount(a) > 500);                                   // 1: the canvas is not blank
+  $("k1-plus").click();
+  $("k1-plus").click();
+  const b = px();
+  res.push(diffCount(a, b) > 0 && st.m.state().hot === 1);       // 2: a knob click changed the picture, its cell is hot
+  $("v-sheet").click();
+  const figs = [...$("sheet").querySelectorAll("figure canvas")];
+  res.push(figs.length === st.tiles.length && figs.length > 0 &&   // 3: the sheet has every screen x lane, none blank
+           figs.every((c) => inkCount(c.getContext("2d").getImageData(0, 0, SCREEN, SCREEN).data) > 500));
+  res.push($("lint").children.length > 0 && /ChoralRoot/.test($("fw").textContent) && $("i-cells").children.length === 4);   // 4
+  const host = $("selftest");
+  host.hidden = false;
+  host.dataset.result = res.map((r) => (r ? 1 : 0)).join("");
+  host.dataset.tiles = String(figs.length);
+  for (const r of res) host.append(el("i", { style: `background:${r ? "#00ff00" : "#ff0000"}` }));
+  host.append(el("i", { style: "background:#0000ff" }));         // the end mark: the row is whole
+}
+
+main().catch((e) => { status(String(e && e.message || e), true); console.error(e); });
+</script>
+</body>
+</html>

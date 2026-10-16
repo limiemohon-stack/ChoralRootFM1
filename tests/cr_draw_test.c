@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #define __attribute__(x)
 
 static uint16_t host_screen[240 * 240];
@@ -49,6 +50,9 @@ static void hk_text(int32_t x0, int32_t y0, int32_t x1, int32_t y1, const char *
 #define FELUCCA_KEYCAPS 0                        /* as choralroot.c: no Felucca keycaps */
 #include "../firmware/src/gfx.c"
 #include "../firmware/src/cr_gfx.c"
+#include "../firmware/src/core.h"        /* (the compiled classic layouts are core.h eng_page_t / eng_screen_t) */
+#include "../firmware/src/cr_layout.c"   /* the compiled layouts (build/gen/cr_layouts.h): P5's rows; CR_K_FREE in the
+                                          * second build, tests/run_cr_draw.sh: the panel's table */
 #include "../firmware/src/cr_draw.c"
 #include "cr_screens_gen.h"
 #include "../firmware/src/cr_engine.h"   /* cr_chord_name: the names as the engine writes them (run_cr_draw.sh links cr_engine.c) */
@@ -244,6 +248,536 @@ static int ring_check(void)
     return !memcmp(&r, &cr_ring, sizeof r);
 }
 
+/* a hash of the picture (the goldens) */
+static uint32_t screen_hash(void)
+{
+    uint32_t h = 2166136261u, i;
+    for (i = 0; i < 240u * 240u; i++) h = (h ^ host_screen[i]) * 16777619u;
+    return h;
+}
+/* the goldens of a set of pictures: file's lines "slug hash" (write: rewrite it first) -> how many are unchanged, *seen
+ * the file's lines */
+static uint32_t goldens(const char *file, const char *what, int write, const char (*slug)[40], const uint32_t *h, uint32_t ng,
+                        uint32_t *seen)
+{
+    FILE *gf;
+    char ln[128], sl[64];
+    unsigned hv;
+    uint32_t i, same = 0;
+    *seen = 0;
+    if (write && (gf = fopen(file, "w"))) {
+        fprintf(gf, "# tests/cr_draw_test.c %s: a hash of each picture (rewritten when its variable is 1)\n", what);
+        for (i = 0; i < ng; i++) fprintf(gf, "%s %08x\n", slug[i], h[i]);
+        fclose(gf);
+    }
+    if ((gf = fopen(file, "r"))) {
+        while (fgets(ln, sizeof ln, gf))
+            if (sscanf(ln, "%63s %x", sl, &hv) == 2 && sl[0] != '#') {
+                (*seen)++;
+                for (i = 0; i < ng; i++)
+                    if (!strcmp(slug[i], sl)) {
+                        same += h[i] == hv;
+                        if (h[i] != hv) fprintf(rep, "golden %s: %08x, not %08x\n", sl, h[i], hv);
+                    }
+            }
+        fclose(gf);
+    }
+    return same;
+}
+
+#if CR_LAY_FREE
+/* ------------------------------------------------------ the free screens (CR_K_FREE) --- */
+/* a mock-up state of a compiled layout's screen si (index + 1) on lane `lane`: every bound element's cell filled from
+ * seed (a knob's value and fill, an led's on, a switch's position, a named value's name), the sound "ITS PROPHET5" */
+static void free_state(cr_screen_t *s, uint32_t li, uint32_t si, uint32_t lane, uint32_t seed)
+{
+    const cr_lay_screen_t *ls = cr_lay_scr(li, si);
+    uint32_t r, c, x;
+    cr_screen_clear(s);
+    s->kind = CR_K_FREE;
+    s->fl_eng = (uint8_t)li;
+    s->fl_scr = (uint8_t)si;
+    s->n_rows = ls->nlanes;
+    s->active = (uint8_t)lane;
+    snprintf(s->title, sizeof s->title, "ITS PROPHET5");
+    snprintf(s->page, sizeof s->page, "%s", cr_lay_str(ls->title));
+    for (r = 0; r < ls->nlanes; r++)
+        for (c = 0; c < 4u; c++) {
+            const cr_lay_elem_t *e;
+            cr_cell_t *cl = &s->cell[r][c];
+            uint32_t k = seed + r * 4u + c, n = 0, v;
+            const char *nm;
+            if ((x = cr_lay_slot(ls, r, c)) == CR_LAY_EMPTY) continue;
+            e = cr_lay_el(li, ls, x);
+            cl->flags = CR_CF_ON;
+            snprintf(cl->label, sizeof cl->label, "%s", cr_lay_str(e->label));
+            for (nm = cr_lay_names(e); nm; nm = cr_lay_next(nm)) n++;
+            if (e->type == CR_E_LED) {
+                cl->pct2 = (uint8_t)(k & 1u);
+                cl->pct = cl->pct2 ? 255u : 0u;
+                snprintf(cl->value, sizeof cl->value, "%s", cl->pct2 ? "on" : "off");
+            } else if (e->type == CR_E_SWITCH) {
+                cl->pct2 = (uint8_t)(k % (CR_LF_POS(e->flags) == 3u ? 3u : 2u));
+                cl->pct = (uint8_t)(cl->pct2 * 127u);
+            } else if (n) {                                   /* a knob of named values: the k-th name */
+                for (nm = cr_lay_names(e), v = k % n; v; v--) nm = cr_lay_next(nm);
+                snprintf(cl->value, sizeof cl->value, "%s", nm);
+                cl->pct = (uint8_t)((k % n) * 255u / (n - 1u));
+            } else {
+                v = (37u * k + 11u) % 128u;
+                snprintf(cl->value, sizeof cl->value, "%u", v);
+                cl->pct = (uint8_t)(v * 256u / 127u > 255u ? 255u : v * 256u / 127u);
+            }
+        }
+}
+/* every screen x lane of the compiled P5 panel, its hot element, REV at both values: PPMs, the lint, the goldens
+ * (tests/cr_free_golden.txt: a hash of each picture; CR_FREE_GOLDEN=1 writes it); a knob turn's partial compose against
+ * the whole screen; the compose's cost against edit8's FILTER screen */
+static void free_screens(const char *dir)
+{
+    static cr_screen_t s, t;
+    static uint16_t part[240 * 240];
+    static struct { char slug[40]; uint32_t h; } gold[64];
+    uint32_t li = cr_lay_find(CR_LAYOUTS[0].engine), si, lane, ng = 0, ok, f0 = nfind, i, filt = 0, k;
+    const cr_layout_t *L = cr_lay(li);
+    char name[200], slug[40];
+    FILE *gf;
+    int write = getenv("CR_FREE_GOLDEN") && !strcmp(getenv("CR_FREE_GOLDEN"), "1");
+    check("the compiled layouts: P5's (8 screens, 73 elements)", L && L->nscreens == 8u && L->nelems == 73u);
+    if (!L) return;
+    for (si = 1; si <= L->nscreens; si++) {
+        const cr_lay_screen_t *ls = cr_lay_scr(li, si);
+        if (!strcmp(cr_lay_str(ls->title), "FILTER")) filt = si;
+        for (lane = 0; lane < ls->nlanes; lane++) {
+            free_state(&s, li, si, lane, si);
+            render(&s, 0);
+            snprintf(slug, sizeof slug, "p5free_%u_%u", si, lane + 1u);
+            lint(slug, &s);
+            write_ppm(dir, slug);
+            snprintf(gold[ng].slug, sizeof gold[ng].slug, "%s", slug);
+            gold[ng++].h = screen_hash();
+        }
+    }
+    free_state(&s, li, filt, 0, 0);                          /* FILTER: CUTOFF hot (lane 1, KNOB 2) */
+    s.hot_r = 1;
+    s.hot_c = 1;
+    render(&s, 0);
+    lint("p5free_filter_hot", &s);
+    write_ppm(dir, "p5free_filter_hot");
+    snprintf(gold[ng].slug, sizeof gold[ng].slug, "p5free_filter_hot");
+    gold[ng++].h = screen_hash();
+    for (k = 0; k < 2u; k++) {                                /* REV (lane 1, KNOB 1): 1/2 (red) and 3 (yellow) */
+        free_state(&s, li, filt, 0, 0);
+        s.cell[0][0].pct2 = (uint8_t)k;
+        snprintf(s.cell[0][0].value, sizeof s.cell[0][0].value, "%s", k ? "3" : "1/2");
+        render(&s, 0);
+        snprintf(slug, sizeof slug, "p5free_rev_%u", k);
+        lint(slug, &s);
+        write_ppm(dir, slug);
+        snprintf(gold[ng].slug, sizeof gold[ng].slug, "%s", slug);
+        gold[ng++].h = screen_hash();
+    }
+    for (i = 0, ok = 1; i < ng; i++)
+        for (k = i + 1u; k < ng; k++)
+            if (gold[i].h == gold[k].h) ok = 0;
+    snprintf(name, sizeof name, "P5's panel: %u pictures (19 screen x lane, the hot element, REV both ways), all different, lint clean", ng);
+    check(name, ng == 22u && ok && nfind == f0);
+    {   /* the goldens */
+        uint32_t same = 0, seen = 0;
+        char ln[128], sl[64];
+        unsigned hv;
+        if (write && (gf = fopen("tests/cr_free_golden.txt", "w"))) {
+            fprintf(gf, "# tests/cr_draw_test.c free_screens: a hash of each P5 free-screen picture (CR_FREE_GOLDEN=1 rewrites)\n");
+            for (i = 0; i < ng; i++) fprintf(gf, "%s %08x\n", gold[i].slug, gold[i].h);
+            fclose(gf);
+        }
+        if ((gf = fopen("tests/cr_free_golden.txt", "r"))) {
+            while (fgets(ln, sizeof ln, gf))
+                if (sscanf(ln, "%63s %x", sl, &hv) == 2 && sl[0] != '#') {
+                    seen++;
+                    for (i = 0; i < ng; i++)
+                        if (!strcmp(gold[i].slug, sl)) {
+                            same += gold[i].h == hv;
+                            if (gold[i].h != hv) fprintf(rep, "golden %s: %08x, not %08x\n", sl, gold[i].h, hv);
+                        }
+                }
+            fclose(gf);
+        }
+        snprintf(name, sizeof name, "P5's panel: the goldens (tests/cr_free_golden.txt): %u of %u pictures unchanged", same, ng);
+        check(name, seen == ng && same == ng);
+    }
+    {   /* a knob turn: CUTOFF's value and the hot mark; drawn alone (its strips), then the mark gone */
+        uint32_t strips, d1, d2;
+        free_state(&s, li, filt, 0, 0);
+        render(&s, 0);
+        t = s;
+        snprintf(t.cell[0][1].value, sizeof t.cell[0][1].value, "99");
+        t.cell[0][1].pct = 200;
+        t.hot_r = 1;
+        t.hot_c = 1;
+        cr_draw(&t, 0);
+        strips = cr_dc.drawn;
+        memcpy(part, host_screen, sizeof part);
+        render(&t, 0);
+        d1 = (uint32_t)memcmp(part, host_screen, sizeof part);
+        t.hot_r = 0;
+        cr_draw(&t, 0);
+        memcpy(part, host_screen, sizeof part);
+        render(&t, 0);
+        d2 = (uint32_t)memcmp(part, host_screen, sizeof part);
+        snprintf(name, sizeof name, "a knob turn on FILTER (CUTOFF): %u strips composed, the screen as a whole redraw's; the mark gone, too", strips);
+        check(name, strips >= 1u && strips <= 3u && !d1 && !d2);
+    }
+    {   /* every bound slot of every screen turned (its value, fill, state and the hot mark), then cooled: each partial
+         * compose leaves the screen as a whole redraw does (the element's rows, cr_free_ext, hold all it draws) */
+        uint32_t turns = 0, bad = 0, c;
+        for (si = 1; si <= L->nscreens; si++) {
+            const cr_lay_screen_t *ls = cr_lay_scr(li, si);
+            for (lane = 0; lane < ls->nlanes; lane++)
+                for (c = 0; c < 4u; c++) {
+                    if (cr_lay_slot(ls, lane, c) == CR_LAY_EMPTY) continue;
+                    free_state(&s, li, si, lane, 3u);
+                    render(&s, 0);
+                    t = s;
+                    snprintf(t.cell[lane][c].value, sizeof t.cell[lane][c].value, "%s", "127");
+                    t.cell[lane][c].pct = (uint8_t)(255u - t.cell[lane][c].pct);
+                    t.cell[lane][c].pct2 = (uint8_t)(t.cell[lane][c].pct2 ? 0u : 1u);
+                    t.hot_r = (uint8_t)(lane + 1u);
+                    t.hot_c = (uint8_t)c;
+                    cr_draw(&t, 0);
+                    memcpy(part, host_screen, sizeof part);
+                    render(&t, 0);
+                    bad += memcmp(part, host_screen, sizeof part) != 0;
+                    t.hot_r = 0;
+                    cr_draw(&t, 0);
+                    memcpy(part, host_screen, sizeof part);
+                    render(&t, 0);
+                    bad += memcmp(part, host_screen, sizeof part) != 0;
+                    turns++;
+                }
+        }
+        snprintf(name, sizeof name, "every slot of P5's panel turned and cooled (%u): each partial compose as a whole redraw (%u differ)", turns, bad);
+        check(name, turns == 56u && !bad);
+    }
+    {   /* the cost on the host: a whole compose and a knob turn, FILTER (the densest) against edit8's FILTER screen */
+        const cr_screen_t *e8 = 0;
+        clock_t c0;
+        double full_f, full_e, turn_f, turn_e;
+        uint32_t n = 400u, drawn_f = 0, drawn_e = 0;
+        for (i = 0; i < CR_NSCREENS && !e8; i++)
+            if (CR_SCREENS[i].kind == CR_K_EDIT8 && CR_SCREENS[i].wide == CR_W_FILTER) e8 = &CR_SCREENS[i];
+        free_state(&s, li, filt, 0, 0);
+        c0 = clock();
+        for (i = 0; i < n; i++) { cr_draw_invalidate(); cr_draw(&s, 0); }
+        full_f = (double)(clock() - c0) * 1e6 / CLOCKS_PER_SEC / n;
+        c0 = clock();
+        for (i = 0; i < n; i++) {
+            snprintf(s.cell[0][1].value, sizeof s.cell[0][1].value, "%u", i % 128u);
+            s.cell[0][1].pct = (uint8_t)(i % 128u * 2u);
+            s.hot_r = 1;
+            s.hot_c = 1;
+            cr_draw(&s, 0);
+            drawn_f += cr_dc.drawn;
+        }
+        turn_f = (double)(clock() - c0) * 1e6 / CLOCKS_PER_SEC / n;
+        if (e8) {
+            t = *e8;
+            t.anim = 0;
+            c0 = clock();
+            for (i = 0; i < n; i++) { cr_draw_invalidate(); cr_draw(&t, 0); }
+            full_e = (double)(clock() - c0) * 1e6 / CLOCKS_PER_SEC / n;
+            c0 = clock();
+            for (i = 0; i < n; i++) {
+                snprintf(t.cell[0][0].value, sizeof t.cell[0][0].value, "%u", i % 128u);
+                t.cell[0][0].pct = (uint8_t)(i % 128u * 2u);
+                t.hot_r = 1;
+                t.hot_c = 0;
+                cr_draw(&t, 0);
+                drawn_e += cr_dc.drawn;
+            }
+            turn_e = (double)(clock() - c0) * 1e6 / CLOCKS_PER_SEC / n;
+            snprintf(name, sizeof name, "cost (host): a whole compose FILTER free %.0f us, edit8 %.0f us; a knob turn %.0f us (%.1f strips), edit8 %.0f us (%.1f strips)",
+                     full_f, full_e, turn_f, (double)drawn_f / n, turn_e, (double)drawn_e / n);
+            fprintf(rep, "%s\n", name);
+            printf("cr_draw: %s\n", name);
+        }
+    }
+}
+#endif /* CR_LAY_FREE */
+
+/* the P5 cell glyphs (cr_draw.c cr_p5glyph; docs/EDITOR.md section 9): edit8 screens of them, no band (two rows, either
+ * active), one lane under a band (the full-size row at 124), two lanes under a band (the 22 px box): PPMs, the lint,
+ * the goldens (tests/cr_p5cell_golden.txt; CR_P5CELL_GOLDEN=1 writes it); the glyphs' pixels (a lit LED red, the
+ * knob's nearest tick white, a wave white when on, mid on the dim row); the one-lane band row is the no-band row
+ * moved down 94 px (label 12, the 34 px box, value 17), the two-lane one the small rows (124..180, 184..240) */
+static void p5cell_set(cr_cell_t *c, const char *label, uint32_t glyph, uint32_t pct, uint32_t pct2, const char *value)
+{
+    memset(c, 0, sizeof *c);
+    c->flags = CR_CF_ON;
+    snprintf(c->label, sizeof c->label, "%s", label);
+    snprintf(c->value, sizeof c->value, "%s", value);
+    c->glyph = (uint8_t)glyph;
+    c->pct = (uint8_t)pct;
+    c->pct2 = (uint8_t)pct2;
+    if (glyph == CR_G_P5LED2) {                  /* the two value names after the label's NUL */
+        size_t l = strlen(c->label);
+        memcpy(c->label + l + 1, "1/2", 4);
+        memcpy(c->label + l + 5, "3", 2);
+    }
+}
+static void p5cell_screen(cr_screen_t *s, uint32_t wide, uint32_t rows, uint32_t active)
+{
+    cr_screen_clear(s);
+    s->kind = CR_K_EDIT8;
+    s->wide = (uint8_t)wide;
+    s->n_rows = (uint8_t)rows;
+    s->active = (uint8_t)active;
+    s->batt = 255;
+    snprintf(s->title, sizeof s->title, "ITS PROPHET5");
+    snprintf(s->page, sizeof s->page, "%s", wide ? "FILTER" : "OSC A");
+    p5cell_set(&s->cell[0][0], "Freq", CR_G_P5KNOB, 128, 0, "64");
+    p5cell_set(&s->cell[0][1], "Saw", CR_G_P5LED, 255, CR_P5I_SAW, "On");
+    p5cell_set(&s->cell[0][2], "Tri", CR_G_P5LED, 0, CR_P5I_TRI, "Off");
+    p5cell_set(&s->cell[0][3], "Rev", CR_G_P5LED2, 0, 0, "1/2");
+    if (rows > 1u) {
+        p5cell_set(&s->cell[1][0], "Fine", CR_G_P5KNOB, 40, 0, "-12");
+        s->cell[1][0].flags |= CR_CF_BIP;
+        p5cell_set(&s->cell[1][1], "Pulse", CR_G_P5LED, 255, CR_P5I_SQUARE, "On");
+        p5cell_set(&s->cell[1][2], "Key trk", CR_G_P5SWITCH, 128, 0, "Half");
+        p5cell_set(&s->cell[1][3], "Sync", CR_G_P5LED, 0, 0, "Off");
+    }
+}
+static uint16_t p5px(int32_t x, int32_t y) { return swap16(host_screen[y * 240 + x]); }
+static void p5cell_screens(const char *dir)
+{
+    static cr_screen_t s;
+    static uint16_t a[240 * 240];
+    static const struct { const char *slug; uint32_t wide, rows, active; } V[6] = {
+        {"p5cell_full_a", CR_W_NONE, 2, 0}, {"p5cell_full_b", CR_W_NONE, 2, 1}, {"p5cell_band1", CR_W_FILTER, 1, 0},
+        {"p5cell_band1_env", CR_W_ENV, 1, 0}, {"p5cell_band2_a", CR_W_ENV, 2, 0}, {"p5cell_band2_b", CR_W_FILTER, 2, 1}};
+    static struct { char slug[40]; uint32_t h; } gold[16];
+    uint32_t ng = 0, i, k, f0 = nfind, sw[3], same = 0, seen = 0;
+    int write = getenv("CR_P5CELL_GOLDEN") && !strcmp(getenv("CR_P5CELL_GOLDEN"), "1"), y, x, okm = 1;
+    char name[220], ln[128], sl[64];
+    unsigned hv;
+    FILE *gf;
+    for (i = 0; i < 6u; i++) {
+        p5cell_screen(&s, V[i].wide, V[i].rows, V[i].active);
+        render(&s, 0);
+        lint(V[i].slug, &s);
+        write_ppm(dir, V[i].slug);
+        snprintf(gold[ng].slug, sizeof gold[ng].slug, "%s", V[i].slug);
+        gold[ng++].h = screen_hash();
+    }
+    for (k = 0; k < 3u; k++) {                   /* the lever: Off, Half, Full (none, the left, both LEDs) */
+        p5cell_screen(&s, CR_W_NONE, 2, 1);
+        s.cell[1][2].pct = (uint8_t)(k * 255u / 2u);
+        render(&s, 0);
+        sw[k] = (p5px(143, 175) == CR_RED) + (p5px(157, 175) == CR_RED) * 2u;
+        if (k == 1u) continue;                   /* (Half: p5cell_full_b) */
+        snprintf(gold[ng].slug, sizeof gold[ng].slug, "p5cell_switch_%u", k);
+        write_ppm(dir, gold[ng].slug);
+        gold[ng++].h = screen_hash();
+    }
+    p5cell_screen(&s, CR_W_NONE, 2, 0);           /* the glyphs' pixels: row A active at 30, row B dim at 134 */
+    render(&s, 0);
+    snprintf(name, sizeof name, "P5 cells: a lit LED red (%04x), the knob's nearest tick white (%04x), the saw white when on (%04x), "
+             "the dim row's square mid (%04x), the off LED dark (%04x)", p5px(90, 71), p5px(29, 58), p5px(93, 57), p5px(94, 161),
+             p5px(150, 71));
+    check(name, p5px(90, 71) == CR_RED && p5px(89, 70) == CR_RED && p5px(29, 58) == CR_WHITE && p5px(93, 57) == CR_WHITE &&
+                p5px(94, 161) == T_MID && p5px(150, 71) != CR_RED && p5px(149, 71) != CR_RED);
+    snprintf(name, sizeof name, "P5 cells: the lever's LEDs count its position (Off %u, Half %u, Full %u: none, the left, both)", sw[0], sw[1], sw[2]);
+    check(name, sw[0] == 0u && sw[1] == 1u && sw[2] == 3u);
+    {   /* one lane under a band: the no-band screen's row A moved to 124 (label 12, box 34, value 17, bar) */
+        p5cell_screen(&s, CR_W_NONE, 1, 0);
+        render(&s, 0);
+        memcpy(a, host_screen, sizeof a);
+        p5cell_screen(&s, CR_W_FILTER, 1, 0);
+        render(&s, 0);
+        for (y = 124; y < 228 && okm; y++)
+            for (x = 0; x < 240; x++)
+                if (host_screen[y * 240 + x] != a[(y - 94) * 240 + x]) { okm = 0; break; }
+        {
+            int32_t lab = -1, val = -1, lab2 = -1, val2 = -1;
+            for (i = 0; i < nbox; i++) {
+                if (!strcmp(boxes[i].s, "Freq")) lab = boxes[i].y1 - boxes[i].y0;
+                if (!strcmp(boxes[i].s, "64")) val = boxes[i].y1 - boxes[i].y0;
+            }
+            p5cell_screen(&s, CR_W_FILTER, 2, 0);
+            render(&s, 0);
+            for (i = 0; i < nbox; i++) {
+                if (!strcmp(boxes[i].s, "Freq")) lab2 = boxes[i].y0;
+                if (!strcmp(boxes[i].s, "64")) val2 = boxes[i].y1;
+            }
+            snprintf(name, sizeof name, "one lane under a band: rows 124..224 are the no-band row's (label %d px, value %d px of ink); "
+                     "two lanes: the small rows (label at %d, value to %d)", lab, val, lab2, val2);
+            check(name, okm && lab >= 9 && val >= 12 && lab2 >= 124 && lab2 < 130 && val2 > 160 && val2 <= 180);
+        }
+    }
+    {   /* the layout tool's sketch cell (core.h ENG_C_SKETCH: glyph CR_G_N): the label and value, nothing in the box */
+        uint32_t ink = 0;
+        p5cell_screen(&s, CR_W_NONE, 2, 0);
+        s.cell[0][0].glyph = CR_G_N;
+        render(&s, 0);
+        for (y = 30 + 19; y < 30 + 68; y++)
+            for (x = 0; x < 60; x++) ink += swap16(host_screen[y * 240 + x]) != T_BG;
+        for (i = 0, k = 0; i < nbox; i++) k += !strcmp(boxes[i].s, "Freq") || !strcmp(boxes[i].s, "64");
+        snprintf(name, sizeof name, "a sketch cell (glyph CR_G_N): its label and value drawn, its glyph area empty (%u px of ink)", ink);
+        check(name, ink == 0u && k == 2u);
+    }
+    for (i = 0; i < ng; i++)
+        for (k = i + 1u; k < ng; k++)
+            if (gold[i].h == gold[k].h) okm = 0;
+    snprintf(name, sizeof name, "P5 cells: %u pictures (no band, one lane and two under a band, the lever Off and Full), all different, lint clean", ng);
+    check(name, ng == 8u && okm && nfind == f0);
+    if (write && (gf = fopen("tests/cr_p5cell_golden.txt", "w"))) {
+        fprintf(gf, "# tests/cr_draw_test.c p5cell_screens: a hash of each P5 cell-glyph picture (CR_P5CELL_GOLDEN=1 rewrites)\n");
+        for (i = 0; i < ng; i++) fprintf(gf, "%s %08x\n", gold[i].slug, gold[i].h);
+        fclose(gf);
+    }
+    if ((gf = fopen("tests/cr_p5cell_golden.txt", "r"))) {
+        while (fgets(ln, sizeof ln, gf))
+            if (sscanf(ln, "%63s %x", sl, &hv) == 2 && sl[0] != '#') {
+                seen++;
+                for (i = 0; i < ng; i++)
+                    if (!strcmp(gold[i].slug, sl)) {
+                        same += gold[i].h == hv;
+                        if (gold[i].h != hv) fprintf(rep, "golden %s: %08x, not %08x\n", sl, gold[i].h, hv);
+                    }
+            }
+        fclose(gf);
+    }
+    snprintf(name, sizeof name, "P5 cells: the goldens (tests/cr_p5cell_golden.txt): %u of %u pictures unchanged", same, ng);
+    check(name, seen == ng && same == ng);
+}
+
+#if CR_LAYC_N
+/* P5's rows (the compiled classic layout, build/gen/cr_layouts.h CR_LAYC: design/layouts/designs/p5-rows.json): every
+ * screen x lane as the editor's screen model has it, from mock-up states (cr_draw_test draws, it does not edit): the
+ * plan's title, band and rows, each bound cell its design's label (else its copy's), its p5 glyph by the cell style
+ * (cr_edit.c ce_cell_p5's), a value and a fill from a seed; the band's values from the seed. PPMs, the lint, the goldens
+ * (tests/cr_p5rows_golden.txt; CR_P5ROWS_GOLDEN=1 writes it); FILTER with its KNOB 1 hot; every bound cell turned and
+ * cooled: each partial compose leaves the screen as a whole redraw does */
+static void rows_state(cr_screen_t *s, uint32_t si, uint32_t lane, uint32_t seed)
+{
+    static const uint8_t W[6] = {CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_FILTER, CR_W_ALGO, CR_W_ADE2};
+    static const uint8_t G[7] = {CR_G_P5KNOB, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED2, CR_G_P5SWITCH};
+    static const uint8_t I[7] = {0, CR_P5I_NONE, CR_P5I_SAW, CR_P5I_TRI, CR_P5I_SQUARE, 0, 0};
+    static const char *const SW[3] = {"Off", "Half", "Full"};
+    const cr_layc_t *L = &CR_LAYC[0];
+    const eng_screen_t *h = &CR_LAYC_SCREENS[L->screen0 + si];
+    uint32_t r, c, rows = h->pg[1] == 255u ? 1u : 2u, i;
+    cr_screen_clear(s);
+    s->kind = CR_K_EDIT8;
+    s->wide = h->band < 6u ? W[h->band] : CR_W_NONE;
+    s->n_rows = (uint8_t)rows;
+    s->active = (uint8_t)lane;
+    s->batt = 255;
+    snprintf(s->title, sizeof s->title, "ITS PROPHET5");
+    snprintf(s->page, sizeof s->page, "%s", h->title);
+    for (i = 0; i < 8u; i++) s->wv[i] = (uint8_t)((37u * (seed + i) + 11u) % 128u * 2u);
+    for (r = 0; r < rows; r++)
+        for (c = 0; c < 4u; c++) {
+            const uint8_t *src = CR_LAYC_SRC[L->page0 + h->pg[r]][c];
+            const param_desc_t *d = &CR_LAYC_PAGES[L->page0 + h->pg[r]].col[c];
+            cr_cell_t *cl = &s->cell[r][c];
+            uint32_t k = seed + r * 4u + c, st = h->cell[r][c] - ENG_C_P5KNOB, v;
+            if (src[0] == 255u) continue;
+            cl->flags = CR_CF_ON;
+            snprintf(cl->label, sizeof cl->label, "%s", h->label[r][c] ? h->label[r][c] : d->label);
+            cl->glyph = st < 7u ? G[st] : CR_G_NONE;
+            cl->pct2 = st < 7u ? I[st] : 0u;
+            if (cl->glyph == CR_G_P5KNOB) {
+                v = (37u * k + 11u) % (uint32_t)(d->max - d->min + 1) + (uint32_t)d->min;
+                snprintf(cl->value, sizeof cl->value, "%u", v);
+                cl->pct = (uint8_t)(d->max > d->min ? (v - (uint32_t)d->min) * 255u / (uint32_t)(d->max - d->min) : 0u);
+            } else if (cl->glyph == CR_G_P5SWITCH) {
+                cl->pct = (uint8_t)(k % 3u * 255u / 2u);
+                snprintf(cl->value, sizeof cl->value, "%s", SW[k % 3u]);
+            } else {
+                cl->pct = (uint8_t)(k & 1u ? 255u : 0u);
+                if (cl->glyph == CR_G_P5LED2 && d->names) {      /* the two value names after the label's NUL */
+                    size_t l = strlen(cl->label);
+                    snprintf(cl->label + l + 1, sizeof cl->label - l - 1, "%s", d->names[0]);
+                    l += strlen(d->names[0]) + 1u;
+                    snprintf(cl->label + l + 1, sizeof cl->label - l - 1, "%s", d->names[1]);
+                    snprintf(cl->value, sizeof cl->value, "%s", d->names[k & 1u]);
+                } else {
+                    snprintf(cl->value, sizeof cl->value, "%s", k & 1u ? "On" : "Off");
+                }
+            }
+        }
+}
+static void rows_screens(const char *dir)
+{
+    static cr_screen_t s, t;
+    static uint16_t part[240 * 240];
+    static char slug[48][40];
+    static uint32_t hs[48];
+    const cr_layc_t *L = &CR_LAYC[0];
+    uint32_t si, lane, ng = 0, i, k, ok = 1, f0 = nfind, turns = 0, bad = 0, same, seen, filt = 0, c;
+    int write = getenv("CR_P5ROWS_GOLDEN") && !strcmp(getenv("CR_P5ROWS_GOLDEN"), "1");
+    char name[220];
+    check("the compiled layouts: P5's rows (11 screens over 17 pages; no free layout)", CR_LAYC_N == 1u && L->nscreens == 11u &&
+          L->npages == 17u && !CR_LAYOUTS_FREE);
+    for (si = 0; si < L->nscreens; si++) {
+        const eng_screen_t *h = &CR_LAYC_SCREENS[L->screen0 + si];
+        if (!strcmp(h->title, "FILTER")) filt = si;
+        for (lane = 0; lane < (h->pg[1] == 255u ? 1u : 2u); lane++) {
+            rows_state(&s, si, lane, si + 1u);
+            render(&s, 0);
+            snprintf(slug[ng], sizeof slug[ng], "p5rows_%u_%u", si + 1u, lane + 1u);
+            lint(slug[ng], &s);
+            write_ppm(dir, slug[ng]);
+            hs[ng++] = screen_hash();
+        }
+    }
+    rows_state(&s, filt, 0, 0);                              /* FILTER: CUTOFF hot (KNOB 1) */
+    s.hot_r = 1;
+    s.hot_c = 0;
+    render(&s, 0);
+    snprintf(slug[ng], sizeof slug[ng], "p5rows_filter_hot");
+    lint(slug[ng], &s);
+    write_ppm(dir, slug[ng]);
+    hs[ng++] = screen_hash();
+    for (i = 0; i < ng; i++)
+        for (k = i + 1u; k < ng; k++)
+            if (hs[i] == hs[k]) ok = 0;
+    snprintf(name, sizeof name, "P5's rows: %u pictures (17 screen x lane, FILTER's KNOB 1 hot), all different, lint clean", ng);
+    check(name, ng == 18u && ok && nfind == f0);
+    same = goldens("tests/cr_p5rows_golden.txt", "rows_screens", write, (const char (*)[40])slug, hs, ng, &seen);
+    snprintf(name, sizeof name, "P5's rows: the goldens (tests/cr_p5rows_golden.txt): %u of %u pictures unchanged", same, ng);
+    check(name, seen == ng && same == ng);
+    for (si = 0; si < L->nscreens; si++) {          /* every bound cell turned and cooled: partial compose = a whole redraw */
+        const eng_screen_t *h = &CR_LAYC_SCREENS[L->screen0 + si];
+        for (lane = 0; lane < (h->pg[1] == 255u ? 1u : 2u); lane++)
+            for (c = 0; c < 4u; c++) {
+                if (CR_LAYC_SRC[L->page0 + h->pg[lane]][c][0] == 255u) continue;
+                rows_state(&s, si, lane, 3u);
+                render(&s, 0);
+                t = s;
+                snprintf(t.cell[lane][c].value, sizeof t.cell[lane][c].value, "%s", "127");
+                t.cell[lane][c].pct = (uint8_t)(255u - t.cell[lane][c].pct);
+                t.hot_r = (uint8_t)(lane + 1u);
+                t.hot_c = (uint8_t)c;
+                if (s.wide) t.wv[c] = (uint8_t)(255u - t.wv[c]);
+                cr_draw(&t, 0);
+                memcpy(part, host_screen, sizeof part);
+                render(&t, 0);
+                bad += memcmp(part, host_screen, sizeof part) != 0;
+                t.hot_r = 0;
+                cr_draw(&t, 0);
+                memcpy(part, host_screen, sizeof part);
+                render(&t, 0);
+                bad += memcmp(part, host_screen, sizeof part) != 0;
+                turns++;
+            }
+    }
+    snprintf(name, sizeof name, "every cell of P5's rows turned and cooled (%u): each partial compose as a whole redraw (%u differ)", turns, bad);
+    check(name, turns == 56u && !bad);
+}
+#endif
+
 int main(int argc, char **argv)
 {
     static uint16_t a[240 * 240], b[240 * 240];
@@ -252,10 +786,21 @@ int main(int argc, char **argv)
     uint32_t i, k, pal = mod_index(), worst = 0;
 
     snprintf(path, sizeof path, "%s/report.txt", dir);
-    if (!(rep = fopen(path, "w"))) { fprintf(stderr, "cr_draw_test: cannot write %s (make %s/ppm first)\n", path, dir); return 1; }
+    if (!(rep = fopen(path, argc > 2 && !strcmp(argv[2], "free") ? "a" : "w"))) {   /* (the free build: after the main one's) */
+        fprintf(stderr, "cr_draw_test: cannot write %s (make %s/ppm first)\n", path, dir);
+        return 1;
+    }
     check("the MOD palette is one of the UI palettes", pal < NPALETTES);
     check("the ring's table (firmware/src/cr_ring_table.h) is cr_ring_build's (CR_RING_GEN=1 rewrites it)", ring_check());
     palette_set(pal < NPALETTES ? pal : 0u);
+#if CR_LAY_FREE
+    if (argc > 2 && !strcmp(argv[2], "free")) {   /* (tests/run_cr_draw.sh's second build: the panel's free table) */
+        free_screens(dir);
+        fclose(rep);
+        printf("cr_draw: the free screens (P5's panel, tests/cr_free_golden.txt): %u lint findings\n", nfind);
+        return nfind || nfail ? 1 : 0;
+    }
+#endif
 
     {   /* every glyph of the big faces fits the decode buffer */
         const aafont_t *F[2] = {&AF_CRX, &AF_CRB};
@@ -417,6 +962,96 @@ int main(int argc, char **argv)
             for (j = 0, ok = 1; j < nbox; j++)
                 if (boxes[j].y1 <= CR_PY0 + 40 && boxes[j].y0 >= CR_PY0) ok = 0;
             check("the read-out elsewhere (the picker's preview): nothing over the number", ok);
+            /* a favourite's star (0.22, cr_screen_t.star; docs/PRESETS.md "Favourites"): a yellow five-point star
+             * before the sound's name, the two centred together, on the pool read-out (the meter's sub; with the
+             * overwritten preset's square too), under the save dialog's choice and in the editor's browser (the
+             * picker's value), white and orange names. star 0: the frame is the one without the field, every pixel */
+            {
+                static const struct { uint8_t kind, col, mark; const char *name, *slug; } F[] = {
+                    {CR_K_METER, CR_COL_WHITE, 0, "FM PAD", "fav_pool"},
+                    {CR_K_METER, CR_COL_WHITE, 1, "WWWWWWWWWWWW", "fav_pool_user"},
+                    {CR_K_METER, CR_COL_ORANGE, 0, "DEEP SUB", "fav_pool_bass"},
+                    {CR_K_PICKER, CR_COL_WHITE, 0, "TINE EP", "fav_save"},
+                    {CR_K_PICKER, CR_COL_ORANGE, 0, "DEEP SUB *", "fav_save_bass"},
+                    {CR_K_PICKER, CR_COL_WHITE, 2, "ABCDEFGHIJKL*", "fav_browser"},
+                };
+                static uint16_t ref[240u * 240u];
+                uint32_t v, j, x, y, good = 0, f0 = nfind, e0 = nell;
+                for (v = 0; v < sizeof F / sizeof F[0]; v++) {
+                    const tbox_t *b = 0;
+                    int16_t nx0 = 0, nx1 = 0, ny0 = 0, ny1 = 0;
+                    uint32_t ny = 0, out = 0, same = 1, x0 = 240, x1 = 0, y0 = 240, y1 = 0;
+                    if (F[v].kind == CR_K_METER) {
+                        s = CR_SCREENS[ip];
+                        s.anim = 0;
+                        snprintf(s.sub, sizeof s.sub, "%s", F[v].name);
+                        s.sub_mark = F[v].mark;
+                    } else {
+                        cr_screen_clear(&s);
+                        s.kind = CR_K_PICKER;
+                        s.header = 1;
+                        if (F[v].mark == 2u) {       /* the editor's browser: the engines, left / right */
+                            s.n_items = 6;
+                            s.sel = 0;
+                            s.orient = 1;
+                            snprintf(s.item[0], sizeof s.item[0], "FM6");
+                            snprintf(s.item[1], sizeof s.item[1], "FM TONE");
+                            snprintf(s.label, sizeof s.label, "engine \267 KNOB 1 its presets");
+                            snprintf(s.footer, sizeof s.footer, "SELECT: engine \267 OCT-: cancel \267 OCT+: ok");
+                        } else {                     /* the save dialog on its third choice */
+                            s.n_items = 3;
+                            s.sel = 2;
+                            snprintf(s.item[0], sizeof s.item[0], "Overwrite");
+                            snprintf(s.item[1], sizeof s.item[1], "Save as new");
+                            snprintf(s.item[2], sizeof s.item[2], "Favorite");
+                            snprintf(s.label, sizeof s.label, "FM TONE \267 KNOB 4 marks");
+                            snprintf(s.footer, sizeof s.footer, "KNOB 4: mark \267 OCT-: close");
+                        }
+                        s.title_col = CR_COL_MID;
+                        snprintf(s.value, sizeof s.value, "%s", F[v].name);
+                    }
+                    s.col = F[v].col;
+                    s.star = 0;
+                    render(&s, 0);
+                    memcpy(ref, host_screen, sizeof ref);
+                    for (j = 0; j < nbox; j++)
+                        if (!strcmp(boxes[j].s, F[v].name)) { nx0 = boxes[j].x0; nx1 = boxes[j].x1; }
+                    s.star = 1;
+                    render(&s, 0);
+                    snprintf(name, sizeof name, "%s", F[v].slug);
+                    write_ppm(dir, name);
+                    lint(name, &s);
+                    for (j = 0; j < nbox; j++)
+                        if (!strcmp(boxes[j].s, F[v].name)) b = &boxes[j];
+                    if (b) { ny0 = b->y0; ny1 = b->y1; }
+                    for (y = 0; y < 240u; y++)
+                        for (x = 0; x < 240u; x++) {
+                            uint32_t c = swap16(host_screen[y * 240u + x]), r = (c >> 11) * 255u / 31u,
+                                     g = ((c >> 5) & 63u) * 255u / 63u, bl = (c & 31u) * 255u / 31u;
+                            if (r > 200u && g > 140u && g < 215u && bl < 90u) {    /* the role yellow, not the orange */
+                                ny++;
+                                x0 = x < x0 ? x : x0; x1 = x > x1 ? x : x1; y0 = y < y0 ? y : y0; y1 = y > y1 ? y : y1;
+                            }
+                            /* outside the name's row nothing changes */
+                            if (b && ((int32_t)y < ny0 - 4 || (int32_t)y >= ny1 + 4) && host_screen[y * 240u + x] != ref[y * 240u + x])
+                                same = 0;
+                        }
+                    out = !b || ny < 18u || (int32_t)x1 >= b->x0 || (int32_t)y0 < ny0 - 3 || (int32_t)y1 > ny1 + 1 || x1 - x0 > 16u || y1 - y0 > 16u;
+                    ok = b && !out && same && b->x0 > nx0 && b->x1 - b->x0 >= nx1 - nx0 - 1 && b->x1 - b->x0 <= nx1 - nx0 + 1 && !(b->flags & 1u) &&
+                         (int32_t)x0 + b->x1 + (F[v].mark == 1u ? 9 : 0) >= 236 && (int32_t)x0 + b->x1 + (F[v].mark == 1u ? 9 : 0) <= 244;
+                    if (!ok)
+                        fprintf(rep, "favourite %s: name %s, %u yellow px in (%u,%u)-(%u,%u), name (%d..%d was %d..%d) rows %d..%d, "
+                                "rest %s\n", F[v].slug, b ? "drawn" : "MISSING", ny, x0, y0, x1, y1, b ? b->x0 : 0, b ? b->x1 : 0, nx0,
+                                nx1, ny0, ny1, same ? "same" : "CHANGED");
+                    else
+                        fprintf(rep, "favourite %s: the star %u yellow px in (%u,%u)-(%u,%u), the name at %d..%d (alone: %d..%d)\n",
+                                F[v].slug, ny, x0, y0, x1, y1, b->x0, b->x1, nx0, nx1);
+                    good += (uint32_t)ok;
+                }
+                snprintf(name, sizeof name, "a favourite's star: yellow, before the name, the pair centred, nothing else moves (%u of %u)",
+                         good, (unsigned)(sizeof F / sizeof F[0]));
+                check(name, good == sizeof F / sizeof F[0] && nfind == f0 && nell == e0);
+            }
         }
         if (ip >= 0) {
             s = CR_SCREENS[ip];
@@ -914,7 +1549,8 @@ int main(int argc, char **argv)
     }
 
     {   /* the KEY layer's two pages (0.17): page 1 with Single = "Split Bass" (the longest value: inside its cell),
-         * page 2: Key plays / Keyboard on KNOB 1 / 2, KNOB 3 free (a dash), Numerals on KNOB 4 (0.22); the label carries the page,
+         * page 2: Key plays / Keyboard on KNOB 1 / 2, Snap on KNOB 3 (0.22; grey with Key plays Chords on the Chords
+         * keyboard, as here), Numerals on KNOB 4 (0.22); the label carries the page,
          * the footer "SELECT: page" */
         static const char *const LB[4] = {"Tonic", "Scale", "Transpose", "Single"};
         static const char *const VA[4] = {"D", "Minor", "+0", "Full"};
@@ -957,6 +1593,9 @@ int main(int argc, char **argv)
         for (k = 0; k < 4u; k++)
             memset(&s.cell[0][k], 0, sizeof s.cell[0][k]);
         s.cell[0][0].flags = s.cell[0][1].flags = s.cell[0][3].flags = CR_CF_ON;
+        s.cell[0][2].flags = CR_CF_ON | CR_CF_DIM;
+        snprintf(s.cell[0][2].label, sizeof s.cell[0][2].label, "Snap");
+        snprintf(s.cell[0][2].value, sizeof s.cell[0][2].value, "Scale");
         snprintf(s.cell[0][3].label, sizeof s.cell[0][3].label, "Numerals");
         snprintf(s.cell[0][3].value, sizeof s.cell[0][3].value, "On");
         snprintf(s.cell[0][0].label, sizeof s.cell[0][0].label, "Key plays");
@@ -971,8 +1610,29 @@ int main(int argc, char **argv)
         for (y = ry; y < 240u && y < ry + 72u; y++)
             for (x = 0; x < 240u; x++)
                 if (host_screen[y * 240u + x] != bg) { if (x < 120u) c01++; else if (x < 180u) c2++; else c3++; }
-        snprintf(name, sizeof name, "KEY page 2: Key plays / Keyboard drawn (%u ink px), KNOB 3 a dash (%u), KNOB 4 Numerals (%u)", c01, c2, c3);
-        check(name, c01 > 200u && c2 > 0u && c2 * 8u < c01 && c3 > 80u);
+        snprintf(name, sizeof name, "KEY page 2: Key plays / Keyboard drawn (%u ink px), KNOB 3 Snap, grey (%u), KNOB 4 Numerals (%u)", c01, c2, c3);
+        check(name, c01 > 200u && c2 > 80u && c3 > 80u);
+        {   /* Numerals' third value (GitHub issue 15): "Solf\350ge" (e grave: CRB's extra) whole in its cell, every glyph
+             * drawn (more ink than "On"), the other cells as they were */
+            static uint16_t on[240u * 240u];
+            uint32_t j, cut = 0, got = 0, c3s = 0, other = 0;
+            memcpy(on, host_screen, sizeof on);
+            snprintf(s.cell[0][3].value, sizeof s.cell[0][3].value, "Solf\350ge");
+            lint("key_page2_solfege", &s);
+            render(&s, 0);
+            write_ppm(dir, "key_page2_solfege");
+            for (j = 0; j < nbox; j++)
+                if (!strcmp(boxes[j].s, "Solf\350ge")) { got++; cut |= boxes[j].flags & 1u; got += 10u * (boxes[j].x0 < 180 || boxes[j].x1 > 240); }
+            for (y = 0; y < 240u; y++)
+                for (x = 0; x < 240u; x++) {
+                    if (y >= ry && y < ry + 72u && x >= 180u && host_screen[y * 240u + x] != bg) c3s++;
+                    if (x < 180u && host_screen[y * 240u + x] != on[y * 240u + x]) other++;
+                }
+            snprintf(name, sizeof name, "KEY page 2: Numerals \"Solf\350ge\" whole in KNOB 4's cell (%u ink px against %u for On), the other cells untouched",
+                     c3s, c3);
+            check(name, got == 1u && !cut && c3s > c3 + 60u && !other && strlen("Solf\350ge") < sizeof s.cell[0][3].value &&
+                  AF_CRB.nex == 11u && AF_CRB_EX[10] == 0xE8u);
+        }
     }
 
     {   /* the numeral on the Chord view (0.22, the KEY layer's Numerals; the owner, 2026-10-12: "render in the Blue
@@ -994,6 +1654,16 @@ int main(int argc, char **argv)
             {"numeral_arp_longest", "Key: G# minor", "G#", "m", "add4", "#vii\260", "arp 1/8", 1, 1},
             {"numeral_arp_idle", "Key: C", "G", "", "7", "", "arp 1/8", 1, 1},
             {"numeral_arp_off", "Key: C", "G", "", "7", "", "arp 1/8", 1, 0},
+            /* Numerals = Solfege (GitHub issue 15): the syllable in the numeral's place, the same checks; the widest
+             * syllables (a caps SOL with a mark, an accidental with a mark) over the tallest names */
+            {"solfege_major", "Key: C", "G", "", "7", "SOL", "", 0, 1},
+            {"solfege_minor", "Key: A minor", "D", "m", "", "fa", "", 0, 1},
+            {"solfege_dim", "Key: C", "B", "dim", "", "ti\260", "", 0, 1},
+            {"solfege_wide", "Key: G# minor", "G#", "m", "add4", "#fa\260", "voicing +12", 0, 1},
+            {"solfege_aug", "Key: A minor", "C#", "+", "", "#MI+", "voicing +12", 0, 1},
+            {"solfege_sol_aug", "Key: C", "G#", "+", "add4", "SOL+", "voicing +12", 0, 1},
+            {"solfege_arp", "Key: C", "G", "", "7", "SOL", "arp 1/8", 1, 1},
+            {"solfege_arp_wide", "Key: G# minor", "G#", "m", "add4", "#MI+", "arp 1/8", 1, 1},
         };
         enum { NN = sizeof N / sizeof N[0] };
         static uint16_t pic[NN][240u * 240u], bare[240u * 240u];
@@ -1051,7 +1721,7 @@ int main(int argc, char **argv)
             if (top - n1 - 1u < gap_name) gap_name = top - n1 - 1u;
             if (x1 - x0 + 1u > w_max) w_max = x1 - x0 + 1u;
         }
-        snprintf(name, sizeof name, "numeral: blue, centred, in the gap: %u px under the top line, %u over the name; the widest %u px",
+        snprintf(name, sizeof name, "numeral / solfege: blue, centred, in the gap: %u px under the top line, %u over the name; the widest %u px",
                  gap_top, gap_name, w_max);
         check(name, !bad && gap_top >= 2u && gap_name >= 2u && nfind == f0);
         check("numeral: the big name does not move (numeral_on, nothing sounding = the picture without Numerals)",
@@ -1332,6 +2002,57 @@ int main(int argc, char **argv)
                 }
             }
 #undef GL
+        }
+        {   /* FM TONE's pages in the Digitone's ranges (eng_quad.c QUAD_SCREENS, F_FIX2: two decimals): every page whose
+             * cells show a hi-res value, each value at its longest text, the glyphs cr_edit.c gives those cells; 0 lint
+             * findings (no overlap, nothing off the screen) */
+            static const struct {
+                const char *slug, *title, *lab[2][4], *val[2][4];
+                uint8_t gl[2][4];                 /* 0 a bar, 1 HARM, 2 DETUNE, 3 the knob, 4 text, 5 none */
+            } QP[] = {
+                {"quad_syn1_longest", "SYN 1", {{"Algo", "Ratio C", "Ratio A", "Ratio B"}, {"Harm", "Dtune", "Feedback", "Mix"}},
+                 {{"8", "16.00", "16.00", "16.00"}, {"-26.00", "127.00", "127", "-64"}}, {{5, 5, 5, 5}, {1, 2, 0, 0}}},
+                {"quad_filter_longest", "FILTER", {{"Attack", "Decay", "Sustain", "Release"}, {"Freq", "Reso", "Type", "Env depth"}},
+                 {{"127", "127", "127", "INF"}, {"126.85", "127.00", "LP24", "-64.00"}}, {{0, 0, 0, 0}, {0, 0, 4, 0}}},
+                {"quad_filter2_longest", "FILTER 2", {{"Env delay", "Key track", 0, 0}, {"Base", "Width", 0, 0}},
+                 {{"127", "127", 0, 0}, {"127.00", "127", 0, 0}}, {{0, 0, 5, 5}, {0, 0, 5, 5}}},
+                {"quad_amp_longest", "AMP", {{"Attack", "Decay", "Sustain", "Release"}, {"Level", "Pan", "Drive", 0}},
+                 {{"127", "INF", "127", "126"}, {"127", "-64", "127", 0}}, {{0, 0, 0, 0}, {0, 0, 0, 5}}},
+                {"quad_lfo_longest", "LFO 1", {{"Speed", "Mult", "Fade", "Dest"}, {"Wave", "Phase", "Trig", "Depth"}},
+                 {{"-64.00", "F2k", "-64", "ABLEV"}, {"RAMP", "127", "HALF", "-64.00"}}, {{3, 4, 4, 4}, {4, 0, 4, 0}}},
+            };
+            uint32_t q, r, c, n0 = nfind;
+            for (q = 0; q < sizeof QP / sizeof QP[0]; q++) {
+                cr_screen_t s;
+                cr_screen_clear(&s);
+                s.kind = CR_K_EDIT8;
+                s.n_rows = 2;
+                s.header = 1;
+                snprintf(s.title, sizeof s.title, "%s", QP[q].title);
+                for (r = 0; r < 2u; r++)
+                    for (c = 0; c < 4u; c++) {
+                        cr_cell_t *cl = &s.cell[r][c];
+                        if (!QP[q].lab[r][c])
+                            continue;
+                        cl->flags = CR_CF_ON;
+                        snprintf(cl->label, sizeof cl->label, "%s", QP[q].lab[r][c]);
+                        snprintf(cl->value, sizeof cl->value, "%s", QP[q].val[r][c]);
+                        cl->pct = 250;
+                        switch (QP[q].gl[r][c]) {
+                        case 0: cl->glyph = CR_G_BAR; cl->flags |= CR_CF_PCT | CR_CF_BIP; break;
+                        case 1: cl->glyph = CR_G_HARM; cl->flags |= CR_CF_PCT; break;
+                        case 2: cl->glyph = CR_G_DETUNE; cl->flags |= CR_CF_PCT; break;
+                        case 3: cl->glyph = CR_G_KNOB; cl->flags |= CR_CF_PCT | CR_CF_BIPOLAR; break;
+                        default: break;
+                        }
+                    }
+                s.hot_r = 2, s.hot_c = 0;            /* (the hot cell, its block: a hi-res one) */
+                render(&s, 0);
+                write_ppm(dir, QP[q].slug);
+                lint(QP[q].slug, &s);
+            }
+            snprintf(name, sizeof name, "FM TONE pages at their longest two-decimal values: %u lint findings", nfind - n0);
+            check(name, nfind == n0);
         }
         {   /* cells: big (no bar, a larger value), span 2 (two columns, the cells after it shift), the bipolar knob */
             cr_screen_t s;
@@ -2292,6 +3013,52 @@ int main(int argc, char **argv)
                  nfind - f0, nell - e0);
         check(name, found == 2u && okv && nfind == f0 && nell == e0);
     }
+
+    {   /* Options > Version (3y66): the unit's ID on the line under the version, as cr_ui.c cu_options_screen builds it
+         * (the 24th of 26: the list's last window), with the longest version that shows whole (23 characters) and
+         * the widest digits, and without an ID: every text whole, nothing over another */
+        static const char *const ITEMS[8] = {"USB Record", "USB Level", "USB Rate", "Dual Core", "Output", "Version",
+                                             "Calibrate", "Reset Settings"};
+        static const char *const LAB[3] = {"unit ID DDDDDDDD", "unit ID A1B2C3D4", "no unit ID"};
+        static const char VAL[] = "ChoralRoot 0.22-beta1 1";
+        uint32_t v, k, j, f0 = nfind, e0 = nell, okv = 1, found = 0;
+        char name[200];
+        for (k = 0; k < CR_NSCREENS; k++)
+            if (!strcmp(CR_SCREEN_SLUGS[k], "12_opt_tapped_the_options_menu")) break;
+        for (v = 0; v < 3u && k < CR_NSCREENS; v++) {
+            cr_screen_t s = CR_SCREENS[k];
+            uint32_t got = 0;
+            memset(s.item, 0, sizeof s.item);
+            for (j = 0; j < 8u; j++) snprintf(s.item[j], sizeof s.item[j], "%s", ITEMS[j]);
+            s.n_items = 26;
+            s.item0 = 18;
+            s.sel = 23;
+            s.anim = 0;                                  /* (settled: no slide from the entry before) */
+            snprintf(s.value, sizeof s.value, "%s", VAL);
+            snprintf(s.label, sizeof s.label, "%s", LAB[v]);
+            if (strcmp(s.value, VAL) || strcmp(s.label, LAB[v])) okv = 0;   /* (the arrays hold them whole) */
+            render(&s, 0);
+            lint(v == 2u ? "options_version_no_unit_id" : "options_version_unit_id", &s);
+            for (j = 0; j < nbox; j++) {
+                uint32_t hit = !strcmp(boxes[j].s, ITEMS[5]) ? 1u : !strcmp(boxes[j].s, VAL) ? 2u : !strcmp(boxes[j].s, LAB[v]) ? 4u : 0u;
+                if (!hit) continue;
+                got |= hit;
+                if ((boxes[j].flags & 1u) || boxes[j].x0 < 0 || boxes[j].x1 > 240) okv = 0;
+            }
+            if (got != 7u) okv = 0;
+            found++;
+            if (v != 1u)
+                write_ppm(dir, v == 2u ? "options_version_no_unit_id" : "options_version_unit_id");
+        }
+        snprintf(name, sizeof name, "Options > Version: the unit's ID under the version (and 'no unit ID'): whole, on screen; %u findings, %u cut",
+                 nfind - f0, nell - e0);
+        check(name, found == 3u && okv && nfind == f0 && nell == e0);
+    }
+
+#if CR_LAYC_N
+    rows_screens(dir);
+#endif
+    p5cell_screens(dir);
 
     fprintf(rep, "\n%u lint findings, %u ellipsised texts\n", nfind, nell);
     fclose(rep);

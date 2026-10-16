@@ -49,7 +49,7 @@ static cz_voice_t *cz_voice(track_t *t, voice_t *v)
 }
 
 /* rate_of: the eight rates (d's own, or a voice's key-followed DCA rates: cz_voice_t.krate) */
-static int32_t cz_env_tick(cz_env_t *e, const cz_env_def_t *d, const uint32_t *rate_of, uint32_t gate)
+CR_HOT_CZ static int32_t cz_env_tick(cz_env_t *e, const cz_env_def_t *d, const uint32_t *rate_of, uint32_t gate)
 {
     uint32_t left = 65536u;
     if (e->gate && !gate && d->sustain <= d->end && e->stage <= d->sustain)

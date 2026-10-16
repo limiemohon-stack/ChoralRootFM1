@@ -30,6 +30,7 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
     {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1},
 };
 #include "../tools/emu/emu_firmware.h"
+#include "cr_pool_shim.h"                       /* (0.22: the patches in the sound pool) */
 
 static int fails, checks;
 #define CHECK(c, ...)                                                   \
@@ -246,16 +247,16 @@ int main(void)
         fm6_blob_get(t, b);
         k = (uint32_t)up_store(slot, "FM6 EDIT");
         OK(k == 0u || k == 3u, "store: U05 saved (an FM6 sound)");
-        OK(fm6u_get(slot, b2) == 0 && !memcmp(b, b2, FM6_BLOB) && fm6u[0].used == 1u << slot,
+        OK(fm6u_get(slot, b2) == 0 && !memcmp(b, b2, FM6_BLOB) && pool_used_of(ENGI_FM6, 0) == 1u << slot,
            "store: its blob in the FM6 patch store (object 1 of 2, slot 5)");
         cu_load(t, ENGI_FM6, 4, 0);                  /* PAD */
         cu_load_user(t, slot, 0);
         OK(!memcmp(fm6_patch[0], v, FP_SIZE) && !memcmp(fm6_fn[0], fn, FM6_NFN) && t->eng_req == ENGI_FM6,
            "store: U05 loads its own patch and function settings (OP 2's LEVEL 0, DX vel on)");
-        memset(fm6u, 0, sizeof fm6u);
+        memset(upn, 0, sizeof upn);
         up_boot();
         OK(fm6u_get(slot, b2) == 0 && !memcmp(b, b2, FM6_BLOB), "store: from flash after a reboot");
-        OK(up_store(20, "UPPER") == 0 && fm6u[1].used == 1u << 4, "store: U21 in the second object");
+        OK(up_store(20, "UPPER") == 0 && pool_used_of(ENGI_FM6, 1) == 1u << 4, "store: U21 in the second object");
         cu_load(t, 7, 0, 0);                         /* WHEEL (PHASE until 0.18: retired) */
         up_store(slot, "WHEEL NOW");
         OK(fm6u_get(slot, b2) != 0, "store: another engine's sound over U05 clears its blob");
@@ -317,10 +318,17 @@ int main(void)
                 OK(t->eng_req == ENGI_VA && t->p[P_E0 + 6] == ENG_VA.edit[6].def && t->p[P_REV] == 64,
                    "a SAMPLE record (a Felucca slot): the VA's plain init sound, as before (the part's sends stay)");
             }
+#if FELUCCA_PROPHET
+            OK(NENG_SHOWN == 6 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
+               eng_vis(3) == ENGI_CZ && eng_vis(4) == ENGI_PROPHET && eng_vis(5) == 7u && !eng_ok(ENGI_PHYS) &&
+               eng_step(7u, 1) == ENGI_FM6 && eng_rank(ENGI_PHYS) == 0u && ENGINES[ENGI_PHYS]->npresets == 0u,
+               "six engines shown: FM6, FM TONE, VA, CZ-1, P5, WHEEL (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
+#else
             OK(NENG_SHOWN == 5 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
                eng_vis(3) == ENGI_CZ && eng_vis(4) == 7u && !eng_ok(ENGI_PHYS) && eng_step(7u, 1) == ENGI_FM6 &&
                eng_rank(ENGI_PHYS) == 0u && ENGINES[ENGI_PHYS]->npresets == 0u,
                "five engines shown: FM6, FM TONE, VA, CZ-1, WHEEL (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
+#endif
             {   /* the message a PHYS record's load shows, as the five's */
                 up_rec_t pr = *up_rec(slot);
                 pr.engine = ENGI_PHYS;
@@ -332,12 +340,12 @@ int main(void)
             }
         }
         up_put(20, 0);
-        OK(fm6u_get(20, b2) != 0 && !fm6u[1].used, "store: an erased slot clears its blob");
+        OK(fm6u_get(20, b2) != 0 && !pool_used_of(ENGI_FM6, 1), "store: an erased slot clears its blob");
         /* a slot of before the store: Felucca's PTCH numbering (F1..F8, then B1..B27 = 8..34) */
         cu_load(t, ENGI_FM6, 0, 0);
         t->p[P_E7] = 9;                              /* B2 then */
         up_store(slot, "OLD FM6");
-        fm6u_put(slot, 0);                           /* no blob: saved before the store */
+        pool_patch_clear(slot);                           /* no blob: saved before the store */
         cu_load_user(t, slot, 0);
         pe7 = t->p[P_E7];
         fm6_slot_get(FM6_NFAC + 1u, pk);

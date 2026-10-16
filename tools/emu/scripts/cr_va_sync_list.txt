@@ -1,0 +1,76 @@
+# ChoralRoot 0.22 (va-1): VA's synced LFO RATE is a list (firmware/src/eng_va.c N_VA_SYNC: 8BARD .. 256T, then 4ms
+# 3ms 2ms; slowest first, so clockwise is faster): one item a detent at any speed, OPT (GLO) held: the straight ones.
+# And FENV in hundredths (F_FIX2): slow detents 0.01.
+# 1. VA (GLO + PRESETS +2: LUSH PAD), EDIT, LFO twice: the Sync screen; KNOB 1: SYNC1 on.
+#    (SYNC switched on: LUSH PAD's LFO 1 RATE 50 of 128 -> 16 of the list's 42, 1/2.)
+# 2. LFO twice more: the Rate screen; KNOB 1 RATE: 4 slow detents down, 3 quick ones down (one item each: no
+#    acceleration), 3 slow up; GLO held: -1 -1 -1 (the straight ones: 2BAR 3BAR 4BAR), +1 (3BAR).
+# 3. FILT: KNOB 4 FENV (10.00): 2 slow detents down (9.99 9.98), GLO held +1 (10.00).
+# tools/emu/test_cr.sh reads the "deep:" lines.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +2
+wait 100
+btn GLO up
+wait 1500
+btn EDIT
+wait 400
+btn LFO
+wait 400
+btn LFO
+wait 400
+knob KNOB1 +1
+wait 400
+shot cr_va_sync_on
+btn LFO
+wait 400
+btn LFO
+wait 400
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 15
+knob KNOB1 -1
+wait 15
+knob KNOB1 -1
+wait 15
+knob KNOB1 -1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+shot cr_va_sync_rate
+btn GLO down
+wait 100
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 +1
+wait 100
+btn GLO up
+wait 300
+btn SEL
+wait 400
+knob KNOB4 -1
+wait 300
+knob KNOB4 -1
+wait 300
+btn GLO down
+wait 100
+knob KNOB4 +1
+wait 100
+btn GLO up
+wait 300
+shot cr_va_fenv
+quit

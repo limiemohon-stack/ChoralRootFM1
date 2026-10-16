@@ -1,6 +1,6 @@
-# ChoralRoot: Shift + Up / Down = the firmware's fine mode (GLO = SHIFT held around each detent). LUSH PAD (the VA),
-# EDIT, FILT (SEL): KNOB 1 (the cutoff) selected with Page Down x2; two plain Up steps (coarse), then two Shift + Up
-# steps (one unit each), then Shift released and one plain Up step: the SHIFT latch must not have toggled.
+# ChoralRoot: Shift + Up / Down = the firmware's OPT snap (GLO = SHIFT held around each detent). LUSH PAD (the VA),
+# EDIT, FILT (SEL): KNOB 1 (the cutoff) selected with Page Down x2; two plain Up steps (slow: the finest step), then two Shift + Up
+# steps (the snap: 0 16 .. 112 127), then Shift released and one plain Up step: the SHIFT latch must not have toggled.
 # tools/emu/test_cr.sh reads the "deep: ... CUT a -> b" lines.
 wait 100                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down

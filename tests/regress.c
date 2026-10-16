@@ -32,6 +32,10 @@
 #ifndef FELUCCA_QUAD
 #define FELUCCA_QUAD 1           /* ChoralRoot's QUAD engine (docs/QUAD.md): its presets get renders and costs too */
 #endif
+#ifndef FELUCCA_PROPHET
+#define FELUCCA_PROPHET 1        /* ChoralRoot's P5 engine (Melodee's Prophet-5, docs/PROPHET.md): its shipped programs get renders
+                                  * and costs too */
+#endif
 #ifndef FELUCCA_ANALOG
 #define FELUCCA_ANALOG 0         /* as choralroot.c: ANALOG retired (engine 0 a silent slot, no renders) */
 #endif
@@ -211,6 +215,12 @@ static void job_preset(const job_t *j)
                             !strcmp(ENGINES[j->e]->presets[j->pi].name, "SITAR") ||
                             !strcmp(ENGINES[j->e]->presets[j->pi].name, "JET ROAR")))
         free_cap_s = 90;
+#endif
+#if FELUCCA_PROPHET
+    /* a Prophet program's release is exponential with the time constant 10000^(raw / 127) ms (tools/gen_tables.py
+     * P5_ENV_EXP): -60 dB after 6.9 of them, up to 69 s at 127 (the bank's longest is 120: 41 s) */
+    if (j->e == ENGI_PROPHET)
+        free_cap_s = 12u + (uint32_t)(9.0 * pow(10000.0, p5_patch_of(t)->raw[P5_RELEASE_AMP] / 127.0) / 1000.0);
 #endif
     phrase(t, 60);
 }
@@ -1075,6 +1085,12 @@ int main(int argc, char **argv)
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
             slug(en, ENGINES[e]->name, sizeof en);   /* ("FM TONE": FM_TONE; the golden file splits at spaces) */
             snprintf(name, sizeof name, "preset/%s/%02u_%s", en, pi, s);
+#if FELUCCA_PROPHET
+            /* P5's programs are a list that changes (assets/prophet5-factory/shipped.txt): an entry is named by the
+             * program's Sequential number (000: INIT), so a list changed adds and drops lines and moves none */
+            if (e == ENGI_PROPHET)
+                snprintf(name, sizeof name, "preset/%s/%03u_%s", en, (unsigned)p5_preset_id(pi), s);
+#endif
             j = add(J_PRESET, name);
             j->e = (uint8_t)e;
             j->pi = (uint8_t)pi;
@@ -1141,6 +1157,10 @@ int main(int argc, char **argv)
             slug(s, ENGINES[e]->presets[pi].name, sizeof s);
             slug(en, ENGINES[e]->name, sizeof en);
             snprintf(name, sizeof name, "cpu/%s/%02u_%s", en, pi, s);
+#if FELUCCA_PROPHET
+            if (e == ENGI_PROPHET)
+                snprintf(name, sizeof name, "cpu/%s/%03u_%s", en, (unsigned)p5_preset_id(pi), s);
+#endif
             j = add(J_CPU, name);
             memset(cpu_parts[ncpu], 0, sizeof cpu_parts[ncpu]);
             cpu_parts[ncpu][0][0] = (uint8_t)e;

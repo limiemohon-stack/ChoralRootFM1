@@ -52,6 +52,7 @@ static struct {
     uint32_t fill_free, fill_busy, csr_or, csr_last;  /* ua_tx_fill: slot free (a packet armed) / still armed; bits */
     uint32_t sofs, frame_last, armed_frame_dup;       /* frames seen; the last; two packets armed in one frame */
     uint32_t armed_frame;
+    uint32_t arm_gap_ms;                              /* 3y48: fm1_ms of the longest arm-to-arm gap */
     uint32_t arm_last, arm_gap_max, arm_gap[3];       /* arm to arm (TIMER4 ticks): the longest; < 1.2, < 2.5, more ms */
     uint32_t open_at, open_ms, opens;                 /* the stream: opened at (fm1_ms), ms open in all, times opened */
     uint32_t arm_calls;                               /* ungated arm checks (main.c ua_service_paced) */
@@ -189,8 +190,10 @@ static void ua_tx_fill(void)
             {
                 uint32_t now = UA_DBG_NOW(), g = now - ua_dbg.arm_last;
                 if (ua_dbg.arm_last) {
-                    if (g > ua_dbg.arm_gap_max)
+                    if (g > ua_dbg.arm_gap_max) {
                         ua_dbg.arm_gap_max = g;
+                        ua_dbg.arm_gap_ms = fm1_ms | 1u;
+                    }
                     ua_dbg.arm_gap[g < 1200u * UA_DBG_US ? 0 : g < 2500u * UA_DBG_US ? 1 : 2]++;
                 }
                 ua_dbg.arm_last = now;

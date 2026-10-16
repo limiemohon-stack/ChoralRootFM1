@@ -1,0 +1,134 @@
+# P5 (docs/PROPHET.md; the code's PROPHET): OPT + PRESETS +4 -> P5's pool (FM6 -> FM TONE -> VA -> CZ-1 -> P5), its
+# place 01 (the shipped list's first program: assets/prophet5-factory/shipped.txt; test_cr.sh reads the names of the
+# places from tools/gen_prophet_factory.py --list); the picker's read-out while OPT is held (shot: six engines).
+# MAJ + D4 held 1.5 s, released. PRESETS +2: place 03, the chord again; PRESETS +1: place 04, the chord again.
+# EDIT: the editor's groups, a shot each screen: P5's rows (the compiled classic layout, design/layouts/designs/
+# p5-rows.json; docs/LAYOUT-TOOL.md "Step 4"): OSC (OSC A, OSC B), FILT (FILTER under the filter's curve, ENV 2 . filter,
+# ENV 2 +), ENV (ENV 1 . amp, ENV 1 +), LFO (LFO, WHEEL), MOD (POLYMOD, VOICE). OSC A's second lane (SELECT +1): KNOB 2
+# -4, Mix A ("deep: part 0 page 4 MIXER col 0 MIX A"), a dump and a shot. On FILTER's one lane (CUTOFF RES ENV AMT
+# REV): KNOB 1 -8: the cutoff down ("deep: part 0 page 5 FILTER col 0 CUT"), the chord again: it sounds, darker. On
+# LFO's first lane (FREQ SAW TRI SQUARE): KNOB 1 +2 (FREQ, the LFO's RATE), a dump and a shot; KNOB 2 +1 (the saw's
+# button, LFO+ SAW), a dump and a shot. SAVE (0.22, the sound pool): the dialog's five entries, on Overwrite (the
+# sound is edited; shot); SELECT -1 stays there; KNOB 4 +1 marks the program (shot: the star); OCT+: Overwrite, the
+# edited program saved into U001 over place 04 (shot: the message); OCT-. EDIT held: the engine picker in the editor
+# (shot: P5 among the six). OCT-, EDIT. The last dump's "favs:" line has the mark.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: the engine, on OPT's release
+wait 200
+shot build/emu/test/cr_prophet_pick.ppm
+btn GLO up
+wait 500
+dump
+key F3 down
+wait 60
+btn D4 down
+wait 1500
+expect sound
+btn D4 up
+key F3 up
+wait 2500
+knob PRESETS +2               # place 03
+wait 300
+shot build/emu/test/cr_prophet_pool.ppm
+key F3 down
+wait 60
+btn D4 down
+wait 1500
+expect sound
+btn D4 up
+key F3 up
+wait 2500
+knob PRESETS +1               # place 04 (STABBY BRASS in the 115, the program place 15 held in the 48: a held sound for the filter edit)
+wait 300
+key F3 down
+wait 60
+btn D4 down
+wait 1500
+expect sound
+btn D4 up
+key F3 up
+wait 2500
+dump
+btn EDIT
+wait 400
+shot build/emu/test/cr_prophet_osc_a.ppm
+knob SELECT +1                # OSC A's second lane: SYNC MIX A MIX B NOISE
+wait 300
+knob KNOB2 -4                 # Mix A
+wait 300
+dump
+shot build/emu/test/cr_prophet_osc_mix.ppm
+btn FX
+wait 400
+shot build/emu/test/cr_prophet_osc_b.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_prophet_filter.ppm
+knob KNOB1 -8                 # FILTER's one lane: KNOB 1 the cutoff
+wait 300
+shot build/emu/test/cr_prophet_filter_cut.ppm
+key F3 down
+wait 60
+btn D4 down
+wait 1500
+expect sound
+btn D4 up
+key F3 up
+wait 2500
+btn SEL
+wait 400
+shot build/emu/test/cr_prophet_env2.ppm
+btn SEL
+wait 400
+shot build/emu/test/cr_prophet_env2p.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_prophet_env1.ppm
+btn ENV
+wait 400
+shot build/emu/test/cr_prophet_env1p.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_prophet_lfo.ppm
+knob KNOB1 +2                 # the LFO's first lane: KNOB 1 FREQ (the LFO's RATE)
+wait 300
+dump
+shot build/emu/test/cr_prophet_lfo_freq.ppm
+knob KNOB2 +1                 # KNOB 2 the saw's button (LFO+ SAW)
+wait 300
+dump
+shot build/emu/test/cr_prophet_lfo_saw.ppm
+btn LFO
+wait 400
+shot build/emu/test/cr_prophet_wheel.ppm
+btn SEQ
+wait 400
+shot build/emu/test/cr_prophet_polymod.ppm
+btn SEQ
+wait 400
+shot build/emu/test/cr_prophet_voice.ppm
+btn SAVE
+wait 300
+shot build/emu/test/cr_prophet_save.ppm
+knob SELECT -1                # (Overwrite is the first entry)
+wait 200
+knob KNOB4 +1                 # the mark on
+wait 300
+shot build/emu/test/cr_prophet_fav.ppm
+btn OCT+                      # Overwrite: saved into U001 (0.22: P5 sounds save)
+wait 300
+shot build/emu/test/cr_prophet_refused.ppm
+wait 1500
+btn OCT-                      # the dialog closed: the editor again
+wait 300
+btn EDIT 600                  # EDIT held: the engine picker (the chord part)
+wait 300
+shot build/emu/test/cr_prophet_epk.ppm
+btn OCT-                      # cancelled: the sound stays
+wait 300
+btn EDIT
+wait 400
+dump
+quit

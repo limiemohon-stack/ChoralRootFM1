@@ -20,12 +20,17 @@
 //   with its going-back sentence beside the button and one click back to the newest; 0.14 / 0.15 not offered;
 //   "What is on my FM-1?", an interrupted install's guidance, and demo mode (?demo=STATE), which must never reach
 //   MIDI or the network
+// - Advanced > Hardware fallback (docs/DUALCORE.md "Two packages"): a release with a single-core package offers
+//   Standard / Single core; the variant chosen is the file fetched, verified and written; no choice without one; the
+//   read-back of "ChoralRoot X.Y 1-core"; ?demo=single; the version parsers on the suffixed string
+// - beta releases ("beta": true, X.Y-betaN): hidden until "Show beta releases" is ticked (localStorage), badge and
+//   note, the newest stable the default, an FM-1 on a beta told so; the version order (X.Y-1 < X.Y-betaN < X.Y)
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf, STOCK_V15_SIZE } from "./fm1pkg.js";
-import { pack7, unpack7 } from "./fm1ota.js";
+import { pack7, unpack7, pairOutput } from "./fm1ota.js";
 import { bkU32, bkR32, bkPack, bkUnpack, bkCrc, CR_BACKUP_IDS, BACKUP_IDS } from "./fm1backup.js";
 import { readSoundFile, parseSoundObjects, parseSyx, fm6BlobToVced, fm6VcedSyx } from "./fm1sounds.js";
 
@@ -105,8 +110,8 @@ ok(tpl && new Function("meta", `return ${tpl[1]}`)(META) === "ChoralRoot 0.1 · 
 const stripModule = (src) => src.replace(/^export\s+/gm, "").replace(/^import .*?;\n/gm, "");
 const site = readFileSync(join(HERE, "make_site.py"), "utf8");
 let libs = [...site.matchAll(/strip_module\(\(HERE \/ "([\w.]+\.js)"\)/g)].map((m) => m[1]);
-if (!libs.length) libs = ["fm1pkg.js", "fm1ota.js", "fm1backup.js", "fm1sounds.js"];
-ok(libs.join() === "fm1pkg.js,fm1ota.js,fm1backup.js,fm1sounds.js", `make_site.py inlines ${libs.join(", ")} (fm1sounds.js after fm1backup.js)`);
+if (!libs.length) libs = ["fm1pkg.js", "fm1ota.js", "fm1backup.js", "fm1dnsnd.js", "fm1sounds.js"];
+ok(libs.join() === "fm1pkg.js,fm1ota.js,fm1backup.js,fm1dnsnd.js,fm1sounds.js", `make_site.py inlines ${libs.join(", ")} (fm1sounds.js after fm1backup.js, fm1dnsnd.js)`);
 const lib = libs.map((f) => stripModule(readFileSync(join(HERE, f), "utf8"))).join("\n");
 const built = html.split("/*LIB*/").join(lib).split("/*META*/").join(JSON.stringify(META));   // no $-patterns
 const code = scriptOf(built);
@@ -244,10 +249,11 @@ class FakeFM1 {
 }
 
 // a firmware's backup side (cr_backup.c / Felucca's editor_backup.c, as the protocol says): INFO, LIST, GET, PUT, SMP, RESTART
-function backupSide(version, ids, objs = []) {
+function backupSide(version, ids, objs = [], uid = null) {   // uid: the unit's ID (3y66: INFO's 43 01 03, 49 08 ID)
   const b = { objs: new Map(objs), log: [], staged: null, restarts: 0 };
   b.handle = (cmd, a) => {
-    if (cmd === 1) return [...new TextEncoder().encode(version), 0, 0, 0, 0, 0, 0, 0, 0, 0x42, 1, 3];
+    if (cmd === 1) return [...new TextEncoder().encode(version), 0, 0, 0, 0, 0, 0, 0, 0, 0x42, 1, 3,
+      ...(uid ? [0x43, 1, 3, 0x49, 8, ...new TextEncoder().encode(uid)] : [])];
     if (cmd === 65) {
       const out = [1, 0, ids.length];
       for (const id of ids) { const v = b.objs.get(id) || new Uint8Array(0); out.push(id, ...bkU32(v.length), ...bkU32(v.length ? bkCrc(v) : 0)); }
@@ -747,9 +753,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
 {
   // .syx (docs/SOUNDS.md ".syx export and import"): the fixtures of tests/sound_templates.c (factory F1 TINE EP's blob,
   // Casio's A-1 BRASS 1)
-  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,application/json"') && html.includes('"export-syx"') &&
-     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes"].every((f) => html.includes(f)),
-     "page: Export .syx on the rows, the Import picker accepts .json and .syx");
+  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,.dnsnd,application/json"') && html.includes('"export-syx"') &&
+     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes", "parseDnsnd", "soundFromDnsnd", "sndDnConfirm"].every((f) => html.includes(f)),
+     "page: Export .syx on the rows, the Import picker accepts .json, .syx and .dnsnd (asks with the notes)");
   ok(["sndExportSyx", "sndSyxText", "sndSyxSaved", "sndSyxPick", "sndSyxBadPick"].every((k) => en[k]) && dataT.includes("sndSyxText") &&
      en.sndExportSyx === "Export .syx", "texts: the .syx button, its section text, the statuses and the voice prompt");
   const B = (x) => Uint8Array.from(Buffer.from(x, "base64"));
@@ -840,8 +846,12 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   // the page with the metadata make_site.py writes for the real list: every version of web/releases.json, each with a
   // package of its own here (same identity, different bytes) and that package's sha256
   const list = JSON.parse(readFileSync(join(HERE, "releases.json"), "utf8"));
-  const vers = list.releases.map((r) => r.version), newest = vers[0], older = vers[2] || vers[vers.length - 1];
-  const RAW = Object.fromEntries(vers.map((v, i) => [v, makePackage("FM-1_920", 17 * (i + 1))]));
+  // vers: what the page offers by default, the stable versions (newest: the default); a beta of the list ("beta": true)
+  // is hidden until "Show beta releases" is ticked (the beta block below). all: every version, betas too (the meta,
+  // the packages here, the files list)
+  const all = list.releases.map((r) => r.version);
+  const vers = list.releases.filter((r) => !r.beta).map((r) => r.version), newest = vers[0], older = vers[2] || vers[vers.length - 1];
+  const RAW = Object.fromEntries(all.map((v, i) => [v, makePackage("FM-1_920", 17 * (i + 1))]));
   const pkgOf = (v) => `../../firmware/choralroot-${v}.fwsc`;
   const metaFor = async (tamper = null) => ({ version: newest, product: "FM-1_920", pkg: pkgOf(newest), repo: list.repo, minimum: list.minimum,
     releases: await Promise.all(list.releases.map(async (r) => ({ ...r, pkg: pkgOf(r.version), size: RAW[r.version].length,
@@ -851,7 +861,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   const fetched = [];
   const listFetch = (over = {}) => async (url) => {
     fetched.push(url);
-    const v = vers.find((x) => pkgOf(x) === url), b = v && (over[v] || RAW[v]);
+    const v = all.find((x) => pkgOf(x) === url), b = v && (over[v] || RAW[v]);
     return b ? { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) }
       : { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
   };
@@ -919,8 +929,8 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
        html.includes('<a href="https://github.com/Quixotic7/ChoralRootFM1/releases" target="_blank" rel="noopener" data-t="chOlder">') && en.chOlder === "0.15 and older are on GitHub.",
        "other versions: 0.14 and 0.15 are not offered; one line links the releases on GitHub");
     const f = p.$.files.innerHTML;
-    ok(vers.every((x) => f.includes(`href="${pkgOf(x)}" download`) && f.includes(`/tree/v${x}"`) && f.includes(`/docs/releases/${x}.md"`)) &&
-       count(f, "<code>sha256 ") === vers.length && p.$["safe-note"].textContent === list.minimum.boot_safe,
+    ok(all.every((x) => f.includes(`href="${pkgOf(x)}" download`) && f.includes(`/tree/v${x}"`) && f.includes(`/docs/releases/${x}.md"`)) &&
+       count(f, "<code>sha256 ") === all.length && p.$["safe-note"].textContent === list.minimum.boot_safe,
        "the files: a download link, the sha256, the full notes and the source at its tag for each version");
     await p.$.go.fire("click");
     ok(dev.identity === "FM-1_920" && dev.bad === 0 && dev.served > 8 && p.$.status.textContent === en.done &&
@@ -1111,7 +1121,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   }
 
   // demo mode: a state shown with made-up data; nothing reaches MIDI or the network, whatever is clicked
-  const DEMOS = ["idle", "older", "writing", "interrupted", "done", "nomidi", "stockwriting", "stockdone"];
+  const DEMOS = ["idle", "older", "single", "writing", "interrupted", "done", "nomidi", "stockwriting", "stockdone"];
   ok(DEMOS.every((d) => new RegExp(`\\b${d}\\b`).test(/const DEMO = [\s\S]*?\n\}\)\(\);/.exec(src)[0])), `demo: the states ${DEMOS.join(", ")}`);
   for (const q of [...DEMOS.map((d) => "?demo=" + d), "?x=1&demo=writing"]) {
     let midiCalls = 0, fetches = 0;
@@ -1149,6 +1159,199 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     await settle();
     ok(p.$["demo-note"].hidden === true && !p.$.go.disabled && p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920`, `demo: ${q} is not demo mode (the page works as usual)`);
   }
+
+  // Advanced > Hardware fallback (docs/DUALCORE.md "Two packages"): a release that lists a single-core package
+  // (releases.json sha256_1core; make_site.py adds pkg_1core) offers Standard / Single core; the one chosen is the file
+  // fetched, checked against ITS sha256 and written; a release without one shows no choice
+  {
+    ok(html.includes('<details class="adv" id="adv" hidden>') && html.indexOf('id="versions"') < html.indexOf('id="adv"') && html.indexOf('id="adv"') < html.indexOf('id="dark"') &&
+       en.advTitle === "Advanced" && en.hwTitle === "Hardware fallback" && en.varStd === "Standard" && /both cores, recommended/.test(en.varStdSub) &&
+       en.var1 === "Single core" && /crashes or freezes with Standard/.test(en.var1Sub) && /1 core build/.test(en.hwNote) &&
+       en.installV1 === "Install ChoralRoot {version} (single core)",
+       "fallback: an Advanced disclosure after the versions (collapsed, hidden until a release has a single-core package): Hardware fallback, Standard / Single core");
+    const pkg1Of = (v) => `../../firmware/choralroot-${v}-1core.fwsc`;
+    const RAW1 = makePackage("FM-1_920", 211);
+    const meta1 = async (tamper1 = false) => {
+      const m = await metaFor();
+      const i0 = m.releases.findIndex((r) => r.version === newest);   // (the default: the newest stable, after any beta)
+      m.releases[i0] = { ...m.releases[i0], pkg_1core: pkg1Of(newest), sha256_1core: tamper1 ? "0".repeat(64) : await sha256(RAW1), size_1core: RAW1.length };
+      return m;
+    };
+    const page1 = pageFor(await meta1());
+    const got = [];
+    const fetch1 = async (url) => {
+      got.push(url);
+      const b = url === pkg1Of(newest) ? RAW1 : RAW[all.find((x) => pkgOf(x) === url)];
+      return b ? { ok: true, status: 200, arrayBuffer: async () => b.buffer.slice(b.byteOffset, b.byteOffset + b.length) }
+        : { ok: false, status: 404, arrayBuffer: async () => new ArrayBuffer(0) };
+    };
+    const pick = (p, which) => p.$.variants.l.click({ target: { closest: (sel) => (sel === "[data-variant]" ? { dataset: { variant: which }, disabled: false } : null) } });
+    const label1 = (v) => en.installV1.replace("{version}", v);
+    const pressed = (p) => `${p.$["var-std"].attrs["aria-pressed"]}/${p.$["var-1core"].attrs["aria-pressed"]}`;
+    {   // a list without any single-core package (the real web/releases.json today): no choice anywhere
+      const p = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: listFetch(), page });
+      await settle();
+      ok(p.$.adv.hidden === true && !p.$.files.innerHTML.includes("-1core.fwsc"), "fallback: a release without a single-core package shows no choice (0.16 .. 0.21)");
+    }
+    // the newest with one: Standard by default; Single core: its own file, its own sha256, the button and the status say so
+    let after = null;
+    const dev = new FakeFM1(logicalImage(RAW1), { identity: "FM-1_920", bk: (id) => (id.startsWith("ota-") ? null : after || crSide(vers[1])) });
+    const boot = dev.boot.bind(dev);
+    dev.boot = (id, name) => { if (!id.startsWith("ota-")) after = backupSide(`ChoralRoot ${newest} 1-core`, CR_BACKUP_IDS, crData()); boot(id, name); };
+    got.length = 0;
+    const p = runPage({ navigator: midiOf(dev), fetch: fetch1, page: page1 });
+    await settle();
+    ok(!p.error && p.$.adv.hidden === false && pressed(p) === "true/false" && p.$.go.textContent === label(newest) && got.join() === pkgOf(newest) &&
+       p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920` && p.$.files.innerHTML.includes(`href="${pkg1Of(newest)}" download`) &&
+       p.$.files.innerHTML.includes(`(choralroot-${newest}-1core.fwsc)`), `fallback: ${newest} offers it; Standard is the default (its package fetched); the files list both`);
+    pick(p, "1core");
+    const mid = p.$.go.disabled;
+    await settle();
+    ok(mid && !p.$.go.disabled && pressed(p) === "false/true" && p.$.go.textContent === label1(newest) && got[got.length - 1] === pkg1Of(newest) &&
+       p.$.status.textContent === `ChoralRoot ${newest} (single core) · FM-1_920`,
+       `fallback: Single core -> "${p.$.go.textContent}", ${pkg1Of(newest).split("/").pop()} fetched and checked ("${p.$.status.textContent}")`);
+    await p.$.go.fire("click");
+    ok(dev.identity === "FM-1_920" && dev.bad === 0 && dev.served > 8 && p.$.status.textContent === en.done &&
+       p.$.log.textContent.includes(`install: ChoralRoot ${newest} (choralroot-${newest}-1core.fwsc)`) &&
+       p.$["done-line"].textContent === en.dnLine1.replace("{version}", newest), `fallback: Install wrote the single-core package byte for byte; done: "${p.$["done-line"].textContent}"`);
+    await p.$["check-go"].fire("click");
+    ok(p.$.unit.textContent === en.dnMatch.replace("{name}", `ChoralRoot ${newest} (single core)`) && p.$.unit.className === "unit" &&
+       p.$.rel.innerHTML.includes(en.chHas), `fallback: the read-back of "ChoralRoot ${newest} 1-core" -> "${p.$.unit.textContent}"`);
+    pick(p, "std");
+    await settle();
+    ok(pressed(p) === "true/false" && p.$.go.textContent === label(newest) && got[got.length - 1] === pkgOf(newest) && p.$.status.textContent === `ChoralRoot ${newest} · FM-1_920`,
+       "fallback: back to Standard -> the standard package fetched again, the button says so");
+    await p.$["check-go"].fire("click");
+    ok(p.$.unit.textContent === en.cn1core.replace("{name}", `ChoralRoot ${newest} (single core)`) && p.$.unit.className === "unit",
+       `fallback: a unit on the single-core package, Standard chosen: Install offers Standard back ("${p.$.unit.textContent.slice(0, 70)}...")`);
+    pick(p, "1core");
+    await settle();
+    await p.$["check-go"].fire("click");
+    ok(p.$.unit.textContent === en.cnSame.replace("{name}", `ChoralRoot ${newest} (single core)`), "fallback: ... with Single core chosen: the same package, said so");
+    choose(p, older);
+    await settle();
+    ok(p.$.adv.hidden === true && p.$.go.textContent === label(older) && got[got.length - 1] === pkgOf(older), `fallback: ${older} has no single-core package: no choice, its standard package`);
+    await p.$["newest-go"].fire("click");
+    await settle();
+    ok(p.$.adv.hidden === false && pressed(p) === "false/true" && p.$.go.textContent === label1(newest) && got[got.length - 1] === pkg1Of(newest),
+       "fallback: back to the newest: the choice kept (Single core)");
+    // a standard install read back while the unit reports the single-core build: told so
+    {
+      const d2 = new FakeFM1(logicalImage(RAW[newest]), { identity: "FM-1_920", bk: (id) => (id.startsWith("ota-") ? null : backupSide(`ChoralRoot ${newest} 1-core`, CR_BACKUP_IDS, crData())) });
+      const q = runPage({ navigator: midiOf(d2), fetch: fetch1, page: page1 });
+      await settle();
+      await q.$.go.fire("click");
+      await q.$["check-go"].fire("click");
+      ok(q.$.unit.textContent === en.dnDiffer.replace("{name}", `ChoralRoot ${newest} (single core)`).replace("{version}", newest) && q.$.unit.className === "unit bad",
+         "fallback: Standard installed but the unit reports the single-core build -> told so");
+    }
+    // a single-core package that is not the released one: refused before any write
+    {
+      const d3 = new FakeFM1(logicalImage(RAW1), { identity: "FM-1_920", bk: () => crSide(newest) });
+      const q = runPage({ navigator: midiOf(d3), fetch: fetch1, page: pageFor(await meta1(true)) });
+      await settle();
+      const first = !q.$.go.disabled;
+      pick(q, "1core");
+      await settle();
+      await q.$.go.fire("click");
+      ok(first && q.$.status.textContent === en.badhash.replace("{version}", `${newest} (single core)`) && q.$.go.disabled && d3.served === 0 && d3.upgrades === 0 && d3.bkFrames === 0,
+         "fallback: a single-core file whose sha256 is not the list's -> refused, Install disabled, nothing sent");
+    }
+    // the demo state: Advanced open, Single core picked; nothing fetched
+    {
+      let fetches = 0;
+      const q = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: async () => { fetches++; throw new Error("no fetch in demo mode"); }, page: page1, extra: { location: { search: "?demo=single" } } });
+      await settle();
+      ok(!q.error && q.$.adv.open === true && q.$.adv.hidden === false && pressed(q) === "false/true" && q.$.go.textContent === label1(newest) &&
+         q.$.status.textContent === `ChoralRoot ${newest} (single core) · FM-1_920` && fetches === 0, "demo single: Advanced open, Single core picked, the button says so");
+    }
+    // the version parsers on the suffixed string: the page's (the first word after ChoralRoot) and fm1ota.js's / fm1backup.js's
+    const ctx = {};
+    vm.runInNewContext(stripModule(readFileSync(join(HERE, "fm1ota.js"), "utf8")) + "\n" + stripModule(readFileSync(join(HERE, "fm1backup.js"), "utf8")) +
+      "\nthis.cf = classifyFirmware; this.fam = backupFamily; this.bn = backupFileName;", ctx);
+    const c = ctx.cf("FM-1_920", `ChoralRoot ${newest} 1-core`);
+    const pv = /^ChoralRoot\s+(\S+)/i.exec(`ChoralRoot ${newest} 1-core`);
+    ok(c.verdict === "allow" && c.kind === "choralroot" && ctx.fam(`ChoralRoot ${newest} 1-core`) === "choralroot" &&
+       /^choralroot-backup-\d{8}\.json$/.test(ctx.bn(`ChoralRoot ${newest} 1-core`)) && pv && pv[1] === newest,
+       `parsers: "ChoralRoot ${newest} 1-core" -> allowed as ChoralRoot, backup family choralroot, version ${pv && pv[1]}`);
+  }
+
+  // beta releases (releases.json "beta": true, X.Y-betaN): hidden until "Show beta releases" is ticked (remembered in
+  // localStorage); the newest stable stays the default; a beta orders after the stable before it, before its final
+  {
+    const BETA = "9.0-beta1", RAWB = makePackage("FM-1_920", 307);
+    const mb = await metaFor();
+    mb.releases.unshift({ version: BETA, beta: true, date: list.releases[0].date, tag: "v" + BETA, title: "A preview", bullets: ["Something new to try out early."],
+      pkg: pkgOf(BETA), size: RAWB.length, sha256: await sha256(RAWB) });
+    const pageB = pageFor(mb);
+    const fetchB = async (url) => (url === pkgOf(BETA) ? { ok: true, status: 200, arrayBuffer: async () => RAWB.buffer.slice(0) } : listFetch()(url));
+    const store = (init = {}) => { const m = { ...init }; return { getItem: (k) => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, m }; };
+    const st = store();
+    const p = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: fetchB, page: pageB, extra: { localStorage: st } });
+    await settle();
+    ok(!p.error && p.$["beta-opt"].hidden === false && p.$["show-beta"].checked === false && !chips(p).includes(BETA) && p.$["beta-note"].hidden === true &&
+       p.$.go.textContent === label(newest) && p.$.rel.innerHTML.includes(en.chNewest), `beta: ${BETA} hidden by default, the opt-in unticked, ${newest} (stable) the default`);
+    p.$["show-beta"].checked = true; p.$["show-beta"].fire("change");
+    ok(chips(p).split(",")[0] === BETA && p.$.versions.innerHTML.includes(`<span class="beta">${en.chBeta}</span>`) && p.$["beta-note"].hidden === false &&
+       st.m["choralroot.showBeta"] === "1" && p.$.go.textContent === label(newest), "beta: ticked -> shown with its badge and the note, remembered; stable still the default");
+    choose(p, BETA);
+    await settle();
+    ok(p.$.go.textContent === label(BETA) && p.$.rel.innerHTML.includes(en.chBeta) && p.$["plan-back"].textContent.includes(en.betaNote), "beta: chosen -> Install names it, the beta tag and note beside it");
+    p.$["show-beta"].checked = false; p.$["show-beta"].fire("change");
+    await settle();
+    ok(p.$.go.textContent === label(newest) && !chips(p).includes(BETA) && st.m["choralroot.showBeta"] === "0", "beta: unticked -> back to the stable, hidden again");
+    const q = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: fetchB, page: pageB, extra: { localStorage: store({ "choralroot.showBeta": "1" }) } });
+    await settle();
+    ok(!q.error && q.$["show-beta"].checked === true && chips(q).includes(BETA) && q.$.go.textContent === label(newest), "beta: the opt-in remembered on the next visit; stable still the default");
+    const r = runPage({ navigator: midiOf(new FakeFM1(image)), fetch: fetchB, page: pageB, extra: { localStorage: { getItem() { throw new Error("blocked"); }, setItem() { throw new Error("blocked"); } } } });
+    await settle();
+    r.$["show-beta"].checked = true; r.$["show-beta"].fire("change");
+    ok(!r.error && chips(r).includes(BETA), "beta: storage that throws -> the page works, opt-in for this visit only");
+    // a beta on the FM-1: said so, the stable still offered
+    const dB = new FakeFM1(image, { identity: "FM-1_920", bk: () => crSide(BETA) });
+    const u = runPage({ navigator: midiOf(dB), fetch: fetchB, page: pageB });
+    await settle();
+    await u.$["check-go"].fire("click");
+    await settle();
+    ok(u.$.unit.textContent === en.cnBeta.replace("{name}", "ChoralRoot " + BETA).replace("{stable}", newest) && u.$.go.textContent === label(newest),
+       `beta: an FM-1 on ${BETA} is told so, and ${newest} is still offered`);
+    const ord = scriptOf(html).match(/const verNum = [\s\S]*?\n\};\nconst verCmp = [\s\S]*?\n\};/);
+    const cmp = ord && new Function(`${ord[0]}; return verCmp;`)();
+    const sorted = ["0.22", "0.21", "0.22-beta2", "0.22-beta1", "0.21.1"].sort((a, b) => cmp(a, b));
+    ok(cmp && sorted.join() === "0.21,0.21.1,0.22-beta1,0.22-beta2,0.22", `beta: version order ${sorted.join(" < ")}`);
+  }
+}
+/* ------------ several FM-1s (docs/INSTALL-COMPAT.md "Several FM-1s"): the unit's ID shown, the writes refused --- */
+{
+  const ins = [{ name: "X", state: "connected" }, { name: "Y", state: "connected" }, { name: "X", state: "connected" }];
+  const outs = [{ name: "X", state: "connected" }, { name: "X", state: "connected" }, { name: "Y", state: "connected" }];
+  const acc = { inputs: new Map(ins.map((p, i) => ["i" + i, p])), outputs: new Map(outs.map((p, i) => ["o" + i, p])) };
+  ok(pairOutput(acc, ins[0]) === outs[0] && pairOutput(acc, ins[2]) === outs[1] && pairOutput(acc, ins[1]) === outs[2],
+     "pairOutput: two ports of one name (two FM-1s): the k-th input with the k-th output of that name; one name alone as before");
+  // two FM-1s on one Web MIDI access, their ports of the same name ("FM-1")
+  const both = (...devs) => ({ requestMIDIAccess: async () => ({
+    get inputs() { return new Map(devs.flatMap((d) => [...d.access.inputs])); },
+    get outputs() { return new Map(devs.flatMap((d) => [...d.access.outputs])); } }) });
+  const crA = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData(), "A1B2C3D4"), crB = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData(), "0F0E0D0C");
+  const A = new FakeFM1(image, { identity: "FM-1_920", bk: () => crA }), B = new FakeFM1(image, { identity: "FM-1_920", bk: () => crB });
+  const one = runPage({ navigator: both(A), fetch: pkgFetch(raw) });
+  await settle();
+  await one.$["check-go"].fire("click");
+  ok(one.$.unit.textContent.endsWith(en.cnUnitId.replace("{id}", "A1B2C3D4")) && one.$.unit.className === "unit" && A.upgrades === 0,
+     `check, one FM-1: its unit ID in the answer ("${one.$.unit.textContent}")`);
+  const p = runPage({ navigator: both(A, B), fetch: pkgFetch(raw) });
+  await settle();
+  await p.$["check-go"].fire("click");
+  ok(p.$.unit.textContent.startsWith("2 FM-1s are connected: unit ID A1B2C3D4 (ChoralRoot 0.1, port FM-1); unit ID 0F0E0D0C (ChoralRoot 0.1, port FM-1).") &&
+     p.$.unit.className === "unit", `check, two FM-1s whose ports have one name: both reached, each with its unit ID ("${p.$.unit.textContent.slice(0, 90)}…")`);
+  await p.$.go.fire("click");
+  ok(p.$.status.textContent.startsWith(en.several) && p.$.status.textContent.includes("A1B2C3D4") && p.$.status.textContent.includes("0F0E0D0C") &&
+     A.upgrades === 0 && B.upgrades === 0 && !p.downloads.length && !p.$.go.disabled, "Install, two FM-1s: refused before anything is written, both IDs said");
+  await p.$["backup-go"].fire("click");
+  const afterBackup = p.$.status.textContent;
+  await p.$["snd-read"].fire("click");
+  ok(afterBackup.startsWith(en.several) && p.$.status.textContent.startsWith(en.several) && !p.downloads.length && !crA.log.length && !crB.log.length,
+     "Back up and the Sounds, two FM-1s: refused too (the page does not pick one)");
 }
 function dateOf(iso) {
   const [y, m, d] = iso.split("-").map(Number);

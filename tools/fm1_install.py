@@ -26,11 +26,23 @@ the FM-1 restarts and the installed identity is checked.
   fm1_install.py --restore FILE       (write a backup back; ChoralRoot restarts afterwards)
   fm1_install.py PACKAGE.fwsc --backup FILE [--restore FILE]   (back up, install, restore onto the new firmware)
   fm1_install.py --sounds             (ChoralRoot: list the 32 user sounds U01..U32)
+  fm1_install.py --restore-favorites FILE [--yes]   (0.22 on: a --favorites text's marks back into object 23)
+  fm1_install.py --favorites          (ChoralRoot 0.22 on: the sounds marked as favorites, read-only; P5's programs as
+                                       lines for assets/prophet5-factory/shipped.txt: tools/p5_shipped_from_favorites.py)
   fm1_install.py --export-sound N FILE   (user sound N to a sound file; FILE may be a directory)
   fm1_install.py --import-sound N FILE   (a sound file into slot N) [--yes]
   fm1_install.py --rename-sound N NAME   /   --delete-sound N [--yes]
   fm1_install.py --export-syx N FILE     (an FM6 voice / CZ-1 tone as .syx: DX7 single voice / Casio tone dump)
   fm1_install.py --import-syx N FILE [--voice V] [--yes]   (a DX7 voice or bank, or a CZ-1 tone, into slot N)
+
+Several FM-1s on one computer (docs/INSTALL-COMPAT.md "Several FM-1s"): --info lists every FM-1 it finds, each with its
+unit ID (ChoralRoot from 0.22: 8 hex digits, also under Options > Version on the unit). --unit ID, with any command,
+uses only the FM-1 whose INFO answers with that ID (none or several: exit 3 / 9, nothing done); an install with --unit
+takes the update mode only from the one MIDI port that appears when that FM-1 restarts, and checks the ID again when it
+is back; it never rescans MIDI. Without --unit, while several FM-1s answer, a command that writes to an FM-1 or
+restarts it is refused (exit 9) with their IDs; a read-only one reads the first, as with one FM-1, and says so.
+  fm1_install.py --info                       (every FM-1: its port, identity, version, unit ID)
+  fm1_install.py PACKAGE.fwsc --unit A1B2C3D4 (the same with every command)
 
 An install that was interrupted (the cable, the battery): on a ChoralRoot with the boot stub (docs/BOOT-SAFETY.md;
 from 0.16 on, 0.15 and older do not have it) the FM-1 comes back in update mode at the next power-on (three LED flashes, a black screen): run
@@ -59,7 +71,9 @@ Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 loader / no restart), 6 wrong model, or another identity after the install,
 7 the backup, restore or sound write failed (or the firmware has no backup protocol, or is not ChoralRoot for the
 sounds), 8 the running firmware is one ChoralRoot
-is not installed over (Sloop, the Felucca 0.x betas, unknown ones: docs/INSTALL-COMPAT.md; --force overrides).
+is not installed over (Sloop, the Felucca 0.x betas, unknown ones: docs/INSTALL-COMPAT.md; --force overrides), 9 several
+FM-1s where one is needed: connected without --unit for a command that writes or restarts, several ports answering with
+the --unit ID, or more than one new port (or a new port that cannot be told apart) at an install's restart with --unit.
 
 No MIDI call can hold the tool: the ports are opened, listed and closed in worker processes, each wait has a bound,
 and a port that does not open or answer in time is given up with the codes above (3 not found, 4 lost, 5 no restart)
@@ -76,6 +90,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 
 HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
@@ -101,7 +116,7 @@ DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0,
 
 EXIT = {"usage": 2, "badpkg": 2, "badbackup": 2, "notfound": 3, "model": 6, "lost": 4, "stopped": 4, "badreq": 4,
         "nobackup": 7, "backup": 7, "nosounds": 7, "unsupported": 8, "badsound": 2,
-        "noloader": 5, "noreturn": 5, "mismatch": 6}
+        "noloader": 5, "noreturn": 5, "mismatch": 6, "several": 9}
 
 
 class InstallError(Exception):
@@ -387,20 +402,22 @@ def midi_worker(stuck):
         if tag == b"r":
             return str(getattr(rtmidi, "rescan", midi_rescan)()).encode()
         if tag == b"o":
-            names = json.loads(data)
+            names = json.loads(data)                      # (port_labels' names: "NAME [2]", the second NAME)
             if names[0] is not None:
                 inp = rtmidi.MidiIn()
                 inp.ignore_types(sysex=False, timing=True, active_sense=True)   # SysEx in; the clock stays out
-                inp.open_port(inp.get_ports().index(names[0]))
+                k = port_index(inp.get_ports(), names[0])
+                inp.open_port(inp.get_ports().index(names[0]) if k is None else k)   # (not there: ValueError)
             if names[1] is not None:
                 out = rtmidi.MidiOut()
-                out.open_port(out.get_ports().index(names[1]))
+                k = port_index(out.get_ports(), names[1])
+                out.open_port(out.get_ports().index(names[1]) if k is None else k)
         elif tag == b"s":
             out.send_message(data)
         elif tag == b"l":
             # asked of the open port: the list is the process's own, a client made for the question would see the
             # same; and no client comes and goes while an answer is on its way (the tool asks every DELAY gone)
-            if names[0] in inp.get_ports() if inp else names[1] in out.get_ports():
+            if (port_index(inp.get_ports(), names[0]) if inp else port_index(out.get_ports(), names[1])) is not None:
                 return b"\0"
             taken()                                       # gone: what it sent before it left, first
             return b"\1"
@@ -593,7 +610,7 @@ class MidiBackend:
 
     def names(self, k):
         r = self.ask(b"n", "the list of the MIDI ports")
-        return [] if r[:1] == b"!" else list(dict.fromkeys(json.loads(r)[k]))
+        return [] if r[:1] == b"!" else port_labels(json.loads(r)[k])    # (two ports of one name: both, the 2nd "[2]")
 
     def input_names(self):
         return self.names(0)
@@ -662,6 +679,29 @@ class Link:
                 pass
 
 
+def port_labels(raw):
+    """the ports as the tool names and opens them: a name that several ports share (two FM-1s: "ChoralRoot FM-1"
+    twice, as CoreMIDI may list them) is the first one's, " [2]", " [3]" ... are added to the next ones', in the
+    system's order; a name of one port stays as it is (one FM-1: the names are the system's)"""
+    seen, out = {}, []
+    for n in raw:
+        k = seen[n] = seen.get(n, 0) + 1
+        out.append(n if k == 1 else f"{n} [{k}]")
+    return out
+
+
+def port_index(raw, label):
+    """the index in the system's list `raw` of the port `label` names (port_labels), or None"""
+    labels = port_labels(raw)
+    return labels.index(label) if label in labels else None
+
+
+def port_base(label):
+    """the system's name of the port a label names (port_labels: " [k]" off, k >= 2)"""
+    m = re.fullmatch(r"(.*) \[(\d+)\]", label)
+    return m[1] if m and int(m[2]) >= 2 else label
+
+
 def pair_output(name, outs):
     if name in outs:
         return name
@@ -677,6 +717,47 @@ def pair_output(name, outs):
 class Device:
     def __init__(self, link, ident, name):
         self.link, self.id, self.name = link, ident, name
+
+
+class Probe:
+    """what one port answered (Updater.survey): the identity, and from a running firmware its INFO (version, family,
+    unit ID or None; None: no backup protocol)"""
+
+    def __init__(self, name, ident, info):
+        self.name, self.ident, self.info = name, ident, info
+
+    @property
+    def uid(self):
+        return self.info[2] if self.info else None
+
+    @property
+    def version(self):
+        return self.info[0] if self.info else None
+
+
+def id_text(p):
+    """a probe's unit ID in words (--info)"""
+    if p.uid:
+        return p.uid
+    if p.ident.loader:
+        return "none in update mode"
+    if not p.info:
+        return "none (no INFO answer: the stock firmware, or another without the backup protocol)"
+    return "none (not ChoralRoot: ChoralRoot from 0.22 has one)" if p.info[1] != "choralroot" else \
+        "none (a ChoralRoot from before the unit ID: an update brings it)"
+
+
+def units_text(probes):
+    """one line per FM-1: port, identity, version, unit ID"""
+    w = max(len(p.name) for p in probes)
+    return "\n".join(f"  {p.name:<{w}}  {p.ident.text:<12}  {p.version or ('update mode' if p.ident.loader else '-'):<20}  "
+                     f"unit ID {p.uid or 'none'}" for p in probes)
+
+
+def several_text(probes, what):
+    return (f"{len(probes)} FM-1s are connected: name the FM-1 {what} with --unit ID (fm1_install.py --info lists "
+            f"them):\n{units_text(probes)}\n  An FM-1 without a unit ID (update mode, the stock firmware, another firmware, "
+            "a ChoralRoot from before the unit ID) cannot be named: unplug the other FM-1s and run this again.")
 
 
 def handshake(link, tries=3):
@@ -696,10 +777,152 @@ def handshake(link, tries=3):
 
 
 class Updater:
-    def __init__(self, backend, port=None):
+    """unit (--unit ID): only the FM-1 whose INFO answers with that ID is used (select(): the port it is on, found
+    before the first command; mine(): every port a command or a wait takes is checked again). acting: the command
+    writes to the FM-1 or restarts it; without --unit it is refused while several FM-1s answer (ready())"""
+
+    def __init__(self, backend, port=None, unit=None, acting=False, out=None):
         self.backend = backend
         self.port = port
         self.gave_up = None                       # the last MIDI call that did not return within its bound
+        self.unit = unit.upper() if unit else None
+        self.acting, self.out, self.checked = acting, out, False
+        self.only = None                          # --unit: the port the unit is on (select; after a restart, verify)
+        self.loader_port = None                   # --unit: the update-mode port its restart brought (wait_new)
+        self.fresh = None                         # --unit: the ports before the last restart (a Counter of the
+        #                                           system's names), for a firmware that comes back without an ID
+        self.unverified = None                    # --unit: what came back without an ID and was taken (fresh)
+
+    def ready(self):
+        """once, before the first port a command takes: --unit finds its unit (select); without it, several FM-1s
+        refuse a command that writes or restarts, and a read-only one says which it reads. With at most one
+        candidate port nothing is asked: one FM-1 runs as it always has"""
+        if self.checked:
+            return
+        self.checked = True
+        if self.unit:
+            p = self.select()
+            if self.out:
+                print(f"unit {self.unit}: {p.version} ({p.ident.text}) on port {p.name}", file=self.out)
+            return
+        if len(self.candidates(True)) < 2:
+            return
+        fm1 = [p for p in self.survey(True)[0] if model_of(p.ident.text) == "FM-1"]
+        if len(fm1) < 2:
+            return
+        if self.acting:
+            raise InstallError("several", several_text(fm1, "this command is for"))
+        if self.out:
+            print(f"note: {len(fm1)} FM-1s are connected; this reads the first that answers, as with one (--unit ID "
+                  f"names one):\n{units_text(fm1)}", file=self.out)
+
+    def survey(self, only_port=True):
+        """every candidate port asked the identity and (a running firmware) INFO, each link closed again ->
+        ([Probe of each port that answered], [the ports that did not])"""
+        outs = self.names(outs=True)
+        ins = self.names() if outs else []
+        got, silent = [], []
+        for name in self.candidates(only_port, ins, every=True) if outs else []:
+            out = pair_output(name, outs)
+            link = self.open(name, out) if out else None
+            ident = info = None
+            if link:
+                try:
+                    ident = handshake(link, 2)
+                    info = device_info(BackupLink(link), with_id=True) if ident and not ident.loader else None
+                finally:
+                    link.close()
+            if ident:
+                got.append(Probe(name, ident, info))
+            else:
+                silent.append(name)
+        return got, silent
+
+    def select(self):
+        """--unit: the one port whose FM-1 answers INFO with the ID -> its Probe (self.only). None, or several:
+        InstallError (exit 3, 9), nothing sent to any FM-1 but the identity and INFO questions"""
+        probes, _silent = self.survey(True)
+        hits = [p for p in probes if p.uid == self.unit]
+        if len(hits) == 1:
+            self.only = hits[0].name
+            return hits[0]
+        if hits:
+            raise InstallError("several", f"{len(hits)} ports answer with unit ID {self.unit}: "
+                                          f"{', '.join(p.name for p in hits)}; nothing was done")
+        seen = f"\n  what answered:\n{units_text(probes)}" if probes else ""
+        raise InstallError("notfound", f"no FM-1 answers with unit ID {self.unit}{seen}\n  An FM-1 in update mode or "
+                                       "without ChoralRoot's unit ID cannot be named: unplug the other FM-1s and run "
+                                       "this without --unit")
+
+    def mine(self, link, ident, name, ins):
+        """--unit: is the FM-1 on this port the unit? A running firmware: its INFO's ID. Update mode (no ID): only
+        the one port the switch brought (wait_new). A firmware that answers without an ID (one installed that has
+        none): only as the one new port since the restart (self.fresh), whose name no other port has"""
+        if not self.unit:
+            return True
+        if ident.loader:
+            return name == self.loader_port
+        info = device_info(BackupLink(link), with_id=True)
+        if info and info[2]:
+            return info[2] == self.unit
+        if self.unverified and name == self.only:     # (taken so after the install's restart: verify)
+            return True
+        if self.fresh is None:
+            return False
+        now, b = Counter(port_base(n) for n in ins), port_base(name)
+        if now[b] > self.fresh[b] and now[b] == 1:
+            self.unverified = f"{ident.text}" + (f" {info[0]}" if info else "")
+            return True
+        return False
+
+    def ports(self):
+        """the system's port names now, as a Counter (two FM-1s of one name: that name twice)"""
+        return Counter(port_base(n) for n in self.names())
+
+    def wait_new(self, before, target, secs):
+        """--unit, after the unit was asked to restart into update mode: the one MIDI port that appeared since
+        `before` (self.ports() while it was there), once the unit's own port (`target`) has gone -> the Device of
+        its update loader, or None in secs. Before anything is written, InstallError (exit 9) when more than one
+        new port appears, when the new port's name is another port's too, when it answers as something else than
+        an update loader, or when the unit's port is still there beside it (twice in a row)"""
+        end, tb, stay = time.monotonic() + secs, port_base(target), 0
+        while time.monotonic() < end:
+            now = self.ports()
+            new, gone = now - before, before - now
+            if sum(new.values()) > 1:
+                raise InstallError("several", f"more than one new MIDI port appeared while this FM-1 restarted into "
+                                              f"update mode ({', '.join(sorted(new.elements()))}): which one is its "
+                                              "update mode is not known, and nothing was written. Unplug the other "
+                                              "FM-1s, then run the install again without --unit: the FM-1 stays in "
+                                              "update mode until it is done")
+            if new:
+                name = next(iter(new))
+                if not gone[tb]:
+                    stay += 1
+                    if stay >= 2:
+                        raise InstallError("several", f"a new MIDI port appeared ({name}) while this FM-1's port "
+                                                      f"({target}) is still there: nothing was written. Unplug the "
+                                                      "other FM-1s and run the install again without --unit")
+                elif now[name] > 1:
+                    raise InstallError("several", f"the new MIDI port has the name of another port ({name}): which "
+                                                  "is this FM-1's update mode is not known, and nothing was written. "
+                                                  "Unplug the other FM-1s and run the install again without --unit")
+                else:
+                    outs = self.names(outs=True)
+                    out = pair_output(name, outs) if outs else None
+                    link = self.open(name, out) if out else None
+                    ident = handshake(link, 2) if link else None
+                    if ident and ident.loader:
+                        self.loader_port = name
+                        return Device(link, ident, name)
+                    if link:
+                        link.close()
+                    if ident:
+                        raise InstallError("several", f"the new MIDI port {name} answers as {ident.text}, not as an "
+                                                      "update loader: nothing was written. Unplug the other FM-1s "
+                                                      "and run the install again without --unit")
+            time.sleep(min(DELAY["retry"], max(0, end - time.monotonic())))
+        return None
 
     def names(self, outs=False):
         """the MIDI inputs (or outputs); none when the backend does not answer within the bound"""
@@ -739,6 +962,11 @@ class Updater:
         k = k if done and k else {}
         stuck = [n for n, off in k.get("midi", []) if off and n in k.get("usb", []) and
                  (PORT_RE.search(n) or (self.port and self.port.lower() in n.lower()))]
+        if stuck and self.unit:                   # (a rescan restarts every MIDI port of the computer, the other
+            #                                       FM-1s' too: with --unit the advice is the replug alone)
+            return (f"{stuck[0]} is on the USB bus, but its MIDI port is known to CoreMIDI as offline: unplug this "
+                    "FM-1's USB cable and plug it in again (with --unit nothing rescans MIDI: that would restart "
+                    "every MIDI port on this computer)")
         return (f"{stuck[0]} is on the USB bus, but its MIDI port is known to CoreMIDI as offline: Audio MIDI Setup > "
                 "MIDI Studio > Rescan MIDI (or fm1_install.py --rescan-midi), or replug the cable") if stuck else ""
 
@@ -759,8 +987,12 @@ class Updater:
                 (f"; {self.gave_up} did not return in time: replug the FM-1, or restart the computer"
                  if self.gave_up else "") + (f". {off}" if off else ""))
 
-    def candidates(self, only_port):
-        names = self.names()
+    def candidates(self, only_port, names=None, every=False):
+        """the ports to try, in order (names: the inputs, when already listed). With --unit, once its port is known
+        (self.only), only_port means that port alone (every: all the same)"""
+        names = self.names() if names is None else names
+        if self.only and only_port and not every:
+            return [n for n in names if n == self.only]
         if self.port:
             mine = [n for n in names if self.port.lower() in n.lower()]
             if only_port:
@@ -769,9 +1001,12 @@ class Updater:
         return [n for n in names if PORT_RE.search(n)]
 
     def find(self, want=None, only_port=True, end=None):
-        """the first matching port that answers the handshake (and want(identity)); no port is tried after `end`"""
+        """the first matching port that answers the handshake (and want(identity)); no port is tried after `end`.
+        With --unit only the unit's (mine)"""
+        self.ready()
         outs = self.names(outs=True)
-        for name in self.candidates(only_port) if outs else []:   # (no output, or no list in time: nothing to pair)
+        ins = self.names() if outs else []
+        for name in self.candidates(only_port, ins) if outs else []:   # (no output, or no list in time: nothing to pair)
             out = pair_output(name, outs)
             if not out or (end is not None and time.monotonic() >= end):
                 continue
@@ -779,7 +1014,7 @@ class Updater:
             if not link:
                 continue
             ident = handshake(link, 2)
-            if ident and (want is None or want(ident)):
+            if ident and (want is None or want(ident)) and self.mine(link, ident, name, ins):
                 return Device(link, ident, name)
             link.close()
         return None
@@ -832,6 +1067,7 @@ class Updater:
     def check(self, dev, image, step):
         """step 1: the running firmware checks the package and starts the loader"""
         step("start", dev.id.text)
+        before = self.ports() if self.unit else None    # (--unit: the ports while the unit is still there)
         dev.link.send(UPGRADE)
         time.sleep(DELAY["start"])
         served, finished, lost = self.serve(dev.link, image, FINISH_CHECK, DELAY["idle_check"],
@@ -843,7 +1079,15 @@ class Updater:
                                f"{served} requests; nothing was written")
         step("loader")
         time.sleep(DELAY["loader"])
-        ota = self.wait_for(lambda i: i.loader, DELAY["wait_loader"])
+        if self.unit:                             # only the one port its restart brings (wait_new)
+            ota = self.wait_new(before, dev.name, DELAY["wait_loader"])
+        else:
+            ota = self.wait_for(lambda i: i.loader, DELAY["wait_loader"])
+        if not ota and self.unit:
+            what = self.waited(DELAY["wait_loader"], "the one new MIDI port of this FM-1's update mode")
+            raise InstallError("noloader", f"the update loader did not appear ({what}). Unplug the other FM-1s, replug "
+                                           "this one and run the install again without --unit (in update mode it "
+                                           "has no ID): it stays in update mode until it is done")
         if not ota:
             what = self.waited(DELAY["wait_loader"], "a MIDI port that answers the identity query as ota-...")
             raise InstallError("noloader", f"the update loader did not appear ({what}). Replug the USB cable and "
@@ -853,6 +1097,8 @@ class Updater:
     def write(self, ota, image, step):
         """step 2: the loader reads and writes the whole package, then restarts"""
         step("write", 0)
+        if self.unit:
+            self.fresh = self.ports()             # (the ports before the restart into the new firmware: mine)
         ota.link.send(UPGRADE)
         time.sleep(DELAY["start"])
         served, finished, lost = self.serve(ota.link, image, FINISH_WRITE, DELAY["idle_write"],
@@ -867,6 +1113,12 @@ class Updater:
     def back(self):
         """the firmware after a restart -> Device (wait_for's bound), or the error that says what was waited for"""
         back = self.wait_for(lambda i: not i.loader, DELAY["wait_reboot"])
+        if not back and self.unit:
+            what = self.waited(DELAY["wait_reboot"], f"a MIDI port that answers INFO with unit ID {self.unit}")
+            raise InstallError("noreturn", f"the FM-1 with unit ID {self.unit} did not come back ({what}): unplug "
+                                           "and replug it (or power-cycle it), then fm1_install.py --info. A firmware "
+                                           "without the unit ID that came back under another FM-1's port name cannot "
+                                           "be told apart")
         if not back:
             what = self.waited(DELAY["wait_reboot"], "a MIDI port that answers the identity query as the firmware")
             raise InstallError("noreturn", f"the FM-1 did not come back ({what}): power-cycle it")
@@ -877,9 +1129,15 @@ class Updater:
         time.sleep(DELAY["reboot"])
         back = self.back()
         back.link.close()
+        if self.unit:                             # (the unit's port from now on: a restore after the install)
+            self.only, self.loader_port, self.fresh = back.name, None, None
         if back.id.text != product:
             raise InstallError("mismatch", f"written, but the FM-1 reports {back.id.text} (expected {product})")
         step("done", back.id.text)
+        if self.unit:
+            step("unit", f"unit ID {self.unit}: the same FM-1 after the restart (port {back.name})" if not self.unverified
+                 else f"unit ID: none from {self.unverified}, the firmware now on it; it is the one MIDI port that "
+                      f"appeared at the restart ({back.name}), taken as this FM-1")
         return back.id.text
 
     def install(self, dev, image, product, step=lambda *a: None):
@@ -942,8 +1200,9 @@ def debug_event(ms, what):
     return f"{ms & 0x7FFFFFFF:9d} ms  {'STALLED ' if ms >> 31 else ''}{name} wValue {wv} wIndex {wi}"
 BK_CHUNK = 256
 FELUCCA_IDS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 32, 33, 34]
-CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
-# (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the FM TONE patches, 40..49
+CR_IDS = [1, 6, 7, 8, 9, 10, 11, 12, 13] + list(range(14, 22)) + [22, 23] + list(range(40, 50))   # fm1backup.js CR_BACKUP_IDS
+# (9 the VA patches, 10 11 the FM6 patches, 12 13 the CZ-1 tones, 14..21 the CZ-1 banks, 22 the FM TONE patches, 23 the
+# favourites (0.22 on; a firmware before it does not list 23, and a restore skips what the FM-1 does not list), 40..49
 # loops; no samples)
 KNOWN_IDS = set(FELUCCA_IDS) | set(CR_IDS)
 BK_RC = {1: "invalid object, size or request", 2: "the data failed validation", 3: "busy: stop the loop on the FM-1",
@@ -1030,10 +1289,15 @@ def object_name(i):
         return "CZ-1 bank " + chr(ord("A") + i - 14)
     if i == 22:
         return "FM TONE patches"
+    if i == 23:
+        return "favorites"
     if is_sample(i):
         return f"sample slot {i - 31}"
     if 40 <= i <= 49:
         return f"loop slot {i - 39}"
+    if 50 <= i <= 62:                              # 0.22: the sound pool's banks (10 slots each, the last 121..128)
+        a = (i - 50) * 10 + 1
+        return f"user sounds {a:03d}-{min(a + 9, 128):03d}"
     return f"object {i}"
 
 
@@ -1088,13 +1352,34 @@ def bk_manifest(a):
     return out
 
 
-def device_info(bl):
-    """INFO -> (version, family), or None when the firmware does not answer"""
+UNIT_TAG = 0x49                                   # INFO's tag of the unit's ID (cr_backup.c CRB_INFO, 3y66)
+
+
+def unit_id_of(a):
+    """the unit's ID in ChoralRoot's INFO reply -> "A1B2C3D4", or None. The reply: the version, its NUL, Felucca's 7
+    bytes (no engines), then tagged fields, tag len value: 42 01 03, 43 01 03, and from 3y66 49 08 and the ID's 8 hex
+    digits (none known: no tag). Hosts before it read the version to its NUL and nothing after it"""
+    if 0 not in a:
+        return None
+    p = a.index(0) + 8
+    while p + 2 <= len(a) and p + 2 + a[p + 1] <= len(a):
+        v = bytes(a[p + 2:p + 2 + a[p + 1]])
+        if a[p] == UNIT_TAG and re.fullmatch(rb"[0-9A-F]{8}", v):
+            return v.decode()
+        p += 2 + a[p + 1]
+    return None
+
+
+def device_info(bl, with_id=False):
+    """INFO -> (version, family), with_id: (version, family, the unit's ID or None); None when the firmware does not
+    answer"""
     try:
         a = bl.request(BK_INFO, [], DELAY["info"])
     except BackupError:
         return None
     v = bytes(a[:a.index(0)] if 0 in a else a).decode("latin-1")
+    if with_id:
+        return v, family(v), unit_id_of(a) if family(v) == "choralroot" else None
     return v, family(v)
 
 
@@ -1348,26 +1633,55 @@ def run_restore(up, path, out, ask, yes):
 
 SOUND_IDS = (6, 7, 9, 10, 11, 12, 13, 22)        # the banks, the VA store, the FM6 halves, the CZ-1 halves, the FM TONE
                                                  # store (22: firmware 0.14 on; read when the FM-1 lists it)
-SOUND_SLOTS, SOUND_PER_BANK, SOUND_REC = 32, 16, 192
+SOUND_SLOTS, SOUND_PER_BANK, SOUND_REC = 128, 16, 192   # 0.22: the sound pool's 128 (LEGACY_SLOTS: 0.21's 32)
+LEGACY_SLOTS = 32
+# 0.22, the sound pool (docs/PRESETS.md "The pool"): ids 50..62, 13 banks of 10 slots of 384 bytes: the record, at 192
+# the patch's engine + 1 (0: none), at 193 its length, the patch from 196
+POOL_IDS = tuple(range(50, 63))
+POOL_PER, POOL_SLOT, POOL_HDR, POOL_DATA = 10, 384, 192, 196
+POOL_BANK = POOL_PER * POOL_SLOT                 # 3840
 ENGINE_NAMES = ("ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS", "DRUM",
-                "NOISE", "FM6", "VA", "CZ-1", "FM TONE")   # ENGINES[] (append-only; 0, 1, 4, 8, 10 retired: ANALOG
+                "NOISE", "FM6", "VA", "CZ-1", "FM TONE", "P5")   # ENGINES[] (append-only; 0, 1, 4, 8, 10 retired: ANALOG
                                                           # since 0.14; 2, 3, 5, 6, 11, 9 retired in 0.18: PHASE, LOFI,
                                                           # VOICE, TRIO, NOISE, PHYS). 15: FM TONE (eng_quad.c, code name QUAD)
-ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz", 15: "quad"}  # engine -> its patch kind
-PATCH_KINDS = ("va", "fm6", "cz", "quad")
-PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144, "quad": 80}
+ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz", 15: "quad", 16: "p5"}  # engine -> its patch kind (P5: the pool only)
+PATCH_KINDS = ("va", "fm6", "cz", "quad", "p5")
+PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144, "quad": 96, "p5": 138}
+# a kind's blob in the legacy stores (before the pool): FM TONE's 80 (versions 1..3; versions 4 and 5, 2026-10-14: 96
+# bytes, the hi-res values in hundredths; the FM-1 converts a version 4 on load). A version 1..3 blob is zero-padded to 96 (the firmware converts it on load)
+STORE_PATCH = dict(PATCH_SIZE, quad=80)
+QUAD_V3 = 80
+
+
+def _quad96(b):
+    """an FM TONE blob of 80 bytes (versions 1..3) zero-padded to 96; 96 as it is"""
+    return bytes(b) + bytes(PATCH_SIZE["quad"] - len(b)) if len(b) == QUAD_V3 else bytes(b)
+KIND_ENGINE = {k: e for e, k in ENGINE_PATCH.items()}
+
+
+def is_pool(objs):
+    """the objects are the sound pool's (0.22: any of ids 50..62), else 0.21's"""
+    return any(i in objs for i in POOL_IDS)
+
+
+def _pool_at(slot):
+    return POOL_IDS[0] + (slot - 1) // POOL_PER, ((slot - 1) % POOL_PER) * POOL_SLOT
 PATCH_ID = {"va": 9, "fm6": 10, "cz": 12, "quad": 22}   # the store (the first half for FM6 / CZ-1)
 UPB_MAGIC, VAS_MAGIC, FM6U_MAGIC, CZU_MAGIC, QUDS_MAGIC = 0x31425055, 0x31534156, 0x55364D46, 0x55315A43, 0x53445551
 BANK_SIZE = 8 + SOUND_PER_BANK * SOUND_REC     # 3080
-STORE_SIZE = {"va": 16 + SOUND_SLOTS * 110, "fm6": 16 + 16 * 128, "cz": 16 + 16 * 144,
-              "quad": 16 + SOUND_SLOTS * 80}   # 3536, 2064, 2320, 2576
+STORE_SIZE = {"va": 16 + LEGACY_SLOTS * 110, "fm6": 16 + 16 * 128, "cz": 16 + 16 * 144,
+              "quad": 16 + LEGACY_SLOTS * 80}   # 3536, 2064, 2320, 2576
 WHOLE_STORES = ("va", "quad")                  # one store of 32 (the others: two halves of 16), its used mask at 8
 SOUND_FORMAT = "choralroot-sound"
 # the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
-# CZ-1's preset 0, INIT TONE, is the pool's INIT): tests/sound_templates.c prints both from the firmware, and its
-# --check fails until the two lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
-FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"]}
-FACTORY_FIRST = {"7":0,"12":0,"13":0,"14":1,"15":0}
+# CZ-1's preset 0, INIT TONE, and P5's, INIT P5, are the pools' INIT; P5's presets are the shipped list,
+# assets/prophet5-factory/shipped.txt); FACTORY_IDS: a preset's favourites id where it is not its index (P5: its
+# Sequential program number, the device manager's marks): tests/sound_templates.c prints the three from the firmware
+# built as the unit is, and its --check fails until the three lines below hold its strings verbatim (docs/SOUNDS.md
+# "The binding")
+FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"],"16":["INIT P5","ITS PROPHET5","AFTER RINGER","FOREVER KEYS","STABBY BRASS","NO WHINING","FANTASTIC 5","PDG ORGAN","CLAVICLE","BLOW BY BLOW","TAARICHOIR","REEDY STRPAD","CANNED HAPPY","SYNCHROTRILL","BORN IN 80S","STICKY PLUCK","WATERY PLUCK","BASS FACE","WHINY OPENER","SYNCTINK","TREMBL ORGAN","SCI-FI ECHO","UNICORN DRMS","COCKTAIL HR","NICE SMOOTH","TUMESC BASS","INTERNALIZED","BLINKR BELLS","UWATER TRILL","POLY MCFAT","REED EP","PIPE ORGANIS","FAT POLYBASS","CHORAL VOICE","HUM-ALONG","AFTRBLW HORN","MIDNIGHT PWM","RIPPLES","RADIO TOWERS","HARPSI-VIBE","INSTABIL PAD","VINTAGE WRLY","PRESSURE PTS","80S HORROR","NURSERYCOMP","HOUSE MOVER","VOCAL PAD","SQUARECLIFF","UNDER ICE","MARIMBA","UNISAWYER","RECORDER","GHOSTLY GLOW","UPTIGHT BASS","RAVECAVE","CELTIC MOON","MOUSE BLASTR","KYOTO","ORGAN PERC","DRM ORGONON","PLUCK HOLLOW","VELO RES LD2","REGAL MOVMNT","LOOSE SQUARE","RUBBR BUMPER","GALV BUCKET","SOFT SWELL","REVERB STRGS","LAGOON BASS","PLUCKTY DUCK","BELL TREE","RISER CHORD","TIMPANALLY","TUNED PERC","FUNKY BELLS","FEDBACK","NYLON FINGRS","FAINT MEMORY","FULL HEXAGON","ICONIC BRASS","SYNC SWELLPD","PRETTY PLUCK","FEATURE BASS","CHORUSLAYER","BETTER WAYS","BASSMENT","DENOUEMENT","SYNCWAVE","ORGANIZER","BULL BY HORN","NAIVE MELODY","POLY MORGUE","SWITCHBACK","PLUCKYNESS","CYBERIAN WND","METAL DRONE","LOW STRINGS","PERC E PIANO","FLUTES","PERC ORGAN","UNISON GLIDE","ORGAN W RES","TOY PIANO","TRUMPT FLUTE","ELEC PIANO I","OCTAVE SAWS","DELAYED HARM","ECHO REPEAT","PULSE W MOD","4THS W RES","SWEEP HARMS","SLOW SYNC","NOISE SWEEP","RES BELLS","HOLLOW SOUND","CAT"]}
+FACTORY_FIRST = {"7":0,"12":0,"13":0,"14":1,"15":0,"16":1}
+FACTORY_IDS = {"16":[0,1,2,3,6,7,8,10,11,12,13,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,41,43,45,46,47,51,53,54,56,59,60,61,62,65,66,67,68,70,72,77,79,82,83,85,86,87,89,92,93,95,97,100,101,103,104,107,108,109,110,111,112,113,114,115,117,120,122,123,127,128,131,132,133,135,136,137,139,140,142,143,146,147,148,150,152,156,159,162,164,165,168,169,171,172,173,179,181,183,184,185,187,188,189,194,198,199,200]}
 BIND_MARK, BIND_NOTE, BIND_FLAGS = 0xA6, 160 + 15, 176 + 15   # note[15] = the mark, flags[15] = factory index + 1
 
 
@@ -1405,8 +1719,8 @@ def _store_at(kind, slot):
     """-> (backup id, index in that store, byte offset of the blob)"""
     k = slot - 1
     if kind in WHOLE_STORES:
-        return PATCH_ID[kind], k, 16 + k * PATCH_SIZE[kind]
-    return PATCH_ID[kind] + k // 16, k % 16, 16 + (k % 16) * PATCH_SIZE[kind]
+        return PATCH_ID[kind], k, 16 + k * STORE_PATCH[kind]
+    return PATCH_ID[kind] + k // 16, k % 16, 16 + (k % 16) * STORE_PATCH[kind]
 
 
 def _store_ok(kind, i, b):
@@ -1424,7 +1738,7 @@ def _new_store(kind, i):
     if kind in WHOLE_STORES:
         head = (VAS_MAGIC if kind == "va" else QUDS_MAGIC).to_bytes(4, "little") \
             + (3 if kind == "va" else 1).to_bytes(2, "little") + (32).to_bytes(2, "little") + bytes(4) \
-            + PATCH_SIZE[kind].to_bytes(2, "little") + bytes(2)
+            + STORE_PATCH[kind].to_bytes(2, "little") + bytes(2)
     else:
         head = (FM6U_MAGIC if kind == "fm6" else CZU_MAGIC).to_bytes(4, "little") + (1).to_bytes(2, "little") \
             + (16).to_bytes(2, "little") + (16 * (i - PATCH_ID[kind])).to_bytes(2, "little") \
@@ -1434,16 +1748,52 @@ def _new_store(kind, i):
 
 def _store_blob(objs, kind, slot):
     """the blob of `kind` stored for slot (its used bit set in a well-formed store), or None"""
+    if is_pool(objs):                              # (the pool: the slot's patch when it is that kind's)
+        i, off = _pool_at(slot)
+        b = objs.get(i, b"")
+        n = b[off + POOL_HDR + 1] if len(b) == POOL_BANK else 0
+        if len(b) != POOL_BANK or b[off + POOL_HDR] != KIND_ENGINE[kind] + 1 or \
+                (n != PATCH_SIZE[kind] and not (kind == "quad" and n == QUAD_V3)):   # (an older FM TONE slot: 80)
+            return None
+        d = bytes(b[off + POOL_DATA:off + POOL_DATA + n])
+        return _quad96(d) if kind == "quad" else d
+    if kind == "p5":
+        return None
     i, k, off = _store_at(kind, slot)
     b = objs.get(i, b"")
     if not _store_ok(kind, i, b) or not _u32(b, 8 if kind in WHOLE_STORES else 12) >> k & 1:
         return None
-    return bytes(b[off:off + PATCH_SIZE[kind]])
+    d = bytes(b[off:off + STORE_PATCH[kind]])
+    return _quad96(d) if kind == "quad" else d
 
 
 def _set_blob(objs, kind, slot, blob):
     """objs[store] with slot's blob set (bit set) or, blob None, cleared (bit cleared, bytes zeroed). An empty or
     malformed store (the FM-1 reads it as empty) is created from the header when a blob goes in, else left alone."""
+    if is_pool(objs):
+        i, off = _pool_at(slot)
+        b = objs.get(i, b"")
+        if blob is None and (len(b) != POOL_BANK or b[off + POOL_HDR] != KIND_ENGINE[kind] + 1):
+            return
+        b = bytearray(b if len(b) == POOL_BANK else bytes(POOL_BANK))
+        b[off + POOL_HDR:off + POOL_SLOT] = bytes(POOL_SLOT - POOL_HDR)
+        if blob is not None:
+            b[off + POOL_HDR], b[off + POOL_HDR + 1] = KIND_ENGINE[kind] + 1, PATCH_SIZE[kind]
+            b[off + POOL_DATA:off + POOL_DATA + len(blob)] = blob
+        objs[i] = bytes(b)
+        return
+    if kind == "p5":
+        if blob is not None:
+            raise InstallError("usage", "this FM-1 keeps no P5 programs (ChoralRoot 0.22 or later needed)")
+        return
+    if kind == "quad" and blob is not None:        # (a firmware before the pool keeps versions 1..3, 80 bytes)
+        if blob[1] > 3:
+            raise InstallError("usage", "this FM-1 keeps FM TONE sounds in an older format: update ChoralRoot (0.22 or "
+                               "later) to add this one")
+        blob = bytes(blob[:QUAD_V3])
+    if kind == "va" and blob is not None and blob[1] > 3:   # (its va_blob_ok takes 1..3: a version 4 / 5 would play INIT)
+        raise InstallError("usage", "this FM-1 keeps VA sounds in an older format: update ChoralRoot (0.22 or later) "
+                           "to add this one, or place it with the web device manager, which converts it")
     i, k, off = _store_at(kind, slot)
     b = objs.get(i, b"")
     if not _store_ok(kind, i, b):
@@ -1455,12 +1805,22 @@ def _set_blob(objs, kind, slot, blob):
     used = _u32(b, uo)
     used = used | 1 << k if blob is not None else used & ~(1 << k)
     b[uo:uo + 4] = used.to_bytes(4, "little")
-    b[off:off + PATCH_SIZE[kind]] = blob if blob is not None else bytes(PATCH_SIZE[kind])
+    b[off:off + STORE_PATCH[kind]] = blob if blob is not None else bytes(STORE_PATCH[kind])
     objs[i] = bytes(b)
 
 
 def _set_record(objs, slot, rec):
     """objs[bank] with slot's record replaced; an empty or malformed bank is created when a sound goes in"""
+    if is_pool(objs):
+        i, off = _pool_at(slot)
+        b = objs.get(i, b"")
+        if len(b) != POOL_BANK:
+            if not any(rec):
+                return
+            b = bytes(POOL_BANK)
+        tail = bytes(b[off + SOUND_REC:off + POOL_SLOT]) if any(rec) else bytes(POOL_SLOT - SOUND_REC)
+        objs[i] = bytes(b[:off]) + bytes(rec) + tail + bytes(b[off + POOL_SLOT:])
+        return
     i, off = 6 + (slot - 1) // 16, 8 + ((slot - 1) % 16) * SOUND_REC
     b = objs.get(i, b"")
     if not _bank_ok(b):
@@ -1471,6 +1831,10 @@ def _set_record(objs, slot, rec):
 
 
 def _record(objs, slot):
+    if is_pool(objs):
+        i, off = _pool_at(slot)
+        b = objs.get(i, b"")
+        return bytes(b[off:off + SOUND_REC]) if len(b) == POOL_BANK else bytes(SOUND_REC)
     b = objs.get(6 + (slot - 1) // 16, b"")
     if not _bank_ok(b):
         return bytes(SOUND_REC)
@@ -1521,15 +1885,23 @@ def binding_of(bound):
     return {"overwrites": bound["pos"], "name": bound["name"]} if bound else None
 
 
+def _slot_row(objs, slot):
+    """the slot's row of parse_sound_objects; a slot past the FM-1's (0.21: 32) is a usage error"""
+    table = parse_sound_objects(objs)
+    if not 1 <= slot <= len(table):
+        raise InstallError("usage", f"slot {slot}: this FM-1 has the user slots 1..{len(table)}")
+    return table[slot - 1]
+
+
 def parse_sound_objects(objs):
     """objs: {backup id: bytes} (b"" or missing: never written) -> the 32 slots, a dict each:
     slot, used, name, engine, engineName, patch (the kind when the slot's blob is stored, else None), record, blob,
     bound (None, or the factory preset it overwrites: sound_bindings), added (used and not bound)"""
     table = []
-    for slot in range(1, SOUND_SLOTS + 1):
+    for slot in range(1, (SOUND_SLOTS if is_pool(objs) else LEGACY_SLOTS) + 1):
         r = _record(objs, slot)
         row = {"slot": slot, "used": False, "name": "", "engine": None, "engineName": "", "patch": None,
-               "record": r, "blob": None, "bound": None, "added": False}
+               "record": r, "blob": None, "bound": None, "added": False, "pool": is_pool(objs)}
         if sound_record_valid(r):
             kind = ENGINE_PATCH.get(r[2])
             blob = kind and _store_blob(objs, kind, slot)
@@ -1544,12 +1916,18 @@ def parse_sound_objects(objs):
 def sound_line(row):
     """U05  MY PAD        FM6     patch     over FM6 02 FM BELL / U07  PAD 2  VA  patch  + / U06  (empty) /
     U17  BELL          PHASE   retired   + (a record of a retired engine: kept, an added preset of the VA's pool)"""
+    lab = slot_label(row["slot"], row.get("pool", row["slot"] > 99))
     if not row["used"]:
-        return f"U{row['slot']:02d}  (empty)"
+        return f"{lab}  (empty)"
     kind = ENGINE_PATCH.get(row["engine"])
     tail = "retired" if engine_retired(row["engine"]) else "" if not kind else "patch" if row["patch"] else "no patch"
     pool = f"over {row['bound']['label']} {row['bound']['name']}" if row.get("bound") else "+"
-    return f"U{row['slot']:02d}  {row['name']:<12}  {row['engineName']:<7} {tail:<8}  {pool}"
+    return f"{lab}  {row['name']:<12}  {row['engineName']:<7} {tail:<8}  {pool}"
+
+
+def slot_label(slot, pool=True):
+    """U005 (the pool's 128, 0.22), U05 (0.21's 32)"""
+    return f"U{slot:03d}" if pool else f"U{slot:02d}"
 
 
 def sound_file_name(slot, name):
@@ -1559,7 +1937,7 @@ def sound_file_name(slot, name):
 def export_sound(objs, slot, firmware):
     """slot 1..32 -> the sound file (a dict, "choralroot-sound" version 1)"""
     import base64
-    row = parse_sound_objects(objs)[slot - 1]
+    row = _slot_row(objs, slot)
     if not row["used"]:
         raise InstallError("emptyslot", f"U{slot:02d} is empty: nothing to export")
     patch = None
@@ -1630,21 +2008,24 @@ def read_sound_file(f):
             raise bad(f"a {kind} patch does not go with the engine {ENGINE_NAMES[engine]} "
                       + (f"(its patch kind is {want})" if want else "(it has no patch)"))
         data = b64(patch.get("data"), "the patch data")
+        if kind == "quad" and len(data) == QUAD_V3 and data[:1] == b"Q" and 1 <= data[1] <= 3:
+            data = _quad96(data)                   # (an FM TONE sound file of before 2026-10-14: the FM-1 converts it)
         if len(data) != PATCH_SIZE[kind]:
             raise bad(f"the {kind} patch is {len(data)} bytes, not {PATCH_SIZE[kind]}")
-        if kind == "va" and (data[0] != 0x56 or not 1 <= data[1] <= 3):
-            raise bad("not a VA patch (its first bytes are not 'V' and a version 1..3)")
+        if kind == "va" and (data[0] != 0x56 or not 1 <= data[1] <= 5):
+            raise bad("not a VA patch (its first bytes are not 'V' and a version 1..5)")
         if kind == "fm6" and (data[112] != 0x46 or data[113] != 1):
             raise bad("not an FM6 patch (bytes 112, 113 are not 'F', 1)")
-        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 3):
-            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..3)")
+        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 5 or (data[1] < 4 and any(data[80:]))):
+            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..5)")
         patch = (kind, bytes(data))
     return bytes(rec), name, engine, patch
 
 
 def _changes(old, new):
-    """the objects whose bytes changed, the stores first, the banks last"""
-    return [(i, new[i]) for i in (9, 10, 11, 12, 13, 22, 6, 7) if i in new and new[i] != old.get(i, b"")]
+    """the objects whose bytes changed, the stores first, the banks last (the pool: its banks in order)"""
+    order = POOL_IDS if is_pool(new) else (9, 10, 11, 12, 13, 22, 6, 7)
+    return [(i, new[i]) for i in order if i in new and new[i] != old.get(i, b"")]
 
 
 def import_sound(objs, slot, sound):
@@ -1652,6 +2033,8 @@ def import_sound(objs, slot, sound):
     the other kinds' blobs of that slot are cleared (as the FM-1 does when a sound is saved)."""
     rec, _name, _engine, patch = sound
     new = dict(objs)
+    if is_pool(new):                               # (the pool: from an empty slot, no byte of the last sound kept)
+        _set_record(new, slot, bytes(SOUND_REC))
     for kind in PATCH_KINDS:
         _set_blob(new, kind, slot, patch[1] if patch and patch[0] == kind else None)
     _set_record(new, slot, rec)
@@ -1671,6 +2054,7 @@ def rename_sound(objs, slot, name):
 
 
 def delete_sound(objs, slot):
+    """the pool: the whole slot sent empty (384 zeros, as the FM-1 writes one), the bank's other slots as read"""
     new = dict(objs)
     for kind in PATCH_KINDS:
         _set_blob(new, kind, slot, None)
@@ -1684,7 +2068,8 @@ def delete_sound(objs, slot):
 # the engine's template (generated from the firmware: tests/sound_templates.c; --check keeps these the firmware's).
 
 SOUND_TEMPLATES = {"fm6": "pQQMW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-                   "cz": "pQQOW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
+                   "cz": "pQQOW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQEBAQEBAQEIAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+                   "quad": "pQQPW1NZWCBJTVBPUlQAAKhKhpp8QEBAQHxAQEBAQEBAQEJBgEC/QEBAQEBAUEJAgEBAQEBAQEBAQEBAaEBBQb9AQEBAQEBAQEBAQEBAQL9Av0BAv0C/QEC/QL9AQL9Av0BAQUNDQ0BAQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"}
 SYX_ENGINE = {"fm6": 12, "cz": 14}
 SYX_EMPTY_NAME = {"fm6": "FM6 VOICE", "cz": "CZ TONE"}
 FM6_VCED, FM6_VMEM, FM6_BANK, CZ_TONE = 155, 128, 4096, 144
@@ -1909,7 +2294,7 @@ def sound_from_syx(kind, patch):
 
 def export_syx(objs, slot):
     """slot 1..32 (an FM6 / CZ-1 sound with its patch) -> (the .syx bytes, the sound's name)"""
-    row = parse_sound_objects(objs)[slot - 1]
+    row = _slot_row(objs, slot)
     if not row["used"]:
         raise InstallError("emptyslot", f"U{slot:02d} is empty: nothing to export")
     if row["engine"] not in SYX_ENGINE.values():
@@ -1930,7 +2315,9 @@ def read_sounds(bl, progress=lambda done, total: None):
     """LIST, then GET of the sound objects the FM-1 lists -> {id: bytes} (an object that changed while it was read
     is read again once)"""
     for attempt in range(2):
-        man = [o for o in bk_manifest(bl.request(BK_LIST, [], 3.0)) if o["id"] in SOUND_IDS]
+        listed = bk_manifest(bl.request(BK_LIST, [], 3.0))
+        pool = any(o["id"] in POOL_IDS for o in listed)  # (0.22: the sound pool; 0.21's objects are not listed then)
+        man = [o for o in listed if o["id"] in (POOL_IDS if pool else SOUND_IDS)]
         total, done, objs, changed = sum(o["size"] for o in man), 0, {}, False
         for o in man:
             def chunk(n):
@@ -1942,6 +2329,8 @@ def read_sounds(bl, progress=lambda done, total: None):
                 changed = True
                 break
         if not changed:
+            for i in (POOL_IDS if pool else ()):
+                objs.setdefault(i, b"")             # (a bank never written: listed with size 0)
             return objs
     raise BackupError("the FM-1 changed its sounds while they were read: try again with it stopped")
 
@@ -1998,9 +2387,14 @@ def run_sounds(up, a, out, ask):
             objs = read_sounds(bl, lambda d, t: prog.put(f"reading the sounds {d * 100 // max(1, t):3d}%"))
         finally:
             prog.end()
-        if 6 not in objs or 7 not in objs:
+        if not is_pool(objs) and (6 not in objs or 7 not in objs):
             raise InstallError("nosounds", f"{version} does not list the user sound banks")
         table = parse_sound_objects(objs)
+        for op in (a.export_sound, a.import_sound, a.rename_sound, a.delete_sound, getattr(a, "export_syx", None),
+                   getattr(a, "import_syx", None)):
+            n = op and str(op[0] if isinstance(op, (list, tuple)) else op)
+            if n and n.isdigit() and int(n) > len(table):
+                raise InstallError("usage", f"slot {n}: {version} has the user slots 1..{len(table)}")
         if a.sounds:
             print(f"user sounds on {version}:", file=out)
             for row in table:
@@ -2092,6 +2486,8 @@ def load_package(path, force):
 def not_found(up):
     names = up.names()
     where = f"no MIDI port matching {up.port!r} answered" if up.port else "FM-1 not found"
+    if up.unit:
+        where = f"the FM-1 with unit ID {up.unit} was not found"
     stuck = (f"\n  {up.gave_up} did not return within its bound ({DELAY['port']:g} s): replug the FM-1, or restart "
              "the computer") if up.gave_up else ""
     off = up.offline()
@@ -2111,7 +2507,7 @@ class Progress:
         else:
             self.end()
             msg = {"start": f"starting the update on {a}", "loader": "switching to update mode",
-                   "reboot": "restarting", "done": f"done: the FM-1 runs {a}"}[k]
+                   "reboot": "restarting", "done": f"done: the FM-1 runs {a}", "unit": a}[k]
             print(msg, file=self.out, flush=True)
 
     def put(self, s):
@@ -2145,8 +2541,84 @@ DEBUG_PEAK = ["pk_block_us", "pk_tick_us", "pk_part0_us", "pk_part1_us", "pk_fx_
               # draws"): the note-ons timed; us from the first scan that saw the key closed (its debounce, 1.1 .. 2.2
               # ms, in it) to the main loop posting the note-on (the longest), and to the audio ISR applying it (the
               # average, the longest); the sound leaves the DAC one half (2.9 ms) after that
-              "key_ons", "key_pick_us", "key_eng_avg_us", "key_eng_us"]
+              "key_ons", "key_pick_us", "key_eng_avg_us", "key_eng_us",
+              # 3y44, what the overload shed did since the last --debug (firmware/src/audio.c shed_check / shed_voice,
+              # docs/PROPHET.md "The crackle"; voices_shed was on the console alone): voices shed; the latest one
+              # (0 none, else 0x10000 | part << 12 | voice << 8 | note) and why (SHED_WHY); the halves above 85 % of
+              # the budget (one alone sheds nothing, two in a row do); the time of the half that asked for the latest
+              # shed, its lag in it; then voice.c's: voices faded out for another note, another part or the shed, and
+              # own sounding voices taken for a new note (a five-key chord on P5's four voices: one each)
+              "shed_voices", "shed_last_voice", "shed_last_why", "shed_over_halves", "shed_last_us",
+              "voices_faded", "voices_stolen",
+              # 3y46 (0.22), P5's voices on two cores since the last --debug (firmware/src/fx.c p5x_run, voice.c
+              # p5_pool_*; docs/PROPHET.md "Voices"): the most P5 voices core 0 and core 1 rendered in one block
+              # (four each is the rule; core 1's: the bass part's P5 voices and its share of the chord part's), the
+              # bass part's most P5 voices, and held bass voices given up to the chord part. Core 1's longest job of
+              # a half is pk_part1_us (the bass part and core 1's share of the chord's voices); pk_wait_us is how
+              # long core 0 waited for it at most
+              "p5_core0_voices", "p5_core1_voices", "p5_bass_voices", "p5_bass_given_up",
+              # 3y48 (the owner's stutter with an arp: "So not sure why it wrote to flash"), since power-on, never
+              # cleared: automatic erases started while something sounded in the second before (the rule: 0), the
+              # latest erase's writer (ERASE_WHY), object (OBJ_*; 0x100 + k a loop slot) and time (ms since power-on,
+              # 0 none); the time irq_gap_us happened (a peak, cleared with it), of ua_arm_gap_max_us, of the latest
+              # USB capture under- or overrun (the stream restarted); the unit's clock now. (p5-g e31c096 puts other
+              # values at 35..38 on its own list: merge by name, not by index)
+              "erases_auto_sounding", "last_erase_why", "last_erase_obj", "last_erase_ms", "irq_gap_ms",
+              "ua_arm_gap_max_ms", "ua_cap_reset_ms", "uptime_ms",
+              # 3y50, each core's half since the last --debug (firmware/src/cr_cpu1.h cr_dbg, fx.c mix_fx_split;
+              # docs/FX.md "Each core's half"): the largest busy time of core 0 (its stages but its waits) and of core
+              # 1 (its voices' job and the reverb's), core 0's waits in one half (both joins), the effects' join
+              # alone, core 1 idle between its two jobs; which core ran which effect in the largest whole half (1 the
+              # chorus, 2 the delay, 4 the reverb ran, 8 the reverb on core 1); the reverb jobs core 1 ran
+              "pk_c0_busy_us", "pk_c1_busy_us", "pk_c0_wait_us", "pk_fx_join_us", "pk_c1_idle_us", "pk_fx_map",
+              "c1_fx_jobs",
+              # 3y52: the quiet writes (p5-g e31c096's values 35..38 there, appended here by name; 0.22,
+              # firmware/src/cr_settings.c, storage.c "erase ahead"; docs/SETTINGS.md "When flash is written"), all
+              # since power-on: the saves the unit did by itself (an Option's, a favourite's), the erases done ahead
+              # (the session's and the favourites', not the settings': at power-on before the audio starts, after
+              # 10 s without a sound or an input), the erases the unit started by itself while a voice was active or within 2 s of an input (the rule:
+              # 0), the longest page program in us (the wait for the chip, the interrupts masked)
+              "saves_auto", "erases_ahead", "erases_near", "flash_prog_us",
+              # 3y60 (a full sound pool made the UI laggy; docs/PRESETS.md "What browsing reads"), since the last
+              # --debug: a UI frame's own time (input, LEDs, draw) the longest and the average in us; the flash reads
+              # per second (storage_hw.c st_read), calls and bytes
+              "ui_frame_max_us", "ui_frame_avg_us", "flash_reads_ps", "flash_read_bytes_ps",
+              # (the values below, 69..79, were 35..45 on the dual-core fallback's branch, worktree-dualcore-1:
+              # appended here by name, not by index)
+              # why this boot kept core 1 off although Options > Dual Core said On (firmware/src/cr_cpu1.h C1_BAR_*,
+              # docs/DUALCORE.md): 0 none, 1 a crash beside it, 2 a hang, 3 it gave up (73 DEBUG is full)
+              "c1_bar",
+              # 0.22: the last crash's record (hal/fm1_irq.h fm1_crash, what the crash screen shows for 4 s; kept in RAM
+              # until a power-off; crash_count 0: none), this boot's reset reason (P3_RST_SRC bits 0..7: 0 power-on, 2
+              # watchdog, 6 soft; the core reset as bit 8) and the breadcrumb the last reset left (BOOT_STAGE)
+              "crash_count", "crash_vec", "crash_pc", "crash_rets", "crash_emu", "crash_dbg", "crash_uptime_ms",
+              "boot_reset", "boot_stage",
+              # the voices the overload shed dropped since power-on (audio.c shed_voice: two halves in a row over
+              # 85 % of the 2902 us; the console's voices_shed; shed_voices above is since the last --debug): the
+              # rule is 0
+              "voices_shed"]
+ERASE_WHY = ["other (a sound saved, a store)", "automatic: the Options", "automatic: the favourites",
+             "the global save (SAVE held) or Reset Settings", "the calibration / the update gesture",
+             "a backup restore", "a loop slot"]
+C1_BAR = ["none", "after a crash beside core 1", "after a hang (watchdog) while core 1 ran", "core 1 gave up"]
+PEAK_HEX = ("irq_gap_pc", "crash_vec", "crash_pc", "crash_rets", "crash_emu", "crash_dbg", "boot_reset")
+BOOT_STAGE = {0: "none", 1: "loop: input", 2: "loop: draw", 9: "loop: idle", 10: "guard", 11: "flash probe",
+              12: "user sounds", 13: "fm6 bank", 14: "va store", 15: "fm6 store", 16: "settings", 17: "update cleanup",
+              18: "lcd", 19: "splash", 20: "input", 21: "sounds", 22: "audio", 23: "usb", 24: "uart", 25: "irqs",
+              26: "calibration", 27: "ui init", 28: "ui settings", 29: "loops", 30: "core 1"}   # cr_bootguard.h BS_*
 LATE_STAGE = ["none", "tick", "part0", "part1", "fx", "master", "wait"]
+SHED_WHY = ["none", "a released voice, the quietest", "a held voice, the oldest that is not its part's lowest note",
+            "asked, and no voice to give", "a voice of the bass part's P5 stack, before any chord voice"]
+NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"]
+
+
+def shed_voice_text(v):
+    """78 PEAK's shed_last_voice in words"""
+    if not v >> 16 & 1:
+        return "none"
+    note = v & 127
+    return (f"part {v >> 12 & 15} ({['chord', 'bass'][v >> 12 & 15] if (v >> 12 & 15) < 2 else '?'}) voice {v >> 8 & 15}, "
+            f"note {note} ({NOTE_NAMES[note % 12]}{note // 12 - 1})")
 # 79 USB's values (0.19, cr_backup.c crb_usb, docs/USB-AUDIO.md "48 kHz"; a command of its own because 73 DEBUG is
 # full; reading clears nothing; values are only appended): ChoralRoot In's rate now and in the last whole open (Hz; 0:
 # no open yet), the host's SET_CUR sampling-frequency requests and those that changed the rate, the 48 kHz packets by
@@ -2208,7 +2680,20 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
     for k in DEBUG_PEAK:
         if k in d:
             print(f"{k} {d[k]}" + (f" ({LATE_STAGE[d[k]] if d[k] < len(LATE_STAGE) else '?'})" if k == "pk_late_stage" else
-                                   f" (0x{d[k]:08X})" if k == "irq_gap_pc" else ""), file=out)
+                                   f" (0x{d[k]:08X})" if k in PEAK_HEX else
+                                   f" ({shed_voice_text(d[k])})" if k == "shed_last_voice" else
+                                   f" ({SHED_WHY[d[k]] if d[k] < len(SHED_WHY) else '?'})" if k == "shed_last_why" else
+                                   f" ({ERASE_WHY[d[k]] if d[k] < len(ERASE_WHY) else '?'})" if k == "last_erase_why" else
+                                   f" ({C1_BAR[d[k]] if d[k] < len(C1_BAR) else '?'})" if k == "c1_bar" else
+                                   f" ({BOOT_STAGE.get(d[k], '?')})" if k == "boot_stage" else ""),
+                  file=out)
+    if "crash_count" in d:
+        if d["crash_count"]:
+            print(f"last crash (kept until a power-off): #{d['crash_count']}, vector {d['crash_vec']}, pc 0x{d['crash_pc']:08X}, "
+                  f"rets 0x{d['crash_rets']:08X}, EMU_MSG 0x{d['crash_emu']:08X}, DBG_MSG 0x{d['crash_dbg']:08X}, "
+                  f"{d['crash_uptime_ms'] / 1000:.1f} s after its boot (build/choralroot.dis names the section)", file=out)
+        else:
+            print("last crash: none since the power-on", file=out)
     for k in DEBUG_USB:
         if k in d:
             print(f"{k} {d[k]}", file=out)
@@ -2238,6 +2723,16 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
               f"{d['fx_reverb_avg_us']} / {d['fx_reverb_max_us']}, up {d['fx_up_avg_us']} / {d['fx_up_max_us']}", file=out)
         print(f"flash since power-on: {d['flash_erases']} erases (45 ms of silence each), {d['flash_holes']} of them into a "
               f"sounding output (holes), settings saves {d['saves_settings']}, session saves {d['saves_session']}", file=out)
+    if "erases_near" in d:
+        print(f"quiet writes since power-on: {d['saves_auto']} saves by the unit itself (Options, favourites), "
+              f"{d['erases_ahead']} of the {d['flash_erases']} erases done ahead (at power-on or after 10 s idle; the "
+              f"rest: saves that had to erase), {d['erases_near']} erases started by the unit while a voice was active or "
+              f"within 2 s of an input (the rule: 0), the longest page program {d['flash_prog_us']} us"
+              + ("" if not d["erases_near"] else ": AN ERASE FELL NEAR PLAYING"), file=out)
+    if "flash_read_bytes_ps" in d:
+        print(f"the UI since the last --debug: a frame took {d['ui_frame_avg_us']} us on average, {d['ui_frame_max_us']} us "
+              f"at most; flash read {d['flash_reads_ps']} times a second ({d['flash_read_bytes_ps']} bytes a second)"
+              + ("" if d["ui_frame_max_us"] < 50000 else ": A FRAME TOOK OVER 50 MS"), file=out)
     if "stale_halves" in d and d.get("pk_halves"):
         print(f"the deadline: {d['stale_halves']} halves in which the DAC played something old (the audible ones; a late "
               f"half alone is not); the ISR started at most {d['pk_lag_us']} us behind its boundary, its longest half "
@@ -2245,6 +2740,19 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
         print(f"interrupts: TIMER5 (100 us apart) once came {d['irq_gap_us']} us after the one before"
               + (f": masked for about {d['irq_gap_us'] - 100} us, until 0x{d['irq_gap_pc']:08X} (build/choralroot.dis)"
                  if d["irq_gap_us"] > 150 else ": nothing masked them for long"), file=out)
+    if "shed_voices" in d and d.get("pk_halves"):
+        print(f"overload: {d['shed_over_halves']} halves above 85 % of the budget since the last --debug, "
+              f"{d['shed_voices']} voices shed (two such halves in a row fade one)"
+              + (f"; the latest: {shed_voice_text(d['shed_last_voice'])}, "
+                 f"{SHED_WHY[d['shed_last_why']] if d['shed_last_why'] < len(SHED_WHY) else '?'}, asked by a half of "
+                 f"{d['shed_last_us']} us" if d["shed_last_why"] else "")
+              + f"; voices faded out for another note, part or the shed {d['voices_faded']}, own voices taken for a new "
+              f"note {d['voices_stolen']}", file=out)
+    if "p5_core0_voices" in d and (d["p5_core0_voices"] or d["p5_core1_voices"]):
+        print(f"P5: at most {d['p5_core0_voices']} voices rendered by core 0 and {d['p5_core1_voices']} by core 1 in one "
+              f"block (four each is the rule), the bass part {d['p5_bass_voices']} at most, {d['p5_bass_given_up']} held "
+              f"bass voices given up to the chord; core 1's longest job of a half {d.get('pk_part1_us', 0)} us "
+              f"(pk_part1_us), core 0's longest wait for it {d.get('pk_wait_us', 0)} us (pk_wait_us)", file=out)
     if d.get("key_ons"):
         print(f"keys: {d['key_ons']} note-ons since the last --debug; from the first closed scan (the debounce, 1.1 to 2.2 "
               f"ms, in it) the main loop posted one after {d['key_pick_us'] / 1000:.1f} ms at most, the engine had it "
@@ -2291,6 +2799,7 @@ def run_stub(up, what, out):
     dev = up.find()
     if not dev or dev.id.loader:
         raise not_found(up)
+    before = up.ports() if up.unit else None     # (--unit: its update mode is the one port its restart brings)
     t0, r, unseen = time.monotonic(), None, None
     try:
         r = BackupLink(dev.link).request(BK_STUB, [1 if what == "test" else 2], 1.5)
@@ -2320,7 +2829,10 @@ def run_stub(up, what, out):
         return 0 < vals[0] < (time.monotonic() - t0) * 1000 + 1000, vals
 
     if what == "rescue":
-        back = up.wait_for(lambda i: True, DELAY["wait_reboot"])
+        if up.unit:                               # update mode has no ID: the one new port; else the firmware by its ID
+            back = up.wait_new(before, dev.name, DELAY["wait_reboot"]) or up.find(lambda i: not i.loader, False)
+        else:
+            back = up.wait_for(lambda i: True, DELAY["wait_reboot"])
         if not back:
             w = up.waited(DELAY["wait_reboot"], "a MIDI port that answers the identity query")
             raise InstallError("noreturn", f"nothing came back on USB-MIDI ({w}): no ota-FM-1 and no FM-1. One "
@@ -2378,8 +2890,47 @@ def run_stub(up, what, out):
     return 0
 
 
+def acting_op(a):
+    """the commands that write to an FM-1, restart it or change what it plays: with several FM-1s they need --unit"""
+    return bool(a.package or a.restore or a.import_sound or a.import_syx or a.rename_sound or a.delete_sound or
+                getattr(a, "restore_favorites", None) or getattr(a, "stub", None) or getattr(a, "select", None) or
+                getattr(a, "screen", None))
+
+
+def info_lines(p, out):
+    """--info, one FM-1"""
+    mode = "update loader (update not finished)" if p.ident.loader else "running"
+    print(f"{p.ident.text}  [{mode}]  port: {p.name}" + (f"  version: {p.version}" if p.info else ""), file=out)
+    print(f"unit ID: {id_text(p)}", file=out)
+    if not p.ident.loader:
+        verdict, _kind, name = classify_firmware(p.ident.text, p.version)
+        print(f"ChoralRoot can be installed over {name}" if verdict == "allow" else
+              f"ChoralRoot is not installed over {name} (docs/INSTALL-COMPAT.md)", file=out)
+
+
+def run_info(up, out):
+    """--info: every FM-1 that answers (with --unit: that one), its identity, version and unit ID"""
+    if up.unit:
+        probes, silent = [up.select()], []
+    else:
+        probes, silent = up.survey(True)
+    if not probes:
+        raise not_found(up)
+    for k, p in enumerate(probes):
+        if k:
+            print(file=out)
+        info_lines(p, out)
+    if len(probes) > 1:
+        ids = [p.uid or "none" for p in probes]
+        print(f"\n{len(probes)} FM-1s connected (unit IDs {', '.join(ids)}): --unit ID names the one a command is for",
+              file=out)
+        if silent:
+            print(f"no answer on: {', '.join(silent)}", file=out)
+    return 0
+
+
 def run(a, backend, out, ask):
-    up = Updater(backend, a.port)
+    up = Updater(backend, a.port, getattr(a, "unit", None), acting_op(a), out)
     if getattr(a, "rescan_midi", False):
         why = up.rescan()
         if why:
@@ -2395,6 +2946,10 @@ def run(a, backend, out, ask):
         return run_stub(up, a.stub, out)
     if sound_op(a):
         return run_sounds(up, a, out, ask)
+    if getattr(a, "favorites", False):
+        return run_favorites(up, out)
+    if getattr(a, "restore_favorites", None):
+        return run_restore_favorites(up, a.restore_favorites, out, ask, a.yes)
     if getattr(a, "select", None):
         part, eng, pos = a.select
         if part not in (0, 1) or not 0 <= eng < 128 or not 0 <= pos < 16384:
@@ -2445,18 +3000,7 @@ def run(a, backend, out, ask):
                     usb=[usb[k] for k in DEBUG_USB if k in usb])
         return 0
     if a.info:
-        dev = up.find()
-        if not dev:
-            raise not_found(up)
-        info = None if dev.id.loader else device_info(BackupLink(dev.link))
-        dev.link.close()
-        mode = "update loader (update not finished)" if dev.id.loader else "running"
-        print(f"{dev.id.text}  [{mode}]  port: {dev.name}" + (f"  version: {info[0]}" if info else ""), file=out)
-        if not dev.id.loader:
-            verdict, _kind, name = classify_firmware(dev.id.text, info and info[0])
-            print(f"ChoralRoot can be installed over {name}" if verdict == "allow" else
-                  f"ChoralRoot is not installed over {name} (docs/INSTALL-COMPAT.md)", file=out)
-        return 0
+        return run_info(up, out)
     if not a.package:                             # backup and / or restore only
         if a.backup:
             run_backup(up, a.backup, out)
@@ -2512,6 +3056,266 @@ def run(a, backend, out, ask):
     return 0
 
 
+# ------------------------------------------------------------- favourites ---
+# docs/PRESETS.md "Favourites" (firmware/src/cr_favs.c): the marks on sounds are one small object, backup id 23, read
+# with the backup protocol's LIST and GET (nothing is written, no command of its own).
+
+FAV_ID, FAV_VERSION, FAV_USER, FAV_P5 = 23, 2, 0x80, 16
+FAV_USER2 = 0x81                                 # 0.22: the pool's slots 33..128 (FAV_USER's ids 32..127 in the text)
+FAV_CHORD, FAV_BASS, FAV_OPT = 0x40, 0x20, 0xFF   # version 2: tag | FAV_CHORD / FAV_BASS: the sounds typed so; the options
+FAV_ORDER = (12, 15, 13, 14, 7)                  # the engines as the FM-1 shows them (P5 comes last: its own block)
+
+
+def parse_favorites_full(b):
+    """the favourites object -> (marks, types, filter). marks: {tag: [ids]} (tag: an engine's index, FAV_USER the
+    user slots; an id: the preset's index in its engine's table, a user slot 0..31, for P5 the Sequential program
+    number 1..200). types: {(tag, id): "chord" | "bass"} for the sounds typed so, marked or not (none: Both).
+    filter: the favourites filter is on. The object: the version (2; 1, 0.22's first builds, had the marks alone),
+    the number of sections, then per section tag, len, len bytes: a tag's bits are its marks (bit i of byte i // 8
+    is id i), tag | 0x40 the sounds typed Chord, tag | 0x20 those typed Bass, 0xFF one byte of options (bit 0: the
+    filter). Empty bytes: no marks."""
+    b = bytes(b)
+    if not b:
+        return {}, {}, False
+    if len(b) < 2 or b[0] not in (1, FAV_VERSION):
+        raise BackupError(f"favourites of version {b[0]}: this tool reads versions 1 and {FAV_VERSION}")
+    marks, only, filt, p = {}, {"chord": {}, "bass": {}}, False, 2
+    for _ in range(b[1]):
+        if p + 2 > len(b) or p + 2 + b[p + 1] > len(b):
+            raise BackupError("the favourites object is cut short")
+        tag, n = b[p], b[p + 1]
+        ids = [i for i in range(n * 8) if b[p + 2 + i // 8] >> (i % 8) & 1]
+        p += 2 + n
+        dst = marks
+        if b[0] >= 2:
+            if tag == FAV_OPT:
+                filt = bool(n and b[p - n] & 1)
+                continue
+            if tag & FAV_CHORD:
+                dst, tag = only["chord"], tag & ~FAV_CHORD
+            elif tag & FAV_BASS:
+                dst, tag = only["bass"], tag & ~FAV_BASS
+        if tag == FAV_P5:
+            ids = [i for i in ids if 1 <= i <= 200]
+        if tag == FAV_USER2:                       # (0.22: one list of user slots 0..127)
+            tag, ids = FAV_USER, sorted(set(dst.get(FAV_USER, [])) | {32 + i for i in ids})
+        elif tag == FAV_USER and dst.get(FAV_USER):
+            ids = sorted(set(dst[FAV_USER]) | set(ids))
+        if ids:
+            dst[tag] = ids
+    types = {(t, i): "chord" for t, v in only["chord"].items() for i in v}
+    for t, v in only["bass"].items():
+        for i in v:
+            if (t, i) in types:                   # (both at once, a foreign object: Both, as the firmware reads it)
+                del types[(t, i)]
+            else:
+                types[(t, i)] = "bass"
+    return marks, types, filt
+
+
+def parse_favorites(b):
+    """the favourites object -> {tag: [ids]}: the marks alone (parse_favorites_full has the types and the filter)"""
+    return parse_favorites_full(b)[0]
+
+
+def p5_program_names():
+    """Sequential's 200 programs' PRESETS names by number (tools/gen_prophet_factory.py and the bank in assets/);
+    {} where the bank is not beside this tool"""
+    try:
+        here = os.path.dirname(os.path.abspath(__file__))
+        if here not in sys.path:
+            sys.path.insert(0, here)
+        import gen_prophet_factory as g
+        return dict(enumerate(g.names(g.records()), 1))
+    except Exception:                             # (no bank, no generator: the numbers alone)
+        return {}
+
+
+def favorites_text(marks, version, user_names=None, p5_names=None, types=None, filt=False):
+    """the marks as text. Every line but P5's begins with '#', and P5's are 'NUMBER  # NAME': the whole text is a
+    valid assets/prophet5-factory/shipped.txt (tools/p5_shipped_from_favorites.py turns it into the list). A mark
+    typed Chord or Bass says so after the name, "  (chord)" / "  (bass)" (in the comment: the line is still the
+    list's); a sound that is typed and not marked is not listed."""
+    user_names, p5_names, types = user_names or {}, p5_names or {}, types or {}
+    total = sum(len(v) for v in marks.values())
+    lines = [f"# favorites on {version}: {total} marked" + (", the filter on" if filt else "")]
+
+    def ty(tag, i):
+        return f"  ({types[(tag, i)]})" if (tag, i) in types else ""
+
+    for e in list(FAV_ORDER) + sorted(t for t in marks if t not in FAV_ORDER and t not in (FAV_USER, FAV_P5)):
+        name = ENGINE_NAMES[e] if e < len(ENGINE_NAMES) else f"engine {e}"
+        presets, first = FACTORY_PRESETS.get(str(e), []), FACTORY_FIRST.get(str(e), 0)
+        for i in marks.get(e, []):
+            lines.append(f"# {name} {i - first + 1:02d} {presets[i] if i < len(presets) else '?'}" + ty(e, i))
+    for k in marks.get(FAV_USER, []):
+        lines.append(f"# user U{k + 1:02d} {user_names.get(k + 1, '')}".rstrip() + ty(FAV_USER, k))
+    p5 = sorted(marks.get(FAV_P5, []))
+    lines.append(f"# P5: {len(p5)} program{'' if len(p5) == 1 else 's'}, by Sequential's number"
+                 + (" (the lines below as they are: assets/prophet5-factory/shipped.txt)" if p5 else ""))
+    lines += [(f"{i:<6d} # {p5_names.get(i, '')}".rstrip() + ty(FAV_P5, i)) if p5_names.get(i) or ty(FAV_P5, i) else str(i)
+              for i in p5]
+    return "\n".join(lines) + "\n"
+
+
+def run_favorites(up, out):
+    """--favorites: LIST, GET of object 23 (and of the user banks for the names of marked user sounds) -> the text"""
+    bl, (version, fam) = open_backup(up)
+    try:
+        if fam != "choralroot":
+            raise InstallError("nosounds", f"{version}: favourites are ChoralRoot's (0.22 on)")
+        man = {o["id"]: o for o in bk_manifest(bl.request(BK_LIST, [], 3.0))}
+        if FAV_ID not in man:
+            raise InstallError("nosounds", f"{version} keeps no favourites (ChoralRoot 0.22 on)")
+        data = bk_get_object(bl, FAV_ID, man[FAV_ID]["size"])
+        if bk_crc(data) != man[FAV_ID]["crc"] and data:
+            raise BackupError("the FM-1 changed its favourites while they were read: try again")
+        marks, types, filt = parse_favorites_full(data)
+        names = {}
+        if marks.get(FAV_USER):
+            objs = {i: bk_get_object(bl, i, man[i]["size"]) for i in (6, 7) if i in man}
+            for k in marks[FAV_USER]:
+                r = _record(objs, k + 1)
+                if sound_record_valid(r):
+                    names[k + 1] = _record_name(r)
+    finally:
+        bl.link.close()
+    out.write(favorites_text(marks, version, names, p5_program_names() if marks.get(FAV_P5) else {}, types, filt))
+    return 0
+
+
+# --restore-favorites FILE (3y54): a --favorites text back into object 23, packed as cr_favs.c crf_pack does
+FAV_SEC = ((FAV_USER, 4), (FAV_USER2, 12), (7, 2), (12, 8), (13, 8), (14, 16), (15, 8), (FAV_P5, 26))   # cr_favs.c
+                                                 # CRF_SEC, in order (0.22: FAV_USER2 the pool's slots 33..128)
+FAV_PACK_MAX = 308                               # cr_favs.c CRF_PACK_MAX (cr_backup.c refuses more; 377264f: 264)
+
+
+def pack_favorites(marks, types=None, filt=False):
+    """{tag: [ids]}, {(tag, id): "chord"|"bass"}, filter -> the object's bytes, byte for byte as the firmware's
+    crf_pack writes them (version 2; per section of FAV_SEC: the marks, then the Chord, then the Bass bitmap, the zero
+    bytes at the end dropped, a zero bitmap not stored; the options last, only when the filter is on)"""
+    types = types or {}
+    sizes = dict(FAV_SEC)
+    if any(i >= 32 for i in marks.get(FAV_USER, [])) or any(t == FAV_USER and i >= 32 for t, i in types):
+        marks = dict(marks)                        # (slots 33..128: section 0x81, as the firmware packs them)
+        marks[FAV_USER2] = [i - 32 for i in marks[FAV_USER] if i >= 32] if FAV_USER in marks else []
+        marks[FAV_USER] = [i for i in marks.get(FAV_USER, []) if i < 32]
+        types = {((FAV_USER2, i - 32) if t == FAV_USER and i >= 32 else (t, i)): v for (t, i), v in types.items()}
+    for tag, ids in marks.items():
+        for i in ids:
+            if tag not in sizes or not 0 <= i < sizes[tag] * 8 or (tag == FAV_P5 and not 1 <= i <= 200):
+                raise InstallError("badbackup", f"favourites: no such sound to mark (section {tag}, id {i})")
+    out = bytearray([FAV_VERSION, 0])
+    for tag, n in FAV_SEC:
+        for w, ortag in ((None, 0), ("chord", FAV_CHORD), ("bass", FAV_BASS)):
+            bits = bytearray(n)
+            ids = marks.get(tag, []) if w is None else [i for (t, i), v in types.items() if t == tag and v == w]
+            for i in ids:
+                if 0 <= i < n * 8 and not (tag == FAV_P5 and not 1 <= i <= 200):
+                    bits[i // 8] |= 1 << (i % 8)
+            bits = bytes(bits).rstrip(b"\0")
+            if bits:
+                out += bytes([tag | ortag, len(bits)]) + bits
+                out[1] += 1
+    if filt:
+        out += bytes([FAV_OPT, 1, 1])
+        out[1] += 1
+    return bytes(out)
+
+
+def parse_favorites_text(text):
+    """a --favorites text -> (marks, types, filter, skipped lines). P5: 'NUMBER  # NAME  (type)'; the engines' and the
+    user sounds' comment lines '# FM6 01 NAME  (type)', '# user U03 NAME  (type)' are decoded too (the engine by its
+    name, the preset by its pool place); the filter from the header ', the filter on'. Other '#' lines are notes."""
+    marks, types, filt, skipped = {}, {}, False, []
+    names = sorted(((ENGINE_NAMES[e], e) for e in FAV_ORDER), key=lambda x: -len(x[0]))
+
+    def add(tag, i, rest):
+        if i not in marks.setdefault(tag, []):
+            marks[tag].append(i)
+        m = re.search(r"\((chord|bass)\)\s*$", rest)
+        if m:
+            types[(tag, i)] = m.group(1)
+
+    for ln in text.splitlines():
+        s = ln.strip()
+        if not s:
+            continue
+        if not s.startswith("#"):
+            num, _, rest = s.partition("#")
+            if not re.fullmatch(r"\d+", num.strip()) or not 1 <= int(num) <= 200:
+                raise InstallError("badbackup", f"not a P5 program number 1..200: {ln!r}")
+            add(FAV_P5, int(num), rest)
+            continue
+        body = s[1:].strip()
+        if body.startswith("favorites on "):
+            filt = body.endswith(", the filter on")
+            continue
+        if body.startswith("P5:"):
+            continue
+        m = re.match(r"user U(\d\d\d?)\b(.*)$", body)
+        if m and 1 <= int(m.group(1)) <= SOUND_SLOTS:
+            add(FAV_USER, int(m.group(1)) - 1, m.group(2))
+            continue
+        for name, e in names:
+            m = re.match(re.escape(name) + r" (\d\d)\b(.*)$", body)
+            if m:
+                add(e, int(m.group(1)) - 1 + FACTORY_FIRST.get(str(e), 0), m.group(2))
+                break
+        else:
+            skipped.append(ln)
+    for t in marks:
+        marks[t].sort()
+    return marks, types, filt, skipped
+
+
+def cr_version_at_least(version, want=(0, 22)):
+    m = re.search(r"(\d+)\.(\d+)", version or "")
+    return bool(m) and (int(m.group(1)), int(m.group(2))) >= want
+
+
+def run_restore_favorites(up, path, out, ask, yes):
+    """--restore-favorites FILE: the marks of a --favorites text -> object 23 (a PUT of it alone), read back and
+    compared. cr_backup.c applies a PUT of 23 at once (crf_boot: the RAM copy from flash), no restart"""
+    try:
+        text = open(path, encoding="utf-8").read()
+    except (OSError, UnicodeDecodeError) as e:
+        raise InstallError("badbackup", f"cannot read {path}: {getattr(e, 'strerror', None) or e}")
+    marks, types, filt, skipped = parse_favorites_text(text)
+    types = {k: v for k, v in types.items() if k[1] in marks.get(k[0], [])}
+    data = pack_favorites(marks, types, filt)
+    if len(data) > FAV_PACK_MAX:
+        raise InstallError("badbackup", f"favourites object of {len(data)} bytes: over {FAV_PACK_MAX}")
+    total = sum(len(v) for v in marks.values())
+    bl, (version, fam) = open_backup(up)
+    try:
+        if fam != "choralroot" or not cr_version_at_least(version):
+            raise InstallError("nosounds", f"{version}: favourites (object 23, version 2) are ChoralRoot's, 0.22 on")
+        man = {o["id"]: o for o in bk_manifest(bl.request(BK_LIST, [], 3.0))}
+        if FAV_ID not in man:
+            raise InstallError("nosounds", f"{version} keeps no favourites (ChoralRoot 0.22 on)")
+        for ln in skipped:
+            print(f"skipped (not a mark): {ln.strip()}", file=out)
+        per = ", ".join(f"{'user' if t == FAV_USER else 'P5' if t == FAV_P5 else ENGINE_NAMES[t]} {len(marks[t])}"
+                        for t, _n in FAV_SEC if marks.get(t))
+        nt = {w: sum(1 for v in types.values() if v == w) for w in ("chord", "bass")}
+        print(f"write onto {version}: favourites (object 23, {len(data)} bytes, version {FAV_VERSION}): {total} marks"
+              f" ({per or 'none'}); {nt['chord']} Chord, {nt['bass']} Bass, the rest Both; the filter "
+              f"{'on' if filt else 'off'}. It replaces the marks on the FM-1; nothing else is written", file=out)
+        if not yes and not ask("Restore the favourites? [y/N] "):
+            print("cancelled", file=out)
+            return 1
+        bk_put_object(bl, FAV_ID, data, busy=lambda: print("busy: stop the loop on the FM-1", file=out))
+        man = {o["id"]: o for o in bk_manifest(bl.request(BK_LIST, [], 3.0))}
+        back = bk_get_object(bl, FAV_ID, man[FAV_ID]["size"])
+    finally:
+        bl.link.close()
+    if back != data:
+        raise BackupError("the favourites read back differ from what was written")
+    print(f"{total} marks restored", file=out)
+    return 0
+
+
 def sound_op(a):
     return [o for o, v in (("--sounds", a.sounds), ("--export-sound", a.export_sound), ("--import-sound", a.import_sound),
                            ("--export-syx", a.export_syx), ("--import-syx", a.import_syx),
@@ -2548,6 +3352,9 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
                          "print its --debug lines; rescue = restart into update mode, as OCT- held at power-on (to "
                          "leave update mode: install a package, or switch the FM-1 off and on)")
     ap.add_argument("--port", metavar="NAME", help="MIDI port to use (part of its name)")
+    ap.add_argument("--unit", metavar="ID", help="only the FM-1 with this unit ID (8 hex digits, any case: --info, or "
+                                                 "Options > Version on the unit; ChoralRoot from 0.22), with any "
+                                                 "command; for several FM-1s on one computer")
     ap.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     ap.add_argument("--force", action="store_true", help="install a package without the Felucca loader marker, or over a "
                                                          "firmware ChoralRoot does not support installing over (at your own risk)")
@@ -2556,6 +3363,15 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--restore", metavar="FILE", help="restore a backup FILE onto the FM-1 (after the install, or alone)")
     ap.add_argument("--sounds", action="store_true", help="list the 32 user sounds (ChoralRoot): 'over FM6 02 FM BELL' "
                                                           "for one saved over a factory preset, '+' for one added")
+    ap.add_argument("--favorites", action="store_true",
+                    help="ChoralRoot 0.22 on: print the sounds marked as favorites (read-only: the backup protocol's "
+                         "read of object 23). Per engine a '# FM6 01 TINE EP' line, a marked user sound '# user U03 "
+                         "NAME', and P5's programs by their Sequential number, one a line, 'NUMBER  # NAME': the output "
+                         "is a valid assets/prophet5-factory/shipped.txt (tools/p5_shipped_from_favorites.py)")
+    ap.add_argument("--restore-favorites", metavar="FILE",
+                    help="ChoralRoot 0.22 on: write the marks of a --favorites text FILE back to the FM-1 (object 23 "
+                         "alone: P5's numbers, the engines' and user sounds' lines, the types, the filter; asks "
+                         "first unless --yes), read them back and compare")
     ap.add_argument("--export-sound", nargs=2, metavar=("N", "FILE"),
                     help="save user sound N (1..32) to a sound file FILE (a directory: choralroot-sound-UNN-NAME.json)")
     ap.add_argument("--import-sound", nargs=2, metavar=("N", "FILE"),
@@ -2576,7 +3392,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     if len(ops) > 1:
         ap.error(f"{' and '.join(ops)}: one sound operation at a time")
     if ops and (a.package or a.info or a.backup or a.restore):
-        ap.error(f"{ops[0]} goes alone (with --port, --yes): not with a package, --info, --backup or --restore")
+        ap.error(f"{ops[0]} goes alone (with --port, --unit, --yes): not with a package, --info, --backup or --restore")
 
     def slot_of(v):
         if not re.fullmatch(r"\d+", v) or not 1 <= int(v) <= SOUND_SLOTS:
@@ -2597,6 +3413,12 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
         ap.error(f"--rename-sound: {check_sound_name(a.rename_sound[1])}")
     if a.info and (a.package or a.backup or a.restore):
         ap.error("--info goes alone")
+    if a.favorites and (a.info or a.debug or a.screen or a.select or a.stub or a.rescan_midi or a.package or a.backup
+                        or a.restore or ops):
+        ap.error("--favorites goes alone")
+    if a.restore_favorites and (a.favorites or a.info or a.debug or a.screen or a.select or a.stub or a.rescan_midi
+                                or a.package or a.backup or a.restore or ops):
+        ap.error("--restore-favorites goes alone")
     if a.debug and (a.info or a.package or a.backup or a.restore or ops):
         ap.error("--debug goes alone")
     if a.screen and (a.debug or a.info or a.package or a.backup or a.restore or ops):
@@ -2608,8 +3430,13 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     if a.rescan_midi and (a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
                           or ops):
         ap.error("--rescan-midi goes alone")
+    if a.unit is not None and not re.fullmatch(r"[0-9A-Fa-f]{8}", a.unit):
+        ap.error(f"--unit: a unit ID is 8 hex digits (fm1_install.py --info shows them), not {a.unit!r}")
+    if a.unit and a.rescan_midi:
+        ap.error("--rescan-midi restarts every MIDI port on this computer, the other FM-1s' too: not with --unit "
+                 "(unplug and replug the FM-1 instead)")
     if not (a.rescan_midi or a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
-            or ops):
+            or ops or a.favorites or a.restore_favorites):
         ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info, --sounds, --screen off|on or --select")
     try:
         return run(a, MidiBackend() if backend is None else backend, out, ask)   # (without python-rtmidi: the first

@@ -5,8 +5,8 @@
 #   3 after more roots tapped: still entry 2                            4 B3 tapped in the menu: LOCK on
 #   5 / 6 / 7 a chord struck in the menu, Output Clean -> Classic -> Clean under it (60 ms after each turn)
 #   8 Reset Settings asked (OCT+ once)   9 after keys played: still asked, nothing reset   10 OCT-: the menu closed
-#   11 Calibrate with keys played: not started     12 .. 37 every entry, by SELECT alone
-#   38 Secret Chords still Simple (no reset happened)   39 a take recorded from inside the menu   40 silent
+#   11 Calibrate with keys played: not started     12 .. 41 every entry, by SELECT alone
+#   42 Secret Chords still Simple (no reset happened)   43 a take recorded from inside the menu   44 silent
 wait 500
 btn GLO 80
 wait 300
@@ -40,7 +40,7 @@ wait 200
 dump                          # 4
 btn B3
 wait 1500
-knob SELECT +20               # Output (entry 22)
+knob SELECT +24               # Output (entry 26)
 wait 300
 btn A#3 down
 btn D4 down
@@ -162,9 +162,21 @@ dump
 knob SELECT +1
 wait 120
 dump
-knob SELECT -23
-wait 80                       # (200 - 120: the walk has one entry more since 6th with 7th)
-dump                          # 38: Secret Chords, still Simple
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT +1
+wait 120
+dump
+knob SELECT -27
+wait 80                       # (200 - 120: the walk has four entries more since Key Touch, the two Sens and the Curve)
+dump                          # 42: Secret Chords, still Simple
 btn GLO
 wait 300
 btn REC                       # armed on the view; the take is played with the menu open

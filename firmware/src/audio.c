@@ -32,6 +32,18 @@ static struct {
     uint32_t avg_us, max_us, max_all_us, halves, late, ui_max_ms, ui_frames;   /* the last full second */
     uint32_t late0, t0, ui_last, ui_max, ui_n;                                 /* the window being filled */
 } cpu_last;
+#define CPU_HALF_US (HALF_FRAMES * 1000000u / FS)   /* a half's budget, us: 2902 (console.c audio_budget_us) */
+/* 3y60 (the owner, 2026-10-14: "with all the user presets filled, my FM-1's UI is now very laggy"): a UI frame's own
+ * time (input, LEDs, draw; main.c, emu_fw.c), the longest and the sum since 78 PEAK's last read (cr_backup.c crb_peak) */
+static struct { uint32_t max_us, sum_us, n, t0; } ui_ft;
+static void ui_ft_add(uint32_t t0_ticks)
+{
+    uint32_t us = (fm1_ticks() - t0_ticks) / FM1_TICKS_PER_US;
+    if (us > ui_ft.max_us)
+        ui_ft.max_us = us;
+    ui_ft.sum_us += us;
+    ui_ft.n++;
+}
 static void cpu_window(uint32_t now_ms)          /* once per UI frame: a frame's period, and the second's close */
 {
     uint32_t d = now_ms - cpu_last.ui_last;
@@ -127,7 +139,14 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
 
 /* Overload: two halves in a row above 85 % (the render plus TIMER5 nested in it), fade one voice over the
  * next block, and one more each half while it lasts. Keep each part's
- * lowest POLY note and MONO / LEGATO / UNISON lead, as the shared budget does. */
+ * lowest POLY note and MONO / LEGATO / UNISON lead, as the shared budget does.
+ * P5 ON TWO CORES (3y46). The half the shed times is core 0's, and core 0 waits in it for core 1's job: it is the
+ * tick + the LONGER of the two cores' renders + the effects + the master, so a half is over when either core is. And
+ * the chord part's P5 voices are shared out between the cores again every block (fx.c p5x_assign), so a voice given
+ * up shortens the longer side whichever part it was. The order with P5 on the bass part: (1) a released voice, the
+ * quietest, as before; (2) a voice of the BASS part's P5 stack, from the top (never its last: the lead stays);
+ * (3) as before, the oldest held voice that is not its part's lowest note or lead: a chord voice. Without P5 on the
+ * bass part: (1) and (3), today's rule */
 static volatile uint8_t shed_req;
 static uint8_t shed_over;                              /* bit k: the half k halves ago was over 85 % */
 #define HALF_TICKS (HALF_FRAMES * 1000000u / FS * FM1_TICKS_PER_US)   /* a half (2902 us) */
@@ -138,6 +157,13 @@ static uint8_t shed_over;                              /* bit k: the half k halv
 #endif
 #define SHED_TICKS ((HALF_FRAMES * 1000000u / FS) * 85u / 100u * FM1_TICKS_PER_US)   /* 85 % of a half */
 static uint32_t shed_count;
+/* WHAT THE SHED DID (3y44; 78 PEAK's values 35..39, tools/fm1_install.py --debug: until then voices_shed was on the
+ * console alone): since the last PEAK read the halves above 85 % (shed_over_n: one alone sheds nothing, two in a row
+ * do) and the time of the half that asked for the latest shed (shed_us, with its lag); and of the latest voice shed
+ * which one (shed_last: 0 none, else 0x10000 | part << 12 | voice << 8 | note) and why (shed_why: 1 a released voice,
+ * the quietest; 2 a held one, the oldest that is not its part's lowest note; 3 asked, and no voice to give) */
+/* (they are cr_dbg's, cr_cpu1.h: a new small static here moves the target compiler's blocks of statics and with them
+ * fx.c's mix loop, HISTORY 3y42) */
 
 /* end of a half: all = its ticks, TIMER5 nested in it included -> the render alone in us. The deadline sees
  * both, and how far behind its boundary the half started (lag, ChoralRoot: cr_cpu1.h cr_prof_entry; a half that
@@ -146,12 +172,42 @@ static uint32_t shed_count;
 static __attribute__((noinline)) uint32_t shed_check(uint32_t all, uint32_t lag)
 {
     shed_over = (uint8_t)(shed_over << 1 | (all + lag > SHED_TICKS));
-    if ((shed_over & 3u) == 3u)
+    cr_dbg.shed_over_n += shed_over & 1u;
+    if ((shed_over & 3u) == 3u) {
         shed_req = 1;
+        cr_dbg.shed_us = (all + lag) / FM1_TICKS_PER_US;
+    }
     return (all - t5_nested_ticks) / FM1_TICKS_PER_US;
 }
 
-static void shed_voice(void)
+static void shed_note(const voice_t *v, uint32_t why)    /* the shed's record (above) */
+{
+    uint32_t p;
+    cr_dbg.shed_why = why;
+    for (p = 0; v && p < NPART; p++)
+        if (v >= trk[p].v && v < trk[p].v + NVOICE)
+            cr_dbg.shed_last = (1u << 16) | p << 12 | (uint32_t)(v - trk[p].v) << 8 | v->note;
+}
+
+#if FELUCCA_PROPHET
+/* a P5 bass: a voice of its stack before any chord voice (above; out of line: the ISR's code stays as it was laid) */
+static __attribute__((noinline)) int shed_p5_bass(void)
+{
+    uint32_t k;
+    if (!P5_IS(&trk[P5_PART_BASS]))
+        return 0;
+    k = p5_part_victim(&trk[P5_PART_BASS], 0);
+    if (k == NVOICE)
+        return 0;
+    shed_note(&trk[P5_PART_BASS].v[k], 4u);
+    voice_kill(&trk[P5_PART_BASS].v[k]);
+    shed_count++;
+    return 1;
+}
+#endif
+/* (out of line since 3y46: with the P5 step in it the target compiler laid this cold path behind the ISR's block
+ * loop with a branch back over it, which tests/target_budget.py reads as two more loops around the render) */
+static __attribute__((noinline)) void shed_voice(void)
 {
     uint32_t p, i;
     voice_t *best = 0;
@@ -162,10 +218,15 @@ static void shed_voice(void)
                 best = v;
         }
     if (best) {
+        shed_note(best, 1);
         voice_kill(best);
         shed_count++;
         return;
     }
+#if FELUCCA_PROPHET
+    if (shed_p5_bass())
+        return;
+#endif
     for (p = 0; p < NPART; p++) {
         const track_t *t = &trk[p];
         uint32_t mode = trk_vmode(t), low = mode == V_POLY ? lowest_held(t) : 0u;
@@ -178,6 +239,7 @@ static void shed_voice(void)
             }
         }
     }
+    shed_note(best, best ? 2u : 3u);
     if (best) {
         voice_kill(best);
         shed_count++;
@@ -231,6 +293,10 @@ void fm1_alnk0_irq(void)                       /* via isr_alnk0 (hal/fm1_isr.S) 
         audio_halves++;
         {
             uint32_t all = fm1_ticks() - t0;
+#ifdef CR_SHED_MODEL                                     /* the emulator alone (emu_firmware.h, EMU_SHED_OVER / EMU_SHED_AT:
+                                                         * a unit that does not keep up, modelled; docs/PROPHET.md) */
+            all = CR_SHED_MODEL(all);
+#endif
             us = shed_check(all, lag);
             wall = all;
             if (aw_reset) {                             /* cpu_window took the last second */

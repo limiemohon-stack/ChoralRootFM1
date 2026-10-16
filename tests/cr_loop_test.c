@@ -2390,6 +2390,116 @@ static void s_sixth(void)
     cr_set_sixth_up(&C, 0);
 }
 
+/* the step preview (GitHub issue 8; the owner, 2026-10-15: "turn preset knob in the step editor, if the step has
+ * notes, it plays"): the cursor moved onto a step while the loop is stopped plays the step once, as the loop would
+ * (its length, its voicing and ratchet, a bass-side note on the bass part; its condition and chance not asked); an
+ * empty step is silence; while the loop plays nothing; a key played by hand, the step cleared, the editor closed end
+ * it; nothing is written, armed, counted or moved */
+static void s_preview(void)
+{
+    char s[64], name[200];
+    uint32_t p0, t[4];
+    int from, n, a, b;
+    mkloop(8);
+    addev(0, 24, 62, CR_Q_MAJ, 0);                   /* step 1: D, one step */
+    addev(24, 96, 64, CR_Q_MIN, 0);                  /* step 2: Em, four steps */
+    addev(72, 24, 67, CR_Q_MAJ, 0);                  /* step 4: G over a bass-side G2 */
+    addev(72, 24, 43, 0, CRL_X_BASS);
+    addev(96, 24, 69, CR_Q_MAJ, 0);                  /* step 5: A, ratchet x2, condition 2:2, chance 10 % */
+    setst(4, 1, CRL_C_2_2, 0, 7);
+    addev(120, 24, 71, CR_Q_MIN, 0);                 /* step 6: Bm, voicing +1 */
+    setst(5, 0, 0, 14, 0);
+    cr_loop_ed_open(&L);
+    p0 = L.played;
+    ed_at(1);
+    from = nlog;
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    a = ons_set(from, s);
+    snprintf(name, sizeof name, "the cursor on step 2 (Em) with the loop stopped: the step sounds (%d event, notes %s), on a loop voice marked as the preview", n, s);
+    ok(n == 1 && a == 3 && !strcmp(s, "64 67 71") && L.pre == 1u && lvoices() == 1, name);
+    ok(L.state == CRL_STOPPED && L.cap == CRL_CAP_NONE && L.d.nev == 6 && !L.dirty && cr_loop_pos(&L) == 0 && L.played == p0 && !L.hit_on,
+       "  .. nothing written, armed, moved or counted: 6 events, not dirty, stopped at 0, played unchanged, no \"now playing\"");
+    step(400);
+    a = sounding() == 3 && L.pre == 1u;
+    step(200);
+    ok(a && sounding() == 0 && L.pre == 0 && lvoices() == 0, "  .. it sounds as long as the step's notes (four steps: on at 405 ms, off by 605) and ends on its own");
+    ed_at(0);
+    from = nlog;
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    a = n == 1 && ons_set(from, s) == 3 && !strcmp(s, "62 66 69") && sounding() == 3;
+    ed_at(2);                                        /* step 3: empty */
+    n = cr_loop_ed_preview(&L, &C);
+    step(2);
+    ok(a && n == 0 && sounding() == 0 && L.pre == 0, "step 1 (D) heard; then an empty step: the preview ends at once, silence");
+    ed_at(3);                                        /* step 4: the chord and its bass-side note */
+    from = nlog;
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    ok(n == 2 && ons_set(from, s) == 3 && !strcmp(s, "67 71 74") && ons_s(1, 43, from) == 1 && L.pre != 0,
+       "step 4: the chord on the main stream and its bass-side note on the bass stream, as the loop plays them (2 events)");
+    step(200);
+    ed_at(4);                                        /* step 5: condition 2:2, chance 10 %, ratchet x2 */
+    from = nlog;
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    a = n == 1 && ons_set(from, s) == 3 && !strcmp(s, "69 73 76");
+    step(150);
+    b = ons_of(69, from, t, 4) == 2 && L.played == p0;
+    snprintf(name, sizeof name, "step 5: a condition (2:2) and a chance (10 %%) do not keep a preview silent; its ratchet x2 strikes twice (%d), none of it counted as played", ons_of(69, from, t, 4));
+    ok(a && b, name);
+    ed_at(5);                                        /* step 6: its own voicing */
+    from = nlog;
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    ok(n == 1 && ons_set(from, s) == 3 && strcmp(s, "71 74 78") != 0, "step 6: the step's own voicing (+1) applies to the preview (not B D F# in root position)");
+    step(200);
+    /* a key played by hand ends it */
+    ed_at(1);
+    cr_loop_ed_preview(&L, &C);
+    step(50);
+    a = sounding() == 3 && SND[0][64];
+    cr_mod(&C, CR_MOD_MAJ, 1); cr_key(&C, 72, 100, 1);
+    step(5);
+    b = L.pre == 0 && !SND[0][64] && SND[0][72];
+    cr_key(&C, 72, 100, 0); cr_mod(&C, CR_MOD_MAJ, 0);
+    step(100);
+    ok(a && b && step_is(1, 72, CR_Q_MAJ) && L.d.nev == 6 && sounding() == 0,
+       "a chord played by hand over the preview ends it (the preview's E gone, the key's C sounding), and goes into the step as ever (C in step 2)");
+    /* REC: the step cleared, its preview with it */
+    ed_at(0);
+    cr_loop_ed_preview(&L, &C);
+    step(20);
+    a = sounding() == 3;
+    cr_loop_ed_clear(&L);
+    step(2);
+    ok(a && sounding() == 0 && L.pre == 0 && L.d.nev == 5, "the step cleared (REC): its preview ends; 5 events");
+    /* while the loop plays: nothing */
+    cr_loop_play(&L, &C);
+    step(30);
+    from = nlog;
+    ed_at(5);
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    ok(n == 0 && L.pre == 0 && L.state == CRL_PLAYING && ons_set(from, s) == 0, "while the loop plays the cursor moved onto step 6 previews nothing (the loop is heard)");
+    cr_loop_stop(&L, &C);
+    step(50);
+    /* the editor closed with a preview sounding: it goes with the editor */
+    ed_at(3);
+    cr_loop_ed_preview(&L, &C);
+    step(20);
+    a = sounding() == 4;
+    cr_loop_ed_close(&L, &C);
+    step(2);
+    ok(a && sounding() == 0 && L.pre == 0 && L.d.nev == 5 && !L.ed, "the editor closed while a preview sounds: silence, the loop as edited by hand alone (5 events)");
+    n = cr_loop_ed_preview(&L, &C);
+    step(5);
+    ok(n == 0 && sounding() == 0, "outside the editor the preview plays nothing");
+    cr_panic(&C);
+    cr_loop_panic(&L);
+}
+
 int main(void)
 {
     s_overwrite();
@@ -2402,6 +2512,7 @@ int main(void)
     s_ratlong();
     s_transpose();
     s_edkeys();
+    s_preview();
     s_bass();
     s_free();
     s_sync();

@@ -20,7 +20,10 @@ FM-1 needed).
 Chrome or Edge, connect the FM-1 and press Install. The button names the version it writes (the newest), and the
 page lists what is new in it beside the button. "Other versions" under the button offers the older ones from 0.16
 on, each with its notes and a sentence on what going back means (0.15 and older are only on
-[Releases](https://github.com/Quixotic7/ChoralRootFM1/releases): no protected update path). Nothing is
+[Releases](https://github.com/Quixotic7/ChoralRootFM1/releases): no protected update path). Beta releases
+(`0.22-beta1`) are opt-in: tick "Show beta releases" under the versions to see them (the page remembers it in that
+browser). A beta may have bugs and the latest stable release can replace it at any time; Install's default is
+always the newest stable release, also when the FM-1 runs a beta. Nothing is
 installed on the computer: the page talks to the FM-1 over Web MIDI, and the firmware files come from the site
 itself (`firmware/`, with their SHA-256, which the page checks before it writes). Do not unplug while it writes; an
 interrupted install is resumed by pressing Install again (after a power loss too, from 0.16 on: see "If an install
@@ -96,8 +99,11 @@ Installing firmware is at your own risk.
 
 ## Status
 
-A public beta, at version 0.21 ([docs/releases/](docs/releases/) has the notes of every version). What is in it; the
-[manual](docs/MANUAL.md) says how to play each part:
+A public beta. The latest stable release is the one the web installer installs by default; the next version, while in
+beta, is offered there too, behind "Show beta releases" ([docs/releases/](docs/releases/) has the notes of every
+version, betas included; [Releases](https://github.com/Quixotic7/ChoralRootFM1/releases) the files). This tree is the
+newest version, so it may be ahead of the stable release. What is in it; the [manual](docs/MANUAL.md) says how to play
+each part:
 
 - **Chords**: the chord block on the keybed (DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the
   white keys F3 G3 A3 C4, B3 = LOCK), roots on D4..G5, voicing on KNOB 1, Key Mode, the Simple / Advanced / Free play
@@ -105,19 +111,21 @@ A public beta, at version 0.21 ([docs/releases/](docs/releases/) has the notes o
 - **Layers** that lock open on a hold (KEY, PERF, FX, BASS, SEQ for the metronome, LOOP), each a picker over a row of four knob
   cells; OCT- or HOME closes them.
 - **Bass** (four behaviours), **performance modes** (strum, slop, arpeggio, twelve patterns, harp), **FX** (reverb,
-  a stereo chorus, a stereo delay, drive), a metronome.
+  a stereo chorus, a stereo delay, drive, and a low and high cut on the whole sound), a metronome.
 - **The looper**: it records chords, ten slots, five record modes (Overwrite, Advance, Overdub, Replace, Step), the
   PLAY menu; from 0.18 on saving is manual: a loop is written by the global save (SAVE held) or when its slot is
   left with unsaved changes (up to 0.17: at every stop) ([docs/LOOPER.md](docs/LOOPER.md)).
-- **Five engines**, in the picker's order: FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx
+- **Six engines**, in the picker's order: FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx
   import, [docs/FM6.md](docs/FM6.md)), FM TONE (engine 15, `eng_quad.c`, code name QUAD: four-operator FM in the style
   of the Digitone, aligned with the Digitone manual's algorithms, carrier levels and controls,
-  [docs/QUAD.md](docs/QUAD.md)), VA ([docs/VA.md](docs/VA.md)), CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), WHEEL.
+  [docs/QUAD.md](docs/QUAD.md)), VA ([docs/VA.md](docs/VA.md)), CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), P5
+  (Melodee's Prophet-5 model with 115 of Sequential's factory programs, 0.22, [docs/PROPHET.md](docs/PROPHET.md)), WHEEL.
   (PHASE, LOFI, VOICE, TRIO, NOISE and PHYS, Felucca's, are retired since 0.18: a sound saved on one stays in its
   slot and plays as a stand-in on the VA.) (Felucca's ANALOG is retired since 0.14: the VA replaces it; an ANALOG sound
-  saved before loads on the VA.) One preset pool per engine (INIT, the factory presets, yours), 32 saved sounds, the
+  saved before loads on the VA.) One preset pool per engine (INIT, the factory presets, yours), 128 saved sounds shared
+  by every engine (32 until 0.21), favourites with a filter, the
   sound editor ([docs/PRESETS.md](docs/PRESETS.md), [docs/EDITOR.md](docs/EDITOR.md)).
-- **Views**: Chord, Keyboard, Notes, Geek Out, Scope; Options, one setting per screen.
+- **Views**: Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2; Options, one setting per screen.
 - **MIDI**: three streams out over USB (performance on channel 1, bass on 2, the raw chord off by default), MIDI in
   on the parts (USB and TRS), clock both ways.
   **USB audio recording** (Melodee's, class compliant, no driver): the computer records the FM-1 through **ChoralRoot
@@ -125,6 +133,15 @@ A public beta, at version 0.21 ([docs/releases/](docs/releases/) has the notes o
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.23** ([docs/releases/0.23.md](docs/releases/0.23.md)): FM TONE at the other engines' level and without
+  pops on its voices; Options > Velocity Curve; Solfège numerals in Key Mode; the device manager places sounds next to
+  one saved on another build.
+- **New in 0.22** ([docs/releases/0.22.md](docs/releases/0.22.md)): P5, a sixth engine; 128 sound slots shared by
+  every engine and favourites with a filter; FM TONE in the Digitone's ranges and times, with Digitone `.dnsnd`
+  import; the VA matrix's amounts in tenths below 6; Snap and numerals in Key Mode; velocity and aftertouch from the keys (Options > Key Touch) and a per-sound
+  EXPR screen; knobs that accelerate; a master Filter (the FX layer's eighth page); the loop editor's step preview;
+  Dual Core on by default, at 1.50 V, off by itself after a crash, and a single-core package; Geek Out 2; the unit
+  ID; the device manager's P5 tab and bulk restore.
 - **New in 0.21** ([docs/releases/0.21.md](docs/releases/0.21.md)): the chorus no longer clicks while Depth turns,
   and its page has a Width knob (KNOB 3) for the stereo spread ([docs/FX.md](docs/FX.md)).
 - **New in 0.20** ([docs/releases/0.20.md](docs/releases/0.20.md)): Options > Chord Names (the Orchid's names, the
@@ -170,7 +187,9 @@ Python 3 with Pillow and fontTools, and SDL2; the device build needs Docker and 
 ## Licence
 
 GPL-3.0-only ([LICENSE](LICENSE)). Built on Felucca by Leo Kuroshita (@kurogedelic), Hügelton Instruments, and its FM6
-from [Melodee](https://github.com/keremimo/melodee) by Kerem Kilic (Ellic Studio);
+from [Melodee](https://github.com/keremimo/melodee) by Kerem Kilic (Ellic Studio); the keys' velocity and aftertouch
+from [Velo](https://github.com/charlesvestal/fm1-velocity) and [MONK-1](https://github.com/charlesvestal/fm1-monk) by
+Charles Vestal (GPL-3.0-only; [docs/VELOCITY.md](docs/VELOCITY.md));
 the chord logic after the Telepathic Instruments Orchid. The firmware is all-synth (no samples in it: Felucca's
 SAMPLE engine and its CC0 instruments by Versilian Studios stay in the tree for Felucca builds); the package carries three JieLi AC79 SDK files under Apache-2.0. The bundled font, icons,
 ported DSP and SDK files keep their own licences ([LICENSES/](LICENSES/)); [LICENSING.md](LICENSING.md) has

@@ -569,6 +569,15 @@ audio (audible, and timing: its stage in `pk_late_stage`); `pk_late` above 0 alo
 reach; `pk_part0_us` was predicted at about 630 us for eight voices (685 with every depth moving): above 1450 it is
 far from the count, above 2000 a late half is near; all clean, and a pop heard in that stretch was computed.
 
+**The count against the unit: 630 counted, 1066 read** (docs/HANDOFF.md item 21). A likely cause since 3y41, **a
+hypothesis until it is measured**: the count is instructions at 205 a microsecond, and code that executes from the
+flash stalls when the code cache misses. The P5 engine's sample loop lost a quarter of its part's time when it moved
+to RAM with not an instruction changed (docs/FX.md "Code in RAM"). CZ-1's render is 16.4 KB of loops, one of 86
+chosen for each line and block, and two tables in flash (`CZ_CARRIER` 4096 B every sample; `CZ_RECIP` 8192 B in the
+`_mv` loops). `CR_RAM_CZ=1 ./build.sh` links the eleven functions of the render at RAM (16 390 B: it fits beside P5's
+loop and nothing else); package E of the measurement plan there is that build. Read `pk_part0_us` with the same
+eight-voice playing on A and on E.
+
 ## Tests
 
 - `tests/cr_cz_test.c` (in `tests/run_cr_tests.sh`): the engine's number and place; Casio's 64 (valid, names, BANK /

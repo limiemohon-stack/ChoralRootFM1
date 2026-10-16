@@ -1,0 +1,157 @@
+# FM TONE's LFO DEST in the Digitone's order (eng_quad.c QUAD_DEST_ORDER, docs/QUAD.md "LFO", 2026-10-14): FM TONE
+# picked as cr_quad.txt does (EDIT held + SELECT +1, OCT+), EDIT, LFO twice: LFO 2; KNOB 4 +1 58 times: NONE -> L1SPD
+# .. F DLY, then once more (it stays at F DLY, the end); shots at L1SPD, ALGO, PITCH, R ALL, ABLEV, DRIVE, REV, F DLY;
+# KNOB 4 -57: back to NONE. test_cr.sh checks the order of the deep: lines against the list
+wait 300
+btn EDIT down
+wait 400
+knob SELECT +1
+wait 300
+btn EDIT up
+btn OCT+
+wait 300
+btn EDIT
+wait 400
+btn LFO
+wait 400
+btn LFO
+wait 400
+shot build/emu/test/cr_quad_dest_lfo2.ppm
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_l1spd.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_algo.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_pitch.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_rall.ppm
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_ablev.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_drive.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_rev.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+knob KNOB4 +1
+wait 120
+wait 200
+shot build/emu/test/cr_quad_dest_fdly.ppm
+knob KNOB4 +1
+wait 120
+knob KNOB4 -57
+wait 300
+shot build/emu/test/cr_quad_dest_none.ppm
+btn EDIT
+wait 400
+quit

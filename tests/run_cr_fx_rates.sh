@@ -19,6 +19,6 @@ for r in full half; do
 done
 python3 tools/fx_plots.py build/fx-review > /dev/null
 echo "WAVs and pictures: build/fx-review/cmp_delay_{full,half}.*, cmp_reverb_{full,half}.*, ir_*_{full,half}.*"
-# (the checks' limits are the default build's: the delay at full rate, the reverb at half; sh tests/run_cr_tests.sh is
+# (the checks' limits hold at both rates since 2026-10-14 (the default build: both at half); sh tests/run_cr_tests.sh is
 # the one that must pass. A comparison build may miss one by a little: shown above, not an error here)
 exit 0

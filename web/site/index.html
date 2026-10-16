@@ -2,6 +2,8 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only -->
 <!-- The landing page of ChoralRoot FM-1. web/make_site.py copies it to the site's root and fills
      {{VERSION}} {{PKG}} {{PKG_URL}} {{PRODUCT}} {{NEWS}} ("New in X": the version's bullets from web/releases.json); no other templating. The keybed SVGs are plain markup.
+     Also LAYOUT (the layout viewer's link) and EMU_NOTE (a line when the browser emulator runs a beta), each in
+     double braces below. When the published version is a beta, VERSION, PKG and NEWS are the newest stable one's.
      Its content is the short version of docs/MANUAL.md (the reference: every sentence here was read against it,
      for 0.16); where the manual goes deeper the page links to it on GitHub. Two comments in the Recovery section
      (interrupted update, rescue key) mark the statements the manual's section 16 still marks as to be confirmed
@@ -54,6 +56,7 @@
     <div class="try">
       <a class="btn b-green" href="emu/">Try it first</a>
       <p class="note">The exact same firmware, running in your browser. No FM-1 needed. Chrome, Edge and Firefox supported.</p>
+      {{EMU_NOTE}}
     </div>
     <div class="new">
       {{NEWS}}
@@ -75,6 +78,7 @@
       <div class="cell">
         <a class="btn b-blue" href="https://github.com/Quixotic7/ChoralRootFM1">Source</a>
         <p class="note">On GitHub, GPL-3.0. Created by Quixotic7, building off of Felucca by Hügelton Instruments.</p>
+        {{LAYOUT}}
       </div>
       <div class="cell">
         <a class="btn b-yellow" href="#playing">Manual</a>

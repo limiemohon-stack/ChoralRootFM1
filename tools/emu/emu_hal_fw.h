@@ -63,6 +63,7 @@ static void fm1_irq_on(void)
 #define fm1_led_dim (emu_hal.led_dim)
 #define fm1_led_dim2 (emu_hal.led_mid)
 #define fm1_led_faint (emu_hal.led_faint)
+#define KN_QUICK() (emu_hal.knob_quick)            /* cr_pages.c kn_turn: a script's "knobs quick" (emu_hooks.h) */
 static volatile uint32_t host_pressed, host_notes;   /* edges since the last take */
 static volatile int32_t host_enc[7];
 static uint32_t fm1_input_edges(void *released)
@@ -174,8 +175,12 @@ static void emu_flash_sync(uint32_t off, uint32_t n)
     fwrite(emu_flash + off, 1, n, emu_flash_f);
     fflush(emu_flash_f);
 }
+#define ST_READS_COUNTED 1
+static uint32_t st_reads, st_read_bytes;          /* (storage_hw.c's: every flash read, calls and bytes) */
 static int st_read(uint32_t off, void *dst, uint32_t n)
 {
+    st_reads++;
+    st_read_bytes += n;
     if (off > EMU_FLASH_SIZE || n > EMU_FLASH_SIZE - off)
         return -8;
     memcpy(dst, emu_flash + off, n);
@@ -185,29 +190,52 @@ static int st_read(uint32_t off, void *dst, uint32_t n)
  * ~45 ms on the FM-1's NOR, up to 400 ms): no render, the DMA loops silence. The emulator plays the same hole:
  * EMU_ERASE_MS of zero blocks, the firmware's audio ISR not run meanwhile (emu_fw_audio) */
 #define EMU_ERASE_MS 45u
+#define EMU_PROG_US 1000u                         /* a page program's masked time in the model (docs/FX.md: ~1 ms) */
 static uint32_t emu_stall_blocks, emu_stalls, emu_stall_blocks_all;
 static int audio_loud(void);                      /* audio.c (included after this): the output above -60 dBFS */
 static uint32_t st_holes;                         /* .. erases that cut it (audio.c's count on the device) */
-#define st_erases emu_stalls                      /* (storage_hw.c's count: the console, the GEEK OUT view) */
+/* storage_hw.c's counters (78 PEAK, the console, the GEEK OUT view): every erase (emu_stalls: those with audio to
+ * stall, i.e. not the power-on's erase ahead), the automatic ones near playing, the longest page program; and the
+ * model's own: the masked time in all, when the last erase started (fm1_ms) */
+static uint32_t st_erases, st_near, st_prog_us, emu_masked_us, emu_erase_ms;
+static uint8_t st_auto;
+static uint8_t st_ahead_ok[4];                    /* storage.c's ([3]: the power-on's erase ahead runs) */
+static int cr_erase_near(void);                   /* cr_ui.c */
 static int st_erase(uint32_t off)
 {
     off &= ~0xFFFu;
     if (off >= EMU_FLASH_SIZE)
         return -8;
-    emu_stall_blocks += (EMU_ERASE_MS * 44100u / 1000u + HALF_FRAMES - 1u) / HALF_FRAMES;
-    emu_stalls++;
-    st_holes += (uint32_t)audio_loud();
+    st_erases++;
+    emu_masked_us += EMU_ERASE_MS * 1000u;
+    emu_erase_ms = fm1_ms;
+    if (!st_ahead_ok[3]) {                        /* (power-on: the audio has not started, nothing stalls) */
+        emu_stall_blocks += (EMU_ERASE_MS * 44100u / 1000u + HALF_FRAMES - 1u) / HALF_FRAMES;
+        emu_stalls++;
+        st_holes += (uint32_t)audio_loud();
+        if (st_auto && cr_erase_near())
+            st_near++;
+    }
     memset(emu_flash + off, 0xFF, 0x1000u);
     emu_flash_sync(off, 0x1000u);
     return 0;
 }
+static int emu_prog_left = -1;                    /* the host tests' power cut: programs that still reach the flash (-1:
+                                                   * no cut), then every program fails (tests/cr_pool_test.c) */
+static void emu_flash_fail_after(int n) { emu_prog_left = n; }
 static int st_prog(uint32_t off, const void *src, uint32_t n)
 {
     uint32_t i;
     if (off > EMU_FLASH_SIZE || n > EMU_FLASH_SIZE - off || (off & 0xFFu) + n > 256u)
         return -8;                                /* (a page program must not wrap: the device's rule) */
+    if (emu_prog_left == 0)
+        return -9;
+    if (emu_prog_left > 0)
+        emu_prog_left--;
     for (i = 0; i < n; i++)
         emu_flash[off + i] &= ((const uint8_t *)src)[i];
     emu_flash_sync(off, n);
+    emu_masked_us += EMU_PROG_US;
+    st_prog_us = EMU_PROG_US;
     return 0;
 }

@@ -1,4 +1,4 @@
-# ChoralRoot: the SCOPE view. HOME taps cycle the View (Chord Keyboard Notes Geek-Out Scope); MAJ + D4 held: the
+# ChoralRoot: the SCOPE view. HOME taps cycle the View (Chord Keyboard Notes Geek-Out Scope Geek-Out-2); MAJ + D4 held: the
 # master output as one bold line, triggered on the steepest rising zero crossing; released and quiet: a flat line
 # (the scope stays, no idle stripes)
 wait 500

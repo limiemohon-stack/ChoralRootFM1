@@ -44,6 +44,8 @@ from a layer: it goes with the layer (manual).
 | Secret Chords | Options | block `secret` | **automatic** |
 | 6th with 7th (0.20) | Options | block `pick_roots` bit 4 | **automatic** |
 | Velocity | Options | block `vel` | **automatic** |
+| Key Touch (Fixed, Dynamic, Vel + Aftertouch, Vel + Poly AT), Velocity Sens, Aftertouch Sens (docs/VELOCITY.md) | Options | block `bass_on` bits 2..7 (`CRS_TOUCH`, `CRS_VSENS`, `CRS_ATSENS`; 0 = Fixed / Mid, the defaults: no version) | **automatic** |
+| Velocity Curve -3 .. +3 (docs/VELOCITY.md "fm1-ctl") | Options | block `pick_roots` bits 5..7 (`CRS_VCURVE`, two's complement; 0 = 0, the default: no version) | **automatic** |
 | MIDI Perform, MIDI Bass, MIDI Raw Chord | Options | block `midi_en[3]`, `midi_ch[3]` | **automatic** |
 | Raw Chord Sound | Options | block `raw_sound` | **automatic** |
 | MIDI Clock | Options | block `clock_mode` | **automatic** |
@@ -53,7 +55,7 @@ from a layer: it goes with the layer (manual).
 | Hold Time | Options | Felucca's `bold` (HOLD), in the same flash object | **automatic** |
 | USB Record, USB Level | Options | block `usb_in`, `usb_level` | **automatic** |
 | USB Rate (0.19) | Options | block `pick_roots` bit 2 | **automatic** |
-| Dual Core | Options | block `view` bit 6 | **automatic** |
+| Dual Core (On by default since 0.22; a record keeps its own; the single-core package never changes it: docs/DUALCORE.md "Two packages") | Options | block `view` bit 6 | **automatic** |
 | Output (0.19) | Options | block `pick_roots` bit 1 | **automatic** |
 | the palette (no control: MOD) | | block `palette` | automatic |
 | the panel calibration | Options > Calibrate, OCT- + OCT+ at power-on | Felucca's `panel` | **automatic** (written by the calibration itself) |
@@ -64,7 +66,8 @@ from a layer: it goes with the layer (manual).
 | the view's lock | the view menu | block `view` bit 7 | manual |
 | Key Mode, tonic, scale | KEY tap, the KEY layer | block `key_on` bit 0, `tonic`, `scale` | manual |
 | Key plays, Keyboard | the KEY layer's page 2 | block `key_on` bits 1 / 2 | manual |
-| Numerals (0.22) | the KEY layer's page 2, KNOB 4 | block `bass_on` bit 1 | manual |
+| Snap (0.22) | the KEY layer's page 2, KNOB 3 | block `key_on` bits 3 .. 4 | manual |
+| Numerals (0.22; its Solfège after 0.22) | the KEY layer's page 2, KNOB 4 | block `bass_on` bit 1 (On); `scale` bit 7 (Solfège) | manual |
 | the KEY layer's keys (pick / play) | GLO in the KEY layer | block `loop_rec` bit 5 | manual |
 | Transpose | the KEY layer | block `transpose` | manual |
 | the LOCK layer's two settings | B3 held | block `loop_rec` bits 6 / 7 | manual |
@@ -106,18 +109,108 @@ the loop editor with them), and afterwards reloads the loop: the slot the block 
 dropped (a loop staged by a slot switch while it played is written first: that save is the switch's). A unit that
 never saved reverts to what it powered on as.
 
-**Audio.** A flash erase holds every IRQ for ~45 ms with the audio buffer zeroed (`storage_hw.c st_erase`). The
-global save writes at most three objects, one erase each, back to back (the settings object: 1 erase + 4 page
-programs; the session: 1 + 5; the loop slot: 1 + up to 16) and only those that changed (`crs_write`'s compare,
-`css_write`'s hash, `crl.dirty`): into silence nothing is heard; into a held chord or a tail, one 45 ms hole a
-written object, the sound going on after each (`test_persist.sh` `session_hold.txt`: "audio stalled" in the dump).
-It is not deferred to silence: the owner presses and expects it. It IS deferred while a loop plays or a capture is
-open. The automatic write keeps main's rule: never while anything sounds above the tail floor.
+**Audio.** A flash erase holds every IRQ for the sector's erase time with the audio buffer zeroed (`storage_hw.c
+st_erase`; 17.8 ms measured on the unit, 45 ms by the data sheet and in the emulator's model). The
+global save writes at most three objects back to back (the settings object: 4 page programs; the session: 5; the
+loop slot: 1 erase + up to 16) and only those that changed (`crs_write`'s compare, `css_write`'s hash,
+`crl.dirty`). Since 0.22 the session is programmed into a copy that was erased ahead
+([When flash is written](#when-flash-is-written-022-the-quiet-writes)): no erase, nothing heard, also into a held
+chord; the settings object erases at its save as before (3y52: the calibration's fallback copy). A second global save before the erase ahead has come (10 s idle) erases for itself, one hole a written
+object, the sound going on after each (`test_persist.sh` `quiet_writes_save.txt`: "audio stalled" in the dump); the
+loop slot erases as before. It is not deferred to silence: the owner presses and expects it. It IS deferred while a
+loop plays or a capture is open. The automatic write keeps main's rule: never while anything sounds above the tail
+floor.
 
 **Power-on**: as the last global save left it, plus the Options as they were when the unit was last quiet. Never
 saved: the defaults. **Migration**: none; what a 0.17 unit or an earlier 0.18 build stored is "the last save".
-`cr_settings_save` (Felucca's `settings_save`: the power-on calibration, a backup's LIST, the update gesture) is the
-automatic part alone: neither a backup nor the update gesture is a global save.
+`cr_settings_save` (Felucca's `settings_save`: the power-on calibration, the update gesture) is the automatic part
+alone: the update gesture is not a global save.
+
+**When automatic writes happen (3y48)**: only from `cr_settings_poll` (the Options) and `crf_poll` (the favourites),
+once nothing changed for `CRS_QUIET_MS` (1.5 s) AND nothing sounded for `CRS_IDLE_MS` (1 s; `crs_sounding`: a voice
+of either part, P5's on either core and the bass stack included, the engine's voices and queued notes, an arp or
+perform pattern stepping, the master output above -60 dBFS), at least `CSS_GAP_MS` after the last write, never while
+a loop plays or records. **A read never writes flash**: a backup's LIST and GET, `--favorites`, `--debug` (73 DEBUG,
+78 PEAK, 79 USB) and INFO only read. Until 3y48 LIST called `cr_settings_save` first, which erased for a pending
+Option or mark whatever sounded (the owner's stutter under an arp; the emulator reproduced two erases from one LIST).
+Now LIST lists the Options as last written (a change not yet written is in the next backup after the unit was quiet)
+and the favourites from RAM when a mark is not written yet (`crb_favram`: the bytes `crf_pack` gives; GET serves
+them; a restore of them writes as any PUT does). 78 PEAK's `erases_auto_sounding` (the rule: 0) and `last_erase_why`
+/ `last_erase_obj` / `last_erase_ms` say who wrote last (docs/FX.md).
+
+## When flash is written (0.22: the quiet writes)
+
+The owner, 2026-10-13, on the build with the favourites' filter (marking, typing and filtering favourites across
+engines while playing): "I am now getting lots of audio glitches and dropouts now, even with older engines like
+FM6." The unit after that session: `flash_erases` 9, `irq_gap_us` 17 851 at `st_erase`'s return, `stale_halves` 46.
+
+**What it was.** `storage.c st_save` erased the copy it was about to write at EVERY save: one sector erase a write,
+17.8 ms with every interrupt masked (six audio halves nobody serves, the buffer silenced first), then the page
+programs. The automatic writes (an Option changed, a favourite marked, typed or filtered) waited 1.5 s after the
+change and for one second without a sound: the pause after a mark, where the next note is. A note in those 18 ms
+starts late or loses its attack; a tail under −60 dBFS is cut.
+
+**What it is now** (`storage.c` "erase ahead", `cr_settings.c` "the quiet writes"): for the **favourites** and
+the **session** the erase is taken out of the save. **The settings object is not** (3y52, the owner's decision of
+2026-10-14: "Lets go with your recommendation."): it holds the panel calibration, and its previous copy stays beside
+the current one as the fallback until its next save, which erases at that time as it always did. That costs an 18 ms
+pause when an Option changes, accepted: the automatic Options write keeps its rule from before the quiet writes
+(nothing changed for 1.5 s, nothing sounded for 1 s: `cr_settings.c crs_when` treats an object that is not erased
+ahead as `ready`), so the pause falls after the sound (`erases_auto_sounding` 0; it may come within 2 s of an input,
+which `erases_near` counts: that rule is the favourites' and the session's); SAVE held erases at once (the player's own press). p5-g's first version (e31c096) erased
+all three ahead; this line (3y52) keeps only these two (`storage.c st_ahead_ix`, `cr_settings.c CRQ_OBJ`).
+
+| | when | masks the interrupts for |
+| --- | --- | --- |
+| **the erase ahead** (`st_prep`): the copy that is NOT the current one is made blank | at power-on, before the audio starts (`crs_ahead_boot`, from `persist_boot`); afterwards only after **10 s** without a sound and without input (`ST_AHEAD_IDLE_MS`; `crs_ahead_poll`), one object at a time, 250 ms apart | one sector erase (17.8 ms), where nobody plays |
+| **an automatic write into a blank copy** (`st_write_due`, `ready`) | as before: nothing changed for 1.5 s (`ST_SETTLE_MS`: a run of changes is one write), nothing sounded for 1 s (`ST_SILENT_MS`), no loop playing, no restore | page programs only, each its own masked stretch with the interrupts open between: 3 for the favourites (2 payload pages when the object is over 256 bytes, 262 at most, + the commit record), 5 for the session (the settings: their erase + 4, see below). A page: about 1 ms by the driver's comments (3 ms the generic maximum), **not measured**: `flash_prog_us` in `--debug` is the unit's own figure. Under one audio half (2.9 ms) |
+| **an automatic write that has to erase** (a second change before the erase ahead came; a spare copy that is not blank for any reason) | the same, and **4 s** without a sound AND without input (`ST_ERASE_IDLE_MS`) instead of one silent second | the erase + the programs |
+| **SAVE held** (`cr_settings_commit`), the calibration, the update gesture (`cr_settings_save`; 3y48: never a backup's LIST) | at once, as before | programs only when the copy is blank; else the erase too |
+| **the settings object** (any save: the Options poll, SAVE held, the calibration) | the Options poll: 1.5 s unchanged, 1 s silent (as before 0.22); the others at once | its erase (18 ms) + 4 programs, every time; the previous copy kept |
+
+"Sound" is `crs_sounding` (a voice of the parts, a chord held or latched, a scheduled note, the master output above
+−60 dBFS over the scope's 23 ms); "input" is `cu.last_input` (`cr_ui.c`: a key, a button, a knob, a MIDI channel
+message: the screensaver's clock). Both are read in the frame that starts the erase: an input before it starts puts
+it off by the whole wait; once started an erase runs to its end.
+
+**What a save reads.** `st_save` does not trust the RAM flag (`st_ready`, which only decides WHEN): it reads the
+whole target sector (16 reads of 256 bytes) and programs without erasing only if every byte is 0xFF; else it erases
+as it always did. A copy half written or half erased when the power went is therefore erased again before use.
+
+**Power cuts** (for the favourites and the session; the settings object keeps Felucca's two copies: a cut leaves
+the older or the newer valid copy in charge, as before. The commit protocol is unchanged: only the copy that is not current is ever erased or programmed,
+the commit record last; `tests/storage_test.c` walks these):
+
+| the flash | what a power-on reads | what happens next |
+| --- | --- | --- |
+| valid A + blank B (after an erase ahead; also a new unit after its first save) | A | the next save programs B |
+| valid A + B half programmed (cut during a save: payload without a commit record, or a torn record) | A | B is not blank: erased at power-on |
+| valid A + valid B, B newer (cut after a save, before the erase ahead; every unit coming from an older firmware) | B | A erased at power-on |
+| valid B + A half erased (cut during the erase ahead) | B | A is not blank: erased again at power-on |
+| no valid copy, anything in A | nothing (the defaults) | A erased at power-on; the first save programs it |
+
+**What it costs.** (1) Power-on: per object the two commit records, the current payload and one sector's blank check
+(about 16 reads of 0.5 ms: 8 ms; by reading, not measured), and an erase (18 ms, + 8 ms to read it back) for each
+copy that is not blank: about 16 ms when both are blank, about 70 ms at worst (two objects; the settings object is
+not checked). (2) **The older copy of the favourites and the session does not survive until the next save** (the
+settings' does: the reason they are not erased ahead). Before 0.22 a unit kept the previous version of each object beside the current one,
+and a current copy that went bad (a flash fault, not a power cut) fell back to it; now, from the erase ahead on,
+there is one copy, as on a unit saved once. (3) An erase cut by the power so late that every byte already reads
+0xFF cannot be told from a finished one; such a sector is programmed, and read back and verified by the save, but
+its cells may hold their charge less well than after a whole erase. Felucca's writer had no such window (it erased
+and programmed in one go). Not done: a second erase when the previous power-on did not finish its own.
+(4) Wear: unchanged, one erase a write; it only moved. (5) A change made less than 1.5 s (or, with the spare copy
+not blank, until 4 s of quiet) before the power goes is lost, as before; SAVE held writes it at once.
+
+**Compatibility.** The format and the map are unchanged. An older firmware meets "one valid copy, one blank" on
+every unit saved once, and its writer erases before it programs; what it leaves (two valid copies) is the third
+row above (`storage_test.c`: 74eae04's writer on this one's flash and back).
+
+**The counters** (`--debug`, 78 PEAK; docs/FX.md): `saves_auto`, `erases_ahead`, `erases_near` (erases the unit
+started by itself while a voice was active or within 2 s of an input: 0 is the rule), `flash_prog_us`.
+The emulator's dump has them in its `quiet writes:` line (`tools/emu/test_persist.sh`, `quiet_writes*.txt`).
+
+`ST_AHEAD` (`choralroot.c`: 1) switches it on; without it `storage.c` is Felucca's writer (its host tests run so).
 
 ## Where it lives
 
@@ -154,6 +247,39 @@ line: the old binaries were not run). Manual, as the page's other two: not in `c
 and the backup tools carry the block as 192 opaque bytes and decode no field of it (`web/fm1backup.js`,
 `tools/fm1_install.py`: `CR_BLOCK`), so they need not know the bit.
 
+**0.22 added two more bits and no version, in `key_on`**: the KEY layer's Snap (page 2, KNOB 3: a key out of the
+scale plays the nearest note of the scale or of the chord sounding, with Key plays Notes or the Full keyboard; Off,
+the default, is 0; GitHub issue 18, HISTORY 3y99) in bits 3 .. 4 (`CRS_SNAP`, `CRS_SNAP_BITS`; `crs_sanitize`'s range
+for the byte is 0 .. 23, `CRS_KEY_MAX`: a Snap of 3 is out of range with the higher bits). 0 in every older record
+and 0 is the default: nothing to migrate. **The caveat is v14's**: every firmware from 0.17 to 0.22-beta2 checks the
+byte against 0 .. 7 (`CRS_FIX(key_on, 0, 7)`), so after a downgrade with Snap on it reads Key Mode as off, Key plays
+Chords and Keyboard Chords, until they are set again there, and nothing else; with Snap Off the record reads as
+before. The byte was chosen as Key Mode's own, next to the two settings it belongs with; the other homes looked at
+cost a setting too on the way back (`scale`'s upper bits: Major there; `single`'s: Full Octave there) and not the
+one the player would look for. `cr_settings_apply` gives the engine `cr_set_key_snap(CRS_SNAP(s))`,
+`cr_settings_capture` and the glue write the bits with `CRS_KEY_BYTE`'s; `tests/cr_settings_test.c t_snap` checks
+the 24 bytes' round trip, 24 .. 255 to the default, apply / capture, that it is manual, and the older firmwares' rule
+(modelled from their `CRS_FIX` line). Manual, as the page's others: not in `cr_settings_auto`.
+
+**Numerals' third value, Solfège (after 0.22; GitHub issue 15), is one bit of its own and no version, in
+`scale`.** KNOB 4 reads Off / On / Solfège (the degree as DO RE MI .., docs/CHORD-NAMES.md "Solfège"). The owner
+(2026-10-16): "Add a new bit for the Solfège mode. don't mix it with bass". So On stays bit 1 of `bass_on` and
+Solfège is **bit 7 of `scale`** (`CRS_SOLFEGE`; the scale is bits 0 .. 6, `CRS_SCALE`, which leaves room for more
+scales), each written alone: Off neither, On `CRS_NUMERALS`, Solfège `CRS_SOLFEGE` (if a record had both, Solfège
+wins). 0 in every older record and 0 is the default: nothing to migrate. **What an older firmware reads**: every
+firmware from 0.17 to 0.22 checks the byte against 0 .. 1 (`CRS_FIX(scale, 0, 1)`, read in `git show v0.17:` ..
+`v0.22:firmware/src/cr_settings.c`), so after a downgrade with Solfège saved it reads **the scale as Major and
+Numerals as Off**, until set again there, and nothing else; without Solfège the byte is one it knows. The byte was
+chosen as the KEY layer's own; a bit of the bass byte was ruled out by the owner (and its bit 0 would switch 0.18 ..
+0.22's engine bass on), `key_on`'s would cost Key Mode, Key plays, Keyboard and Snap there, `tonic`'s the key. Steps
+3, 5 and 6: `crs_sanitize` takes the scale from bits 0 .. 6 (an unknown one: Major, the bit kept);
+`cr_settings_apply` gives the engine `CRS_SCALE(s)` and `cr_settings_capture` keeps bit 7; the glue
+(`crs_capture` / `cr_settings_load`) writes it from `cs.numerals == 2` and reads `cs.numerals` from the two bits;
+`tests/cr_settings_test.c t_solfege` checks the round trip with both scales, the engine's side, an unknown scale, that
+it is manual, an older record, and the older firmwares' rule (modelled from their `CRS_FIX` line);
+`tools/emu/test_persist.sh` sets Solfège, saves, relaunches and reads `SOL` for G in C major. Manual, as the page's
+others: not in `cr_settings_auto`.
+
 ## The ChoralRoot block (`cr_settings_t`, `CRS_SIZE` = 192 bytes)
 
 The block has its own header:
@@ -166,11 +292,11 @@ The block has its own header:
 | field | range | default |
 | --- | --- | --- |
 | playstyle / extadd / secret | Simple–Free / Add Note, Play Chord / Off, Simple, All | Simple, Add Note, Off |
-| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; a higher bit: the byte's default), 0..11, Major/Minor | off, Chords, Chords, C, Major; a v1..v13 record: its Key Mode, Chords, Chords |
+| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; **0.22: bits 3 .. 4 its Snap**, 0 Off / 1 Scale / 2 Chord, `CRS_SNAP`, `CRS_SNAP_BITS`, `cs.snap`, `cr_keysnap_t`; a higher bit or a Snap of 3, 24 .. 255: the byte's default, `CRS_KEY_MAX`), 0..11, Major/Minor (bits 0..6; **bit 7 after 0.22: the KEY layer's Numerals Solfège**, `CRS_SOLFEGE`, `CRS_SCALE` / `CRS_SOL`; an unknown scale: Major, the bit kept) | off, Chords, Chords, Off, C, Major; a v1..v13 record: its Key Mode, Chords, Chords, Off |
 | transpose | −24..24 | 0 |
 | single, split_pc | 0 Full Octave / 1 Split Oct ("Split" until v14) / **v14: 2 Split Bass**, 0..11 (the Chords layout's split, a pitch class; the Full keyboard splits at F4, fixed, not stored) | Full Octave, F (5) |
 | vel | 1..127 (the keys' velocity) | 100 |
-| bass_on | bit 0: 0/1; **bit 1 (0.22): the KEY layer's Numerals**, 0 Off / 1 On (`CRS_NUMERALS`, `CRS_NUMS`, the UI's `cs.numerals`; 0 .. 3 in range) | **0**. Bit 0 is always written 0: until 0.17 the rule was "the bass is off at every power-on"; since 0.18 (v15) Bass on is kept, in the session (`bass_on` there), because a firmware older than v15 would switch the engine's bass on from this byte with its own UI still showing off |
+| bass_on | bit 0: 0/1; **bit 1 (0.22): the KEY layer's Numerals**, 0 Off / 1 On (`CRS_NUMERALS`, `CRS_NUMS`, the UI's `cs.numerals`; 0 .. 3 in range; Solfège is `scale`'s bit 7, not this byte's) | **0**. Bit 0 is always written 0: until 0.17 the rule was "the bass is off at every power-on"; since 0.18 (v15) Bass on is kept, in the session (`bass_on` there), because a firmware older than v15 would switch the engine's bass on from this byte with its own UI still showing off |
 | bass_mode, bass_voicing | Chords Only..Solo, −2..4 octaves | Chords Only, 0 |
 | perform_on, perform_mode, perf_sel | 0/1, Strum..Harp, the PERF layer's entry 0..6 | off, Strum, 0 |
 | sticky | latch | off |
@@ -180,7 +306,7 @@ The block has its own header:
 | midi_en[3], midi_ch[3] | per stream MAIN BASS RAW | on, on, **RAW off**; channels 1 / 2 / 3 |
 | clock_mode | Off / **Out** / In | **Out** (Orchid sends clock) |
 | raw_sound | RAW also plays part 0 | off |
-| view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view); **v12: bit 6 Options > Dual Core On** (`CRS_DC_ON`, `CRS_DUALCORE`; set = On: core 1 started at power-on, docs/DUALCORE.md; v11, 0.15, had the bit the other way round: set = Off, On the default), another bit or view: the default; Full/Calm/Off, Glow/Stock | Chord, unlocked, Dual Core **Off**, Full, Glow; a v1..v8 record: its view, unlocked; a v1..v11 record: Dual Core Off, whatever its bit 6 |
+| view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope / **Geek Out 2 (5; 0.22**: four meters, docs/DUALCORE.md "Geek Out 2"; a firmware up to 0.21 finds 5 out of range and reads Chord) (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view); **v12: bit 6 Options > Dual Core On** (`CRS_DC_ON`, `CRS_DUALCORE`; set = On: core 1 started at power-on, docs/DUALCORE.md; v11, 0.15, had the bit the other way round: set = Off, On the default), another bit or view: the default; Full/Calm/Off, Glow/Stock | Chord, unlocked, Dual Core **On** (0.22, a unit with no record and Reset Settings; Off 0.16 .. 0.21; a view byte out of range keeps the record's Dual Core), Full, Glow; a v1..v8 record: its view, unlocked; a v1..v11 record: Dual Core Off, whatever its bit 6 |
 | palette | gfx.c index, 0xFF = MOD | **MOD** |
 | fx_on | 0/1 | on |
 | chord_sound | v6: the chord part's sound, (engine << 8) \| its pool position (docs/PRESETS.md); 0xFFFF = the UI's default. v1..5: an old list position, read as the default | FM6 TINE EP |
@@ -195,7 +321,8 @@ The block has its own header:
 The reserve is used up by v6 (`rsv[20]` became `pool_pos`), and v8 took the last free byte (`rsv_usb`, packed with two
 fields), v9 put the view lock in the view's byte (bit 7; an older firmware reads a locked record's view as out of
 range, Chord), v11 put Dual Core in bit 6 of the same byte, set = Off, and v12 (0.16) turned it round: set = On, so
-that a fresh, erased or zeroed record reads Off, the default since 0.16 (the same caveat: an older firmware reads an
+that a fresh, erased or zeroed record reads Off, the default from 0.16 to 0.21 (since 0.22 the default is On:
+`cr_settings_defaults` sets the bit for a unit with no record and Reset Settings; a record's Off stays Off) (the same caveat: an older firmware reads an
 On record's view as Chord; 0.15 reads a v12 record's bit its own way, On as Off and Off as On, until it is set there),
 and v13 (0.17) put the KEY layer's keys in bit 5 of `loop_rec`, next to the other "what do the keys do in this menu"
 bit, and the LOCK layer's two styles in its bits 6 and 7 (the caveat here: a firmware older than v13 takes a record
@@ -208,7 +335,8 @@ left seven bits unused), 0 = the defaults, and Single's 2 is a new value of an e
 have to grow. The caveat is the same kind: **a firmware older than v14 checks `key_on` and `single` against 0..1**,
 so after a downgrade with Key plays = Notes or Keyboard = Full it reads Key Mode as off (whatever it was), and with
 Single = Split Bass it reads Full Octave; each until set again there, nothing else is touched, and with the three at
-their defaults (and Single Full or Split Oct) an older firmware reads the record as before. Bits 3..7 of `key_on`
+their defaults (and Single Full or Split Oct) an older firmware reads the record as before. 0.22 took bits 3 .. 4
+of `key_on` for Snap (above: the same caveat). Bits 5..7 of `key_on`
 and the upper bits of the other 0 / 1 bytes (`scale`, `sticky`, `raw_sound`, `fx_on`, ...) are what is left for
 flags; a field that needs a byte of its own goes into the session record (below), which has room.
 
@@ -299,6 +427,15 @@ v14 → 15 (0.18): nothing to migrate (no field changed; `t_v15` reads v12, v13 
 settings object restored from a backup goes through the same import (`cr_backup.c`), so a 0.14 / 0.15 backup restores
 with Dual Core Off.
 
+**0.22: Dual Core's default is On, and the version stays 15.** `cr_settings_defaults` sets bit 6 of `view`: a unit
+with no record (new, erased, zeroed), a Felucca / Melodee record without ChoralRoot's block, SAFE MODE's defaults
+(where core 1 is not started all the same) and Options > Reset Settings. **A record that is there keeps what it
+holds**: its bit 6 clear is 0.16 .. 0.21's default as much as a chosen Off, and nothing else in the record tells
+them apart, so no migration turns it On (a v16 that did would switch the second core on for everyone who chose
+Off). Where `crs_sanitize` finds an unknown bit or a view out of range in the view's byte it takes the default view,
+unlocked, and **keeps the record's Dual Core bit** (before 0.22: the whole default byte, which was Off).
+`tests/cr_settings_test.c t_dualcore_v12`; docs/DUALCORE.md.
+
 ## The session (0.18)
 
 "Too much is forgotten at power-off. We should get this to the point where you turn off, turn back on, pick up
@@ -316,7 +453,7 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | every entry of Options (Play Style .. Dual Core, Hold Time) | yes | yes | block; Hold Time in Felucca's `bold` |
 | the panel calibration | yes | yes | Felucca's `panel` in the settings object |
 | Key Mode, tonic, scale, Transpose | yes | yes | block `key_on`, `tonic`, `scale`, `transpose` |
-| the KEY layer: its keys (pick / play), Key plays, Keyboard, Numerals (0.22: `bass_on` bit 1), Single, the split | yes | yes | block `loop_rec` bit 5, `key_on` bits 1 / 2, `single`, `split_pc` |
+| the KEY layer: its keys (pick / play), Key plays, Keyboard, Numerals (0.22: `bass_on` bit 1; its Solfège: `scale` bit 7), Single, the split | yes | yes | block `loop_rec` bit 5, `key_on` bits 1 / 2, `single`, `split_pc` |
 | the KEY layer's page, the PLAY menu's page | no | **no, on purpose** | page 1 whenever the layer opens (`cu.kpage`, `cu.lpage`) |
 | the performance mode, its parameters, Perform on | yes | yes | block `perform_mode`, `perf_sel`, `par`, `perform_on` |
 | LATCH on | yes | yes | block `sticky` |
@@ -331,8 +468,8 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | the bass behaviour, the bass register | yes | yes | block `bass_mode`, `bass_voicing` |
 | the bass level (the BASS layer's Level, BASS held + ALGORITHM; OPT + ALGORITHM until 2026-10-12), each part's Level and Pan (MIX) | no ("bass level 102 came back as 92") | **yes** | session `part[k].p[P_LEVEL]`, `p[P_PAN]`: the part's own parameters travel with its record |
 | FX on / off | yes | yes | block `fx_on` |
-| the page picked in the FX layer (Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive) | no | **yes** | session `fx.sel` (an effect tag; the second pages and Sends have their own) |
-| the effects' own parameters, GLOBAL (the reverb's 7 and the delay's 9: [FX.md](FX.md); the chorus's rate and depth) | no | **yes** | session `fx.par[]` (tag, value) |
+| the page picked in the FX layer (Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive, Filter) | no | **yes** | session `fx.sel` (an effect tag; the second pages, Sends and Filter have their own) |
+| the effects' own parameters, GLOBAL (the reverb's 7 and the delay's 9: [FX.md](FX.md); the chorus's rate, depth and width; the master filter's four, 0.22) | no | **yes** | session `fx.par[]` (tag, value) |
 | the chord part's four sends (the FX layer's "Send" cells, KNOB 4) | no (the preset's again) | **yes** | session `fx.amt[]`. The sends are the PART's since 0.18: no sound load touches them (MANUAL section 8) |
 | an FM TONE sound's Drive (its AMP screen; the Sends page's Drive while the part plays FM TONE) | no (the preset's again) | **yes**, with the part's sound as it is | with the SOUND: a user preset's record (`upreset.c`, its `P_DIST` field), a factory preset's table row; the session `part[].p[P_DIST]`. The part's own drive send stays beside it: `fx.amt[DRIVE]` (chord), tag 29 (bass). docs/FX.md "FM TONE's Drive" |
 | the bass part's four sends (its editor's FX group, CC 91 / 93 / 94 on the bass channel) | no (the bass sound's again) | **yes** | session `fx.par[]`, tags 26..29 |
@@ -365,10 +502,10 @@ Header: `magic` `CSS1`, `version` (`CSS_VERSION`, 1), `size`, `check` (FNV-1a ov
 | bass_on | 0/1 | 0 |
 | lock, latched | 0/1, bit `cr_mod_t` (cleared when `lock` is 0) | off, none |
 | loop_rate | -7..3: the loop's Rate in steps from x1 (x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 **x1** x1.5 x2 x4; `cr_loop.h CRL_NRATE`; -7 .. -4 since 2026-10-11: a 0.18 dev build of before reads them as x1); the first byte of the old reserve, so a record written before it reads 0 = x1 with no migration | 0 (x1) |
-| fx (`css_fx_t`, 108 bytes) | the FX sub-block, below | nothing stored |
+| fx (`css_fx_t`, 124 bytes: 108 until 0.22, when `par[]` grew by four entries into `rsv_fx`, which is 4 bytes now) | the FX sub-block, below | nothing stored |
 | part[2] (`css_part_t`, 384 bytes each: chord, bass) | `valid`; `eng`, `preset`, `user`, `trim` (the part's `track_t` fields; **`trim` is written and, since 0.19, not read**: a part put back takes the trim of its pool entry from the running firmware's table, `cr_session_part_trim`: a factory preset its `CB_TRIM` row, a user preset bound to one that row, an added user preset and INIT none, as `cu_pool_load`, so a row removed or added by an update holds for a session saved before it); `edited`, `kind`, `fk`, `slot`, `name` (the UI's `cu_snd_t`: the pool entry the sound came from); `np` and `p[96]` (the writer's `P_COUNT`, 91 today, and every parameter: the engine's eight, the envelopes, the LFO, the modulation, the sends, **Level and Pan**); `nblob` and `blob[160]` (the engine's deep patch, `ENG_BLOB_MAX`: FM6 128, VA 110, CZ-1 144, FM TONE 80; none on the other engines) | not valid: the pool's sound (the block's `chord_sound` / `bass_sound`) |
 
-**Reserve: 142 bytes of the 1024** (46 after the state, 20 after the FX block, 8 in each part, 60 at the end), 1 of
+**Reserve: 126 bytes of the 1024** (46 after the state; 4 after the FX block since 0.22's master filter took 16, 8 in each part, 60 at the end), 1 of
 the FX block's 24 parameter entries (23 are stored since 0.21) and 5 of a part's 96 parameters; and the object holds 3840 bytes, so `CSS_SIZE`
 itself can grow: the import takes a shorter (older) record over the defaults and a longer (newer) one by its prefix,
 and no other firmware and no tool reads this object.
@@ -405,9 +542,11 @@ that effect's send from the chord part (0..127, `CSS_FX_NONE` = not stored: the 
 | 26 `BS_REV`, 27 `BS_CHO`, 28 `BS_DLY`, 29 `BS_DRIVE` | the BASS part's sends (the chord part's are `amt[]`) | 0..127; 10, 0, 0, 0 | `trk[1].p[P_REV ..]`; 29 while the bass part plays FM TONE: `cu_bdrive` (`cr_ui.c cu_bdrive_p`: the part's send waits there, the track's `P_DIST` is the sound's Drive and is stored in `part[1].p[]`) |
 
 | 30 `XC_WIDTH` | the chorus's width (0.21; KNOB 3 of the Chorus page) | 0..127, 127 | `XP_CWIDTH`. A record without it (0.19, 0.20): 127, their chorus. 0.19 and 0.20 skip it and write their record without it |
+| 31 `XQ_LOW`, 32 `XQ_HIGH`, 33 `XQ_SLOPE`, 34 `XQ_ON` | the master filter's Low cut, High cut, Slope, Filter (0.22; the FX layer's Filter page, [FX.md](FX.md) "The master filter") | 0..127, 0 (Off); 0..127, 127 (Off); 0..1, 1 (12 dB); 0..1, 0 | `XP_FLOW` .. `XP_FON`. **Written only off their defaults** (`CSS_FXG`'s `opt`): a unit that never touched the filter writes 23 entries as before, and a firmware before 0.22 reads its record as before; one that did writes up to 27, and a firmware before 0.22 reading more than 24 entries takes the whole FX block's defaults (its `cr_session_import`: the effects' settings and the chord part's sends, not the sounds, not the rest of the session) |
 
-23 entries are stored today (24 fit: **one is left**; the next effect parameter after that needs `CSS_NFXP` and
-with it `css_fx_t`'s layout and `CSS_FX_VERSION` to change, or a place outside `par[]`). A session written by 0.17 or by a 0.18 build before the new effects holds
+27 entries can be stored (28 fit, `CSS_NFXP`: 24 until 0.22, when `par[]` grew by four entries into `rsv_fx`, the
+entries before them where they were and `CSS_FX_VERSION` unchanged; **one is left**; the next effect parameter
+after that needs the layout to change again, or a place outside `par[]`). A session written by 0.17 or by a 0.18 build before the new effects holds
 tags 1..8: the chorus's two are read, the six retired ones are ignored, and the new delay and reverb start at
 their defaults ([FX.md](FX.md), decision 13). `cr_settings.c` has a static assert on the numbers.
 
@@ -433,22 +572,38 @@ engine is gone or not a melodic one, whose blob is not that engine's size, or wh
 
 `OBJ_SESSION` (`storage.c`): the A/B sector pair **0xB4000 / 0xB5000**, the first two of the 20 sectors that were
 free after FM TONE's patch store (0xB2000 / 0xB3000) in what was Felucca's user sample slot 2 (ChoralRoot has no
-SAMPLE engine; docs/HANDOFF.md's flash map and `storage.c`'s say 0xB4000..0xC7FFF free; 0xB6000..0xC7FFF still is).
+SAMPLE engine; docs/HANDOFF.md's flash map and `storage.c`'s said 0xB4000..0xC7FFF free; since 0.22 the favourites
+take 0xB6000 / 0xB7000, below, and 0xB8000..0xC7FFF still is).
 It is inside `FL_DATA` (`hal/fm1_flash.h`: the HAL writes there), outside the firmware, the update's staging area and
 every other object. The same commit protocol as every object: the other copy is erased and written, its header
 last, so a write torn by the power switch leaves the previous session in charge (`t_session_flash`).
 
 - **SAFE MODE** neither reads nor writes it (`ST_BLOCKED`), and Options > Flash Data erases it with the rest
-  (`cr_ui.c cu_flash_erase`: 58 sectors now).
+  (`cr_ui.c cu_flash_erase`: 60 sectors since 0.22, with the favourites' two; 58 until then).
 - **Backup**: it is NOT a backup object (no new id; `web/fm1backup.js`, the manager and `tools/fm1_install.py` are
   unchanged). A backup holds what you keep (settings, saved sounds, loops), not where the unit happened to be. A
   settings object restored over SysEx empties the session (`cr_backup.c crb_commit`: a zero-length object), so the
   restart comes up on the restored settings alone.
-- **Wear**: a session save is one sector erase and five page programs. It happens only at a global save (SAVE held),
+- **Wear**: a session save is one sector erase (since 0.22 done ahead, at power-on or after 10 s idle) and five page programs. It happens only at a global save (SAVE held),
   and only if the state differs from what flash holds (a hash compare: a save with nothing changed writes nothing).
   The two copies alternate, so a sector is erased every second save. The part is rated for 100 000 erases a sector:
   200 000 session saves, which is 50 saves a day for eleven years. The settings object's pair: the same at a global
   save, plus an automatic write when an Option changed.
+
+### The favourites are a third object (0.22)
+
+Not a setting and not in the block (which never grows): the marks on sounds (and, since 3y42, the sounds' types and
+the favourites filter's Off / On, which Options > Reset Settings therefore leaves as it is) are `OBJ_FAVS`, the pair **0xB6000 /
+0xB7000**, written by `cr_favs.c crf_flush` with the same commit protocol (docs/PRESETS.md "Favourites" has the
+format and the keys). It is AUTOMATIC in the sense of [Manual and automatic](#manual-and-automatic-018): `crf_poll`
+(called from `cr_settings_poll`) writes a changed mark once no mark changed for `CRS_QUIET_MS` and nothing sounded for
+`CRS_IDLE_MS` (and, when the write has to erase, no input came for 4 s:
+[When flash is written](#when-flash-is-written-022-the-quiet-writes)), never while a loop plays or after a restore, and `cr_settings_commit` (SAVE held) and
+`cr_settings_save` (the calibration, the update gesture) write a pending one at once; a backup's LIST does not (3y48:
+it lists the pending marks from RAM). GLO + SAVE (revert) does not
+touch the marks; Options > Reset Settings does not either. It IS a backup object (id 23), unlike the session: marks
+are something you keep. SAFE MODE neither reads nor writes it; Flash Data erases it. Wear: one sector erase a write
+(done ahead since 0.22, not at the write), the two copies in turn.
 
 ### `bind`: which settings a session belongs to
 
@@ -514,7 +669,7 @@ Never reorder or remove a field. A retired field stays in place, unused.
 | `cr_settings_boot()` | `persist_boot` (cr_shim.c), the emulator's `emu_fw_init` | the flash object → Felucca's fields (panel table, palette, HOLD, LEDs) + the block; the USB settings to `usb.c` (`ua_off`) and `fx.c` (`fx_usb_fixed`) through `crs_usb_apply`, before `usb_start` builds the configuration the computer first reads |
 | `cr_settings_load()` | the end of `cr_ui_init` (**patch below**); the emulator calls it after `cr_ui_init` until then | the block → engine (IRQ off), `cr_route`, the UI mirror `cs`, motion, palette, the sounds, tempo |
 | `cr_settings_poll()` | every frame (`main.c` `settings_poll` → cr_shim.c; the emulator's `emu_fw_frame`) | captures the state (the block, and Felucca's HOLD beside it: `crs_hold_seen`, below); a change **of an automatic field** (`cr_settings_auto`; a manual one alone starts nothing) is written, as flash's block with the automatic fields of now, once nothing changed for 1.5 s and nothing has sounded for 1 s (no voice of the parts, no chord held or latched, no scheduled note, the master output under -60 dBFS: a flash erase stops the audio for ~45 ms, docs/INTEGRATION.md Performance), never while a loop plays (`CR_SETTINGS_BUSY()`), retried 1 s after a flash error, and skipped when the bytes are unchanged |
-| `cr_settings_save()` | `settings_save` (cr_shim.c): the power-on calibration; a backup's LIST; the update gesture | the automatic part now |
+| `cr_settings_save()` | `settings_save` (cr_shim.c): the power-on calibration; the update gesture (not a backup's LIST since 3y48) | the automatic part now |
 | `cr_settings_commit()` | `cr_ui.c cu_gsave_now` (SAVE held), `cr_settings_reset` | the global save: the whole block and the session, now; 0, or -1 on a flash error |
 | `cr_settings_revert()` | `cr_ui.c cu_revert` (GLO + SAVE) | flash's block (the Options of now over it) and flash's session applied as at power-on |
 | `cr_settings_reset()` | Options > Reset Settings, OCT+ twice (`cr_ui.c cu_reset`) | the defaults: into the block (`cr_settings_factory`), applied (the default sounds, `cr_settings_load` again), saved; 0.18: the session with it (the parts' own parameters, the FX parameters and the effect picked back to `cr_ui_init`'s), so what is saved is a new unit's session |
@@ -572,8 +727,14 @@ calls `cr_settings_load()` only `if (!crs_loaded)`.
 What the reset does not write: the panel table (`persist_t.panel`: `settings_export` writes the table in RAM, as
 every save does), the favourites, and every other flash object but the session (saved sounds, VA / FM6 / CZ / FM
 TONE patches and banks, the loops): `test_persist.sh` compares the flash outside the settings object and the
-session's pair byte for byte and the panel table inside it. Dual Core: Off is saved; `cr_c1_off` is read at power-on only, so a running second core runs until
-the restart (the message says `restart`). In SAFE MODE the entry works on the session only (`ST_BLOCKED`: no write).
+session's pair byte for byte and the panel table inside it. Dual Core: On is saved (the default since 0.22); `cr_c1_off` is read at power-on only, so a
+second core that this power-on did not start starts at the restart (the message says `restart`). In SAFE MODE the entry works on the session only (`ST_BLOCKED`: no write).
+Dual Core is also written Off by the unit itself (0.22, docs/DUALCORE.md "The persistent fallback"): after a crash,
+a watchdog reset or a give-up with the second core running, `cr_settings_boot` keeps core 1 off and `cr_settings_load`
+reads the option as Off and primes the automatic save (`crs_dc_bar`), so the record's bit 6 is cleared at the next
+quiet moment; the user's own Options > Dual Core clears the bar (`cr_settings_dc_user`). The fallback wins over the
+default: a Reset Settings in that power-on saves Off, not On (`crs_dc_bar` still set). The single-core package never
+bars (`cr_c1_bar_boot`: core 1 never starts there) and so never writes Dual Core.
 Tests: `tests/cr_settings_test.c t_factory`, `reset_set.txt` / `reset_do.txt` / `reset_check.txt`.
 
 ## Power-on calibration
@@ -627,3 +788,11 @@ read as current, migrated or defaults.
    writes what changed, a second one nothing; `session_hold.txt`: SAVE held under a held chord writes at once (the
    erases' silence in the dump), an Option changed under it waits for silence; the reset runs: the session a new
    unit's.
+
+## The sound pool's sectors (0.22)
+
+0xB8000..0xC7FFF, free until 0.22, holds the sound pool (docs/PRESETS.md "The pool"): 16 sectors over which the 13
+banks of 10 user slots float (storage.c `sp_*`: a commit record per sector, type 0x4C50, the newest seq per bank wins).
+The legacy sound objects (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) stay where they are,
+read once by the migration and never written by 0.22. The pool's target sector is erased ahead with the favourites'
+and the session's spare copies (power-on, a long idle).

@@ -67,7 +67,19 @@ static void crl_voices_off(cr_loop_t *lp, cr_t *c)
             cr_loop_event(c, lv, 0, 0, 0, 0, 0);
             lp->pv[lv].used = 0;
         }
+    lp->pre = lp->pre_end = 0;
     lp->hit_on = 0;                                  /* (stopped: nothing is "playing now") */
+}
+
+static void crl_pre_off(cr_loop_t *lp, cr_t *c)     /* the step preview's voices end (cr_loop_ed_preview) */
+{
+    int lv;
+    for (lv = 0; lp->pre && lv < CR_MAX_LOOPV; lv++)
+        if ((lp->pre >> lv) & 1u) {
+            cr_loop_event(c, lv, 0, 0, 0, 0, 0);
+            lp->pv[lv].used = 0;
+        }
+    lp->pre = lp->pre_end = 0;
 }
 
 /* a step's condition on this pass of the loop (CRL_C_*; the audio ISR: a table and a shift, no division). A:B: pass A
@@ -98,6 +110,7 @@ static void crl_hit(cr_loop_t *lp, cr_t *c, int lv)   /* voice lv sounds its cho
                     lp->pv[lv].vel, 1, lp->pv[lv].voic);
     lp->pv[lv].used = 1;
     lp->pv[lv].off = lp->t + (lp->pv[lv].hits ? lp->pv[lv].gate : lp->pv[lv].last);   /* (the last hit: to the note's end) */
+    if ((lp->pre >> lv) & 1u) return;                /* the step preview: heard, not a hit of the loop */
     lp->played++;
     lp->hit_on = 1;                                  /* the editor's "now playing" (three bytes a hit) */
     lp->hit_root = lp->pv[lv].root;
@@ -109,8 +122,9 @@ static void crl_hit(cr_loop_t *lp, cr_t *c, int lv)   /* voice lv sounds its cho
  * or the note's part of it when the note is shorter than a step. A note LONGER than a step (the owner, 2026-10-11:
  * "the last trig of ratchet then holds for the length"): the hits before the last are a slice long and the last one
  * holds to the note's end: dur - (N - 1) slices (x2 on 2 steps: 12 then 36 ticks; x4 on 4: 6, 6, 6 then 78). A ratchet
- * stays on its one loop voice (crl_offs strikes it again), so it can never take more voices than a plain note does */
-static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e, uint32_t idx)
+ * stays on its one loop voice (crl_offs strikes it again), so it can never take more voices than a plain note does.
+ * pre: the step preview (cr_loop_ed_preview): the condition and the chance are not asked, the voice is marked */
+static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e, uint32_t idx, int pre)
 {
     static const uint8_t SLICE[4] = {CRL_STEP, CRL_STEP / 2u, CRL_STEP / 3u, CRL_STEP / 4u};
     int lv, best = -1;
@@ -120,14 +134,16 @@ static void crl_play_ev(cr_loop_t *lp, cr_t *c, const crl_ev_t *e, uint32_t idx)
         a = lp->d.st[s][0];
         b = lp->d.st[s][1];
     }
-    if ((a >> 2) && !crl_cond(lp, a >> 2)) return;
-    if ((b >> 5) && !crl_chance(lp, b >> 5, s)) return;
+    if (!pre && (a >> 2) && !crl_cond(lp, a >> 2)) return;
+    if (!pre && (b >> 5) && !crl_chance(lp, b >> 5, s)) return;
     b &= 31u;
     for (lv = 0; lv < CR_MAX_LOOPV; lv++)
         if (!lp->pv[lv].used) { best = lv; break; }
     if (best < 0)                                   /* all busy: the one that would end first */
         for (lv = 0; lv < CR_MAX_LOOPV; lv++)
             if (best < 0 || (int32_t)(lp->pv[lv].off - lp->pv[best].off) < 0) best = lv;
+    if (pre) lp->pre |= (uint8_t)(1u << best);
+    else lp->pre &= (uint8_t)~(1u << best);         /* (a preview's voice taken by the loop: the loop's now) */
     lp->pv[best].ev = (uint16_t)idx;
     lp->pv[best].root = e->root;
     lp->pv[best].qx = e->qx;
@@ -159,7 +175,7 @@ static void crl_fire(cr_loop_t *lp, cr_t *c, uint32_t lo, uint32_t hi)   /* even
         const crl_ev_t *e = &lp->d.ev[i];
         if ((e->layer & CRL_HID) || e->t < lo || e->t > hi) continue;
         if (hiding && i < lp->layer_ev0) crl_hide(lp, i);
-        else crl_play_ev(lp, c, e, i);
+        else crl_play_ev(lp, c, e, i, 0);
     }
 }
 
@@ -207,6 +223,7 @@ static void crl_offs(cr_loop_t *lp, cr_t *c)
                 }
             }
         }
+        if (!lp->pv[lv].used) lp->pre &= (uint8_t)~(1u << lv);   /* (a preview that ended on its own) */
     }
 }
 
@@ -417,6 +434,8 @@ void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8
         return;
     }
     if (on) {
+        if (lp->pre) lp->pre_end = 1;                                  /* a key played by hand: the step preview ends
+                                                                        * (at the next tick: not inside the hook) */
         if (lp->ed) {                                                  /* the editor: the first key of a new chord:
                                                                         * what it plays replaces the step's notes (a
                                                                         * latched chord already written: not held) */
@@ -655,6 +674,7 @@ void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms)
         crl_tick1(lp, c, 0);                         /* tick 0 */
         return;
     }
+    if (lp->pre_end) crl_pre_off(lp, c);             /* (a key played, the step cleared: the preview ends here) */
     dms = now_ms - lp->last_ms;
     lp->last_ms = now_ms;
     if (dms > 1000u) dms = 1000u;
@@ -789,6 +809,7 @@ int cr_loop_play(cr_loop_t *lp, cr_t *c)
         return CRL_DID_STOP;
     }
     if (lp->state == CRL_STOPPED) {
+        crl_pre_off(lp, c);                          /* (the step preview, if one sounds: the loop's voices now) */
         crl_start(lp, c);
         return CRL_DID_PLAY;
     }
@@ -839,6 +860,7 @@ void cr_loop_panic(cr_loop_t *lp)
 {
     uint32_t i;
     for (i = 0; i < CR_MAX_LOOPV; i++) lp->pv[i].used = 0;          /* cr_panic ended the voices */
+    lp->pre = lp->pre_end = 0;
     lp->hit_on = 0;
     if (lp->cap == CRL_CAP_REC) {
         crl_drop_take(lp);                                          /* a fresh take is dropped */
@@ -1021,6 +1043,7 @@ void cr_loop_ed_close(cr_loop_t *lp, cr_t *c)
     uint32_t i, live = 0;
     if (!lp->ed) return;
     lp->ed = 0;
+    crl_pre_off(lp, c);                              /* (a step preview sounding: it goes with the editor) */
     crl_ed_kill(lp, lp->d.len, 0xFFFFFFFFu, 2, 0);   /* the steps Loop length hid */
     for (i = 0; i < lp->d.nev; i++)
         live += !(lp->d.ev[i].layer & CRL_HID);
@@ -1081,9 +1104,24 @@ int cr_loop_ed_clear(cr_loop_t *lp)
     crl_ed_flat(lp);
     n = crl_ed_kill(lp, lp->ed_t0, lp->ed_t0 + CRL_STEP, 2, 0);
     lp->ed_w = 0;
+    if (lp->pre) lp->pre_end = 1;                    /* (its preview, if it sounds: ended at the next tick) */
     if (n) {
         lp->dirty = 1;
         crl_st_prune(lp);                            /* a cleared step has no ratchet, condition or voicing */
+    }
+    return (int)n;
+}
+
+int cr_loop_ed_preview(cr_loop_t *lp, cr_t *c)
+{
+    uint32_t i, n = 0, t0 = lp->ed_t0, t1 = lp->ed_t0 + CRL_STEP;
+    crl_pre_off(lp, c);                              /* the one before (the next step empty: silence) */
+    if (!lp->ed || lp->state == CRL_PLAYING || lp->cap != CRL_CAP_NONE || t0 >= lp->d.len) return 0;
+    for (i = 0; i < lp->d.nev; i++) {
+        const crl_ev_t *e = &lp->d.ev[i];
+        if ((e->layer & CRL_HID) || e->t < t0 || e->t >= t1) continue;
+        crl_play_ev(lp, c, e, i, 1);
+        n++;
     }
     return (int)n;
 }

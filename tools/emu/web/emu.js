@@ -228,7 +228,7 @@
       selKnob = C5[(((at < 0 ? (m.idx > 0 ? -1 : 0) : at) + m.idx) % 5 + 5) % 5]; drawKnobs();
     }
     else if (m.kind === "turn" && e.shiftKey && selKnob !== 7) {
-      // the firmware's fine mode (emu.c fine_turn): GLO (SHIFT) down, the detent a UI frame later, GLO up after another
+      // the firmware's OPT snap (emu.c fine_turn): GLO (SHIFT) down, the detent a UI frame later, GLO up after another
       const k = selKnob, n = m.idx;
       hold("b5", "fine", true);
       setTimeout(() => { turn(k, n); setTimeout(() => hold("b5", "fine", false), 20); }, 20);

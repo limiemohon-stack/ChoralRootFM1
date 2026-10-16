@@ -1,10 +1,10 @@
 # test_persist.sh, Options > Reset Settings, run 2: reset_set.txt's flash file (a relaunch: the changed settings are
-# the stored ones, Dual Core is running), LOCK on with MAJ latched, then the entry: OCT+ asks, another entry or OCT-
+# the stored ones, Dual Core is Off: one core), LOCK on with MAJ latched, then the entry: OCT+ asks, another entry or OCT-
 # cancels, a closed menu forgets the ask, OCT+ twice resets: everything reads default at once (on the view, LOCK
 # off) and is saved; the unit plays on the default sound.
 #   Options: 25 Reset Settings, the last entry (SELECT past the end stops on it)
 wait 500
-dump                          # 1: as stored: Advanced, 137 BPM, Key Mode on, Motion Off, Dual Core On
+dump                          # 1: as stored: Advanced, 137 BPM, Key Mode on, Motion Off, Dual Core Off
 btn B3                        # LOCK on, MAJ latched
 wait 200
 btn A#3

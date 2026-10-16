@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import sys
 import time
+from html import escape as html_escape
 from html.parser import HTMLParser
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
@@ -149,25 +150,35 @@ def versions(out, meta, want, stdout):
     the installer with a link that resolves, SHA256SUMS and firmware/index.html agreeing"""
     fw = out / "firmware"
     names = [f"choralroot-{w['version']}.fwsc" for w in want]
-    ok(sorted(p.name for p in fw.glob("*.fwsc")) == sorted(names), f"firmware/: {len(names)} package(s): {', '.join(w['version'] for w in want)}")
-    ok(all((fw / n).is_file() and sha(fw / n) == w["sha256"] for n, w in zip(names, want)), "firmware/: every package has its listed sha256")
+    # a version that lists sha256_1core publishes its single-core package beside it, unless make_site.py said it skipped
+    # that file (a local build without it)
+    ones = {w["version"]: f"choralroot-{w['version']}-1core.fwsc" for w in want if w.get("sha256_1core")}
+    skipped1 = [v for v, n in ones.items() if f"skipped: {n} (" in stdout]
+    ones = {v: n for v, n in ones.items() if v not in skipped1}
+    ok(sorted(p.name for p in fw.glob("*.fwsc")) == sorted(names + list(ones.values())),
+       f"firmware/: {len(names)} package(s): {', '.join(w['version'] for w in want)}" + (f" (+ {len(ones)} single-core)" if ones else ""))
+    ok(all((fw / n).is_file() and sha(fw / n) == w["sha256"] for n, w in zip(names, want)) and
+       all((fw / ones[w["version"]]).is_file() and sha(fw / ones[w["version"]]) == w["sha256_1core"] for w in want if w["version"] in ones),
+       "firmware/: every package has its listed sha256 (a single-core one its sha256_1core)")
     rel = (meta or {}).get("releases", [])
     ok([r.get("version") for r in rel] == [w["version"] for w in want] and all(r.get("sha256") == w["sha256"] for r, w in zip(rel, want)),
        "installer: offers exactly these versions, in this order, with these sha256")
     inst = out / "webapp" / "installer"
     ok(all((inst / r["pkg"]).resolve() == (fw / n).resolve() and (inst / r["pkg"]).is_file() and r.get("size") == (fw / n).stat().st_size
            for r, n in zip(rel, names)), "installer: every version's package link resolves to its file")
+    stable0 = next(r["version"] for r in RELEASES["releases"] if not r.get("beta"))   # (a beta: no going-back note)
     ok(all(r.get("bullets") and r.get("date") and r.get("tag") for r in rel if r["version"] != VERSION)
-       and all("going_back" in r for r in rel if r.get("tag") and r["version"] != RELEASES["releases"][0]["version"]),
+       and all("going_back" in r for r in rel if r.get("tag") and not r.get("beta") and r["version"] != stable0),
        "installer: every listed version carries its bullets, date and tag; the older ones their going-back note")
     sums = (fw / "SHA256SUMS").read_text(encoding="utf-8").splitlines() if (fw / "SHA256SUMS").is_file() else []
-    ok(sums == [f"{w['sha256']}  {n}" for n, w in zip(names, want)], "firmware/SHA256SUMS lists them")
+    ok(sums == [x for n, w in zip(names, want) for x in [f"{w['sha256']}  {n}"] +
+                ([f"{w['sha256_1core']}  {ones[w['version']]}"] if w["version"] in ones else [])], "firmware/SHA256SUMS lists them")
     idx = (fw / "index.html").read_text(encoding="utf-8") if (fw / "index.html").is_file() else ""
     ok(all(f'href="{n}"' in idx and w["sha256"] in idx for n, w in zip(names, want))
        and all(f'/tree/{r["tag"]}"' in idx for r in rel if r.get("tag")) and all(f'href="{x}"' in idx for x in ("LICENSE", "LICENSING.md", "LICENSES/")),
        "firmware/index.html: every package, its sha256, its source at its tag, the licences")
     ok(not any(f"choralroot-{v}.fwsc" in idx or (fw / f"choralroot-{v}.fwsc").exists() for v in ("0.14", "0.15")), "firmware/: 0.14 and 0.15 are not published")
-    ok(stdout.count("skipped: ") == len(RELEASES["releases"]) - len([w for w in want if w["version"] != VERSION]),
+    ok(stdout.count("skipped: ") == len(RELEASES["releases"]) - len([w for w in want if w["version"] != VERSION]) + len(skipped1),
        "make_site.py: one \"skipped:\" line for each listed version without a package")
 
 
@@ -207,6 +218,116 @@ def refusals():
     ok(r.returncode != 0 and "FM-1_9xx" in r.stderr and not out.exists(), "make_site.py refuses a package whose identity is not FM-1_9xx")
 
 
+def one_core():
+    """a release with a single-core package (releases.json sha256_1core, docs/DUALCORE.md "Two packages"): published
+    under firmware/ beside the standard one, in SHA256SUMS and firmware/index.html, offered by the installer with its
+    sha256; a file whose sha256 is not the listed one is refused; a local build without the file offers the version
+    without the choice. A made-up list (CR_RELEASES_JSON) whose newest is 9.9 = build/choralroot.fwsc"""
+    pk, out, lst = SCRATCH / "site-1core-packages", SCRATCH / "site-1core", SCRATCH / "site-1core-releases.json"
+    for d in (pk, out):
+        if d.exists():
+            shutil.rmtree(d)
+    pk.mkdir(parents=True)
+    one = bytearray(PKG.read_bytes())
+    one[-1] ^= 0x5A                                 # (another body, the same identity and loader)
+    (pk / "choralroot-9.9-1core.fwsc").write_bytes(one)
+    top = {**RELEASES["releases"][0], "version": "9.9", "tag": "v9.9", "sha256": sha(PKG),
+           "sha256_1core": hashlib.sha256(one).hexdigest()}
+    top.pop("going_back", None)
+    top.pop("beta", None)                           # (9.9 is a stable version, whatever the first entry is)
+    lst.write_text(json.dumps({**RELEASES, "releases": [top] + RELEASES["releases"]}), encoding="utf-8")
+    env = {**os.environ, "CR_RELEASES_JSON": str(lst)}
+    run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
+    r = run(PKG, "9.9", out, "--packages", pk)
+    if not ok(r.returncode == 0, "1-core: make_site.py builds a release with a single-core package"):
+        print(r.stdout + r.stderr)
+        return
+    fw = out / "firmware"
+    f1 = fw / "choralroot-9.9-1core.fwsc"
+    meta = read_meta((out / "webapp" / "installer" / "index.html").read_text(encoding="utf-8")) or {}
+    m0 = (meta.get("releases") or [{}])[0]
+    sums = (fw / "SHA256SUMS").read_text(encoding="utf-8")
+    idx = (fw / "index.html").read_text(encoding="utf-8")
+    ok(f1.is_file() and sha(f1) == top["sha256_1core"] and f"{top['sha256_1core']}  choralroot-9.9-1core.fwsc" in sums.splitlines() and
+       'href="choralroot-9.9-1core.fwsc"' in idx and top["sha256_1core"] in idx,
+       "1-core: firmware/choralroot-9.9-1core.fwsc, its sha256 in SHA256SUMS and firmware/index.html")
+    inst = out / "webapp" / "installer"
+    ok(m0.get("sha256_1core") == top["sha256_1core"] and m0.get("size_1core") == len(one) and m0.get("pkg_1core") and
+       (inst / m0["pkg_1core"]).resolve() == f1.resolve() and all("sha256_1core" not in x and "pkg_1core" not in x for x in meta["releases"][1:]),
+       "1-core: the installer offers it (pkg_1core resolves, its sha256 and size); the older versions have none")
+    bad = bytearray(one)
+    bad[-2] ^= 0xFF
+    (pk / "choralroot-9.9-1core.fwsc").write_bytes(bad)
+    shutil.rmtree(out)
+    r = run(PKG, "9.9", out, "--packages", pk)
+    ok(r.returncode != 0 and "sha256_1core" in r.stderr and "refused" in r.stderr and not out.exists(),
+       "1-core: a single-core file whose sha256 is not the listed one is refused (nothing written)")
+    (pk / "choralroot-9.9-1core.fwsc").unlink()
+    r = run(PKG, "9.9", out, "--packages", pk)
+    meta = read_meta((out / "webapp" / "installer" / "index.html").read_text(encoding="utf-8")) if r.returncode == 0 else {}
+    ok(r.returncode == 0 and "skipped: choralroot-9.9-1core.fwsc" in r.stdout and not (out / "firmware" / "choralroot-9.9-1core.fwsc").exists() and
+       "pkg_1core" not in meta["releases"][0] and "sha256_1core" not in meta["releases"][0],
+       "1-core: a local build without the file offers 9.9 without the choice (\"skipped:\")")
+    for d in (pk, out):
+        shutil.rmtree(d)
+    lst.unlink()
+
+
+def beta_site():
+    """a beta published (releases.json "beta": true; BUILDING.md "A beta release"): the landing page's version line,
+    Install sentence, Download button, command line and "New in", and the installer's own version (its META, whose
+    version the beta disclaimer names), are the newest stable version's; the beta is only in the installer's list. With
+    a browser emulator that runs the beta, one line under "Try it first" says so; one that runs a stable: no line.
+    A made-up list (CR_RELEASES_JSON): 9.9-beta1 = build/choralroot.fwsc, 9.8 its stable, as the Pages job builds it"""
+    pk, out, lst, emu = (SCRATCH / "site-beta-packages", SCRATCH / "site-beta", SCRATCH / "site-beta-releases.json",
+                         SCRATCH / "site-beta-emu")
+    for d in (pk, out, emu):
+        if d.exists():
+            shutil.rmtree(d)
+    pk.mkdir(parents=True)
+    emu.mkdir(parents=True)
+    old = bytearray(PKG.read_bytes())
+    old[-1] ^= 0x33                                 # (another body, the same identity and loader)
+    (pk / "choralroot-9.8.fwsc").write_bytes(old)
+    base = {k: x for k, x in RELEASES["releases"][-1].items() if k not in ("going_back", "beta", "sha256_1core")}
+    beta = {**base, "version": "9.9-beta1", "beta": True, "tag": "v9.9-beta1", "sha256": sha(PKG),
+            "bullets": ["Something to try out early, behind the opt-in."]}
+    stable = {**base, "version": "9.8", "tag": "v9.8", "sha256": hashlib.sha256(old).hexdigest(),
+              "bullets": ["The stable one: what a visitor gets without the opt-in."]}
+    lst.write_text(json.dumps({**RELEASES, "releases": [beta, stable]}), encoding="utf-8")
+    env = {**os.environ, "CR_RELEASES_JSON": str(lst)}
+    run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
+    (emu / "index.html").write_text("<!doctype html><title>emu</title>\n", encoding="utf-8")
+    (emu / "version.txt").write_text("ChoralRoot 9.9-beta1\n", encoding="utf-8")
+    r = run(PKG, "9.9-beta1", out, emu, "--packages", pk, "--require-all")
+    if not ok(r.returncode == 0, "beta: make_site.py --require-all builds the site for 9.9-beta1"):
+        print(r.stdout + r.stderr)
+        return
+    html = (out / "index.html").read_text(encoding="utf-8")
+    meta = read_meta((out / "webapp" / "installer" / "index.html").read_text(encoding="utf-8")) or {}
+    body = html.split("-->", 2)[-1]                 # (past the page's head comments, which name the placeholders)
+    ok("Version 9.8:" in body and "Install 9.8 directly" in body and 'href="firmware/choralroot-9.8.fwsc" download>Download '
+       '<span class="pkg">choralroot-9.8.fwsc</span>' in body and 'fm1_install.py <span class="nw">choralroot-9.8.fwsc</span>' in body
+       and "New in 9.8" in body and "Version 9.9-beta1" not in body and "Install 9.9-beta1" not in body
+       and 'href="firmware/choralroot-9.9-beta1.fwsc" download>Download' not in body,
+       "beta: the landing page's version, Install, Download, command line and New in are 9.8's")
+    rel = meta.get("releases") or []
+    ok(meta.get("version") == "9.8" and meta.get("pkg") == "../../firmware/choralroot-9.8.fwsc" and
+       [x.get("version") for x in rel] == ["9.9-beta1", "9.8"] and rel[0].get("beta") is True and
+       (out / "firmware" / "choralroot-9.9-beta1.fwsc").is_file() and (out / "firmware" / "choralroot-9.8.fwsc").is_file(),
+       "beta: the installer's own version is 9.8 (its disclaimer); 9.9-beta1 is in its list, marked beta, its file published")
+    ok('<p class="note note-beta">It runs ChoralRoot 9.9-beta1, a beta (the installer\'s default is 9.8).</p>' in body,
+       "beta: the emulator runs the beta: one line under Try it first says so")
+    (emu / "version.txt").write_text("ChoralRoot 9.8\n", encoding="utf-8")
+    shutil.rmtree(out)
+    r = run(PKG, "9.9-beta1", out, emu, "--packages", pk, "--require-all")
+    ok(r.returncode == 0 and "note-beta" not in (out / "index.html").read_text(encoding="utf-8"),
+       "beta: an emulator that runs a stable version: no such line")
+    for d in (pk, out, emu):
+        shutil.rmtree(d)
+    lst.unlink()
+
+
 def release_site(cur):
     """the site as the Pages job builds it: the newest release as the current version, every listed version required"""
     out = SCRATCH / "site-release"
@@ -217,9 +338,14 @@ def release_site(cur):
     page = (out / "webapp" / "installer" / "index.html").read_text(encoding="utf-8")
     versions(out, read_meta(page), RELEASES["releases"], r.stdout)
     html = (out / "index.html").read_text(encoding="utf-8")
-    ok(f'New in {cur["version"]}' in html and all(escape_html(b) in html for b in cur["bullets"]) and 'href="webapp/installer/"' in html,
-       f"index.html: \"New in {cur['version']}\" with its bullets, and the button to the installer")
-    ok(all(f'href="firmware/choralroot-{x["version"]}.fwsc"' in html for x in RELEASES["releases"]), "index.html: a download link for every version")
+    news = next((r for r in RELEASES["releases"] if not r.get("beta")), cur)   # (a beta is opt-in: the newest stable's news)
+    ok(f'New in {news["version"]}' in html and all(escape_html(b) in html for b in news["bullets"]) and 'href="webapp/installer/"' in html,
+       f"index.html: \"New in {news['version']}\" with its bullets, and the button to the installer")
+    # a beta is opt-in (BUILDING.md "A beta release"): in the installer's list only, no link on the landing page
+    link = lambda x: f'href="firmware/choralroot-{x["version"]}.fwsc"' in html
+    ok(all(link(x) for x in RELEASES["releases"] if not x.get("beta"))
+       and not any(link(x) for x in RELEASES["releases"] if x.get("beta")),
+       "index.html: a download link for every stable version, none for a beta")
     emu = (ROOT / "build" / "emu-web" / "index.html").is_file()
     pages, count, bad, frags = walk(() if emu else ((out / "emu").resolve(),), out)
     for b in bad + frags:
@@ -228,7 +354,8 @@ def release_site(cur):
 
 
 def escape_html(s):
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    """as web/make_site.py writes a bullet (html.escape: quotes too, so a bullet with an apostrophe, 0.22's, matches)"""
+    return html_escape(s)
 
 
 def main():
@@ -274,7 +401,9 @@ def main():
                   "published by this local build (python3 tools/fetch_packages.py; the Pages job has them all)")
     versions(OUT, meta, [{"version": VERSION, "sha256": sha(PKG)}] + here, r.stdout)
     refusals()
-    cur = next((r for r in RELEASES["releases"] if r["sha256"] == sha(PKG)), None)
+    one_core()
+    beta_site()
+    cur =next((r for r in RELEASES["releases"] if r["sha256"] == sha(PKG)), None)
     if cur is not None and cur is RELEASES["releases"][0] and len(here) == len(RELEASES["releases"]):
         release_site(cur)
     else:

@@ -1,0 +1,80 @@
+# ChoralRoot: Key Mode's Snap (0.22, GitHub issue 18): the KEY layer's page 2, KNOB 3: Off / Scale / Chord. With Key
+# plays Notes (or the Full keyboard) a root out of the scale plays the nearest note of the scale (Scale; ties go
+# down: D#4 plays D) or of the chord sounding (Chord; the scale's when none) instead of nothing; the roots out of the
+# scale glow faint (they play now); the note that sounds is lit on its own keys. Off again: silent and dark, as before.
+wait 300
+btn SEL down
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1                # page 2
+wait 300
+knob KNOB1 +1                 # Key plays: Notes
+wait 300
+knob KNOB3 +1                 # Snap: Scale
+wait 300
+shot build/emu/test/cr_key_snap_page.ppm
+dump                          # 1: page 2, plays notes, snap 1 (the engine too)
+btn OCT-
+wait 300
+btn SEL                       # tap: Key Mode on, C major
+wait 300
+expect led D#4 faint          # a root out of the key glows faint: it plays
+expect led F#4 faint
+expect led D4 dim             # the scale's notes glow as ever,
+expect led C5 mid             # the tonic at the middle level
+dump                          # 2: key leds 212212121231212212
+expect silence
+btn D#4 down                  # out of C major: plays D (ties go down)
+wait 400
+expect sound
+expect led D4 on              # the note that sounds: D's keys lit
+expect led D5 on
+expect led D#4 faint          # the key pressed: its glow (the sound shows on D)
+dump                          # 3: voices 1, chord D, notes 62
+btn D#4 up
+wait 400
+dump                          # 4: voices 0 (the release still rings: the voice is what is checked)
+btn D4 down                   # a root in the scale: itself, as ever
+wait 400
+dump                          # 5: chord D, notes 62
+btn D4 up
+wait 300
+btn SEL down                  # Snap: Chord (the layer opens on page 1; SELECT: page 2; KNOB 3 again)
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 300
+knob KNOB3 +1
+wait 300
+dump                          # 6: snap 2
+knob KNOB3 +1                 # the last value: stays
+wait 300
+dump                          # 7: snap 2
+btn OCT-
+wait 300
+btn F#4 down                  # nothing sounds: the scale's note (F)
+wait 400
+dump                          # 8: chord F, notes 66 -> 65
+btn F#4 up
+wait 2500                     # (its release rings out)
+btn SEL down                  # Snap: Off again (KNOB 3 -2)
+wait 500
+btn SEL up
+wait 300
+knob SELECT +1
+wait 300
+knob KNOB3 -2
+wait 300
+dump                          # 9: snap 0
+btn OCT-
+wait 300
+expect led D#4 off            # dark again
+btn D#4 down                  # .. and silent, as before Snap: no voice, no note out (the dump; "expect silence"
+wait 400                      # counts the samples since the last check, so the earlier notes' tails would trip it)
+dump                          # 10: voices 0, notes-out as before
+btn D#4 up
+btn SEL                       # Key Mode off
+wait 2500
+dump                          # 11: silent

@@ -1,10 +1,10 @@
-# ChoralRoot: Options > Dual Core On (KNOB 1 +1; settings v12: Off is the default, docs/DUALCORE.md). tools/emu/
-# test_cr.sh and perf.sh run it on a fresh flash file (the value reads "Off", then "On . restart" until the next
-# power-on) to get the flash the dual-core runs start from, and again after cr_dualcore_opt.txt. Saved, quit
+# ChoralRoot: Options > Dual Core On (KNOB 1 +1; settings v12; On is the default since 0.22, docs/DUALCORE.md).
+# tools/emu/test_cr.sh runs it on a flash file whose settings say Off (cr_dualcore_opt.txt: the value reads "Off",
+# then "On . restart" until the next power-on) to get the flash the dual-core runs start from. Saved, quit
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +21
+knob SELECT +25
 wait 300
 knob KNOB1 +1
 wait 400

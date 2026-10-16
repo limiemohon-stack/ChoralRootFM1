@@ -8,7 +8,7 @@
 wait 300
 btn GLO 80
 wait 200
-knob SELECT +16
+knob SELECT +20
 wait 100
 knob KNOB1 +1
 wait 200

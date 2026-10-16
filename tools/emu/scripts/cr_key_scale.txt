@@ -91,7 +91,7 @@ btn B3                        # LOCK off: the latch cleared
 wait 300
 btn GLO 80                    # Options > LEDs: Stock (two levels: the idle keys lit, the active dark)
 wait 300
-knob SELECT +16
+knob SELECT +20
 wait 300
 knob KNOB1 +1
 wait 300

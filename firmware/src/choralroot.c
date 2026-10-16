@@ -94,6 +94,11 @@
 #define FELUCCA_QUAD 1           /* the QUAD engine (eng_quad.c, engine 15: four-operator FM) and its patch store (quad_store.c,
                                   * docs/QUAD.md) */
 #endif
+#ifndef FELUCCA_PROPHET
+#define FELUCCA_PROPHET 1        /* P5: Melodee's Prophet-5 engine (eng_prophet_test.c, engine 16; docs/PROPHET.md). 0: the image
+                                  * without it, byte for byte as before it came. FELUCCA_P5_FACTORY (default 1 there):
+                                  * Sequential's factory programs of the shipped list in its PRESETS; 0: INIT alone */
+#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8               /* FM6's voices per part (eng_fm6.c; Melodee plays Dexed's 16): ChoralRoot's chords use <= 7,
                                   * and at 16 the release tails of perf.sh (c) / (e) cost up to 59 / 62 % of a block
@@ -126,7 +131,7 @@
 #define FELUCCA_ID "FM-1_920"    /* package identity (build.py: the .fwsc marker string) */
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.22"   /* the dev build reads as the next tag; --release X.Y sets it */
+#define FELUCCA_VERSION "ChoralRoot 0.23"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -142,6 +147,15 @@
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+/* the key sensing's hooks into the scan (cr_sense.c, below): velocity from the analog rows (docs/VELOCITY.md) */
+static void cr_sense_hook(uint32_t col, uint32_t rowbit, uint32_t v, uint32_t driven);
+static int cr_sense_drive_hook(uint32_t col, uint32_t rowbit);
+static int cr_sense_led_ok_hook(uint32_t col, uint32_t rowbit);
+static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
+#define FM1_INPUT_PROBE(c, v, p) cr_sense_probe_hook(c, v, p)
+#define FM1_INPUT_ANALOG(c, r, v, d) cr_sense_hook(c, r, v, d)
+#define FM1_INPUT_DRIVE(c, r) cr_sense_drive_hook(c, r)
+#define FM1_INPUT_LED_OK(c, r) cr_sense_led_ok_hook(c, r)
 #include "fm1_input.h"
 #include "fm1_timer.h"
 #include "fm1_audio.h"
@@ -162,6 +176,7 @@
 #include "engines.c"             /* dsp.c, the eng_*.c files */
 #include "params.c"
 #include "mod.c"
+#include "cr_sense.c"             /* the keys' velocity and pressure from their contact resistance (Velo's sensing) */
 #include "voice.c"
 #include "slicer.c"
 #define mix_block fx_mix_block   /* fx.c's mix; audio.c gets ChoralRoot's (below) */
@@ -219,13 +234,19 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #include "icons.c"               /* (1: Felucca's parameter icons; nothing of ChoralRoot's UI calls them) */
 #endif
 #include "cr_gfx.c"              /* scalable text + shapes on gfx.c (build/gen/cr_fonts.h) */
+#include "cr_layout.c"            /* the compiled layouts (build/gen/cr_layouts.h): P5's panel */
 #include "cr_draw.c"             /* the screens (cr_screen.h) */
 #include "cr_anim.c"
 #if FELUCCA_FLASH                /* storage before the sounds: upreset.c reads / writes its banks */
+#define FL_UID 1                 /* fm1_flash.h fl_uid_ram: the flash's unique ID, the unit's ID (cr_shim.c persist_boot) */
 #include "fm1_flash.h"
+static int cr_erase_near(void);  /* cr_ui.c: a voice is active or an input came within 2 s (78 PEAK erases_near) */
+#define ST_NEAR_NOW() cr_erase_near()
+#define ST_AHEAD 1               /* storage.c: the settings', the session's and the favourites' spare copies erased ahead */
 #include "storage_hw.c"
 #include "storage.c"
 #endif
+#include "cr_favs.c"             /* the favourites: a mark on a sound (before the sounds: upreset.c tells it of a slot) */
 #include "cr_bank.c"             /* upreset.c's UI names, upreset.c (32 user sounds, fm6_bank.c), the factory bank */
 #include "cr_pages.c"            /* the sound pages (EDIT) */
 #include "cr_name.c"             /* naming with the root keys (SAVE) */
@@ -252,3 +273,6 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 #include "console.c"
 #endif
 #include "main.c"
+#if CR_RAM_ANY                    /* a CR_RAM_* measurement build (cr_ram.h): the veneers of the calls across */
+#include "cr_ram.c"
+#endif

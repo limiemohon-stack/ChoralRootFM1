@@ -1,0 +1,338 @@
+{
+  "format": "choralroot-layout",
+  "version": 2,
+  "kind": "design",
+  "name": "rows",
+  "engine": {"index": 16, "name": "P5"},
+  "params_hash": "f5941e824048848d",
+  "header": {"kind": "title-line"},
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "OSC A",
+          "lanes": [
+            {
+              "title": "OSC A",
+              "cells": [
+                {"param": "OSC A:FREQ", "style": "p5knob", "label": "FREQ"},
+                {"param": "OSC A:SAW", "style": "p5led-saw", "label": "SAW"},
+                {"param": "OSC A:PULSE", "style": "p5led-sqr", "label": "PULSE"},
+                {"param": "OSC A:WIDTH", "style": "p5knob", "label": "P WIDTH"}
+              ]
+            },
+            {
+              "title": "OSC A",
+              "cells": [
+                {"param": "OSC A+:SYNC", "style": "p5led", "label": "SYNC"},
+                {"param": "MIXER:MIX A", "label": "MIX A", "style": "p5knob"},
+                {"param": "MIXER:MIX B", "label": "MIX B", "style": "p5knob"},
+                {"param": "MIXER:NOISE", "label": "NOISE", "style": "p5knob"}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "OSC B",
+          "lanes": [
+            {
+              "title": "OSC B",
+              "cells": [
+                {"param": "OSC B:FREQ", "style": "p5knob", "label": "FREQ"},
+                {"param": "OSC B:SAW", "style": "p5led-saw", "label": "SAW"},
+                {"param": "OSC B:TRI", "style": "p5led-tri", "label": "TRI"},
+                {"param": "OSC B+:PULSE", "style": "p5led-sqr", "label": "PULSE"}
+              ]
+            },
+            {
+              "title": "OSC B",
+              "cells": [
+                {"param": "OSC B:FINE", "style": "p5knob", "label": "FINE"},
+                {"param": "OSC B+:WIDTH", "style": "p5knob", "label": "P WIDTH"},
+                {"param": "OSC B+:LOFREQ", "style": "p5led", "label": "LO FREQ"},
+                {"param": "OSC B+:KEYBD", "style": "p5led", "label": "KEYB"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "filter",
+          "title": "FILTER",
+          "lanes": [
+            {
+              "title": "FILTER",
+              "cells": [
+                {"param": "FILTER:CUT", "style": "p5knob", "label": "CUTOFF"},
+                {"param": "FILTER:RES", "style": "p5knob", "label": "RES"},
+                {"param": "FILTER:FENV", "style": "p5knob", "label": "ENV AMT"},
+                {"param": "FILTER+:REV", "style": "p5led2", "label": "REV"}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "env",
+          "title": "ENV 2 · filter",
+          "lanes": [
+            {
+              "title": "ENV 2 · filter",
+              "cells": [
+                {"param": "ENV 2:ATK", "style": "p5knob", "label": "ATTACK"},
+                {"param": "ENV 2:DEC", "style": "p5knob", "label": "DECAY"},
+                {"param": "ENV 2:SUS", "style": "p5knob", "label": "SUSTAIN"},
+                {"param": "ENV 2:REL", "style": "p5knob", "label": "RELEASE"}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "ENV 2 +",
+          "lanes": [
+            {
+              "title": "ENV 2 +",
+              "cells": [
+                {"param": "ENV 2+:VEL", "style": "p5led", "label": "VELOC"},
+                null,
+                {"param": "FILTER:KTRK", "style": "p5switch", "label": "KEY TRK"},
+                {"param": "FILTER+:AFTER", "style": "p5led", "label": "AFTER"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "env",
+          "title": "ENV 1 · amp",
+          "lanes": [
+            {
+              "title": "ENV 1 · amp",
+              "cells": [
+                {"param": "ENV 1:ATK", "style": "p5knob", "label": "ATTACK"},
+                {"param": "ENV 1:DEC", "style": "p5knob", "label": "DECAY"},
+                {"param": "ENV 1:SUS", "style": "p5knob", "label": "SUSTAIN"},
+                {"param": "ENV 1:REL", "style": "p5knob", "label": "RELEASE"}
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "ENV 1 +",
+          "lanes": [
+            {
+              "title": "ENV 1 +",
+              "cells": [
+                {"param": "ENV 1+:VEL", "style": "p5led", "label": "VELOC"},
+                {"param": "ENV 1+:RELSW", "style": "p5led", "label": "REL SW"},
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "LFO",
+          "lanes": [
+            {
+              "title": "LFO",
+              "cells": [
+                {"param": "LFO:RATE", "label": "FREQ", "style": "p5knob"},
+                {"param": "LFO+:SAW", "style": "p5led-saw", "label": "SAW"},
+                {"param": "LFO+:TRI", "style": "p5led-tri", "label": "TRI"},
+                {"param": "LFO+:SQUARE", "style": "p5led-sqr", "label": "SQUARE"}
+              ]
+            },
+            {
+              "title": "LFO",
+              "cells": [
+                {"param": "LFO:AMOUNT", "label": "INIT AMT", "style": "p5knob"},
+                {"param": "LFO:AFTER", "style": "p5led", "label": "AFTER"},
+                null,
+                null
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "WHEEL",
+          "lanes": [
+            {
+              "title": "WHEEL",
+              "cells": [
+                {"param": "LFO:NOISE", "label": "SRC MIX", "style": "p5knob"},
+                {"param": "WHEEL:FREQ A", "style": "p5led", "label": "FREQ A"},
+                {"param": "WHEEL:FREQ B", "style": "p5led", "label": "FREQ B"},
+                {"param": "WHEEL:PW A", "style": "p5led"}
+              ]
+            },
+            {
+              "title": "WHEEL",
+              "cells": [
+                {"param": "WHEEL:PW B", "style": "p5led"},
+                {"param": "WHEEL+:FILTER", "style": "p5led", "label": "FILTER"},
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "POLYMOD",
+          "lanes": [
+            {
+              "title": "POLYMOD",
+              "cells": [
+                {"param": "POLYMOD:ENV", "label": "FILT ENV", "style": "p5knob"},
+                {"param": "POLYMOD:OSC B", "style": "p5knob", "label": "OSC B"},
+                {"param": "POLYMOD:FREQ A", "style": "p5led", "label": "FREQ A"},
+                {"param": "POLYMOD:PW A", "style": "p5led"}
+              ]
+            },
+            {
+              "title": "POLYMOD",
+              "cells": [
+                {"param": "POLYMOD+:FILTER", "style": "p5led", "label": "FILTER"},
+                null,
+                null,
+                null
+              ]
+            }
+          ]
+        },
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "VOICE",
+          "lanes": [
+            {
+              "title": "VOICE",
+              "cells": [
+                {"param": "VOICE:UNISON", "style": "p5led", "label": "UNISON"},
+                {"param": "VOICE:VOICES", "style": "p5knob", "label": "VOICES"},
+                {"param": "VOICE:DETUNE", "style": "p5knob", "label": "DETUNE"},
+                {"param": "VOICE:GLIDE", "style": "p5knob", "label": "GLIDE"}
+              ]
+            },
+            {
+              "title": "VOICE",
+              "cells": [
+                {"param": "VOICE+:PRIO", "style": "p5knob", "label": "PRIORITY"},
+                {"param": "VOICE+:VINTAGE", "style": "p5knob", "label": "VINTAGE"},
+                null,
+                null
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "FX",
+          "lanes": [
+            {
+              "title": "FX",
+              "cells": [
+                {"param": "part:33"},
+                {"param": "part:34"},
+                {"param": "part:35"},
+                {"param": "part:36"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "screens": [
+        {
+          "type": "classic",
+          "kind": "edit8",
+          "band": "none",
+          "title": "MIX",
+          "lanes": [
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:0"},
+                {"param": "part:39"},
+                {"param": "part:37"},
+                {"param": "part:38"}
+              ]
+            },
+            {
+              "title": "MIX",
+              "cells": [
+                {"param": "part:28"},
+                {"param": "part:44"},
+                {"param": "part:42"},
+                {"param": "part:41"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "style": "p5"
+}

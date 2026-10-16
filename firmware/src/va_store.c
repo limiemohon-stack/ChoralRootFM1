@@ -20,26 +20,29 @@
 #define VA_STORE_MAGIC 0x31534156u               /* "VAS1" */
 typedef struct {
     uint32_t magic;
-    uint16_t ver, nslot;                         /* 3, UP_SLOTS */
+    uint16_t ver, nslot;                         /* 3, UP_LEGACY */
     uint32_t used;                               /* bit k: slot k holds a patch */
     uint16_t blob, rsv;                          /* VA_BLOB */
-    uint8_t p[UP_SLOTS][VA_BLOB];
+    uint8_t p[UP_LEGACY][VA_BLOB];
 } va_store_t;
-_Static_assert(sizeof(va_store_t) == 16u + UP_SLOTS * VA_BLOB && sizeof(va_store_t) + 256u <= 4096u - 256u,
+_Static_assert(sizeof(va_store_t) == 16u + UP_LEGACY * VA_BLOB && sizeof(va_store_t) + 256u <= 4096u - 256u,
                "VA store layout: header + 32 patches, the sector's tail erased");
+#if !UP_POOL
 static va_store_t va_store __attribute__((section(".pool")));
+#endif
 
 static int va_store_valid(const va_store_t *s)
 {
     uint32_t k;
-    if (s->magic != VA_STORE_MAGIC || s->ver != 3u || s->nslot != UP_SLOTS || s->blob != VA_BLOB)
+    if (s->magic != VA_STORE_MAGIC || s->ver != 3u || s->nslot != UP_LEGACY || s->blob != VA_BLOB)
         return 0;
-    for (k = 0; k < UP_SLOTS; k++)
+    for (k = 0; k < UP_LEGACY; k++)
         if (((s->used >> k) & 1u) && !va_blob_ok(s->p[k]))
             return 0;
     return 1;
 }
 
+#if !UP_POOL       /* (since 0.22 the pool, upool.c, keeps the patches: the store above is read once, the migration) */
 #if defined(CR_TRACE) && CR_TRACE
 static uint16_t va_crc16(const uint8_t *b)      /* the trace's "patch crc": storage.c's CRC-32, low 16 bits */
 {
@@ -50,7 +53,7 @@ static uint16_t va_crc16(const uint8_t *b)      /* the trace's "patch crc": stor
 /* eng_va.c va_store_read: slot k's blob, 0 = there is one */
 static int va_store_get(uint32_t k, uint8_t *b)
 {
-    if (k >= UP_SLOTS || va_store.magic != VA_STORE_MAGIC || !((va_store.used >> k) & 1u))
+    if (k >= UP_LEGACY || va_store.magic != VA_STORE_MAGIC || !((va_store.used >> k) & 1u))
         return 1;
     memcpy(b, va_store.p[k], VA_BLOB);
 #if defined(CR_TRACE) && CR_TRACE
@@ -67,10 +70,10 @@ static int va_store_v1(int n)
     uint8_t *raw = (uint8_t *)&va_store, old[VA_BLOB1];
     int8_t p[VA_NP];
     uint32_t k;
-    if (n != (int)(16u + UP_SLOTS * VA_BLOB1) || va_store.magic != VA_STORE_MAGIC || va_store.ver != 1u ||
-        va_store.nslot != UP_SLOTS || va_store.blob != VA_BLOB1)
+    if (n != (int)(16u + UP_LEGACY * VA_BLOB1) || va_store.magic != VA_STORE_MAGIC || va_store.ver != 1u ||
+        va_store.nslot != UP_LEGACY || va_store.blob != VA_BLOB1)
         return 0;
-    for (k = UP_SLOTS; k-- > 0;) {
+    for (k = UP_LEGACY; k-- > 0;) {
         memcpy(old, raw + 16u + k * VA_BLOB1, VA_BLOB1);
         if (((va_store.used >> k) & 1u) && old[1] == 1u && va_unpack(old, p))
             va_pack(p, va_store.p[k]);
@@ -95,9 +98,9 @@ static int va_store_v2(int n)
     int8_t p[VA_NP];
     uint32_t k;
     if (n != (int)sizeof va_store || va_store.magic != VA_STORE_MAGIC || va_store.ver != 2u ||
-        va_store.nslot != UP_SLOTS || va_store.blob != VA_BLOB)
+        va_store.nslot != UP_LEGACY || va_store.blob != VA_BLOB)
         return 0;
-    for (k = 0; k < UP_SLOTS; k++) {
+    for (k = 0; k < UP_LEGACY; k++) {
         if (((va_store.used >> k) & 1u) && va_unpack(va_store.p[k], p))
             va_pack(p, va_store.p[k]);
         else {
@@ -133,7 +136,7 @@ static int va_store_put(uint32_t k, const uint8_t *b)
 {
     uint8_t old[VA_BLOB];
     uint32_t used = va_store.used, magic = va_store.magic;
-    if (k >= UP_SLOTS)
+    if (k >= UP_LEGACY)
         return 1;
     if (!va_store_valid(&va_store))
         memset(&va_store, 0, sizeof va_store);
@@ -144,7 +147,7 @@ static int va_store_put(uint32_t k, const uint8_t *b)
     memcpy(old, va_store.p[k], VA_BLOB);
     va_store.magic = VA_STORE_MAGIC;
     va_store.ver = 3;
-    va_store.nslot = UP_SLOTS;
+    va_store.nslot = UP_LEGACY;
     va_store.blob = VA_BLOB;
     if (b) {
         memcpy(va_store.p[k], b, VA_BLOB);
@@ -207,7 +210,8 @@ static void va_store_loading(const up_rec_t *r)
     va_user_pending = 0;
     if (r->engine != ENGI_VA)
         return;
-    for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
+    for (b = 0; b < UP_LEGACY / UP_PER_BANK; b++)
         if (r >= up_bank[b].r && r < up_bank[b].r + UP_PER_BANK)
             va_user_pending = (uint8_t)(b * UP_PER_BANK + (uint32_t)(r - up_bank[b].r) + 1u);
 }
+#endif /* !UP_POOL */

@@ -5,6 +5,7 @@
 # window, 7.07..8.27 s): it sounds, brighter (a modulation index many times OP 1's before). ENV: ENV 1 under the "dx" band (shot), KNOB 2 +1 (R2:
 # the segment to L2 lit in KNOB 2's orange, shot); ENV again: ENV 2; FILT (SEL): ALGO; LFO; MOD (SEQ): FUNC; OSC tap:
 # screen 2 (OP n+), tap: screen 3 (SCALE n); EDIT leaves
+knobs quick                   # every detent the quickest (the range / 20: the step this script was written for, 0.22)
 wait 500
 dump
 wait 500

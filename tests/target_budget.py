@@ -25,6 +25,11 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "va_render", "va_block",                            # VA (eng_va.c, ChoralRoot): the voice, the part's LFOs
          "cz_native_render", "cz_native_line", "cz_native_line_mv", "cz_native_noise", "cz_env_tick",   # CZ-1 (cz_native.c, Melodee's): the voice, a line's loops (one per wave and window; _mv: the same with the DCW depth ramped a sample at a time, for the blocks in which it changes), line 2 with NOISE, envelopes
          "quad_render", "quad_block",                        # FM TONE (eng_quad.c, code name QUAD, ChoralRoot): the voice, the part's macros
+         # PROPHET (eng_prophet_test.c, Melodee's Prophet-5): the sample loop (one loop with every switch of a program
+         # in it: tools/p5_cost.py walks it per program for the unit's figure; this weighs it whole, to catch growth),
+         # a voice's block (its set-up, the fade of a budget victim), the part's wheel source and its DC blocker, the
+         # part's block (p5_env_tick has no loop: nothing to weigh)
+         "p5_samples", "p5_render", "p5_mod_samples", "p5_post", "p5_block",
          "fm1_alnk0_irq", "fm1_timer5_irq",               # the audio ISR; TIMER5: the key / LED scan (hal/fm1_input.h)
          # TIMER5's USB work, each a function of its own since 0.19 (usb.c USB_OUTLINE / USB_COLD), so that
          # fm1_timer5_irq is what every 100 us tick runs: the scan, the clock, the UART's bytes. Inlined there, the
@@ -44,7 +49,8 @@ FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_re
          "mix_loop_u", "mix_loop_fu", "mix_loop_su", "mix_loop_sfu",   # sends (f), the stereo side (s), USB's tap (u)
          "perf_begin", "perf_mute", "perf_pre", "perf_block", "perf_master",   # the FX layer (perform.c), when busy
          "rev_room", "rev_spring",                # the reverb bus (fx.c): REVERB TYPE ROOM / SPRING (Felucca's: CR_FX 0)
-         "xf_block", "xf_down", "xf_up", "xd_run", "xr_run"]   # ChoralRoot's delay and reverb (cr_fx.c, CR_FX 1): the
+         "xf_block", "xf_down", "xf_up", "xd_run", "xr_run",   # ChoralRoot's delay and reverb (cr_fx.c, CR_FX 1): the
+         "xf_prep", "xf_delay", "xf_reverb", "mix_fx_split", "c1_fx_job"]   # (3y50: xf_block in three; the reverb on core 1)
                                                   # block, the half-band filters (a send down, the wet up), the delay's
                                                   # loop, the reverb's (xd_run, xr_run: a pass is one half-rate sample)
 # built only with FELUCCA_FM4=1 (DIGITAL, src/eng_digital.c; not in the default build, so not in BUDGET): absent,
@@ -157,7 +163,8 @@ def main():
         state = "no budget (BUDGET_UPDATE=1 adds it)" if b is None else "ok"
         if b is not None and not os.environ.get("BUDGET_UPDATE"):
             if r["cost"] > b * (1 + TOL):
-                state = f"OVER BUDGET (+{(r['cost'] / b - 1) * 100:.0f} %, limit +{TOL * 100:.0f} %)"
+                state = (f"OVER BUDGET (+{(r['cost'] / b - 1) * 100:.0f} %, limit +{TOL * 100:.0f} %)" if b else
+                         "OVER BUDGET (the budget is 0: no loop)")
                 fail += 1
             elif r["cost"] < b * (1 - TOL):
                 state = f"note: {(r['cost'] / b - 1) * 100:.0f} % (BUDGET_UPDATE=1 to keep it)"

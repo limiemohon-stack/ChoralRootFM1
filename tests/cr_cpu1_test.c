@@ -13,7 +13,9 @@
  * 4. reliability (after Melodee PR 21, docs/DUALCORE.md): core 1's mailbox validation (hal/fm1_cpu1.h fm1_c1_poll: a
  *    wrong sequence or check word, a null fn: refused, counted, never run), the escalation (cr_cpu1.h: a first
  *    misread is counted and keeps core 1, a second, a fault or a stall gives up), the rails' steps on a mock P33
- *    (hal/fm1_power.h: one step a write, never lower, never above 14 / 4). */
+ *    (hal/fm1_power.h: one step a write, never lower, never above 14 / 5);
+ * 5. the bar (cr_cpu1.h cr_c1_bar_decide / cr_c1_bar_boot, the device's .noinit record mocked): a crash beside core 1,
+ *    a watchdog reset while it ran or a give-up keep it off at the next boot; a reboot or a power-on do not. */
 #define CR_CPU1 1
 #define CR_FX 1                         /* as choralroot.c: ChoralRoot's delay and reverb after the parts (cr_fx.c) */
 #define FELUCCA_UAC 1                   /* the USB capture's six channels (fx.c ua_stage) hashed too */
@@ -250,7 +252,7 @@ static void esc_reset(void)
 }
 static void escalation(void)
 {
-    /* the state machine: no boost (the rails stay at 14 / 4) */
+    /* the state machine: no boost (the rails stay at 14 / 5) */
     esc_reset();
     CHECK(cr_c1_assess(0, 0, 0) == 0 && !cr_dbg.c1_misreads, "healthy: nothing");
     CHECK(cr_c1_assess(3, 0, 0) == 0 && cr_dbg.c1_misreads == 1u, "a first misread (a burst of 3): counted, core 1 kept");
@@ -266,7 +268,7 @@ static void escalation(void)
     setup(0, 0);
     cr_dbg.c1 = C1_OK;
     cr_dbg.rail_now[0] = 14;
-    cr_dbg.rail_now[1] = 4;
+    cr_dbg.rail_now[1] = 5;
     trk_note_on(&trk[1], 36, 100);
     cr_c1_test_rejected = 1;
     blocks(3);
@@ -274,7 +276,7 @@ static void escalation(void)
     cr_c1_test_rejected = 2;
     blocks(1);
     CHECK(cr_dbg.c1 == C1_GAVE_UP && !cr_dualcore_active() && cr_dbg.c1_fallback == 1u, "a second misread: c1 %s", cr_c1_name());
-    CHECK(cr_dbg.rail_now[0] == 14u && cr_dbg.rail_now[1] == 4u, "no rail raised past 14 / 4 (%u, %u)", cr_dbg.rail_now[0],
+    CHECK(cr_dbg.rail_now[0] == 14u && cr_dbg.rail_now[1] == 5u, "no rail raised past 14 / 5 (%u, %u)", cr_dbg.rail_now[0],
           cr_dbg.rail_now[1]);
     esc_reset();
     cr_dbg.c1 = C1_OK;
@@ -289,7 +291,7 @@ static void escalation(void)
     CHECK(cr_dbg.c1 == C1_GAVE_UP && cr_dbg.c1_fallback == 1u, "a stall: c1 %s", cr_c1_name());
     esc_reset();
     printf("  escalation: a first misread counted, core 1 kept; a second, a fault or a stall -> \"gave up\", c1_fallback 1;\n"
-           "  the rails never above 14 / 4\n");
+           "  the rails never above 14 / 5\n");
 
     /* the boot: Dual Core Off keeps the boot loader's rails; On raises them before core 1 starts */
     cr_dbg.rail_now[0] = cr_dbg.rail_now[1] = 0;
@@ -300,8 +302,8 @@ static void escalation(void)
     cr_c1_off = 0;
     cr_c1_boot();
     CHECK(cr_dbg.c1 == C1_OK && cr_dbg.rail_boot[0] == 11u && cr_dbg.rail_boot[1] == 3u && cr_dbg.rail_now[0] == 14u &&
-          cr_dbg.rail_now[1] == 4u, "Dual Core On: the rails 14, 4 (%u, %u)", cr_dbg.rail_now[0], cr_dbg.rail_now[1]);
-    printf("  boot: Dual Core Off keeps SYSVDD 11 / VDC14 3; On raises them to 14 / 4 before core 1 starts\n");
+          cr_dbg.rail_now[1] == 5u, "Dual Core On: the rails 14, 5 (%u, %u)", cr_dbg.rail_now[0], cr_dbg.rail_now[1]);
+    printf("  boot: Dual Core Off keeps SYSVDD 11 / VDC14 3; On raises them to 14 / 5 before core 1 starts\n");
 }
 
 static void rails(void)
@@ -314,12 +316,13 @@ static void rails(void)
     fm1_power_init();
     CHECK(fm1_power.boot[FM1_RAIL_SYSVDD] == 11u && fm1_power.boot[FM1_RAIL_VDC14] == 3u && fm1_power.boot[FM1_RAIL_VDDIO] == 4u,
           "the boot levels recorded");
-    CHECK(p33[0x09] == (0xA0u | 14u) && p33[0x06] == (0x58u | 4u) && p33[0x05] == 4u, "init: SYSVDD 14, VDC14 4, the other bits kept");
-    CHECK(p33_writes == 4u && p33_log[0][0] == 0x06u && p33_log[1][0] == 0x09u, "VDC14 first, then SYSVDD: 1 + 3 writes (%u)",
-          (unsigned)p33_writes);
-    for (i = 1; i < 4u; i++)
-        ok &= (p33_log[i][1] & 15u) == 11u + i;
-    CHECK(ok && p33_delays >= 4u, "SYSVDD one step a write (12, 13, 14), 100 us apart");
+    CHECK(p33[0x09] == (0xA0u | 14u) && p33[0x06] == (0x58u | 5u) && p33[0x05] == 4u, "init: SYSVDD 14, VDC14 5, the other bits kept");
+    CHECK(p33_writes == 5u && p33_log[0][0] == 0x06u && p33_log[1][0] == 0x06u && p33_log[2][0] == 0x09u,
+          "VDC14 first, then SYSVDD: 2 + 3 writes (%u)", (unsigned)p33_writes);
+    ok = (p33_log[0][1] & 7u) == 4u && (p33_log[1][1] & 7u) == 5u;
+    for (i = 2; i < 5u; i++)
+        ok &= p33_log[i][0] == 0x09u && (p33_log[i][1] & 15u) == 10u + i;
+    CHECK(ok && p33_delays >= 5u, "VDC14 one step a write (4, 5), then SYSVDD (12, 13, 14), 100 us apart");
     p33[0x09] = 0xA0u | 12u;
     p33_writes = 0;
     CHECK(fm1_power_step(FM1_RAIL_SYSVDD, 15u) == 1 && p33_writes == 1u && (p33[0x09] & 15u) == 13u, "one step per call");
@@ -330,18 +333,100 @@ static void rails(void)
     CHECK((p33[0x09] & 15u) == 14u && p33_writes == 2u, "raise to a lower level: nothing");
     p33_writes = 1u;
     fm1_power_raise(FM1_RAIL_VDC14, 7u);
-    CHECK((p33[0x06] & 7u) == 4u && p33_writes == 1u, "VDC14 capped at 4 (1.45 V)");
-    CHECK(fm1_power_goto(FM1_RAIL_SYSVDD, 15u) == 1 && fm1_power_goto(FM1_RAIL_VDC14, 5u) == 1 &&
+    CHECK((p33[0x06] & 7u) == 5u && p33_writes == 1u, "VDC14 capped at 5 (1.50 V)");
+    CHECK(fm1_power_goto(FM1_RAIL_SYSVDD, 15u) == 1 && fm1_power_goto(FM1_RAIL_VDC14, 6u) == 1 &&
           fm1_power_goto(FM1_RAIL_SYSVDD, 5u) == 1 && p33_writes == 1u, "the test op: above the cap or SYSVDD below 6 refused");
     CHECK(fm1_power_goto(FM1_RAIL_SYSVDD, 12u) == 0 && (p33[0x09] & 15u) == 12u, "the test op: down to 12");
     CHECK(fm1_power_goto(FM1_RAIL_SYSVDD, 14u) == 0 && (p33[0x09] & 15u) == 14u, "the test op: back to 14");
+    CHECK(fm1_power_goto(FM1_RAIL_VDC14, 3u) == 0 && (p33[0x06] & 7u) == 3u && fm1_power_goto(FM1_RAIL_VDC14, 5u) == 0 &&
+          (p33[0x06] & 7u) == 5u, "the test op: VDC14 down to 3 and back to 5 (the cap)");
     fm1_power.recorded = 0;
     p33[0x09] = 15u;                                /* a boot loader that left it higher: kept (never lowered) */
     p33[0x06] = 6u;
     p33_writes = 0;
     fm1_power_init();
     CHECK(p33_writes == 0u && p33[0x09] == 15u && p33[0x06] == 6u, "init never lowers a higher boot level");
-    printf("  rails (mock P33): init VDC14 3 -> 4 then SYSVDD 11 -> 14, a step a write, other bits kept; never lower\n");
+    printf("  rails (mock P33): init VDC14 3 -> 5 then SYSVDD 11 -> 14, a step a write, other bits kept; never lower\n");
+}
+
+/* ---- 5. the bar ---- */
+static void bar_mock(uint32_t magic, uint32_t ran, uint32_t barred)
+{
+    cr_c1_bar_mock.magic = magic;
+    cr_c1_bar_mock.ran = ran;
+    cr_c1_bar_mock.barred = barred;
+}
+static void bar(void)
+{
+    const uint32_t M = FM1_C1_BAR_MAGIC;
+    uint32_t w;
+    /* the decision */
+    CHECK(cr_c1_bar_decide(0u, 1u, C1_BAR_CRASH, BG_RST_SOFT) == C1_BAR_NONE &&
+          cr_c1_bar_decide(M ^ 1u, 1u, C1_BAR_CRASH, BG_RST_WDT) == C1_BAR_NONE, "not the record (a power-on's garbage): none");
+    for (w = C1_BAR_CRASH; w <= C1_BAR_GAVE_UP; w++)
+        CHECK(cr_c1_bar_decide(M, 1u, w, BG_RST_SOFT) == w && cr_c1_bar_decide(M, 0u, w, BG_RST_POWERON) == w,
+              "a reason left (%u): that reason, whatever the reset", (unsigned)w);
+    CHECK(cr_c1_bar_decide(M, 0u, 9u, BG_RST_SOFT) == C1_BAR_NONE, "a reason out of range: none");
+    CHECK(cr_c1_bar_decide(M, 1u, 0u, BG_RST_WDT) == C1_BAR_HANG, "core 1 ran and the watchdog reset: a hang");
+    CHECK(cr_c1_bar_decide(M, 1u, 0u, BG_RST_SOFT) == C1_BAR_NONE, "core 1 ran, a soft reset without a reason (a reboot): none");
+    CHECK(cr_c1_bar_decide(M, 1u, 0u, BG_RST_POWERON) == C1_BAR_NONE, "core 1 ran, a power-on: none");
+    CHECK(cr_c1_bar_decide(M, 0u, 0u, BG_RST_WDT) == C1_BAR_NONE, "core 1 did not run, the watchdog: none");
+    /* the boot (cr_settings.c cr_settings_boot: after cr_c1_off is read from the record) */
+    cr_c1_off = 0;
+    cr_c1_barred = 0;
+    bar_mock(M, 1u, 0u);
+    bootguard.cls = BG_RST_WDT;
+    cr_c1_bar_boot(bootguard.cls);
+    CHECK(cr_c1_off == 1u && cr_c1_barred == C1_BAR_HANG && cr_c1_bar_mock.magic == M && !cr_c1_bar_mock.ran &&
+          !cr_c1_bar_mock.barred && !strcmp(cr_c1_bar_name(), "after a hang"),
+          "a hang beside core 1, Dual Core On: core 1 off, \"%s\", the record cleared", cr_c1_bar_name());
+    cr_c1_boot();
+    CHECK(cr_dbg.c1 == C1_OFF, "a barred boot: core 1 never started (c1 %s)", cr_c1_name());
+    cr_c1_off = 0;
+    cr_c1_barred = 0;
+    bar_mock(M, 1u, C1_BAR_CRASH);
+    bootguard.cls = BG_RST_SOFT;
+    cr_c1_bar_boot(bootguard.cls);
+    CHECK(cr_c1_off == 1u && cr_c1_barred == C1_BAR_CRASH && !cr_c1_bar_mock.barred && !strcmp(cr_c1_bar_name(), "after a crash"),
+          "a crash beside core 1 (the soft reset of the crash report): core 1 off, \"%s\"", cr_c1_bar_name());
+    cr_c1_off = 1;
+    cr_c1_barred = 0;
+    bar_mock(M, 1u, C1_BAR_CRASH);
+    cr_c1_bar_boot(BG_RST_SOFT);
+    CHECK(cr_c1_off == 1u && cr_c1_barred == C1_BAR_NONE && cr_c1_bar_mock.magic == M && !cr_c1_bar_mock.ran &&
+          !cr_c1_bar_mock.barred, "Dual Core already Off: no word of it, the record cleared");
+    cr_c1_off = 0;
+    bar_mock(0xDEADBEEFu, 1u, 2u);
+    cr_c1_bar_boot(BG_RST_POWERON);
+    CHECK(cr_c1_off == 0u && cr_c1_barred == C1_BAR_NONE && cr_c1_bar_mock.magic == M && !cr_c1_bar_mock.ran &&
+          !cr_c1_bar_mock.barred, "a power-on's garbage: core 1 starts, the record made clean");
+    cr_c1_bar_boot(BG_RST_WDT);
+    CHECK(cr_c1_off == 0u && cr_c1_barred == C1_BAR_NONE, "a watchdog reset when core 1 had not run: core 1 starts");
+    cr_c1_test_nostart = 0;
+    cr_c1_boot();
+    CHECK(cr_dbg.c1 == C1_OK, "a plain boot: core 1 started (c1 %s)", cr_c1_name());
+    /* a give-up (the audio ISR) leaves the reason for the next boot */
+    bar_mock(M, 1u, 0u);
+    cr_c1_give_up();
+    CHECK(cr_dbg.c1 == C1_GAVE_UP && cr_c1_bar_mock.magic == M && cr_c1_bar_mock.barred == C1_BAR_GAVE_UP,
+          "a give-up: the record's reason %u", (unsigned)cr_c1_bar_mock.barred);
+    cr_c1_off = 0;
+    cr_c1_barred = 0;
+    cr_c1_bar_boot(BG_RST_SOFT);
+    CHECK(cr_c1_off == 1u && cr_c1_barred == C1_BAR_GAVE_UP && !strcmp(cr_c1_bar_name(), "gave up"),
+          "the boot after a give-up (a reset before Dual Core Off was saved): core 1 off, \"%s\"", cr_c1_bar_name());
+    cr_c1_barred = 0;
+    cr_c1_off = 1;
+    cr_dbg.c1 = C1_OFF;
+    /* which crashes bar (hal/fm1_cpu1.h fm1_c1_crash_bars): core 0's debug sources, or none at all; not another
+     * master's alone (the owner's unit: axi_rd_inv in the restart's soft reset) */
+    CHECK(fm1_c1_crash_bars(0x1000u) && fm1_c1_crash_bars(0x200000u) && fm1_c1_crash_bars(0u) &&
+          fm1_c1_crash_bars(0x1010u), "a crash bars: c0_pc_limit (0x1000), c0_rd_bus_inv (0x200000), a plain CPU exception, c0 + a master");
+    CHECK(!fm1_c1_crash_bars(0x10u) && !fm1_c1_crash_bars(0x4u) && !fm1_c1_crash_bars(0x1u) && !fm1_c1_crash_bars(0xC000u),
+          "no bar: axi_rd_inv (0x10), prp_wr_limit (0x4), the watchdog (0x1), dmc / dbg pending alone");
+    printf("  bar: a crash beside core 1, a watchdog reset while it ran or a give-up keep it off at the next boot (the\n"
+           "  reason told, the record cleared); a reboot, a power-on, Dual Core already Off: nothing; a crash bars only\n"
+           "  when core 0's own debug sources (or none) raised it, not another master's (axi_rd_inv at a restart)\n");
 }
 
 int main(void)
@@ -385,11 +470,40 @@ int main(void)
         printf("  a hung job: core 0 renders part 1, the samples of one core, c1 \"%s\", the shared budget\n",
                cr_c1_name());
     }
-    {   /* the default (no settings record read: Options > Dual Core Off): core 1 never started */
+    {   /* no settings record read (a boot that never reads them; the record's default is On since 0.22,
+         * tests/cr_settings_test.c): core 1 never started */
         cr_dbg.c1 = C1_OK;
         cr_c1_boot();
-        CHECK(cr_c1_off == 1u && cr_dbg.c1 == C1_OFF && !cr_dualcore_active(), "the default: c1 %s", cr_c1_name());
-        printf("  start: the default is Dual Core Off: c1 \"%s\" (one core)\n", cr_c1_name());
+        CHECK(cr_c1_off == 1u && cr_dbg.c1 == C1_OFF && !cr_dualcore_active(), "no record read: c1 %s", cr_c1_name());
+        printf("  start: until a record says On core 1 is not started: c1 \"%s\" (one core)\n", cr_c1_name());
+    }
+    {   /* 0.22, Dual Core On by default: main.c's cr_c1_power_on. SAFE MODE: never started. THE BOOT BEFORE THIS ONE
+         * FAILED (the boot guard counted its reset): not started either, "failed", one core for this boot; the
+         * next clean power-on starts it again. A unit whose second core crashes the start is so not left in SAFE MODE */
+        cr_c1_off = 0;
+        cr_dbg.c1 = C1_OK;
+        cr_c1_power_on(1, 0);
+        CHECK(cr_dbg.c1 != C1_OK && cr_c1_off == 1u && !cr_dualcore_active(), "SAFE MODE: c1 %s", cr_c1_name());
+        cr_c1_off = 0;
+        cr_dbg.c1 = C1_OFF;
+        cr_dbg.rail_now[0] = 11;
+        cr_dbg.rail_now[1] = 3;
+        cr_c1_power_on(0, 1);
+        CHECK(cr_dbg.c1 == C1_FAILED && cr_c1_off == 1u && !cr_dualcore_active() && !strcmp(cr_c1_name(), "failed") &&
+              cr_dbg.rail_now[0] == 11u && cr_dbg.rail_now[1] == 3u,
+              "the boot before failed, Dual Core On: c1 %s, rails %u / %u", cr_c1_name(), (unsigned)cr_dbg.rail_now[0], (unsigned)cr_dbg.rail_now[1]);
+        cr_c1_off = 1;
+        cr_dbg.c1 = C1_OK;
+        cr_c1_power_on(0, 1);
+        CHECK(cr_dbg.c1 == C1_OFF && cr_c1_off == 1u, "the boot before failed, Dual Core Off: c1 %s", cr_c1_name());
+        cr_c1_off = 0;
+        cr_dbg.c1 = C1_OFF;
+        cr_c1_power_on(0, 0);
+        CHECK(cr_dbg.c1 == C1_OK && cr_c1_off == 0u && cr_dualcore_active(), "a clean boot, Dual Core On: c1 %s", cr_c1_name());
+        cr_c1_off = 1;
+        cr_dbg.c1 = C1_OFF;
+        printf("  start (0.22): SAFE MODE: not started; the boot before this one failed: not started (\"failed\", the rails as\n"
+               "  the boot loader left them, one core for this boot); a clean boot with Dual Core On: \"ok\"\n");
     }
     {   /* Dual Core On: core 1 not answering at power-on */
         cr_dbg.c1 = C1_OFF;
@@ -405,6 +519,7 @@ int main(void)
     mailbox();
     escalation();
     rails();
+    bar();
     printf("cr_cpu1: %d checks, %d failed\n", checks, fails);
     return fails != 0;
 }

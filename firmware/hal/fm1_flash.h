@@ -154,6 +154,25 @@ static RAMFN uint32_t fl_jedec_ram(void)                 /* expect 0x856014 */
     return id;
 }
 
+#ifdef FL_UID
+/* The flash's 128-bit unique ID: 4Bh, four 00h bytes (three address bytes and a dummy), 16 bytes out; a read-only
+ * command, XIP off as for every command here. The AC79 SDK's own sequence (cpu.a vm_sfc.c read_flash_id, which its
+ * norflash_init runs at every power-on of an SDK firmware such as M-VAVE's, right after 9Fh in the same SPI window).
+ * Read once at power-on after the JEDEC id matched (cr_shim.c persist_boot: the unit's ID, docs/INSTALL-COMPAT.md
+ * "Several FM-1s"). Only the app defines FL_UID: the update loader's image does not change with it. dst: in RAM */
+static RAMFN int fl_uid_ram(uint8_t *dst)
+{
+    fl_saved_t s; uint32_t i;
+    if (fl_enter(&s)) return -2;
+    fl_cs(0);
+    for (i = 0; i < 5u; i++) fl_tx(i ? 0x00 : 0x4B);       /* (one inlined fl_tx, not five) */
+    for (i = 0; i < 16u; i++) dst[i] = fl_rx();
+    fl_cs(1);
+    fl_exit(&s);
+    return 0;
+}
+#endif
+
 static RAMFN uint32_t fl_status_ram(void)                /* SR1 | SR2 << 8 */
 {
     fl_saved_t s; uint32_t v;

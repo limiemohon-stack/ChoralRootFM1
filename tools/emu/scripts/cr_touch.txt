@@ -1,0 +1,57 @@
+# ChoralRoot 0.22: the keys' velocity and aftertouch in the emulator (docs/VELOCITY.md; tools/emu/emu_fw.c
+# emu_touch_feed: a key the script holds "down VEL" lands at the driven reading the map gives that velocity, a "lean"
+# presses it harder). Key Touch Fixed (a new unit): D4 at 30 plays at Options > Velocity, 100, at once. Options >
+# Key Touch (entry 5) to Velocity + Aftertouch: D4 at 30 plays at 30 (the trace "touch: key 9 vel 30 sensed"),
+# about 9 ms after the key went down; at 120, 120; G5 (a top key, no converter) through the PA10 probe's model at 64
+# ("touch: key 26 vel 67 sensed": the probe's curve, quantised); a lean of 60 % on a held D4 after it has settled: aftertouch up to ~73
+# ("touch: at N"; 60 % of the span, smoothed), eased to 0: back to 0. Velocity Curve +3 (entry 7): the same press
+# (30 on Velo's scale) reads 15.
+wait 600
+btn D4 down 30
+wait 300
+btn D4 up
+wait 300
+btn GLO 80                    # Options
+wait 300
+knob SELECT +5                # Key Touch
+wait 200
+knob KNOB1 +2                 # Velocity + Aftertouch
+wait 200
+btn GLO 80
+wait 500
+btn D4 down 30
+wait 300
+btn D4 up
+wait 300
+btn D4 down 120
+wait 300
+btn D4 up
+wait 300
+btn G5 down 64
+wait 300
+btn G5 up
+wait 300
+btn D4 down 80
+wait 500                      # the rest settles (250 ms), then the lean
+lean D4 60
+wait 400
+dump                          # 1: pressure on
+lean D4 0
+wait 400
+dump                          # 2: pressure off
+btn D4 up
+wait 300
+btn GLO 80
+wait 300
+knob SELECT +2                # Velocity Curve (entry 7)
+wait 200
+knob KNOB1 +3                 # +3
+wait 200
+btn GLO 80
+wait 500
+btn D4 down 30
+wait 300
+btn D4 up
+wait 500
+dump                          # 3
+quit

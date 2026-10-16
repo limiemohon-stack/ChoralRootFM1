@@ -5,6 +5,7 @@
  *   cc -std=c99 -Wall -Wextra -Werror -pedantic -o build/host/cr_settings_test tests/cr_settings_test.c \
  *      firmware/src/cr_settings.c firmware/src/cr_engine.c && build/host/cr_settings_test
  * (tests/run_cr_tests.sh runs it.) */
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include "../firmware/src/cr_engine.h"
@@ -33,6 +34,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #define __attribute__(x)
 #define FELUCCA_CZ 1                               /* ChoralRoot's object list: the session's object (OBJ_SESSION) */
 #define FELUCCA_QUAD 1
+#define ST_AHEAD 1                                 /* (choralroot.c's: the erase ahead) */
 #include "../firmware/src/storage.c"
 #undef __attribute__
 
@@ -61,7 +63,7 @@ static void t_defaults(void)
        "defaults: USB Record on, USB Level Master (Felucca's)");
     ok(d.bpm == 120 && d.vel == 100 && d.playstyle == CR_PS_SIMPLE && !d.key_on && d.single == CR_SINGLE_FULL,
        "defaults: 120 BPM, velocity 100, Simple, Key Mode off, Full Octave");
-    ok(d.chord_sound == CRS_SOUND_DEFAULT && d.fx_on && d.view == 0 && d.motion == 0, "defaults: UI fields");
+    ok(d.chord_sound == CRS_SOUND_DEFAULT && d.fx_on && d.view == CRS_DC_ON && d.motion == 0, "defaults: UI fields (the view 0, Dual Core On)");
     /* the defaults are the engine's power-on state */
     cr_init(&C, &OUT);
     for (m = 0; m < CR_PM_COUNT; m++)
@@ -331,7 +333,8 @@ static void t_version(void)
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 0, "pick_roots 0 (the roots play) kept");
     s.pick_roots = 33;
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 1, "pick_roots out of range (bit 5 up): the default");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.pick_roots == 33 && CRS_VCURVE(&r) == 1,
+       "pick_roots 33: bit 5 is Velocity Curve +1 since 3y112 (it read as out of range before), kept");
     /* 0.19: Options > Output in bit 1 of that byte (CRS_OUT_CLASSIC): clear = Clean, the default and every older
      * record's; set = Classic, kept beside the retired bit 0 */
     cr_settings_defaults(&s);
@@ -699,6 +702,15 @@ static void t_flash(void)
        "flash: after a torn save the previous copy is in charge");
     ok(st_save(OBJ_SETTINGS, &s, sizeof s) == 0 && st_load(OBJ_SETTINGS, &r, sizeof r) == (int)sizeof r &&
        cr_settings_import(&r, &r, sizeof r) == 1 && r.bpm == 160, "flash: the next save wins");
+    /* the quiet writes (storage.c "erase ahead"; its states and its schedule: tests/storage_test.c): in ChoralRoot's
+     * object list the session and the favourites; NOT the settings (3y52, the owner's decision of 2026-10-14: their
+     * previous copy is the calibration's fallback) and no store */
+    ok(st_ahead_ix(OBJ_SETTINGS) < 0 && st_ahead_ix(OBJ_SESSION) == 1 && st_ahead_ix(OBJ_FAVS) == 2 &&
+       st_ahead_ix(OBJ_QUADSTORE) < 0 && st_ahead_ix(OBJ_UPRESET0) < 0 && st_ahead_ix(OBJ_FM6BANK) < 0 &&
+       st_ahead_ix(OBJ_CZSTORE1) < 0 && st_ahead_ix(OBJ_PROJECT0) < 0, "flash: erased ahead: session, favourites (not the settings)");
+    ok(st_prep(OBJ_SETTINGS) < 0 && !st_ready(OBJ_SETTINGS) && st_load(OBJ_SETTINGS, &r, sizeof r) == (int)sizeof r &&
+       cr_settings_import(&r, &r, sizeof r) == 1 && r.bpm == 160 && st_prep(OBJ_SESSION) == 0 && st_prep(OBJ_FAVS) == 0,
+       "flash: the settings refused by st_prep, both copies kept; the other two blank already");
 }
 
 /* version 8 (docs/LOOPER-MODES.md): the record mode and the PLAY menu's keys in loop_rec (rsv_usb before) */
@@ -811,7 +823,7 @@ static void t_page2_v14(void)
     }
     ok(k == 8u, "v14: Key Mode / Key plays / Keyboard: the eight combinations round-trip");
     s = d;
-    s.key_on = 8;                                  /* an unknown bit: the byte's defaults */
+    s.key_on = 24;                                 /* an unknown value (8 .. 23 are Snap's since 0.22): the byte's defaults */
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.key_on == 0, "v14: key_on out of range takes the defaults");
     s = d;
@@ -887,12 +899,15 @@ static void t_view_lock(void)
     s.view = CRS_VIEW_BYTE(4u, 0);
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VIEW(&r) == 4 && !CRS_VIEW_LOCK(&r), "v9: Scope, unlocked");
-    s.view = 0x85;                                 /* a view out of range, locked */
+    s.view = CRS_VIEW_BYTE(5u, 1);                 /* 0.22: Geek Out 2 (the sixth view), locked */
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.view == d.view, "v9: a view out of range takes the default");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VIEW(&r) == 5 && CRS_VIEW_LOCK(&r), "Geek Out 2 + lock round-trip");
+    s.view = 0x86;                                 /* a view out of range, locked */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VIEW(&r) == CRS_VIEW(&d) && !CRS_VIEW_LOCK(&r), "v9: a view out of range takes the default");
     s.view = 0x12;                                 /* an unknown bit */
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.view == d.view, "v9: an unknown bit takes the default");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VIEW(&r) == CRS_VIEW(&d) && !CRS_VIEW_LOCK(&r), "v9: an unknown bit takes the default");
     s = d;                                         /* a version-8 record: its view kept, unlocked */
     s.view = 2;
     cr_settings_seal(&s);
@@ -903,7 +918,9 @@ static void t_view_lock(void)
 }
 
 /* version 12 (0.16): Options > Dual Core in bit 6 of view, set = On, default Off. v11 (0.15) had set = Off and On the
- * default: every record older than v12 loads Off whatever its bit says; the view and its lock are not touched */
+ * default: every record older than v12 loads Off whatever its bit says; the view and its lock are not touched.
+ * 0.22 (the owner, 2026-10-13): THE DEFAULT IS ON: a unit with no record (erased, zeroed, none), Reset Settings. The
+ * version stays: a record that is there keeps what it holds (its Off cannot be told from 0.16 .. 0.21's default) */
 static void crs_old(cr_settings_t *s, unsigned version)   /* s resealed as a record of an older version */
 {
     cr_settings_seal(s);
@@ -915,12 +932,18 @@ static void t_dualcore_v12(void)
     cr_settings_t s, r;
     uint8_t z[CRS_SIZE];
     cr_settings_defaults(&s);
-    ok(CRS_DUALCORE(&s) == 0 && s.view == 0, "v12 defaults: Dual Core Off (the view byte 0)");
+    ok(CRS_DUALCORE(&s) == 1 && s.view == CRS_DC_ON && CRS_VIEW(&s) == 0 && !CRS_VIEW_LOCK(&s),
+       "0.22 defaults: Dual Core On (the view byte 0x40: view 0, unlocked)");
     memset(z, 0xFF, sizeof z);                     /* no record: an erased sector, zeros, nothing */
-    ok(cr_settings_import(&r, z, sizeof z) == 0 && !CRS_DUALCORE(&r), "an erased record: defaults, Dual Core Off");
+    ok(cr_settings_import(&r, z, sizeof z) == 0 && CRS_DUALCORE(&r), "an erased record: defaults, Dual Core On");
     memset(z, 0, sizeof z);
-    ok(cr_settings_import(&r, z, sizeof z) == 0 && !CRS_DUALCORE(&r) && cr_settings_import(&r, NULL, 0) == 0 &&
-       !CRS_DUALCORE(&r), "a zeroed record, no record: defaults, Dual Core Off");
+    ok(cr_settings_import(&r, z, sizeof z) == 0 && CRS_DUALCORE(&r) && cr_settings_import(&r, NULL, 0) == 0 &&
+       CRS_DUALCORE(&r), "a zeroed record, no record: defaults, Dual Core On");
+    cr_settings_defaults(&r);
+    r.view = CRS_VIEW_BYTE(3, 1);
+    r.loop_slot = 4;
+    cr_settings_factory(&r);                       /* Options > Reset Settings */
+    ok(CRS_DUALCORE(&r) && CRS_VIEW(&r) == 0 && r.loop_slot == 4, "Reset Settings (a record with Dual Core Off): On");
     s.view = (uint8_t)(CRS_VIEW_BYTE(3, 1) | CRS_DC_ON);
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_DUALCORE(&r) && CRS_VIEW(&r) == 3 && CRS_VIEW_LOCK(&r),
@@ -930,9 +953,12 @@ static void t_dualcore_v12(void)
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && !CRS_DUALCORE(&r) && CRS_VIEW(&r) == 2, "v12: Dual Core Off kept");
     ok(cr_settings_import(&s, &r, sizeof r) == 1 && !CRS_DUALCORE(&s) && s.view == r.view, "v12: Off round trip");
-    s.view = (uint8_t)(CRS_DC_ON | 0x08u);         /* an unknown bit: the default view byte, so Off */
+    s.view = (uint8_t)(CRS_DC_ON | 0x08u);         /* an unknown bit: the default view, Dual Core as the record has it */
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && !CRS_DUALCORE(&r) && r.view == 0, "v12: an unknown view bit: defaults (Off)");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_DUALCORE(&r) && r.view == CRS_DC_ON, "v12: an unknown view bit: the default view, Dual Core kept On");
+    s.view = 0x88u;                                /* .. and a record that has it Off stays Off (0.22: the default is On) */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && !CRS_DUALCORE(&r) && r.view == 0, "v12: an unknown view bit, Dual Core Off: the default view, kept Off");
     cr_settings_defaults(&s);                      /* a version-11 record, bit 6 clear (0.15's On, its default) */
     s.view = CRS_VIEW_BYTE(4, 1);
     crs_old(&s, 11);
@@ -1042,7 +1068,8 @@ static void t_v15(void)
     ok(CRS_NUMS(&r) == 1u && !(r.bass_on & 1u), ".. the engine's capture keeps the bit");
     s.bass_on = 4;
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.bass_on == 0, "bass_on above 3: the byte's default (0)");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.bass_on == 4 && CRS_TOUCH(&r) == 1u,
+       "bass_on 4: Key Touch Dynamic since 0.22 (bits 2..7 of the byte: docs/VELOCITY.md), kept");
     {
         unsigned old = CRS_NUMERALS;               /* what 0.21 reads: out of its 0..1, so its default */
         if (old > 1u) old = d.bass_on;
@@ -1109,9 +1136,9 @@ static void t_session(void)
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,
        "session defaults: nothing stored (the unit as it powered on until 0.17: bass off, voicing 0, the sounds' own sends)");
-    ok(sizeof SD.rsv + sizeof SD.rsv_fx + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 142u &&
-       CSS_NFXP - 8 == 16 && CSS_NP - 91 == 5,
-       "session: 142 bytes of reserve, 16 free FX parameter entries, 5 free part parameters");
+    ok(sizeof SD.rsv + sizeof SD.rsv_fx + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 126u &&
+       CSS_NFXP - 27 == 1 && CSS_NP - 91 == 5,
+       "session: 126 bytes of reserve (142 until 0.22's master filter took 16 of rsv_fx), 1 free FX parameter entry of 28, 5 free part parameters");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */
@@ -1204,7 +1231,10 @@ static void t_session(void)
         if (!cr_session_fx_set(&SX, 20u + i, (int)i))
             break;
     ok(i == CSS_NFXP - 4u && SX.fx.n == CSS_NFXP && !cr_session_fx_set(&SX, 0, 1) && !cr_session_fx_set(&SX, 256, 1),
-       "session FX: 24 parameters fit; a full block, tag 0 and a tag over 255 are refused");
+       "session FX: 28 parameters fit (24 until 0.22's master filter); a full block, tag 0 and a tag over 255 are refused");
+    ok(CSS_NFXP == 28 && sizeof(css_fx_t) == 124 && offsetof(cr_session_t, fx) == 68 && offsetof(cr_session_t, part) == 196 &&
+       offsetof(css_fx_t, par) == 12 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_FILTER == 7,
+       "session FX: the block's four new entries took rsv_fx's bytes (0.22): every field before and after them where it was");
     cr_session_seal(&SX);
     ok(cr_session_import(&SR, &SX, sizeof SX) == 1 && SR.fx.n == CSS_NFXP && cr_session_fx_get(&SR, 200, &v) && v == -5,
        "session FX: a full block round-trips");
@@ -1325,11 +1355,11 @@ static void t_auto(void)
         cr_settings_auto(&z, &y);                  /* 0xFF where automatic */
         if (((const uint8_t *)&z)[i] == 0xFF) nauto++;
         else if (((const uint8_t *)&z)[i] == 0x00) nman++;
-        else both++;                               /* (the view's byte: bit 6 alone; pick_roots': bits 1 .. 4, Output, USB Rate, Chord Names, 6th with 7th) */
+        else both++;                               /* (the view's byte: bit 6 alone; pick_roots': bits 1 .. 4, Output, USB Rate, Chord Names, 6th with 7th; bass_on's: bits 2 .. 7, Key Touch and the two Sens) */
     }
-    printf("     block: %u automatic bytes, %u manual, %u shared (the view's: Dual Core in bit 6; pick_roots': Output in bit 1, USB Rate in bit 2, Chord Names in bit 3, 6th with 7th in bit 4)\n", (unsigned)nauto,
+    printf("     block: %u automatic bytes, %u manual, %u shared (the view's: Dual Core in bit 6; pick_roots': Output in bit 1, USB Rate in bit 2, Chord Names in bit 3, 6th with 7th in bit 4; bass_on's: Key Touch and the Sens in bits 2 .. 7)\n", (unsigned)nauto,
            (unsigned)nman, (unsigned)both);
-    ok(nauto == 17u && both == 2u && nauto + nman + both == CRS_SIZE - 12u, "auto: 17 bytes and two bits of the block's 180 are automatic");
+    ok(nauto == 17u && both == 3u && nauto + nman + both == CRS_SIZE - 12u, "auto: 17 bytes and three bytes' bits of the block's 180 are automatic");
     m = b;
     cr_settings_auto(&m, &b);
     ok(!memcmp(&m, &b, sizeof b), "auto: copying a record's own Options into it changes nothing");
@@ -1387,6 +1417,156 @@ static void t_session_trim(void)
        "session trim: no sound stored, no table: none");
 }
 
+/* 0.22: Options > Key Touch, Velocity Sens, Aftertouch Sens in bits 2..7 of bass_on (docs/VELOCITY.md): 0 = Fixed /
+ * Mid, the defaults and every older record's; mode 3 is not a mode; automatic (the Options of now) */
+static void t_touch(void)
+{
+    cr_settings_t d, s, r, m2, o2;
+    cr_settings_defaults(&d);
+    ok(CRS_TOUCH(&d) == 0u && CRS_VSENS(&d) == 0u && CRS_ATSENS(&d) == 0u && d.bass_on == 0u, "defaults: Key Touch Fixed, both Sens Mid");
+    s = d;
+    s.bass_on = (uint8_t)(CRS_NUMERALS | CRS_TOUCH_BITS(2, 1, 2));
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_TOUCH(&r) == 2u && CRS_VSENS(&r) == 1u && CRS_ATSENS(&r) == 2u && CRS_NUMS(&r) == 1u,
+       "Velocity + Aftertouch, Sens Low / High beside Numerals: every bit kept");
+    s.bass_on = (uint8_t)(CRS_TOUCH_BITS(3, 0, 0));
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_TOUCH(&r) == 3u, "Key Touch 3: Vel + Poly AT (a mode since 3y123), kept");
+    s.bass_on = 0;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_TOUCH(&r) == 0u && CRS_VSENS(&r) == 0u, "a 0.21 record (the byte 0): Fixed, Mid");
+    cr_settings_defaults(&m2);
+    cr_settings_defaults(&o2);
+    m2.bass_on = CRS_NUMERALS;
+    o2.bass_on = CRS_TOUCH_BITS(1, 2, 1);
+    cr_settings_auto(&m2, &o2);
+    ok(m2.bass_on == (uint8_t)(CRS_NUMERALS | CRS_TOUCH_BITS(1, 2, 1)), "Key Touch and the Sens are automatic (the Options of now); Numerals stays the record's");
+    /* Velocity Curve: bits 5..7 of pick_roots, -3 .. +3 as two's complement */
+    s = d;
+    s.pick_roots = (uint8_t)(CRS_SIXTH_UP | CRS_VCURVE_OF(-2));
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VCURVE(&r) == -2 && CRS_SIXTH(&r) == 1u, "Velocity Curve -2 beside 6th with 7th: both kept");
+    s.pick_roots = CRS_VCURVE_OF(3);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VCURVE(&r) == 3, "Velocity Curve +3");
+    s.pick_roots = (uint8_t)(4u << 5);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_VCURVE(&r) == -3, "the bits at -4 (not a curve): -3");
+    ok(CRS_VCURVE(&d) == 0, "defaults: Velocity Curve 0");
+    cr_settings_defaults(&m2);
+    cr_settings_defaults(&o2);
+    o2.pick_roots = CRS_VCURVE_OF(1);
+    cr_settings_auto(&m2, &o2);
+    ok(CRS_VCURVE(&m2) == 1, "Velocity Curve is automatic (an Option)");
+}
+
+/* 0.22, GitHub issue 18: the KEY layer's Snap in bits 3 .. 4 of key_on (CRS_SNAP, CRS_SNAP_BITS): Off (0) by default
+ * and in every older record, no version; round-trips with the v14 bits; applies to and is captured from the engine;
+ * manual (SAVE held); and the rule 0.17 .. 0.22-beta2 apply to the byte (their CRS_FIX(key_on, 0, 7): modelled here,
+ * the old binaries were not run) reads a record with Snap on as the byte's defaults there: Key Mode off, Key plays
+ * Chords, Keyboard Chords, until set again (the v14 caveat, docs/SETTINGS.md) */
+/* GitHub issue 15: the KEY layer's Numerals = Solfege in bit 7 of scale (CRS_SOLFEGE), a bit of its own apart from
+ * bass_on's On: off by default and in every older record; round-trips beside either scale; the engine gets the scale
+ * without it and its capture keeps it; an out-of-range scale keeps the bit; manual; and the rule 0.17 .. 0.22 apply
+ * to the byte (their CRS_FIX(scale, 0, 1), default Major: modelled, the old binaries were not run) */
+static void t_solfege(void)
+{
+    cr_settings_t d, s, r;
+    cr_settings_out_t o;
+    cr_t E;
+    unsigned sc;
+    cr_settings_defaults(&d);
+    ok(!CRS_SOL(&d) && CRS_SCALE(&d) == CR_SCALE_MAJOR && CRS_VERSION == 15u, "Solfege: off by default, no settings version for it");
+    for (sc = 0; sc < 2u; sc++) {
+        s = d;
+        s.scale = (uint8_t)(CRS_SOLFEGE | sc);
+        s.tonic = 9;
+        cr_settings_seal(&s);
+        ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == sc && !CRS_NUMS(&r) &&
+           r.bass_on == 0, sc ? "Solfege round-trips with A minor (bit 7 of scale), bass_on untouched"
+                              : "Solfege round-trips with A major (bit 7 of scale), bass_on untouched");
+        cr_init(&E, &OUT);
+        cr_settings_apply(&r, &E, &o);
+        ok(E.scale == sc && E.key_on == 0 && E.bass_on == 0, sc ? ".. the engine gets minor without the bit" : ".. the engine gets major without the bit");
+        cr_settings_capture(&r, &E, &o);
+        ok(CRS_SOL(&r) && CRS_SCALE(&r) == sc, ".. and its capture keeps the bit");
+    }
+    s = d;
+    s.scale = (uint8_t)(CRS_SOLFEGE | 5u);         /* an unknown scale: Major, the bit kept */
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MAJOR, "scale 5 with Solfege: Major, Solfege kept");
+    s.scale = 0x7Fu;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.scale == CR_SCALE_MAJOR, "scale 127: Major, no Solfege");
+    {
+        unsigned old = CRS_SOLFEGE | CR_SCALE_MINOR;   /* what 0.17 .. 0.22 read: out of their 0..1, so Major */
+        if (old > 1u) old = d.scale;
+        ok(old == CR_SCALE_MAJOR, "0.17 .. 0.22 read a Solfege byte as Major (the scale lost there, nothing else)");
+    }
+    s = d;                                         /* an older record: whatever its version, the bit is 0 */
+    s.scale = CR_SCALE_MINOR;
+    cr_settings_seal(&s);
+    s.version = 14;
+    s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && !CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MINOR, "a version-14 minor record: no Solfege");
+    {                                              /* manual: the automatic save does not carry it */
+        cr_settings_t a = d, m = d;
+        a.scale = CRS_SOLFEGE;
+        cr_settings_auto(&m, &a);
+        ok(!CRS_SOL(&m), "Solfege is manual (SAVE held), as Numerals");
+    }
+}
+
+static void t_snap(void)
+{
+    cr_settings_t d, s, r, m, o2;
+    cr_settings_out_t o;
+    cr_t E;
+    unsigned k;
+    cr_settings_defaults(&d);
+    ok(CRS_SNAP(&d) == 0u && CRS_VERSION == 15u && CRS_KEY_MAX == 23u, "Snap: Off by default, no settings version for it");
+    for (k = 0; k <= CRS_KEY_MAX; k++) {           /* Snap 0 .. 2 with the eight v14 combinations */
+        s = d;
+        s.key_on = (uint8_t)k;
+        cr_settings_seal(&s);
+        if (cr_settings_import(&r, &s, sizeof s) != 1 || r.key_on != k || CRS_SNAP(&r) != (k >> 3) ||
+            CRS_KEY_ON(&r) != (k & 1u) || CRS_KEY_PLAYS(&r) != ((k >> 1) & 1u) || CRS_KEYBOARD(&r) != ((k >> 2) & 1u))
+            break;
+    }
+    ok(k == CRS_KEY_MAX + 1u, "Snap Off / Scale / Chord with Key Mode, Key plays and Keyboard: the 24 bytes round-trip");
+    for (k = CRS_KEY_MAX + 1u; k < 256u; k++) {    /* Snap 3, a higher bit: the byte's defaults */
+        s = d;
+        s.key_on = (uint8_t)k;
+        cr_settings_seal(&s);
+        if (cr_settings_import(&r, &s, sizeof s) != 1 || r.key_on != 0u) break;
+    }
+    ok(k == 256u, "key_on 24 .. 255 (a Snap of 3, a higher bit): the byte's defaults");
+    s = d;
+    s.key_on = (uint8_t)(CRS_KEY_BYTE(1, 1, 0) | CRS_SNAP_BITS(CR_KEYSNAP_CHORD));
+    cr_settings_seal(&s);
+    cr_init(&E, 0);
+    cr_settings_apply(&s, &E, &o);
+    ok(E.snap == CR_KEYSNAP_CHORD && E.key_on == 1 && E.key_notes == 1 && !E.full, "apply: Snap Chord with Key Mode on and Key plays Notes");
+    r = d;
+    cr_settings_capture(&r, &E, &o);
+    ok(r.key_on == s.key_on, "capture(apply(s)): the byte back, Snap in it");
+    m = d; o2 = d;
+    o2.key_on = (uint8_t)(1u | CRS_SNAP_BITS(CR_KEYSNAP_SCALE));
+    cr_settings_auto(&m, &o2);
+    ok(m.key_on == 0u, "Snap is manual (SAVE held), as the page's others: cr_settings_auto leaves the byte");
+    {
+        unsigned old = 1u | CRS_SNAP_BITS(CR_KEYSNAP_SCALE);   /* what 0.17 .. 0.22-beta2 read: out of their 0 .. 7 */
+        if (old > 7u) old = d.key_on;
+        ok(old == 0u, "0.17 .. 0.22-beta2 read a Snap-on record as key_on 0: Key Mode off, Chords, Chords there, until set again");
+    }
+    s = d;                                         /* a v14 record: its byte read as today (no older writer set the bits) */
+    s.key_on = 5;
+    cr_settings_seal(&s);
+    s.version = 14;
+    s.check = crs_check(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 2 && r.key_on == 5u && CRS_SNAP(&r) == 0u, "a v14 record: Key Mode on, the Full keyboard, Snap Off");
+}
+
 int main(void)
 {
     t_auto();
@@ -1401,6 +1581,9 @@ int main(void)
     t_loop_rec();
     t_view_lock(); t_hold_v10(); t_dualcore_v12(); t_key_keys_v13(); t_page2_v14();
     t_v15(); t_session(); t_session_trim(); t_session_flash();
+    t_touch();
+    t_snap();
+    t_solfege();
     printf("cr_settings: %d passed, %d failed\n", passed, failed);
     return failed ? 1 : 0;
 }

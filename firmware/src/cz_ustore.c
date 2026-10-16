@@ -18,7 +18,7 @@
 #endif
 #define CZU_MAGIC 0x55315A43u                    /* "CZ1U" */
 #define CZU_VER 1u
-#define CZU_HALF (UP_SLOTS / 2u)
+#define CZU_HALF (UP_LEGACY / 2u)
 typedef struct {
     uint32_t magic;
     uint16_t ver, nslot;                         /* CZU_VER, CZU_HALF */
@@ -28,7 +28,9 @@ typedef struct {
 } czu_t;
 _Static_assert(sizeof(czu_t) == 16u + CZU_HALF * CZ_BYTES && sizeof(czu_t) <= 4096u - 256u,
                "CZ-1 store layout: header + 16 tones in one object");
+#if !UP_POOL
 static czu_t czu[2] __attribute__((section(".pool")));
+#endif
 
 static int czu_valid(const czu_t *s, uint32_t h)
 {
@@ -42,6 +44,7 @@ static int czu_valid(const czu_t *s, uint32_t h)
     return 1;
 }
 
+#if !UP_POOL
 static void czu_empty(uint32_t h)
 {
     memset(&czu[h], 0, sizeof czu[h]);
@@ -52,7 +55,9 @@ static void czu_empty(uint32_t h)
     czu[h].blob = CZ_BYTES;
 }
 
+#endif
 static uint32_t czu_obj(uint32_t h) { return h ? (uint32_t)OBJ_CZSTORE1 : (uint32_t)OBJ_CZSTORE0; }
+#if !UP_POOL       /* (since 0.22 the pool, upool.c, keeps the patches: the store above is read once, the migration) */
 
 #if defined(CR_TRACE) && CR_TRACE
 static uint16_t czu_crc16(const uint8_t *b) { return (uint16_t)st_crc32(b, CZ_BYTES); }   /* the traces' "crc" */
@@ -62,7 +67,7 @@ static uint16_t czu_crc16(const uint8_t *b) { return (uint16_t)st_crc32(b, CZ_BY
 static int czu_get(uint32_t k, uint8_t *b)
 {
     const czu_t *s = &czu[(k / CZU_HALF) & 1u];
-    if (k >= UP_SLOTS || s->magic != CZU_MAGIC || !((s->used >> (k % CZU_HALF)) & 1u))
+    if (k >= UP_LEGACY || s->magic != CZU_MAGIC || !((s->used >> (k % CZU_HALF)) & 1u))
         return 1;
     memcpy(b, s->b[k % CZU_HALF], CZ_BYTES);
 #if defined(CR_TRACE) && CR_TRACE
@@ -92,7 +97,7 @@ static int czu_put(uint32_t k, const uint8_t *b)
     uint8_t old[CZ_BYTES];
     uint32_t h = (k / CZU_HALF) & 1u, i = k % CZU_HALF, used;
     czu_t *s = &czu[h];
-    if (k >= UP_SLOTS || (b && !cz_patch_valid(b)))
+    if (k >= UP_LEGACY || (b && !cz_patch_valid(b)))
         return 1;
     if (!czu_valid(s, h))
         czu_empty(h);
@@ -159,7 +164,8 @@ static void czu_loading(const up_rec_t *r)
     cz_user_pending = 0;
     if (r->engine != ENGI_CZ)
         return;
-    for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
+    for (b = 0; b < UP_LEGACY / UP_PER_BANK; b++)
         if (r >= up_bank[b].r && r < up_bank[b].r + UP_PER_BANK)
             cz_user_pending = (uint8_t)(b * UP_PER_BANK + (uint32_t)(r - up_bank[b].r) + 1u);
 }
+#endif /* !UP_POOL */

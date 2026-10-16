@@ -84,7 +84,7 @@ stage (MOD FX MIX).
 
 | Rotary | In the editor |
 | --- | --- |
-| KNOB 1–4 | edit the four cells of the active lane. A detent = **5 % of the range**, enums **one by one**; SHIFT on = **one unit**. Ranges, defaults and value text are the platform's (`params.c`, `param_format`) or the deep page's (`eng_page_t` formats) |
+| KNOB 1–4 | edit the four cells of the active lane. A value is **accelerated** (§6a: a slow detent the finest step, a quick one up to 5 % of the range), enums and named choices **one by one**; SHIFT on = **snap** (§6a). Ranges, defaults and value text are the platform's (`params.c`, `param_format`) or the deep page's (`eng_page_t` formats) |
 | SELECT | the lane, across the screens (above) |
 | PRESETS | the engine picker, previewing (§7) |
 | MASTER | volume |
@@ -119,7 +119,16 @@ none and keep the title rules:
   (one name and instance: `DCW 1`, `DCW 1+`, `DCW 1 B`, ..) has R1.. and SUS / END (CZ-1); FILT and ENV pages run by
   instance and name (`PITCH 1` and `DCW 1` are two runs);
 - MOD: a stack of the slots, eight a screen, when its pages are matrix slots (SRC DST AMT); else (FM6's function
-  pages) `edit8` screens as FILT's.
+  pages) `edit8` screens as FILT's. **Then, on every engine, the EXPR screen** (0.22, docs/VELOCITY.md
+  "Expression"): a stack of two lanes, VEL and AT, each Source · Dest · Amount, the sound's velocity and
+  aftertouch routings (mod.c's matrix slots 3 and 4, saved with the sound; the destinations are the platform
+  matrix's: PITCH CUT SHP AMP PAN the sends RATE VIB E1..E8). An unset slot reads its default, `AMP auto` /
+  `CUT auto` (what Key Touch Dynamic / Velocity + Aftertouch does for a sound that routes nothing); KNOB 2 or 3
+  turned on it takes the default (DST AMP amount 63; DST CUT amount by Aftertouch Sens) and then the turn, and
+  DST `OFF` switches that default off for the sound. MIDI velocity and aftertouch reach the same sources. The
+  amounts read as numbers, -64 .. +63 (not the percentage the platform's bipolar amounts show elsewhere), so a
+  detent reads as one; they step as every value does (§ "Knob acceleration and OPT snap": one unit a slow detent,
+  up to six a quick one).
 - a cell's label, value names and range come from `deep->desc(t, page, col)` when the engine gives one (the VA's
   mode-dependent WAVE / SHAPE: MORPH, NOISE, COLOR, DENS), else from the page's column; the stack's heading over a
   WAVE column stays `Wave` whatever the modes.
@@ -136,11 +145,12 @@ none and keep the title rules:
 | LFO | 1 | `stack`, 4 rows | LFO 1–4 | Rate · Wave · Depth · Fade | `LFO 1 · A` |
 | LFO | 2 | `stack`, 4 rows | LFO 1–4 | Sync (`LFO SYN`, column n) | `LFO 1 · B` |
 | LFO | 3 | `edit8`, one row | one (the `VOICE` page, the LFO section's last: a page of its own) | Uspread (USPREAD, the unison's stereo spread: docs/VA.md); KNOB 2–4 blank | `VOICE` |
-| MOD | 1 | `stack`, 8 rows, text only | slots 1–8 | Source · Dest · Amount (bipolar) | `MOD 3` |
+| MOD | 1 | `stack`, 8 rows, text only | slots 1–8 | Source · Dest · Amount (bipolar; hundredths, `+0.30` `+12.00`: tenths below 6, whole numbers from 6, docs/VA.md "matrix") | `MOD 3` |
 | FX | 1 | `edit8`, one row | one | Drive · Chorus · Delay · Reverb (the platform sends) | `FX` |
 | MIX | 1 | `edit8`, two rows | A, B | A: Level · Pan · Voice · Glide; B: Transpose · Detune · Priority · Gl. mode | `MIX` |
 
-With Sync on, an LFO's Rate reads as a division of the BPM (`1/8`). The VA's EDIT 1 / EDIT 2 macros are not shown:
+With Sync on, an LFO's Rate is the sync list (`deep->desc`: `8BARD` .. `1/8` .. `256T`, `4ms` `3ms` `2ms`; one item a
+detent, SHIFT / OPT the straight ones: docs/VA.md). The VA's EDIT 1 / EDIT 2 macros are not shown:
 the deep values are the truth and a deep edit writes the macro back. Unused matrix slots read `–` (the active one
 shows its source, to turn).
 
@@ -198,6 +208,48 @@ hold after the SUS step, nothing after END; the step of the turned cell (R k / L
 knob's colour, digits 1–8 (and S) under the steps. No matrix (`not modulatable`). Melodee's CZ TOOLS page (NAME, 1 > 2,
 2 > 1, COMPARE) is not ported. Tests: `tools/emu/scripts/cr_cz.txt`.
 
+### P5 (docs/PROPHET.md)
+
+The owner's rows (0.22 in development; engine 16, Melodee's Prophet-5; the code's name is PROPHET), **from a design
+file**: `design/layouts/designs/p5-rows.json`, laid out by the owner in the layout tool ("This layout now checks out, I
+updated the label text in editor. We are good to build and get into the firmware.") and compiled into the build
+(`tools/gen_layout.py` `BUILD` -> `build/gen/cr_layouts.h` `CR_LAYC`; docs/LAYOUT-TOOL.md "Step 4"). It is a **screen
+plan** as FM TONE's (§4 below), with pages of its own: `cr_pages.c` `cp_deep` serves P5 seventeen pages, one a lane,
+each column a copy of the built-in descriptor it binds, and `get` / `set` / `desc` go through to that column's place in
+P5's own 19 pages (the program's byte, the blob, SysEx, `cr_backup` and the layout file's hash are the engine's,
+unchanged). Eleven `edit8` screens of up to four cells a row, each cell the Prophet-5's control as its glyph (the p5
+cell styles, §9 "A cell": the ticked knob, the LED button with its wave's icon, two LEDs, the lever) and its label as
+the owner wrote it; a screen under a band has one lane, drawn at full size under the band; the others two lanes, no
+band. SELECT walks the rows and the screens of a group, KNOB 1..4 the active row's cells (blue, orange, white, green);
+an empty slot (–) does nothing. MOD's last screen is EXPR after VOICE (a stack, as on every engine), FX and MIX are the
+platform's, as for every engine:
+
+| Group | Screen | Band | Lanes | KNOB 1–4 | Top-right text |
+| --- | --- | --- | --- | --- | --- |
+| OSC | 1 | none | A, B | A: FREQ (knob) · SAW (button, saw icon) · PULSE (button, pulse icon) · P WIDTH; B: SYNC (button) · MIX A · MIX B · NOISE (the mixer) | `OSC A` |
+| OSC | 2 | none | A, B | A: FREQ · SAW · TRI · PULSE (buttons with their icons); B: FINE · P WIDTH · LO FREQ · KEYB (buttons) | `OSC B` |
+| FILT | 1 | the filter's curve | one | CUTOFF · RES · ENV AMT · REV (two LEDs: 1/2, 3) | `FILTER` |
+| FILT | 2 | the envelope (ENV 2) | one | ATTACK · DECAY · SUSTAIN · RELEASE | `ENV 2 · filter` |
+| FILT | 3 | none | one | VELOC (button) · – · KEY TRK (a lever: Off, Half, Full) · AFTER (button: the filter's aftertouch) | `ENV 2 +` |
+| ENV | 1 | the envelope (ENV 1) | one | ATTACK · DECAY · SUSTAIN · RELEASE | `ENV 1 · amp` |
+| ENV | 2 | none | one | VELOC · REL SW (buttons) · – · – | `ENV 1 +` |
+| LFO | 1 | none | A, B | A: FREQ · SAW · TRI · SQUARE (buttons with their icons); B: INIT AMT · AFTER (button) · – · – | `LFO` |
+| LFO | 2 | none | A, B | A: SRC MIX (the LFO's noise amount: the wheel's source mix) · FREQ A · FREQ B · PW A; B: PW B · FILTER (the wheel's destinations, buttons) · – · – | `WHEEL` |
+| MOD | 1 | none | A, B | A: FILT ENV · OSC B (the two amounts) · FREQ A · PW A; B: FILTER (the destinations, buttons) · – · – · – | `POLYMOD` |
+| MOD | 2 | none | A, B | A: UNISON (button) · VOICES · DETUNE · GLIDE; B: PRIORITY (Low, Low R, Last, Las R) · VINTAGE · – · – | `VOICE` |
+| MOD | 3 | — | VEL, AT | the platform's stack: VEL / AT · Dest · Amount | `EXPR · VEL`, `EXPR · AT` |
+
+A cell is one byte of the program, turned by the editor's own knob code (acceleration, OPT snap, SHIFT, the hot block
+for 800 ms, the modulation marks); the switches read On / Off, the knobs the stored 0..127 (Voices 1..4: the engine's
+four voices; Unison also switches the part's voice mode). No matrix of its own ("not modulatable"). The editor's trace
+names the built-in page and column ("deep: part 0 page 5 FILTER col 0 CUT"). Before (0.22-beta1 and lay-5 .. lay-7):
+the owner's panel `p5-panel.json` as free screens (`CR_K_FREE`, §9), which the unit no longer carries; the layout tool
+still previews it. Tests: `tools/emu/scripts/cr_prophet.txt` (FILTER KNOB 1 the cutoff, LFO KNOB 1 FREQ and KNOB 2 the
+saw's button, OSC A's row B KNOB 2 Mix A), `tests/cr_p5rows_test.c` (every cell, empty slots, SELECT, EXPR after
+VOICE), `tests/cr_layout_test.c` (the tables), `tests/run_cr_draw.sh` (`tests/cr_p5rows_golden.txt`),
+`tests/cr_prophet_test.c`, `web/test_layout.mjs` (the unit's frames against the emulator's, and against the design
+loaded in the layout tool).
+
 ### FM TONE (docs/QUAD.md; the user-approved screens design/choralroot-fm1-quad-screens.png)
 
 Built from FM TONE's screen plan (`eng_quad.c` `QUAD_SCREENS`), not from the title rules:
@@ -235,20 +287,99 @@ ENGINE, the factory presets and INIT are **not groups**: they are the engine pic
 
 GLO (printed; OPT outside) is SHIFT in the editor:
 
-- **tap** = toggle the **latched** SHIFT: its LED lit, the word `fine` small in the title line, KNOB 1–4 one unit a
-  detent until tapped again (or the editor is left);
-- **held** past HOLD_MS (or with a knob turned meanwhile) = **momentary**: fine while held; released, back to the
+- **tap** = toggle the **latched** SHIFT: its LED lit, the word `snap` small in the title line, KNOB 1–4 snap (§6a)
+  until tapped again (or the editor is left);
+- **held** past HOLD_MS (or with a knob turned meanwhile) = **momentary**: snap while held; released, back to the
   latched state (a hold never toggles it);
 - held + EDIT = chord ↔ bass sound.
 
 A **ratio pair** (a column of k names over k x k values, the value slow × k + fast: FM TONE's RATIO B, B1 × 19 +
 B2, the Digitone's hands) takes SHIFT as **its slow hand a step** (FM TONE's B1: B2 kept, B1 held at its first and
-last step) instead of a fine step: a plain detent already moves the fast hand (B2) one step, carrying into B1 on the
-wrap. The title line then reads `fine · B1` (`cr_screen_t.fine` 2: the active lane has a pair). The pair's cell is a
+last step) instead of a snap: a plain detent already moves the fast hand (B2) one step, carrying into B1 on the
+wrap. The title line then reads `snap · B1` (`cr_screen_t.fine` 2: the active lane has a pair). The pair's cell is a
 fraction, the fast hand **on top** (B2 over B1), each with two decimals (the cell's `pct` / `pct2` in quarters,
 cr_draw.c formats them); the trace and the value text read "B2/B1" ("2.00/1.00": B2 2.00, B1 1.00).
 
 While the editor is open the edit wins over OPT's outside knob functions (split point, metronome level, bass volume).
+
+Until 0.22 SHIFT was **fine** (one unit a detent against the plain 5 %); acceleration makes the plain detent fine
+when turned slowly, so SHIFT is the snap now.
+
+## 6a. Knob acceleration and OPT snap (0.22)
+
+The owner (2026-10-14): "a small turn does fine increments, a quick turn moves the parameter faster", and hold OPT
+to "do the same thing the real Digitone does when holding Func, and snap to common values". One implementation for
+every knob that edits a **value**: the sound editor of every engine (FM6, FM TONE, VA, CZ-1, P5, WHEEL and the
+platform pages), its FX group (the sends), the FX layer, the BASS layer's level and BASS + ALGORITHM, the KEY layer's
+Transpose, the PERF row and the main view's KNOB 3 / KNOB 4, Options > Velocity (`cr_pages.c` `kn_*`, `cr_ui.c`
+`cu_kval`). **Not** values, one item a detent whatever the speed: PRESETS, ALGORITHM, SELECT, the pickers and lists,
+every F_ENUM, on / off, a note name, a name list of at most 64 values (FM6's ALG and COARSE, FM TONE's RATIO A / C),
+a ratio pair (RATIO B), FM TONE's ALGO, the FX layer's divisions / ratio / sync / mode, the PERF row's division,
+direction, pattern, rotate, retrigger and hold, the VA's synced LFO Rate (va-1: the sync list, 42 items).
+
+**A turn's first two detents are always the finest step** (2026-10-15; `kn_turn` `KN_FIRST`, the owner on the EXPR
+amounts: "I cannot move it in small steps of 1"). The unit reads a knob once a main-loop pass, and two detents of a
+hand turn that land in one editor redraw read as a quick turn (16 ms / 2, whatever the pass took) and stepped a
+128-range value by six. So a nudge, or the first two clicks of any turn (after a rest of a second or a reversal), count
+one, a spin accelerates from its third detent on (a flick of three in one pass: one, one, then the speed's step), and
+detents that arrive together count their mean spacing over the pass they arrived in (two in a 38 ms redraw: 19 ms
+apart, quick; two in a 100 ms pass: 50 ms, one unit each); `tools/emu/scripts/cr_expr_knob.txt` times detents like a hand (90 ms), like a spin (20 ms)
+and two in one frame.
+
+**Audited (va-1, 2026-10-14: the owner "acceleration works well some places but not others").** Every value knob of
+the VA's editor (OSC, FILT, ENV, LFO, MOD, the ENV / LFO-held mapping's AMT) and of the common groups (FX: the sends;
+MIX: Level, Pan, Glide, Transpose, Detune; the platform pages) steps through `cp_dstep` / `cu_send_step`, so all
+accelerate. The places that did not feel right were the VA's: a synced LFO Rate was a 0..127 value read as 14
+divisions (accelerated, so a slow detent often showed no change and a quick one skipped divisions): it is a list now;
+FENV was −64..63 in % of 64: hundredths now. Still one step a detent outside the editor, for the owner to confirm:
+the tempo (SELECT on the main view, 20..300 BPM, 1 BPM a detent), the PLAY menu's Level and the metronome's click
+(0..100 in fixed 5s), the PERF row's Rotate (−12..12), the KEY layer's Transpose (by choice), the FX layer's values of
+at most 21 steps (`hi − lo > 20`).
+
+**Acceleration.** `cu_knob` times every detent of each knob (`kn_turn`, the UI clock `fm1_ms`); the gap since the same
+knob's previous detent picks the step from ONE table (`KN_CURVE`), in 64ths of the quickest step, which is the range
+/ 20 rounded (the detent of before 0.22: 6 of 0..127, 5 of 0..99, 10 of FM TONE's ±1.00, 6.35 of a hi-res 0..127.00):
+
+| gap since the knob's last detent | step |
+|---|---|
+| ≥ 150 ms (and the first detent, after 1 s of rest, a reversal) | the finest: one stored step (0.01 of a hi-res value, 1 of an integer) |
+| 110–149 ms | 1/64 of the quickest (at least the finest) |
+| 80–109 ms | 2/64 |
+| 60–79 ms | 4/64 |
+| 45–59 ms | 8/64 |
+| 34–44 ms | 16/64 |
+| 25–33 ms | 32/64 |
+| < 25 ms | the quickest: the range / 20 (several detents in one pass count their mean spacing over the pass: two in a 38 ms redraw are 19 ms apart, two in a 100 ms save 50) |
+
+So a slow turn is fine, and a quick spin of about a turn (24 detents) crosses the range. Clamped: both ends are
+reached exactly. The emulator's scripts set the timing exactly (their clock is the firmware's): `knob KNOB1 +1`,
+`wait 300` is a slow detent, detents a frame (15 ms) apart quick ones, `knob KNOB1 +5` five in a frame (quick);
+`knobs quick` makes every detent the quickest (the scripts written for the 5 % step, tools/emu/emu.c).
+
+**OPT snap.** GLO (OPT) held while a value knob turns, and in the editor SHIFT latched too: the value goes to the next
+**target** in the turn's direction, one a detent (`kn_snap`, `kn_grid`). The targets are the multiples of the grid
+from the anchor, and both ends:
+
+| the value | targets |
+|---|---|
+| hi-res (1/100 units: FM TONE's F_C100 / F_O100 / F_C100I / F_FRQ100, core.h `FMT_HI`; a value named by its number with decimals: FM TONE's OFS "-1.00" .. "+1.00") | whole numbers (`kn_whole`: 100 steps) |
+| an LFO speed (a bipolar SPEED: FM TONE's LFO 1–3) | −64 −32 −16 −8, 8 16 32 64 (the ends past them), × 100 when hi-res |
+| semitones (F_SEMI, an offset in "st": the VA's COARSE, the part's Transpose, FM6's TRNSP; the KEY layer's Transpose) | octaves (12, around the centre) |
+| the DX7 break point (FM6's BREAK) | the Cs |
+| 0..127 | 0 16 32 48 64 80 96 112 127 |
+| centred −64..63 (F_BIPCT, F_OFS: Pan, the envelope / LFO amounts, MIX, FADE, the VA's FINE) | 0 then steps of 8 (−64 .. 56 63) |
+| another range | the nice number (1 2 4 5 8 10 16 20 25 32 50 64 100 ..) nearest to 1/8 of it (centred: 1/16): 0..99 → 10s, 0..100 → 10s, −50..50 → 5s, 0..120 → 16s, 1..1000 → 100s, 1..200 → 25s, 50..90 → 5s, −16..16 → 2s |
+| at most 17 values (FM6's FB, DETUNE, VSENS; CZ-1's levels and keys; ALGO 1..8; −8..8) | no snap: one step a detent |
+
+A named choice never snaps (one item a detent, OPT or not), but for a list of tempo divisions (the VA's synced LFO
+Rate, `kn_divs`: an F_ENUM `RATE` with a `1/4T` among its names): OPT steps the straight ones (a name ending in T or D
+is skipped). The VA's FENV and its matrix's AMT are hi-res (`F_FIX2`): whole numbers. OPT's other jobs are as before: OPT + PRESETS / +
+ALGORITHM change the chord / bass part's engine, OPT + KNOB 1 the split point and OPT + SELECT the click level (also
+in a layer: KNOB 1 of a layer cannot snap), OPT + SAVE, OPT tapped the Options; in the editor SHIFT + EDIT the other
+part and SHIFT + SELECT the lanes. Only OPT + a value knob changes meaning.
+
+The hook for hi-res values is `kn_whole` (cr_pages.c), the one place that asks: a format in `FMT_HI` (FM TONE's
+1/100 formats) is 100 steps a whole number; another way to declare a hi-res column goes there.
 
 ## 7. The engine picker: a preview (EDIT held, or PRESETS in the editor; main walk-through state 22)
 
@@ -266,7 +397,9 @@ the VA's), the `edited` flag and the pool entry it came from (its place in the p
 - **KNOB 4** switches the roots' job: `roots: engines` (they pick engines) or `roots: play` (they play the previewed
   sound; engines are then chosen with SELECT only). The footer shows it. **0.18: the roots always play there** (the owner:
   "I don't see any case in which I would want to scroll through presets and not be able to immediately play them");
-  KNOB 4 has no job in the picker, the footer reads `SELECT: engine`, the byte is reserved. Until then: a setting (`pick_roots`,
+  KNOB 4 has no job in the picker, the footer reads `SELECT: engine`, the byte is reserved. **0.22: KNOB 4 marks the
+  previewed sound as a favourite** (right on, left off; the read-out pops with its star, the browser stays;
+  docs/PRESETS.md "Favourites"; the footer is unchanged). Until 0.18: a setting (`pick_roots`,
   docs/SETTINGS.md), default engines.
 
 Closing it:
@@ -289,7 +422,7 @@ Overwrite saves at once and keeps the name: over a factory preset it writes a us
 one stays recoverable), over a user preset its slot, on INIT (which cannot be overwritten) it is Save as new.
 Overwrite never renames (a new name: Save as new, then delete the old one). Save as new takes the first free user slot,
 which is the engine's pool's next place ("FM6 · 27"), then the naming page: the white roots type the name (phone
-style, prefilled with the current one), D#4 a space, **F#4 deletes** the last letter, KNOB 2 the last letter, SAVE or
+style, prefilled with the current one), D#4 a space, **F#4 deletes** the letter under the cursor, SELECT the cursor and KNOB 1 the letter under it (0.22; until then KNOB 2 the last letter; docs/PRESETS.md "The naming page"), SAVE or
 OCT+ saves. No free slot (32 user presets): "no free slot". **SAVE held 1 s in the dialog**: "reset to factory?" on an
 overwritten factory preset, "delete?" on an added one, the place huge in red (OCT+ does it, OCT− keeps); after a reset
 the factory preset is back at its place, after a delete the pool closes up. EDIT keeps blinking; the dialog returns to
@@ -304,8 +437,8 @@ sound its voice and function settings (`fm6_ustore.c`, docs/FM6.md), a CZ-1 soun
 Left: the sound's name in 13 px bold, white; a trailing **`*`** once edited (deep edits too); on the bass part
 ` · BASS` and the whole title in **orange** (`PUNCH BASS · BASS`). Right, 11 px grey, right-aligned: the group and
 what is on the knobs — `OSC 1 · A` (screen A, lane OSC 1), `OSC 2 · B`, `OSC · MIX`, `FILTER`, `ENV 1 · amp`,
-`ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`fine`** (9 px,
-white) left of it (**`fine · B1`** on a lane with a ratio pair, §6). The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
+`ENV 2 · filter`, `LFO 2 · B`, `MOD 3`, `FX`, `MIX`. With SHIFT on (latched or held), the word **`snap`** (9 px,
+white) left of it (**`snap · B1`** on a lane with a ratio pair, §6). The editor's title line has no battery (it shows on the Options page only); the section text sits at the right end:
 the header's 16 x 10 case and nub, 0–3 quarters filled, full on USB power (`cr_screen_t.batt`, 255 = none; the
 right text moves left of it).
 
@@ -330,6 +463,35 @@ edit8 label then fits in 46 px. The **active** row is in the knob colours (blue,
 block is the source's colour and the value the slot's amount with the source (`ENV2 +12`, `LFO1 +24`: `hot_col`). A
 value too wide loses its space, then 2 px of size at a time (down to 9 px), then ellipsises.
 
+**The Prophet-5's controls as a cell's glyph** (3y94, the final look 3y95; the cell styles `ENG_C_P5*`, cr_screen.h
+`CR_G_P5*`, drawn by cr_draw.c `cr_p5glyph`; P5's rows, §4, and the layout tool's designs, docs/LAYOUT-TOOL.md "Cell
+styles"). In a full-size cell (60 px wide, the 34 px glyph box: no band, or one lane under
+a band) they are the owner's round-5 mock-up (`design/p5-glyph-mockups-5.html`), centred 22 px under the label's
+baseline (the box's top + 12); the label stays on top, the value on the row under it ("64", "On", "Half", "1/2"), the
+knob bars and the hot block as for any cell. On the active row the glyph is in the column's colour; on a dim row the
+editor's greys (rim line, face surf, ticks dim, the bright tick and the pointer mid):
+
+- **knob** (`CR_G_P5KNOB`, K6d): eleven 2 px ticks, 3 px long (r 14 .. 17), mid grey, over the 270 degrees; the tick
+  nearest the value white and 1 px longer (it matches the dial to a real P5's printed scale); a 2 px rim (r 9 .. 11) in
+  the row colour; the face the row colour at 40 % (cr_draw's `ux_mix` toward black, the mock-up's `tintOf`); a 3 px
+  white pointer from 2 px off the centre to r 8; centred 6 px lower than the buttons (box top + 18, level with their
+  LEDs: the owner, "the knob glyphs are vertically too high and not aligned with the button glyphs"); centre-zero
+  parameters have their zero at 12 o'clock; no value inside;
+- **LED button** (`CR_G_P5LED`, B1a): a 22 x 20 cap, its 2 px rim in the row colour, the face surf, the LED window (the
+  top 8 px inside the rim) near-black; the LED a 6 px red disc in a 2 px dark-red halo when on, a 4 px dark-red dot
+  off; `pct2` the one-cycle wave (saw, triangle, pulse: CR_P5I_*) as a 2 px line, 14 x 8, 4 px over the cap, **white
+  when on, grey (dim) when off** (mid / line on a dim row); without a wave the cap stays where it is;
+- **lever** (`CR_G_P5SWITCH`, S5): a 30 x 20 cap, the rim in the row colour, two LEDs 14 px apart counting the position
+  (Off none, Half the left, Full both), no names;
+- **two LEDs** (`CR_G_P5LED2`, R3, the filter's REV): the 30 x 20 cap, two red LEDs, the current value's lit, the two
+  value names (8 px bold, the faces scale to it) over them, the current one white, the other dim; the names ride after
+  `cr_cell_t.label`'s NUL, or after the value's when the label is too long ("Filter rev").
+
+Two lanes under a band keep the first pass's small glyphs in their 22 px box (a 26 px dial; the caps alone, 20 x 16
+and 34 x 16 with a red and a yellow LED; the lever's slot). Tests: tests/cr_draw_test.c `p5cell_screens` (goldens in
+tests/cr_p5cell_golden.txt; the lit LED, the white tick, the wave white when on, the lever's LEDs), web/test_layout.mjs
+section 6 on `design/layouts/designs/p5-rows.json`.
+
 ### `edit8` — up to eight parameters
 
 Two rows of four cells (row A, row B), one of them active; an optional **wide** shape over them:
@@ -347,7 +509,10 @@ Two rows of four cells (row A, row B), one of them active; an optional **wide** 
 - (FORMAT.md also has a **wave** band: two cycles across the screen, blue; not used by the drawn sections).
 
 Layout: **with a wide shape** — title 0–24, the shape 24–120, row A 124–180, row B 184–240 (label 10 px, glyph 22
-px, value 13 px bold). **Without** — row A 30–130, row B 134–234 (label 12 px, glyph 34 px, value 17 px bold).
+px, value 13 px bold); **one lane under the shape** (3y95: CZ-1's END screens, WHEEL's ENV, a design's one-lane
+screen) — its row at full size, 124–224 (label 12 px at +16, the 34 px glyph box at +26, value 17 px bold at +82, the
+bars at +98: the row without a shape moved down 94 px). **Without** — row A 30–130, row B 134–234 (label 12 px, glyph
+34 px, value 17 px bold).
 
 Used for: FILT, each ENV, FX, MIX; and every one-row group of the engines without deep pages.
 
@@ -369,6 +534,19 @@ A row label column at the left (11 px bold; white when active, else grey; as wid
 
 Used for: OSC (VA), LFO (VA), MOD.
 
+### `free` — a compiled layout's free screen (the layout tool; no unit has one now)
+
+`CR_K_FREE` (`cr_draw.c`, docs/LAYOUT-TOOL.md "The p5 style"), compiled only when a built design has free screens
+(`CR_LAYOUTS_FREE`) and in the layout tool's preview: none does since P5's rows (3y97). The title line, then the
+screen's placed elements from the compiled table (`cr_layout.c`), frames first: framed sections with their names in the border, knobs with a 0..10
+scale and the value in the face (a named value too wide for it on the row under the label), LED buttons (a wave icon
+or a name over the cap; two LEDs, red and yellow, for a parameter of two values), a lever for three positions. Every
+lane's values are drawn; the active lane's elements in the knob colours by slot (blue, orange, white, green), the
+others grey. A turned knob's face fills in its colour for 800 ms. A knob turn composes only the strips of the elements
+that changed. The layout tool draws a design's free screens through this same code (`lay_load`).
+
+Used for: the layout tool's free designs (`p5-panel.json`, P5's editor from 3y86 until 3y97).
+
 ## 10. Motion: none in the editor (2026-10-06, the user's feedback from the device)
 
 The editor draws every change **at once**, in the UI frame after the detent or the tap: no slide-in of the cells
@@ -383,7 +561,8 @@ instrument (the chord squeeze, the pickers, the meters, the stripes) and changes
 Measured with `tools/emu/scripts/cr_editor_lag.txt` (LUSH PAD, FILT, KNOB 1 20 detents in 1 s, then the OSC stack's
 KNOB 2 10 detents) under `EMU_UI_LOG=0` (every UI frame: its host instructions, the strips drawn / blitted, the
 bytes sent, the band's values); tools/emu/test_cr.sh checks it. Device time = host instructions / 258 µs; the LCD's
-SPI runs at 12 MHz (lcd.c `LCD_BAUD` 4): 0.67 µs a byte, 12.8 ms a 240 × 40 strip.
+SPI ran at 12 MHz (lcd.c `LCD_BAUD` 4): 0.67 µs a byte, 12.8 ms a 240 × 40 strip; **since 0.22 at 20 MHz** (`LCD_BAUD`
+2, the owner's eye on the unit 2026-10-14: 0.4 µs a byte, 7.7 ms a strip; the figures below are the 12 MHz build's).
 
 | | before | after |
 | --- | --- | --- |
@@ -409,7 +588,8 @@ What made it fast:
    canvas), so the next strip is composed while the SPI sends this one. Before, gfx.c `cv_begin` waited for the last
    strip's DMA (`lcd_sync`) before drawing the next: every blitted strip cost its 12.8 ms of SPI on top of the drawing.
    lcd.c itself (Felucca's) is unchanged: it already leaves a transfer running; raising its SPI clock (`LCD_BAUD` 2 =
-   20 MHz) would cut the SPI time further but needs a check on the device.
+   20 MHz) would cut the SPI time further but needs a check on the device. 2026-10-14: built, looked at on the owner's
+   unit ("looks good"), the default since (lcd.c `LCD_BAUD` 2; `LCD_BAUD=4 ./build.sh` is the 12 MHz build).
 
 ## 11. LEDs
 
@@ -445,7 +625,7 @@ For an engine whose deep pages map their columns to the matrix (`eng_deep_t.mod_
 
 | Gesture (in the editor) | Result |
 | --- | --- |
-| **ENV held + KNOB 1–4 turned** | the **ENV n last shown** (the ENV group's screen when it was last open; before that **ENV 2**) modulates the parameter under that knob: the matrix slot with that source and that destination, else the **first free slot** (SRC or DST `OFF`) gets them, and the turn steps its **AMT** (−64..63, the coarse / fine steps of §3: 6 a detent, SHIFT one). The hot cell shows `ENV2 +12` on a block in the source's colour. Trace: `mod: ENV2 -> CUT +12 slot 1` |
+| **ENV held + KNOB 1–4 turned** | the **ENV n last shown** (the ENV group's screen when it was last open; before that **ENV 2**) modulates the parameter under that knob: the matrix slot with that source and that destination, else the **first free slot** (SRC or DST `OFF`) gets them, and the turn steps its **AMT** (−64..63, accelerated as every value, §6a: a slow detent 0.1 below 6 and 1 from 6, a quick one 6.35 to the last value it passed, 6 from 0; SHIFT: the snap, whole numbers; the VA's AMT steps in tenths below 6 since 2026-10-15, GitHub issue 13). The hot cell shows `ENV2 +12` (`LFO1 +0.3` in tenths) on a block in the source's colour. Trace: `mod: ENV2 -> CUT +12 slot 1` |
 | **LFO held + KNOB 1–4 turned** | the same with the **LFO n last shown** (its lane on the LFO stacks; before that **LFO 1**): `mod: LFO1 -> RES +6 slot 2` |
 | no free slot | the message **`matrix full`** (red), nothing changes; trace `mod: LFO1 -> CUT matrix full` |
 | a parameter that is no destination (a wave, an envelope time, a matrix column), or an engine without `mod_dst` | **`not modulatable`**; trace `mod: not modulatable` |

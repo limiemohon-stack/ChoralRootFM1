@@ -1,0 +1,41 @@
+# ChoralRoot, the reverb on core 1 (HISTORY 3y50; docs/DUALCORE.md "What each core runs"): tools/emu/test_cr.sh runs
+# this inline (the emulator's core 1 runs a job when it is handed) and with EMU_C1=thread (on a second thread): the
+# same WAV. The chord part on P5 place 01, the three sends up on both MIDI channels (CC 93 chorus, 94 delay, 91
+# reverb), eight notes, held, released, the tails rung out; then the bass part's channel plays too.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: the chord part to P5 (place 01), on OPT's release
+wait 100
+btn GLO up
+wait 400
+midi B0 5D 64                 # chorus, delay, reverb sends: 100 on both channels
+midi B0 5E 5A
+midi B0 5B 6E
+midi B1 5D 50
+midi B1 5E 46
+midi B1 5B 6E
+wait 100
+midi 90 30 64                 # eight notes
+midi 90 34 64
+midi 90 37 64
+midi 90 3A 64
+midi 90 3E 64
+midi 90 41 64
+midi 90 45 64
+midi 90 48 64
+wait 1500
+dump                          # 1: eight voices
+midi 91 26 64                 # the bass part (the unit's default VA) under it
+wait 600
+midi 80 30 00
+midi 80 34 00
+midi 80 37 00
+midi 80 3A 00
+midi 80 3E 00
+midi 80 41 00
+midi 80 45 00
+midi 80 48 00
+midi 81 26 00
+wait 4000                     # the reverb's and the delay's tails
+dump                          # 2: none

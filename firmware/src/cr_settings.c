@@ -18,11 +18,13 @@
  *                        scheduled note, the master output below -60 dBFS), never while a loop plays
  *                        (CR_SETTINGS_BUSY()), retried after a flash error. A flash erase holds every IRQ for ~45 ms
  *                        with the audio buffer zeroed (storage_hw.c st_erase): saved under a sounding chord it was a
- *                        46 ms hole with a click at each edge (docs/INTEGRATION.md, Performance). What is written:
+ *                        46 ms hole with a click at each edge (docs/INTEGRATION.md, Performance). Since 0.22 the
+ *                        erase is done AHEAD (power-on, a long idle) and the write only programs: "THE QUIET WRITES"
+ *                        below, storage.c st_write_due / st_ahead_due. What is written:
  *                        flash's block with the automatic fields as they are now; the MANUAL fields stay what the
  *                        last global save wrote
- *   cr_settings_save()   the automatic part now (Felucca's settings_save: the calibration, a backup's LIST, the
- *                        update gesture), still deferred while a loop plays
+ *   cr_settings_save()   the automatic part now (Felucca's settings_save: the calibration, the update gesture; not
+ *                        a backup's LIST since 3y48: a read never writes), still deferred while a loop plays
  *   cr_settings_commit() the GLOBAL SAVE (SAVE held, cr_ui.c cu_gsave; Options > Reset Settings): the whole block
  *                        and the session, now. The only writer of the manual settings and of the session
  *   cr_settings_revert() GLO + SAVE: flash's block (with the Options as they are now) and flash's session applied
@@ -102,6 +104,11 @@ void cr_settings_defaults(cr_settings_t *s)
     }
     s->clock_mode = CRS_CLOCK_OUT;                 /* Orchid sends clock */
     s->palette = CRS_PALETTE_MOD;
+    s->view = CRS_DC_ON;                           /* Options > Dual Core On (0.22, the owner, 2026-10-13: "Lets also
+                                                    * default to using Dual Core. If users have issues, then they can
+                                                    * switch to 1 core"): a unit with no record, Reset Settings. A
+                                                    * record that is there keeps what it holds: its Off cannot be
+                                                    * told from 0.16 .. 0.21's default (docs/DUALCORE.md) */
     s->fx_on = 1;
     s->chord_sound = CRS_SOUND_DEFAULT;
     s->bass_sound = CRS_SOUND_DEFAULT;
@@ -146,6 +153,7 @@ void cr_settings_auto(cr_settings_t *dst, const cr_settings_t *src)
     dst->extadd = src->extadd;
     dst->secret = src->secret;
     dst->vel = src->vel;
+    dst->bass_on = (uint8_t)((dst->bass_on & 3u) | (src->bass_on & 0xFCu));   /* Key Touch and the sensitivities */
     for (i = 0; i < 3u; i++) {
         dst->midi_en[i] = src->midi_en[i];
         dst->midi_ch[i] = src->midi_ch[i];
@@ -172,14 +180,17 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(playstyle, 0, CR_PS_FREE);
     CRS_FIX(extadd, 0, 1);
     CRS_FIX(secret, 0, CR_SECRET_ALL);
-    CRS_FIX(key_on, 0, 7);                         /* (v14: bit 1 Key plays Notes, bit 2 the Full keyboard) */
+    CRS_FIX(key_on, 0, (int)CRS_KEY_MAX);          /* (v14: bit 1 Key plays Notes, bit 2 the Full keyboard; 0.22:
+                                                    * bits 3 .. 4 Snap 0 .. 2, CRS_SNAP) */
     CRS_FIX(tonic, 0, 11);
-    CRS_FIX(scale, 0, 1);
+    if (CRS_SCALE(s) > CR_SCALE_MINOR)             /* (bits 0..6 the scale; bit 7 Numerals' Solfege, CRS_SOLFEGE: kept) */
+        s->scale = (uint8_t)((s->scale & CRS_SOLFEGE) | d.scale);
     CRS_FIX(transpose, -24, 24);
     CRS_FIX(single, 0, CR_SINGLE_SPLIT_BASS);      /* (v14: 2 Split Bass) */
     CRS_FIX(split_pc, 0, 11);
     CRS_FIX(vel, 1, 127);
-    CRS_FIX(bass_on, 0, 3);                        /* (bit 1: the KEY layer's Numerals, CRS_NUMERALS, 0.22) */
+    CRS_FIX(bass_on, 0, 255);                      /* (bit 1: the KEY layer's Numerals, CRS_NUMERALS; bits 2..7 Key Touch
+                                                    * and the two sensitivities, CRS_TOUCH / VSENS / ATSENS: 0.22) */
     CRS_FIX(bass_mode, 0, CR_BASS_SOLO);
     CRS_FIX(bass_voicing, -2, 4);
     CRS_FIX(perform_on, 0, 1);
@@ -201,9 +212,11 @@ static void crs_sanitize(cr_settings_t *s)
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
     CRS_FIX(raw_sound, 0, 1);
-    if ((s->view & 0x38u) || CRS_VIEW(s) > 4u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; an unknown bit
-                                                    * or view: the default) */
-        s->view = d.view;
+    if ((s->view & 0x38u) || CRS_VIEW(s) > 5u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; 5 Geek Out 2
+                                                    * since 0.22; an unknown bit or view: the default view, unlocked;
+                                                    * Dual Core as the record has it: since 0.22 the default is On,
+                                                    * and a record's Off is never turned On for it) */
+        s->view = (uint8_t)(s->view & CRS_DC_ON);
     CRS_FIX(motion, 0, 2);
     CRS_FIX(leds, 0, 1);
     CRS_FIX(fx_on, 0, 1);
@@ -211,7 +224,9 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(metro_sig, 0, 2);
     CRS_FIX(metro_vol, 0, 100);
     CRS_FIX(loop_slot, 0, 9);
-    CRS_FIX(pick_roots, 0, 31);                    /* (bit 1: Output Classic, CRS_OUT_CLASSIC; bit 2: USB Rate, CRS_USB_48K;
+    CRS_FIX(pick_roots, 0, 255);                   /* (bits 5..7: Velocity Curve, CRS_VCURVE) */
+    if (((s->pick_roots >> 5) & 7u) == 4u)         /* -4: not a curve: -3 */
+        s->pick_roots = (uint8_t)((s->pick_roots & 0x1Fu) | (5u << 5));                    /* (bit 1: Output Classic, CRS_OUT_CLASSIC; bit 2: USB Rate, CRS_USB_48K;
                                                     * bit 3: Chord Names Standard, CRS_NAMES_STD; bit 4: 6th with 7th
                                                     * Octave up, CRS_SIXTH_UP) */
     CRS_FIX(usb_in, 0, 1);
@@ -342,7 +357,7 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 }
 
 /* ------------------------------------------------------ the session record --- */
-typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 108 && sizeof(css_part_t) == 384 ? 1 : -1];
+typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 124 && sizeof(css_part_t) == 384 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -483,8 +498,9 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
     cr_set_ext_addition(c, (cr_extadd_t)s->extadd);
     cr_set_secret(c, (cr_secret_t)s->secret);
     cr_set_sixth_up(c, (int)CRS_SIXTH(s));         /* Options > 6th with 7th (bit 4 of pick_roots) */
-    cr_set_key(c, (int)CRS_KEY_ON(s), s->tonic, (cr_scale_t)s->scale);
+    cr_set_key(c, (int)CRS_KEY_ON(s), s->tonic, (cr_scale_t)CRS_SCALE(s));
     cr_set_key_plays(c, (int)CRS_KEY_PLAYS(s));
+    cr_set_key_snap(c, (cr_keysnap_t)CRS_SNAP(s));
     cr_set_keyboard(c, (int)CRS_KEYBOARD(s), c->split_note);   /* (the split key: the UI's, with its octave) */
     cr_set_transpose(c, s->transpose);
     cr_set_single_notes(c, (cr_single_t)s->single, s->split_pc);
@@ -521,9 +537,9 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
     s->extadd = c->extadd;
     s->secret = c->secret;
     s->pick_roots = (uint8_t)((s->pick_roots & (uint8_t)~CRS_SIXTH_UP) | (c->sixth_up ? CRS_SIXTH_UP : 0u));
-    s->key_on = CRS_KEY_BYTE(c->key_on, c->key_notes, c->full);
+    s->key_on = (uint8_t)(CRS_KEY_BYTE(c->key_on, c->key_notes, c->full) | CRS_SNAP_BITS(c->snap));
     s->tonic = c->tonic;
-    s->scale = c->scale;
+    s->scale = (uint8_t)((s->scale & CRS_SOLFEGE) | c->scale);   /* (bit 7: Numerals' Solfege, the UI's) */
     s->transpose = c->transpose;
     s->single = c->single;
     s->split_pc = c->split_pc;
@@ -553,13 +569,14 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
 #ifndef CR_SETTINGS_BUSY
 #define CR_SETTINGS_BUSY() 0                       /* (cr_ui.c defines it: a loop is playing, no flash erase) */
 #endif
-#define CRS_QUIET_MS 1500u                         /* an automatic change is saved once nothing changed for this long */
-#define CRS_IDLE_MS 1000u                          /* .. and nothing sounded for this long (crs_sounding) */
+#define CRS_QUIET_MS ST_SETTLE_MS                   /* an automatic change is saved once nothing changed for this long */
+#define CRS_IDLE_MS ST_SILENT_MS                   /* .. and nothing sounded for this long (crs_sounding); storage.c
+                                                    * st_write_due has the whole rule (the quiet writes, 0.22) */
 #define CRS_QUIET_PEAK 32                          /* the master output (audio.c scope_buf, Q15): -60 dBFS */
 
 #include "settings_persist.c"                      /* Felucca's record, PER5: its last member is cr_settings_t */
 
-#define CSS_GAP_MS 250u                            /* an automatic write waits this long after another object's */
+#define CSS_GAP_MS ST_GAP_MS                       /* an automatic write waits this long after another object's */
 
 static persist_t crs_rec;                          /* the last record read or written (Felucca's fields + ours) */
 static cr_settings_t crs_seen;                     /* the last captured state (change detection) */
@@ -590,6 +607,10 @@ static int8_t css_last_rc;                         /* the session at power-on: 1
                                                     * that does not belong to these settings (not applied) */
 static uint32_t crs_wr_ms;
 static uint32_t css_saves;                         /* flash writes done (diagnostics, the emulator) */
+/* the quiet writes (0.22; storage.c "erase ahead", docs/SETTINGS.md "When flash is written"): what the poll wrote by
+ * itself (an Option's change, a favourite's), the erases done ahead (at power-on, after a long idle), and the erase
+ * ahead given up for this power-on after a flash error (the saves then erase for themselves, as before 0.22) */
+static struct { uint32_t auto_saves, ahead, ahead_boot; uint8_t off; } crq;
 
 /* the USB settings to usb.c (which devices the host is given; ua_off at boot, usb_start builds the configuration)
  * and fx.c (USB Level) */
@@ -627,6 +648,9 @@ static void css_read(void)
 }
 
 static uint8_t crs_lowcut_found;                   /* Felucca's SPEAKER setting as this power-on found it (diagnostics) */
+static uint8_t crs_dc_bar;                         /* 1: Dual Core is Off whatever the record says (cr_cpu1.h: core 1 kept
+                                                    * off after a crash beside it, or given up); the load reads Off and
+                                                    * the poll saves it. The player's own choice in Options clears it */
 static void cr_settings_boot(void)                 /* persist_boot (flash_ok known), before settings_init / panel_init */
 {
     int n = -1;
@@ -651,7 +675,16 @@ static void cr_settings_boot(void)                 /* persist_boot (flash_ok kno
     fx_lowcut = 0;
     crs_last_rc = cr_settings_import(&crs_rec.cr, &crs_rec.cr, sizeof crs_rec.cr);
     crs_usb_apply(&crs_rec.cr);                    /* (before usb_start: the configuration the host first reads) */
-    cr_c1_off = (uint8_t)!CRS_DUALCORE(&crs_rec.cr);   /* Options > Dual Core Off (the default): core 1 not started */
+    cr_c1_off = (uint8_t)!CRS_DUALCORE(&crs_rec.cr);   /* Options > Dual Core Off: core 1 not started (On: the default
+                                                        * of a unit with no record since 0.22) */
+#if CR_CPU1
+#ifdef ST_BLOCKED
+    if (!ST_BLOCKED())                             /* (SAFE MODE saves nothing: the bar waits for the next boot) */
+#endif
+        cr_c1_bar_boot(bootguard.cls);             /* a crash or a hang beside core 1 last time: Off (cr_cpu1.h) */
+    if (cr_c1_barred)
+        crs_dc_bar = 1;
+#endif
     css_read();                                    /* the session: read here, applied by cr_settings_load */
 }
 
@@ -705,16 +738,18 @@ static void crs_capture(cr_settings_t *s)
     s->playstyle = cs.playstyle;
     s->extadd = cs.extadd;
     s->secret = cs.secret;
-    s->key_on = CRS_KEY_BYTE(cs.key_on, cs.key_notes, cs.kbd_full);
+    s->key_on = (uint8_t)(CRS_KEY_BYTE(cs.key_on, cs.key_notes, cs.kbd_full) | CRS_SNAP_BITS(cs.snap));
     s->tonic = cs.tonic;
-    s->scale = cs.scale;
+    s->scale = (uint8_t)(cs.scale | (cs.numerals == 2u ? CRS_SOLFEGE : 0u));   /* (bit 7: Numerals' Solfege) */
     s->transpose = cs.transpose;
     s->single = cs.single;
     s->vel = cs.vel;
     s->bass_mode = cs.bass_mode;
-    s->bass_on = cs.numerals ? CRS_NUMERALS : 0u;  /* (bit 0 always 0 here: Bass on is the session's, css_capture; an
+    s->bass_on = (uint8_t)((cs.numerals == 1u ? CRS_NUMERALS : 0u) | CRS_TOUCH_BITS(cs.touch, cs.vel_sens, cs.at_sens));
+                                                   /* (bit 0 always 0 here: Bass on is the session's, css_capture; an
                                                     * older firmware would switch the engine's bass on from it. Bit 1:
-                                                    * the KEY layer's Numerals, which 0.17 .. 0.21 read as 0) */
+                                                    * the KEY layer's Numerals On, which 0.17 .. 0.21 read as 0;
+                                                    * Solfege is scale's bit 7, not this byte's) */
     s->perform_on = cs.perform_on;
     s->perf_sel = cs.perf_sel;
     s->sticky = cs.sticky;
@@ -738,7 +773,8 @@ static void crs_capture(cr_settings_t *s)
     s->loop_rec = (uint8_t)(CRS_LOOP_REC(cs.loop_mode, cs.loop_keys) | (cs.key_play ? CRS_KEY_PLAY : 0u) |
                             (cs.lock_keep ? CRS_LOCK_KEEP : 0u) | (cs.lock_push ? CRS_LOCK_PUSH : 0u));
     s->pick_roots = (uint8_t)((cs.out_clean ? 0u : CRS_OUT_CLASSIC) | (cs.usb48 ? CRS_USB_48K : 0u) |
-                              (cs.names_std ? CRS_NAMES_STD : 0u) | (cs.sixth_up ? CRS_SIXTH_UP : 0u));   /* (bit 0 reserved since 0.18: the engine picker's roots always play; written
+                              (cs.names_std ? CRS_NAMES_STD : 0u) | (cs.sixth_up ? CRS_SIXTH_UP : 0u) |
+                              CRS_VCURVE_OF(cs.vel_curve));   /* (bit 0 reserved since 0.18: the engine picker's roots always play; written
                                                     * as "play", so an older firmware reading this record plays too) */
     s->usb_in = cs.usb_in;
     s->usb_level = cs.usb_fixed;
@@ -767,8 +803,10 @@ static void crs_capture(cr_settings_t *s)
  * CSS_FXP_* tags and a line here; a parameter gone loses its line (its tag stays retired) */
 static const uint8_t CSS_FXE[CU_NFX] = {CSS_FXE_REVERB, CSS_FXE_CHORUS, CSS_FXE_DELAY, CSS_FXE_DRIVE};
 static const uint8_t CSS_FXS[CU_NFXP] = {CSS_FXE_SENDS, CSS_FXE_REVERB, CSS_FXE_REVERB2, CSS_FXE_CHORUS, CSS_FXE_DELAY,
-                                         CSS_FXE_DELAY2, CSS_FXE_DRIVE};   /* CU_FXP's order */
-static const struct { uint8_t tag, x, id; } CSS_FXG[] = {      /* x: 0 song.g, 1 xfp[], 2 the bass part's p[] */
+                                         CSS_FXE_DELAY2, CSS_FXE_DRIVE, CSS_FXE_FILTER};   /* CU_FXP's order */
+static const struct { uint8_t tag, x, id, opt; } CSS_FXG[] = {   /* x: 0 song.g, 1 xfp[], 2 the bass part's p[]; opt:
+                                                                  * written only off its default (the block's room:
+                                                                  * cr_settings.h CSS_NFXP) */
     {CSS_FXP_CRATE, 0, G_CRATE}, {CSS_FXP_CDEPTH, 0, G_CDEPTH},
     {CSS_FXP_BS_REV, 2, P_REV}, {CSS_FXP_BS_CHO, 2, P_CHOR}, {CSS_FXP_BS_DLY, 2, P_DLY}, {CSS_FXP_BS_DRIVE, 2, P_DIST},
     {CSS_FXP_XD_TIME2, 1, XP_DTIME}, {CSS_FXP_XD_DIV, 1, XP_DDIV}, {CSS_FXP_XD_SPREAD, 1, XP_DSPREAD},
@@ -776,10 +814,12 @@ static const struct { uint8_t tag, x, id; } CSS_FXG[] = {      /* x: 0 song.g, 1
     {CSS_FXP_XD_MODE, 1, XP_DMODE}, {CSS_FXP_XD_TONE, 1, XP_DTONE}, {CSS_FXP_XD_WOW, 1, XP_DWOW},
     {CSS_FXP_XR_SIZE, 1, XP_RSIZE}, {CSS_FXP_XR_DAMP, 1, XP_RDAMP}, {CSS_FXP_XR_DECAY, 1, XP_RDECAY},
     {CSS_FXP_XR_PRE, 1, XP_RPRE}, {CSS_FXP_XR_MOD, 1, XP_RMOD}, {CSS_FXP_XR_LOW, 1, XP_RLOW},
-    {CSS_FXP_XR_WIDTH, 1, XP_RWIDTH}, {CSS_FXP_XC_WIDTH, 1, XP_CWIDTH}};
+    {CSS_FXP_XR_WIDTH, 1, XP_RWIDTH}, {CSS_FXP_XC_WIDTH, 1, XP_CWIDTH},
+    {CSS_FXP_XQ_LOW, 1, XP_FLOW, 1}, {CSS_FXP_XQ_HIGH, 1, XP_FHIGH, 1}, {CSS_FXP_XQ_SLOPE, 1, XP_FSLOPE, 1},
+    {CSS_FXP_XQ_ON, 1, XP_FON, 1}};
 _Static_assert(NELEM(CSS_FXG) <= CSS_NFXP, "the FX block holds every global parameter");
 _Static_assert(CSS_FXP_DCOLOR == 8 && CSS_FXP_XD_TIME == 9 && CSS_FXP_XR_SIZE == 18 && CSS_FXP_XR_WIDTH == 24 &&
-               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6, "the session's FX tags are never renumbered");
+               CSS_FXP_XD_TIME2 == 25 && CSS_FXP_BS_REV == 26 && CSS_FXP_BS_DRIVE == 29 && CSS_FXP_XC_WIDTH == 30 && CSS_FXP_XQ_LOW == 31 && CSS_FXP_XQ_ON == 34 && CSS_FXE_DRIVE == 3 && CSS_FXE_REVERB2 == 4 && CSS_FXE_DELAY2 == 5 && CSS_FXE_SENDS == 6 && CSS_FXE_FILTER == 7, "the session's FX tags are never renumbered");
 static int16_t *css_fxg_p(uint32_t i)
 {
     if (CSS_FXG[i].x == 2u && CSS_FXG[i].id == P_DIST)
@@ -841,18 +881,53 @@ static int css_part_put(uint32_t part, const css_part_t *r)
     track_t *t = &trk[part ? CR_PART_BASS : CR_PART_CHORD];
     const eng_deep_t *d;
     uint32_t i, e = r->eng;
+#if FELUCCA_PROPHET
+    uint32_t r_preset = r->preset, r_fk = r->fk, r_kind = r->kind, r_edited = r->edited;   /* (P5: its place in this build) */
+#else                                              /* (the record's own: the image without P5 byte for byte) */
+#define r_preset r->preset
+#define r_fk r->fk
+#define r_kind r->kind
+#define r_edited r->edited
+#endif
     if (!r->valid || r->np != P_COUNT || e >= NENGINES || !cu_engine_melodic(e))
         return 0;
+#if FELUCCA_PROPHET
+    /* P5: the record's `preset` and `fk` are places in the pool of the build that wrote it, and the pool is a list
+     * that a later build may change (assets/prophet5-factory/shipped.txt). The record also holds the program itself
+     * (the blob), and the program names itself: its Sequential number (p5_patch_id). The place is taken from that:
+     * the same program's place here, or, when this build does not ship it, no place (the pool's INIT position, shown
+     * edited) with the program and its name as they were. The sound is the blob's either way */
+    if (e == ENGI_PROPHET && r->nblob == sizeof(p5_patch_t) && r_kind == PK_FACTORY) {
+        p5_patch_t pp;
+        uint32_t k;
+        memcpy(&pp, r->blob, sizeof pp);
+        k = p5_preset_of(p5_patch_id(&pp));
+        if (k != r_preset || k != r_fk) {
+            cu_trace("session: part %u P5 program %u: place %u -> %u\n", (unsigned)part, (unsigned)p5_patch_id(&pp),
+                     (unsigned)r_fk, (unsigned)k);
+            r_preset = k;
+            r_fk = k ? k : PF_NONE;
+            if (!k) {
+                r_kind = PK_INIT;
+                r_edited = 1;
+            }
+        }
+    }
+#endif
     d = ENGINES[e]->deep;
     if (r->nblob != (d && d->pages && d->npages && d->get && d->set && d->blob_get && d->blob_set &&
-                     d->blob_size <= CSS_BLOB ? d->blob_size : 0u))
+                     d->blob_size <= CSS_BLOB ? d->blob_size : 0u)
+#if FELUCCA_QUAD
+        && !(e == ENGI_QUAD && r->nblob == QUAD_BLOB_V3)   /* (an FM TONE patch of before 2026-10-14: converted) */
+#endif
+    )
         return 0;
-    if ((r->kind == PK_USER && r->slot >= UP_SLOTS) || r->user > UP_SLOTS ||
-        (r->kind == PK_FACTORY && r->fk >= ENGINES[e]->npresets))
+    if ((r_kind == PK_USER && r->slot >= UP_SLOTS) || r->user > UP_SLOTS ||
+        (r_kind == PK_FACTORY && r_fk >= ENGINES[e]->npresets))
         return 0;
     fm1_irq_off();
     t->eng_req = (uint8_t)e;
-    t->preset = r->preset;
+    t->preset = r_preset;
     t->user = r->user;
     t->trim = (int8_t)cr_session_part_trim(r, css_trim_row);   /* (not r->trim: a row removed since stays removed) */
     for (i = 0; i < P_COUNT; i++)
@@ -860,16 +935,31 @@ static int css_part_put(uint32_t part, const css_part_t *r)
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
     fm1_irq_on();
     fm6_track_loaded(t);                           /* (the engine's own state for the sound) */
-    if (r->nblob)
-        d->blob_set(t, r->blob);                   /* the deep patch as it was left */
+    if (r->nblob) {                                /* the deep patch as it was left (zeros past a shorter one) */
+        uint8_t bb[CSS_BLOB];
+        memset(bb, 0, sizeof bb);
+        memcpy(bb, r->blob, r->nblob);
+        d->blob_set(t, bb);
+    }
+#if FELUCCA_PROPHET
+    if (e == ENGI_PROPHET)
+        p5_voice_restore(t, r->p[P_VOICE]);        /* (the load took the factory program's UNISON: the part's mode as
+                                                    * it was left) */
+#endif
     str_cpy(psnd[part].name, r->name, sizeof psnd[0].name);
-    psnd[part].edited = r->edited;
-    psnd[part].kind = r->kind;
-    psnd[part].fk = r->fk;
+    psnd[part].edited = r_edited;
+    psnd[part].kind = r_kind;
+    psnd[part].fk = r_fk;
     psnd[part].slot = r->slot;
     t->engine = t->eng_req;                        /* (power-on: no fade) */
     return 1;
 }
+#if !FELUCCA_PROPHET
+#undef r_preset
+#undef r_fk
+#undef r_kind
+#undef r_edited
+#endif
 
 /* the unit's state now -> *x (sealed; `bind` is the writer's: css_write) */
 static void css_capture(cr_session_t *x)
@@ -888,7 +978,8 @@ static void css_capture(cr_session_t *x)
     for (i = 0; i < CU_NFX; i++)
         x->fx.amt[CSS_FXE[i]] = (uint8_t)(cs.fx_amt[i] & 127u);
     for (i = 0; i < NELEM(CSS_FXG); i++)
-        cr_session_fx_set(x, CSS_FXG[i].tag, *css_fxg_p(i));
+        if (!CSS_FXG[i].opt || *css_fxg_p(i) != XFP[CSS_FXG[i].id].def)   /* (opt: a default is not written) */
+            cr_session_fx_set(x, CSS_FXG[i].tag, *css_fxg_p(i));
     css_part_get(0, &x->part[0]);
     css_part_get(1, &x->part[1]);
     cr_session_seal(x);
@@ -909,7 +1000,7 @@ static void css_apply(const cr_session_t *x)
     for (i = 0; i < CU_NFXP; i++)
         if (CSS_FXS[i] == x->fx.sel) {             /* (a tag this firmware does not know: the page stays. A record
                                                     * from before the Sends page opens on the effect's page it names) */
-            if (CU_FXP[i].page != CU_FXPG_SENDS)
+            if (CU_FXP[i].page != CU_FXPG_SENDS && CU_FXP[i].page != CU_FXPG_FILTER)
                 cs.fx_sel = CU_FXP[i].fx;
             cs.fx_page = CU_FXP[i].page;
         }
@@ -986,9 +1077,15 @@ static void cr_settings_load(void)
     cs.key_on = (uint8_t)CRS_KEY_ON(s);
     cs.key_notes = (uint8_t)CRS_KEY_PLAYS(s);
     cs.kbd_full = (uint8_t)CRS_KEYBOARD(s);
-    cs.numerals = (uint8_t)CRS_NUMS(s);
+    cs.snap = (uint8_t)CRS_SNAP(s);
+    cs.numerals = (uint8_t)(CRS_SOL(s) ? 2u : CRS_NUMS(s));   /* Off / On (bass_on bit 1) / Solfege (scale bit 7) */
+    cs.touch = (uint8_t)CRS_TOUCH(s);              /* Options > Key Touch and the sensitivities (docs/VELOCITY.md) */
+    cs.vel_curve = (int8_t)CRS_VCURVE(s);
+    cs.vel_sens = (uint8_t)CRS_VSENS(s);
+    cs.at_sens = (uint8_t)CRS_ATSENS(s);
+    cu_touch_apply();
     cs.tonic = s->tonic;
-    cs.scale = s->scale;
+    cs.scale = (uint8_t)CRS_SCALE(s);
     cs.transpose = s->transpose;
     cs.single = s->single;
     cs.vel = s->vel;
@@ -1030,7 +1127,8 @@ static void cr_settings_load(void)
     cs.split = s->split_pc;
     cs.view = (uint8_t)CRS_VIEW(s);
     cs.view_lock = (uint8_t)CRS_VIEW_LOCK(s);
-    cs.dualcore = (uint8_t)CRS_DUALCORE(s);        /* (what this power-on did: cr_c1_off, cr_settings_boot) */
+    cs.dualcore = crs_dc_bar ? 0u : (uint8_t)CRS_DUALCORE(s);   /* (what this power-on did: cr_c1_off, cr_settings_boot;
+                                                    * Off after a bar, crs_dc_bar) */
     cr_motion = s->motion;
     cs.leds = s->leds;
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);
@@ -1063,8 +1161,20 @@ static void cr_settings_load(void)
     crs_capture(&crs_seen);                        /* the state now: nothing to save until an Option changes */
     crs_hold_seen = settings_hold;
     crs_change_ms = fm1_ms;
-    crs_pending = 0;
+    /* .. but Dual Core Off after a bar with the record still On: the poll writes Off (crs_write: crs_seen's Off over
+     * flash's On), once it is quiet */
+    crs_pending = (uint8_t)(crs_dc_bar && CRS_DUALCORE(s));
 }
+
+/* cr_ui.c: core 1 given up this session (cr_cpu1.h cr_c1_give_up): Dual Core Off, saved by the poll (it sees the
+ * Option change), and Off on a revert too */
+static void cr_settings_dc_off(void)
+{
+    crs_dc_bar = 1;
+    cs.dualcore = 0;
+}
+/* cr_ui.c: the player set Options > Dual Core: the record says what they chose from here on */
+static void cr_settings_dc_user(void) { crs_dc_bar = 0; }
 
 /* the captured state (crs_seen) -> flash; 0: written (or no flash, or nothing to write). full: the whole block (the
  * global save); else flash's block with the automatic fields of the captured state: the manual ones stay as last saved */
@@ -1115,6 +1225,10 @@ static int crs_sounding(void)
     uint32_t i;
     if (cr_parts_busy() || cr_snap.voices || cr_snap.pending)
         return 1;
+    if (cr_snap.perf_step)                         /* 3y48: an arp / perform pattern stepping, between its steps too
+                                                    * (belt and braces: its held chord is a used voice, cr_snap.voices;
+                                                    * not cr_snap.latching, which is LOCK's mode, keys held or not) */
+        return 1;
     for (i = 0; i < SCOPE_N; i++)
         if (scope_buf[i] > CRS_QUIET_PEAK || scope_buf[i] < -CRS_QUIET_PEAK)
             return 1;
@@ -1122,14 +1236,166 @@ static int crs_sounding(void)
 }
 
 
+/* THE QUIET WRITES (0.22; the owner, 2026-10-13, on the build with the favourites' filter: "I am now getting lots of
+ * audio glitches and dropouts now"; the unit: 9 erases, irq_gap_us 17 851 at st_erase's return, stale_halves 46).
+ * Until then every automatic write erased a sector (storage.c st_save: one erase a save, the interrupts masked for
+ * 17.8 ms), a second after the output fell silent: where the next note is. Now (storage.c has the rule and the
+ * writer's side): the spare copy of the session and the favourites is erased AHEAD (st_prep): at
+ * power-on before the audio starts (crs_ahead_boot) and after ST_AHEAD_IDLE_MS without a sound and without input
+ * (crs_ahead_poll), so a save finds it blank and only programs (NOT the settings, the owner's decision of 2026-10-14:
+ * they hold the panel calibration, whose previous copy stays the fallback; their save erases, under the quiet rule); a change that comes before the next erase ahead
+ * (the spare is the copy written a moment ago) waits for ST_ERASE_IDLE_MS of the same instead of one silent second.
+ * Input is cu.last_input (cr_ui.c: a key, a button, a knob, a MIDI channel message). What is lost if the power is
+ * cut meanwhile: the Options and the marks changed since the last write (SAVE held writes them at once) */
+static void crs_when(st_when_t *w, uint32_t change_ms, uint32_t obj)
+{
+    w->now = fm1_ms;
+    w->change = change_ms;
+    w->loud = crs_loud_ms;
+    w->input = cu.last_input;
+    w->wrote = crs_wr_ms;
+    w->busy = (uint8_t)(CR_SETTINGS_BUSY() != 0);
+#if FELUCCA_FLASH
+    /* (3y52: an object not erased ahead, the settings, keeps the rule it had before the quiet writes: its write
+     * erases once nothing changed for 1.5 s and nothing sounded for 1 s; no extra wait for the input's quiet) */
+    w->ready = (uint8_t)(st_ahead_ix(obj) < 0 || st_ready(obj));
+#else
+    w->ready = 1;
+    (void)obj;
+#endif
+}
+#if FELUCCA_FLASH
+#ifdef CR_FAVS
+static const uint8_t CRQ_OBJ[] = {OBJ_SESSION, OBJ_FAVS};   /* (not the settings: storage.c st_ahead_ix) */
+#else
+static const uint8_t CRQ_OBJ[] = {OBJ_SESSION};
+#endif
+#endif
+/* power-on, after the objects were read and before the audio starts (cr_shim.c persist_boot): each spare copy that
+ * is not blank is erased now, when nothing can be heard (a unit coming from an older firmware, or switched off before
+ * the idle erase: at most two erases, about 18 ms each, and for each object the read of one sector) */
+static void crs_ahead_boot(void)
+{
+#if FELUCCA_FLASH
+    uint32_t i;
+    if (!flash_ok)
+        return;
+    st_ahead_ok[3] = 1;                            /* (the emulator's flash model: no audio to stall yet) */
+    for (i = 0; i < sizeof CRQ_OBJ; i++) {
+        int rc = st_prep(CRQ_OBJ[i]);
+        if (rc > 0) {
+            crq.ahead++;
+            crq.ahead_boot++;
+        } else if (rc < 0 && !ST_BLOCKED()) {
+            crq.off = 1;
+        }
+    }
+#if UP_POOL
+    {   /* the sound pool's next target (storage.c sp_prep): a SAVE then programs only (0.22) */
+        int rc = sp_prep();
+        if (rc > 0) {
+            crq.ahead++;
+            crq.ahead_boot++;
+        }
+    }
+#endif
+    st_ahead_ok[3] = 0;
+#endif
+}
+/* every UI frame, after the writes: ONE erase ahead when the unit has been idle long enough (st_ahead_due) and the
+ * object has nothing to write (a pending write goes first: st_write_due). The input and the sound are read here, in
+ * the same frame, so an input before the erase starts cancels it; once started it runs to its end */
+static void crs_ahead_poll(void)
+{
+#if FELUCCA_FLASH
+    uint32_t i;
+    if (crq.off || !flash_ok)
+        return;
+    for (i = 0; i < sizeof CRQ_OBJ; i++) {
+        st_when_t w;
+        int rc;
+        if (st_ready(CRQ_OBJ[i]))
+            continue;
+#ifdef CR_FAVS
+        if (CRQ_OBJ[i] == OBJ_FAVS && crf_dirty)
+            continue;
+#endif
+        crs_when(&w, fm1_ms, CRQ_OBJ[i]);
+        if (!st_ahead_due(&w))
+            return;
+        st_auto = 1;
+        rc = st_prep(CRQ_OBJ[i]);
+        st_auto = 0;
+        crs_wr_ms = fm1_ms;
+        if (rc > 0)
+            crq.ahead++;
+        else if (rc < 0)
+            crq.off = 1;                           /* a flash error: no erase ahead until the next power-on */
+        return;
+    }
+#if UP_POOL
+    if (!sp_ready()) {                             /* the sound pool's next target, after a SAVE used it (0.22) */
+        st_when_t w;
+        int rc;
+        crs_when(&w, fm1_ms, OBJ_SESSION);
+        w.ready = 0;
+        if (!st_ahead_due(&w))
+            return;
+        st_auto = 1;
+        rc = sp_prep();
+        st_auto = 0;
+        crs_wr_ms = fm1_ms;
+        if (rc > 0)
+            crq.ahead++;
+        else if (rc < 0)
+            crq.off = 1;
+    }
+#endif
+#endif
+}
+
+/* the favourites (cr_favs.c): a mark that changed is written as an Option is: once no mark changed for CRS_QUIET_MS
+ * and nothing sounded for CRS_IDLE_MS (and, when the write has to erase, no input came for ST_ERASE_IDLE_MS:
+ * st_write_due), never while a loop plays or after a restore; a flash error: again in a second.
+ * (Marked while a chord rings, the write waits for the quiet) */
+/* 3y48: the writer about to erase (storage_hw.c st_why): an automatic one also notes whether anything sounded in the
+ * second before (erases_auto_sounding, 78 PEAK: the guard above makes it 0) */
+static void crs_why(uint32_t why)
+{
+    st_why = why;
+    st_why_loud = (uint32_t)(crs_sounding() || (uint32_t)(fm1_ms - crs_loud_ms) < CRS_IDLE_MS);
+}
+static uint32_t crf_retry_ms;
+static uint8_t crf_failed;
+static void crf_poll(void)
+{
+#ifdef CR_FAVS
+    st_when_t w;
+    if (!crf_dirty || (crf_failed && (uint32_t)(fm1_ms - crf_retry_ms) < 1000u))
+        return;
+    crs_when(&w, crf_change_ms, OBJ_FAVS);
+    if (!st_write_due(&w))
+        return;
+    crs_why(ST_WHY_AUTO_FAV);
+    st_auto = 1;
+    crf_failed = crf_flush() != 0;
+    st_auto = 0;
+    st_why = ST_WHY_OTHER;
+    crq.auto_saves += (uint32_t)!crf_failed;
+    crf_retry_ms = crs_wr_ms = fm1_ms;
+#endif
+}
+
 /* every UI frame (main.c settings_poll) */
 static void cr_settings_poll(void)
 {
     cr_settings_t now;
+    st_when_t w;
     if (!crs_loaded)
         return;
     if (crs_sounding())
         crs_loud_ms = fm1_ms;
+    crf_poll();
     crs_capture(&now);
     if (!cr_settings_equal(&now, &crs_seen) || settings_hold != crs_hold_seen) {   /* (HOLD: crs_write's
                                                     * settings_export puts it in the record) */
@@ -1144,20 +1410,31 @@ static void cr_settings_poll(void)
         crs_hold_seen = settings_hold;
         return;
     }
-    if (!crs_pending || CR_SETTINGS_BUSY() || (uint32_t)(fm1_ms - crs_change_ms) < CRS_QUIET_MS ||
-        (uint32_t)(fm1_ms - crs_loud_ms) < CRS_IDLE_MS || (uint32_t)(fm1_ms - crs_wr_ms) < CSS_GAP_MS)
+    crs_ahead_poll();
+    if (!crs_pending || (crs_pending == 2u && (uint32_t)(fm1_ms - crs_retry_ms) < 1000u))
         return;
-    if (crs_pending == 2u && (uint32_t)(fm1_ms - crs_retry_ms) < 1000u)
+    crs_when(&w, crs_change_ms, OBJ_SETTINGS);
+    if (!st_write_due(&w))
         return;
-    if (crs_write(0) == 0) {
-        crs_pending = 0;
-    } else {
-        crs_pending = 2;                           /* flash error: retry in a second */
-        crs_retry_ms = fm1_ms;
+    {
+        uint32_t n = crs_saves;
+        int rc;
+        crs_why(ST_WHY_AUTO_OPT);
+        st_auto = 1;
+        rc = crs_write(0);
+        st_auto = 0;
+        st_why = ST_WHY_OTHER;
+        crq.auto_saves += crs_saves - n;           /* (a block that came out unchanged: no write) */
+        if (rc == 0) {
+            crs_pending = 0;
+        } else {
+            crs_pending = 2;                       /* flash error: retry in a second */
+            crs_retry_ms = fm1_ms;
+        }
     }
 }
 
-/* the automatic part now (Felucca's settings_save: the power-on calibration; a backup's LIST; the update gesture):
+/* the automatic part now (Felucca's settings_save: the power-on calibration; the update gesture; 3y48: not LIST):
  * still not while a loop plays. The manual settings and the session are the global save's (cr_settings_commit) */
 static void cr_settings_save(void)
 {
@@ -1171,8 +1448,14 @@ static void cr_settings_save(void)
     crs_hold_seen = settings_hold;
     crs_pending = 1;
     crs_change_ms = fm1_ms - CRS_QUIET_MS;
+    st_why = ST_WHY_SAVE;
     if (!CR_SETTINGS_BUSY() && crs_write(0) == 0)
         crs_pending = 0;
+#ifdef CR_FAVS
+    if (!CR_SETTINGS_BUSY())
+        (void)crf_flush();                         /* a mark not yet written goes in too (the update is a power cycle) */
+#endif
+    st_why = ST_WHY_OTHER;
 }
 
 /* THE GLOBAL SAVE (the owner, 2026-10-11: "Hold Save button to manually do a global save, instead of trying to
@@ -1186,12 +1469,18 @@ static int cr_settings_commit(void)
         return 0;
     crs_capture(&crs_seen);
     crs_hold_seen = settings_hold;
+    st_why = ST_WHY_GSAVE;
     if (crs_write(1) == 0)
         crs_pending = 0;
     else
         rc = -1;
     if (css_write() != 0)
         rc = -1;
+#ifdef CR_FAVS
+    if (crf_flush() != 0)                          /* (a mark the poll has not written yet) */
+        rc = -1;
+#endif
+    st_why = ST_WHY_OTHER;
     return rc;
 }
 
@@ -1225,7 +1514,9 @@ static void crs_reinit(void)
  * is needed after it (cr_settings_commit; a loop playing: cr_ui.c cu_reset stopped it first).
  * NOT touched: the panel calibration (persist_t.panel: settings_export writes the table in RAM, as every save), the
  * saved sounds and patches (upreset / va / fm6 / cz / quad stores), the loops and the slot selected, Felucca's
- * favourites. Dual Core: Off is saved; a core that this power-on started runs until the next one (cr_c1_off) */
+ * favourites. Dual Core: On is saved (the default since 0.22), but Off in a power-on that kept core 1 off after a
+ * crash beside it or gave it up (crs_dc_bar: the fallback wins over the default until the player sets the Option);
+ * the core this power-on did or did not start stays as it is until the next one (cr_c1_off) */
 static void cr_settings_reset(void)
 {
     if (!crs_loaded)

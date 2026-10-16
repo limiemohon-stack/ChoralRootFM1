@@ -1,0 +1,281 @@
+{
+  "format": "choralroot-layout",
+  "version": 1,
+  "generated": "by lay_catalog from the firmware's built-in tables: do not edit (tools/layout/dump_catalogs.mjs writes it; read-only in step 2, docs/LAYOUT-TOOL.md). The firmware version is not in it: params_hash binds it to the parameters",
+  "engine": {"index": 7, "name": "WHEEL"},
+  "params_hash": "f3d6bb39b274b11d",
+  "pages": [],
+  "page_cells": 0,
+  "header": null,
+  "groups": [
+    {
+      "group": 0,
+      "name": "OSC",
+      "button": "FX",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "BARS",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 83, "label": "Reg", "short": "REG", "fmt": "enum", "min": 0, "max": 15, "def": 4, "names": ["FLUTE", "MELLO", "HOLLW", "SMOOT", "3BAR", "BLUES", "GOSPL", "ROCK", "TOPS", "CLARI", "REED", "STRNG", "CHAPL", "BRITE", "BASS", "FULL"], "unit": null},
+                {"knob": 2, "bind": "track", "param": 84, "label": "Sub", "short": "SUB", "fmt": "int", "min": -8, "max": 8, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 85, "label": "Body", "short": "BODY", "fmt": "int", "min": -8, "max": 8, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 86, "label": "Top", "short": "TOP", "fmt": "int", "min": -8, "max": 8, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 1,
+      "name": "FILT",
+      "button": "SEL",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "TONE",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 87, "label": "Perc", "short": "PERC", "fmt": "enum", "min": 0, "max": 6, "def": 0, "names": ["OFF", "2ND", "3RD", "2SOFT", "3SOFT", "2SLOW", "3SLOW"], "unit": null},
+                {"knob": 2, "bind": "track", "param": 88, "label": "Click", "short": "CLICK", "fmt": "pct", "min": 0, "max": 127, "def": 40, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 89, "label": "Drv", "short": "DRV", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 90, "label": "Rotr", "short": "ROTR", "fmt": "enum", "min": 0, "max": 2, "def": 1, "names": ["OFF", "SLOW", "FAST"], "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 2,
+      "name": "ENV",
+      "button": "ENV",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "env",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "ENV",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 1, "label": "Attack", "short": "ATK", "fmt": "time", "min": 0, "max": 127, "def": 10, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 2, "label": "Decay", "short": "DEC", "fmt": "time", "min": 0, "max": 127, "def": 70, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 3, "label": "Sustain", "short": "SUS", "fmt": "pct", "min": 0, "max": 127, "def": 90, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 4, "label": "Release", "short": "REL", "fmt": "time", "min": 0, "max": 127, "def": 60, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 3,
+      "name": "LFO",
+      "button": "LFO",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "LFO",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 9, "label": "Rate", "short": "RATE", "fmt": "lfohz", "min": 0, "max": 127, "def": 60, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 10, "label": "Wave", "short": "WAVE", "fmt": "enum", "min": 0, "max": 4, "def": 0, "names": ["SIN", "TRI", "SAW", "SQR", "S&H"], "unit": null},
+                {"knob": 3, "bind": "track", "param": 13, "label": "Vibrato", "short": "PIT", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 14, "label": "Wah", "short": "FLT", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 4,
+      "name": "MOD",
+      "button": "SEQ",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "stack",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Source", "Dest", "Amount", ""],
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "MOD 1",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "ENV"},
+                {"knob": 2, "bind": "text", "text": "FILT"},
+                {"knob": 3, "bind": "track", "param": 5, "label": "Env>Filter", "short": "FLT", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "MOD 2",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "ENV"},
+                {"knob": 2, "bind": "text", "text": "PITCH"},
+                {"knob": 3, "bind": "track", "param": 6, "label": "Env>Pitch", "short": "PIT", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 2,
+              "title": "MOD 3",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "ENV"},
+                {"knob": 2, "bind": "text", "text": "SHAPE"},
+                {"knob": 3, "bind": "track", "param": 7, "label": "Env>Shape", "short": "SHP", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 3,
+              "title": "MOD 4",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "LFO"},
+                {"knob": 2, "bind": "text", "text": "AMP"},
+                {"knob": 3, "bind": "track", "param": 16, "label": "Tremolo", "short": "AMP", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        },
+        {
+          "screen": 1,
+          "kind": "stack",
+          "type": "expr",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "headings": ["Source", "Dest", "Amount", ""],
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "EXPR · VEL",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "VEL"},
+                {"knob": 2, "bind": "text", "text": "AMP"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "EXPR · AT",
+              "cells": [
+                {"knob": 1, "bind": "text", "text": "AT"},
+                {"knob": 2, "bind": "text", "text": "CUT"},
+                {"knob": 3, "bind": "text", "text": "auto"},
+                {"knob": 4, "bind": "none"}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 5,
+      "name": "FX",
+      "button": "PLAY",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "FX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 33, "label": "Drive", "short": "DST", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 34, "label": "Chorus", "short": "CHO", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 35, "label": "Delay", "short": "DLY", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null},
+                {"knob": 4, "bind": "track", "param": 36, "label": "Reverb", "short": "REV", "fmt": "pct", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "group": 6,
+      "name": "MIX",
+      "button": "REC",
+      "screens": [
+        {
+          "screen": 0,
+          "kind": "edit8",
+          "type": "platform",
+          "band": "none",
+          "tall": false,
+          "header": false,
+          "pages": [],
+          "lanes": [
+            {
+              "lane": 0,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 0, "label": "Level", "short": "LVL", "fmt": "db", "min": 0, "max": 127, "def": 104, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 39, "label": "Pan", "short": "PAN", "fmt": "bipct", "min": -64, "max": 63, "def": 0, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 37, "label": "Voice", "short": "VCE", "fmt": "enum", "min": 0, "max": 3, "def": 0, "names": ["POLY", "MONO", "LEG", "UNI"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 38, "label": "Glide", "short": "GLD", "fmt": "time", "min": 0, "max": 127, "def": 0, "names": null, "unit": null}
+              ]
+            },
+            {
+              "lane": 1,
+              "title": "MIX",
+              "cells": [
+                {"knob": 1, "bind": "track", "param": 28, "label": "Trans", "short": "TRN", "fmt": "semi", "min": -24, "max": 24, "def": 0, "names": null, "unit": null},
+                {"knob": 2, "bind": "track", "param": 44, "label": "Detune", "short": "DTUNE", "fmt": "int", "min": 0, "max": 127, "def": 40, "names": null, "unit": null},
+                {"knob": 3, "bind": "track", "param": 42, "label": "Priority", "short": "PRIO", "fmt": "enum", "min": 0, "max": 2, "def": 0, "names": ["LAST", "LOW", "HIGH"], "unit": null},
+                {"knob": 4, "bind": "track", "param": 41, "label": "Gl. mode", "short": "GLMOD", "fmt": "enum", "min": 0, "max": 1, "def": 0, "names": ["RATE", "TIME"], "unit": null}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

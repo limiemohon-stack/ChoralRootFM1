@@ -1,0 +1,24 @@
+# test_persist.sh, the quiet writes and SAVE held (the player's own press: at once, whatever sounds, as before 0.22).
+# A chord held; the voicing turned and SAVE held, three times, 1.7 s apart. A new unit: the first two session saves
+# find a blank copy (no erase); the third has to erase, and does so at once, under the chord (the dump: session saves
+# 3, one erase with the audio stalled; "near" stays 0: it counts what the unit starts by itself)
+wait 300
+key F3 down
+wait 40
+btn D4 down
+wait 300
+knob KNOB1 +1
+wait 200
+btn SAVE 900
+wait 600
+knob KNOB1 +1
+wait 200
+btn SAVE 900
+wait 600
+knob KNOB1 +1
+wait 200
+btn SAVE 900
+wait 300
+expect sound
+dump
+quit

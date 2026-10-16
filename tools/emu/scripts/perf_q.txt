@@ -1,0 +1,29 @@
+# tools/emu/perf.sh (q): (p) with the VA bass (18 PUNCH BASS): the 6-key P5 chord (01 ITS PROPHET5; two cores: six voices, one core: four), the default sends, held 3 s, a chord change, 3 s more (docs/PROPHET.md)
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: the chord part to P5 (place 01: ITS PROPHET5 in the provisional list), on OPT's release
+wait 100
+btn GLO up
+wait 300
+knob ALGORITHM +19            # OFF -> VA 18 PUNCH BASS
+wait 300
+dump
+key F3 down
+key 2 down
+key 4 down
+key 5 down
+wait 40
+btn D4 down
+wait 3000
+btn D4 up
+btn A4 down
+wait 3000
+dump
+btn A4 up
+key F3 up
+key 2 up
+key 4 up
+key 5 up
+wait 2500
+dump

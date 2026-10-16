@@ -1,0 +1,48 @@
+# P5, the click at the end of a short release (HISTORY 3y44, docs/PROPHET.md "The click at a release's end"): found
+# while looking for the owner's crackle, and not it. The part's DC blocker (eng_prophet_test.c p5_post: the output's
+# coupling capacitor, 5 Hz) started afresh in the block after the part's last voice ended, so what it still held was
+# cut to 0 in one sample: on a program with a fast release a step up to 8 dB under the chord's peak, 10 to 130 ms
+# after every release. Since 3y44 the capacitor discharges (32 ms) and the part sounds on until it is at rest.
+# tools/emu/test_cr.sh writes the place into @STEPS@ (PRESETS turns from place 01): a program with a short release
+# (Sequential's 168, PERC ORGAN, which the tree's list ships; tools/p5_crackle_listen.py: 88, DIRTY LEAD, and two
+# more of all 200). Dry; MIN + 9 with the root D4, four stabs of 200 ms, 800 ms apart (struck at 3.16, 4.16, 5.16 and
+# 6.16 s, let go 200 ms later: the click was 22 ms after that, in the silence); dump 1 the sound, 2 a second after the
+# last release: no voice left.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +4               # OPT + PRESETS: P5
+wait 200
+btn GLO up
+wait 500
+knob PRESETS +@STEPS@
+wait 500
+btn FX down                   # dry: the FX layer's knobs, chorus, delay and reverb down to 0
+wait 500
+knob KNOB2 -12
+wait 100
+knob KNOB3 -8
+wait 100
+knob KNOB4 -10
+wait 100
+btn FX up
+wait 300
+btn OCT-
+wait 300
+dump                          # 1
+btn G#3 down
+btn C4 down
+wait 60
+btn D4 200
+expect sound
+wait 800
+btn D4 200
+wait 800
+btn D4 200
+wait 800
+btn D4 200
+wait 1000
+btn G#3 up
+btn C4 up
+wait 1000
+dump                          # 2

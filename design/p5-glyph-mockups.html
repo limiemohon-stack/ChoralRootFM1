@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>P5 glyph mock-ups</title>
+<style>
+  :root { --bg: #111; --fg: #eee; --dim: #888; }
+  body { margin: 0; padding: 16px 24px 48px; background: var(--bg); color: var(--fg); font: 14px/1.4 -apple-system, "Inter", Helvetica, sans-serif; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 28px 0 6px; }
+  p { color: var(--dim); max-width: 900px; margin: 4px 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+  .v { background: #000; padding: 8px; border-radius: 4px; }
+  .v h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #ddd; }
+  .v small { display: block; color: var(--dim); font-size: 11px; max-width: 250px; margin-top: 4px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+</style>
+</head>
+<body>
+<h1>P5 glyph mock-ups</h1>
+<p>Every tile is one cell of the editor at the FM-1's own pixels (60 wide; the glyph box 34 high), enlarged 3x with hard pixels.
+Left: the cell on the active row (its knob colour). Right: the same cell on a dim row. Lines are 2 px or more everywhere.</p>
+
+<h2>Knobs</h2>
+<div class="row" id="knobs"></div>
+
+<h2>Buttons (on / off)</h2>
+<p>The wave icon has a 4 px gap above the cap in every variation.</p>
+<div class="row" id="buttons"></div>
+
+<h2>Three-way switches (Key trk: Off / Half / Full)</h2>
+<div class="row" id="switches"></div>
+
+<script>
+const S = 3;                                  // the enlargement
+const C = { bg: [0,0,0], text: [235,235,235], blue: [40,120,255], orange: [255,140,0], white: [240,240,240], green: [0,200,120],
+            red: [230,56,41], yellow: [246,182,0], dim: [90,90,90], mid: [150,150,150], surf: [26,30,34], line: [62,62,62], dark: [14,14,14] };
+const LANES = [C.blue, C.orange, C.white, C.green];
+
+// a tiny pixel canvas: integer rectangles only, so every line is a whole number of pixels
+function px(w, h) {
+  const cv = document.createElement("canvas"); cv.width = w; cv.height = h; cv.style.width = w * S + "px"; cv.style.height = h * S + "px";
+  const g = cv.getContext("2d");
+  const fill = (x, y, ww, hh, c) => { g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.fillRect(Math.round(x), Math.round(y), Math.round(ww), Math.round(hh)); };
+  const dot = (x, y, c) => fill(x, y, 1, 1, c);
+  // a ring between radii r0..r1 over the angles a0..a1 (degrees, 0 = right, clockwise), pixel by pixel
+  const ring = (cx, cy, r0, r1, a0, a1, c) => {
+    for (let y = Math.floor(cy - r1 - 1); y <= cy + r1 + 1; y++) for (let x = Math.floor(cx - r1 - 1); x <= cx + r1 + 1; x++) {
+      const dx = x + 0.5 - cx, dy = y + 0.5 - cy, d = Math.hypot(dx, dy);
+      if (d < r0 || d >= r1) continue;
+      let a = Math.atan2(dy, dx) * 180 / Math.PI; if (a < 0) a += 360;
+      let s = a0, e = a1; if (e < s) e += 360; let aa = a; if (aa < s) aa += 360;
+      if (aa >= s && aa <= e) dot(x, y, c);
+    }
+  };
+  const disc = (cx, cy, r, c) => ring(cx, cy, 0, r, 0, 360, c);
+  // a thick line from (x0,y0) to (x1,y1), w px wide, drawn as discs along it
+  const line = (x0, y0, x1, y1, w, c) => { const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0)) * 2 + 1;
+    for (let i = 0; i <= n; i++) { const t = i / n; disc(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, w / 2, c); } };
+  const text = (x, y, s, size, c, align = "center", bold = true) => { g.font = `${bold ? "700" : "500"} ${size}px -apple-system, Inter, Helvetica, sans-serif`; g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.textAlign = align; g.textBaseline = "alphabetic"; g.fillText(s, x, y); };
+  return { cv, g, fill, dot, ring, disc, line, text };
+}
+
+// the angles of the 270-degree sweep: 135 degrees (7:30) to 405 (4:30), clockwise
+const A0 = 135, SWEEP = 270;
+const ang = (pct) => A0 + SWEEP * pct;
+const rad = (a) => a * Math.PI / 180;
+
+// ------------------------------------------------------------------ knobs ---
+// each takes (p, cx, cy, pct, col, active); the glyph box is 60 x 34 centred on cy
+const KNOBS = [
+ ["K1 · Prophet, heavier", "The panel knob with weight: 2 px ticks in mid grey, the end ticks and the one nearest the value bright; a 2 px rim; a 3 px pointer in the row colour.", (p, cx, cy, pct, col, act) => {
+   const r = 12; const cur = Math.round(pct * 10);
+   for (let i = 0; i <= 10; i++) { const a = rad(ang(i / 10)); const bright = (i === cur); const c = bright ? col : (act ? C.mid : C.dim);
+     p.line(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4), 2, c); }
+   p.disc(cx, cy, r - 3, act ? C.mid : C.line); p.disc(cx, cy, r - 5, C.surf);
+   const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6), 3, act ? col : C.mid);
+ }],
+ ["K2 · ChoralRoot arc", "The editor's own dial made bolder: a 3 px dark track, the value arc 3 px in the row colour, a filled face, the pointer a 3 px line. No ticks: the arc is the scale.", (p, cx, cy, pct, col, act) => {
+   const r = 16; p.ring(cx, cy, r - 3, r, A0, A0 + SWEEP, act ? C.line : C.dark);
+   if (pct > 0) p.ring(cx, cy, r - 3, r, A0, ang(pct), act ? col : C.dim);
+   p.disc(cx, cy, r - 5, C.surf);
+   const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 3, cy + Math.sin(a) * 3, cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6), 3, act ? col : C.mid);
+ }],
+ ["K3 · Hybrid: arc and five ticks", "A dim 2 px track with the value arc in colour, five bold ticks (0 · 2.5 · 5 · 7.5 · 10) 2 x 3 px outside it, a face with a wide pointer. The Prophet's scale feel, ChoralRoot's fill.", (p, cx, cy, pct, col, act) => {
+   const r = 12; p.ring(cx, cy, r - 2, r, A0, A0 + SWEEP, act ? C.line : C.dark);
+   if (pct > 0) p.ring(cx, cy, r - 2, r, A0, ang(pct), act ? col : C.dim);
+   for (let i = 0; i <= 4; i++) { const a = rad(ang(i / 4)); p.line(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), cx + Math.cos(a) * (r + 4), cy + Math.sin(a) * (r + 4), 2, act ? C.mid : C.dim); }
+   p.disc(cx, cy, r - 4, C.surf);
+   const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 3, act ? col : C.mid);
+ }],
+ ["K4 · Chicken head", "A Prophet-style pointer knob: the skirt a dark disc with a 2 px rim, the pointer a solid wedge in the row colour from the centre past the rim, bright ticks only at 0 and 10.", (p, cx, cy, pct, col, act) => {
+   const r = 13; p.disc(cx, cy, r, act ? C.mid : C.line); p.disc(cx, cy, r - 2, C.surf);
+   for (const i of [0, 1]) { const a = rad(ang(i)); p.line(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), cx + Math.cos(a) * (r + 3), cy + Math.sin(a) * (r + 3), 2, act ? C.mid : C.dim); }
+   const a = rad(ang(pct)); const c = act ? col : C.mid;
+   // a wedge: wide at the centre, narrow at the tip
+   for (let t = 0; t <= 1; t += 0.05) { const w = 7 - 5 * t; p.disc(cx + Math.cos(a) * (t * (r + 2)), cy + Math.sin(a) * (t * (r + 2)), w / 2, c); }
+ }],
+ ["K5 · Open scale", "No face: eleven 2 px ticks around an empty centre, the ticks up to the value filled in the row colour (a fan), a 3 px pointer. Reads like a meter.", (p, cx, cy, pct, col, act) => {
+   const r = 16; const cur = Math.round(pct * 10);
+   for (let i = 0; i <= 10; i++) { const a = rad(ang(i / 10)); const on = i <= cur; const c = on ? (act ? col : C.dim) : (act ? C.line : C.dark);
+     p.line(cx + Math.cos(a) * (r - 4), cy + Math.sin(a) * (r - 4), cx + Math.cos(a) * r, cy + Math.sin(a) * r, 2, c); }
+   const a = rad(ang(pct)); p.line(cx, cy, cx + Math.cos(a) * (r - 6), cy + Math.sin(a) * (r - 6), 3, act ? col : C.mid); p.disc(cx, cy, 2, act ? col : C.mid);
+ }],
+ ["K6 · Lit face", "The face itself carries the row colour at low strength (a dark tint), with a white 3 px pointer and 2 px ticks in mid grey. The row's colour is in the knob, not around it.", (p, cx, cy, pct, col, act) => {
+   const r = 13; const tint = act ? col.map((v) => Math.round(v * 0.28)) : C.surf;
+   for (let i = 0; i <= 10; i++) { const a = rad(ang(i / 10)); p.line(cx + Math.cos(a) * (r + 1), cy + Math.sin(a) * (r + 1), cx + Math.cos(a) * (r + 3), cy + Math.sin(a) * (r + 3), 2, act ? C.mid : C.dim); }
+   p.disc(cx, cy, r - 2, act ? col : C.line); p.disc(cx, cy, r - 4, tint);
+   const a = rad(ang(pct)); p.line(cx + Math.cos(a) * 2, cy + Math.sin(a) * 2, cx + Math.cos(a) * (r - 5), cy + Math.sin(a) * (r - 5), 3, act ? C.white : C.mid);
+ }],
+];
+
+// ------------------------------------------------------------- the icons ---
+// one cycle, 2 px line, in a 14 x 8 box at (x, y)
+function icon(p, kind, x, y, c) {
+  const w = 14, h = 8, L = (a, b, cc, d) => p.line(x + a, y + b, x + cc, y + d, 2, c);
+  if (kind === "saw") { L(1, h - 1, w - 3, 1); L(w - 3, 1, w - 3, h - 1); }
+  else if (kind === "tri") { L(1, h - 1, w / 2, 1); L(w / 2, 1, w - 1, h - 1); }
+  else if (kind === "sqr") { L(2, h - 1, 2, 1); L(2, 1, w - 2, 1); L(w - 2, 1, w - 2, h - 1); }
+}
+
+// ---------------------------------------------------------------- buttons ---
+// each takes (p, cx, cy, on, kind, col, active): the box 60 x 34 centred on cy
+const BUTTONS = [
+ ["B1 · Prophet cap, bigger LED", "The cap 22 x 20 with a 2 px rim; the LED a 6 px disc: red with a 2 px dark-red halo when on, a 4 px dark-red dot when off (it keeps its place). Icon 4 px above.", (p, cx, cy, on, kind, col, act) => {
+   const w = 22, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? C.mid : C.line); p.fill(x + 2, y + 2, w - 4, h - 4, C.surf); p.fill(x + 2, y + 2, w - 4, 8, C.dark);
+   if (on) { p.disc(cx, y + 6, 4, [120, 20, 10]); p.disc(cx, y + 6, 3, C.red); } else p.disc(cx, y + 6, 2, [110, 24, 16]);
+ }],
+ ["B2 · ChoralRoot block", "The whole cap lights: filled in the row colour when on with the icon drawn in black inside it; when off a dark cap with a 2 px rim and the icon in grey above. On/off is unmistakable.", (p, cx, cy, on, kind, col, act) => {
+   const w = 24, h = 22, x = cx - w / 2, y = cy - 11;
+   if (on) { p.fill(x, y, w, h, act ? col : C.mid); icon(p, kind, cx - 7, y + 6, C.bg); }
+   else { p.fill(x, y, w, h, act ? C.line : C.dark); p.fill(x + 2, y + 2, w - 4, h - 4, C.surf); icon(p, kind, cx - 7, y + 6, act ? C.dim : C.line); }
+ }],
+ ["B3 · LED bar", "A wide 3 px LED bar across the top of the cap: red when on, dark red when off; the cap below in surf with a 2 px rim. The icon 4 px above in the row colour.", (p, cx, cy, on, kind, col, act) => {
+   const w = 24, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? C.mid : C.line); p.fill(x + 2, y + 2, w - 4, h - 4, C.surf);
+   p.fill(x + 3, y + 3, w - 6, 3, on ? C.red : [100, 22, 16]);
+ }],
+ ["B4 · The icon is the switch", "No cap: the wave icon drawn large (3 px line) is the control. On: in the row colour with a 2 px underline; off: dim grey, no underline. A 4 px LED dot beside the underline keeps the Prophet cue.", (p, cx, cy, on, kind, col, act) => {
+   const c = on ? (act ? col : C.mid) : (act ? C.dim : C.line); const x = cx - 10, y = cy - 9, w = 20, h = 12;
+   const L = (a, b, cc, d) => p.line(x + a, y + b, x + cc, y + d, 3, c);
+   if (kind === "saw") { L(1, h - 1, w - 4, 1); L(w - 4, 1, w - 4, h - 1); } else if (kind === "tri") { L(1, h - 1, w / 2, 1); L(w / 2, 1, w - 1, h - 1); } else { L(3, h - 1, 3, 1); L(3, 1, w - 3, 1); L(w - 3, 1, w - 3, h - 1); }
+   if (on) p.fill(x, y + h + 4, w, 2, c);
+   p.disc(cx + 16, y + h + 5, 2, on ? C.red : [100, 22, 16]);
+ }],
+ ["B5 · Toggle", "A ChoralRoot-style two-state toggle: a 24 x 20 well split in two; the top half fills in the row colour when on, the bottom half when off, the other half dark. The icon 4 px above.", (p, cx, cy, on, kind, col, act) => {
+   const w = 24, h = 20, x = cx - w / 2, y = cy - 3; icon(p, kind, cx - 7, y - 12, act ? col : C.dim);
+   p.fill(x, y, w, h, act ? C.line : C.dark); p.fill(x + 2, y + 2, w - 4, h - 4, C.surf);
+   if (on) p.fill(x + 2, y + 2, w - 4, (h - 4) / 2, act ? col : C.mid); else p.fill(x + 2, y + h / 2, w - 4, (h - 4) / 2, act ? C.dim : C.line);
+ }],
+];
+
+// --------------------------------------------------------------- switches ---
+const SWITCHES = [
+ ["S1 · Lever, thicker", "The Prophet lever: a 6 px slot with a 2 px rim and a 10 x 6 lever block in the row colour at the position; the names on the value row only.", (p, cx, cy, pos, col, act) => {
+   const x = cx - 3, y = cy - 15, h = 30; p.fill(x - 2, y - 2, 10, h + 4, act ? C.mid : C.line); p.fill(x, y, 6, h, C.dark);
+   const ly = y + 2 + (2 - pos) * 9; p.fill(x - 2, ly, 10, 6, act ? col : C.mid);
+ }],
+ ["S2 · Steps", "ChoralRoot's steps glyph: three stacked blocks 20 x 7, the current one filled in the row colour, the others dark with a 2 px rim.", (p, cx, cy, pos, col, act) => {
+   for (let i = 0; i < 3; i++) { const y = cy + 11 - i * 11; const on = i === pos; p.fill(cx - 10, y - 7, 20, 8, on ? (act ? col : C.mid) : (act ? C.line : C.dark)); if (!on) p.fill(cx - 8, y - 5, 16, 4, C.surf); }
+ }],
+ ["S3 · Fill bar", "A vertical well 10 x 30 filled from the bottom to the position in the row colour (Off empty, Half half, Full full), 2 px rim: the same language as the mixer wells.", (p, cx, cy, pos, col, act) => {
+   const x = cx - 5, y = cy - 15, h = 30; p.fill(x - 2, y - 2, 14, h + 4, act ? C.mid : C.line); p.fill(x, y, 10, h, C.dark);
+   const f = pos === 0 ? 3 : pos === 1 ? h / 2 : h; p.fill(x, y + h - f, 10, f, act ? col : C.mid);
+ }],
+];
+
+// ---------------------------------------------------------------- the tiles ---
+// a cell: 60 x 100 (label 12 px bold on top, the 34 px glyph box, the value 17 px bold), as EDITOR.md says, no band
+function cell(p, x, label, value, col, act, draw) {
+  p.text(x + 30, 14, label, 12, act ? col : C.dim);
+  draw(x + 30, 36);                              // the glyph box: rows 19..53 (34 px)
+  p.text(x + 30, 80, value, 17, act ? col : C.dim);
+  p.fill(x + 1, 96, 58, 2, act ? col : C.dark);  // the row bar
+}
+function tile(parent, title, note, draw) {
+  const d = document.createElement("div"); d.className = "v"; d.innerHTML = `<h3>${title}</h3>`;
+  const p = px(240, 100); p.fill(0, 0, 240, 100, C.bg);
+  draw(p); d.appendChild(p.cv); const s = document.createElement("small"); s.textContent = note; d.appendChild(s); parent.appendChild(d);
+}
+const knobs = document.getElementById("knobs");
+for (const [t, n, f] of KNOBS) tile(knobs, t, n, (p) => {
+  cell(p, 0, "Freq", "25", LANES[0], true, (cx, cy) => f(p, cx, cy, 25 / 127, LANES[0], true));
+  cell(p, 60, "Fine", "100", LANES[1], true, (cx, cy) => f(p, cx, cy, 100 / 127, LANES[1], true));
+  cell(p, 120, "Width", "65", LANES[3], false, (cx, cy) => f(p, cx, cy, 65 / 127, LANES[3], false));
+  cell(p, 180, "Glide", "0", LANES[2], false, (cx, cy) => f(p, cx, cy, 0, LANES[2], false));
+});
+const buttons = document.getElementById("buttons");
+for (const [t, n, f] of BUTTONS) tile(buttons, t, n, (p) => {
+  cell(p, 0, "Saw", "On", LANES[1], true, (cx, cy) => f(p, cx, cy, true, "saw", LANES[1], true));
+  cell(p, 60, "Tri", "Off", LANES[2], true, (cx, cy) => f(p, cx, cy, false, "tri", LANES[2], true));
+  cell(p, 120, "Pulse", "On", LANES[3], false, (cx, cy) => f(p, cx, cy, true, "sqr", LANES[3], false));
+  cell(p, 180, "Sync", "Off", LANES[0], false, (cx, cy) => f(p, cx, cy, false, "sqr", LANES[0], false));
+});
+const switches = document.getElementById("switches");
+for (const [t, n, f] of SWITCHES) tile(switches, t, n, (p) => {
+  cell(p, 0, "Key trk", "Off", LANES[3], true, (cx, cy) => f(p, cx, cy, 0, LANES[3], true));
+  cell(p, 60, "Key trk", "Half", LANES[3], true, (cx, cy) => f(p, cx, cy, 1, LANES[3], true));
+  cell(p, 120, "Key trk", "Full", LANES[3], true, (cx, cy) => f(p, cx, cy, 2, LANES[3], true));
+  cell(p, 180, "Key trk", "Half", LANES[3], false, (cx, cy) => f(p, cx, cy, 1, LANES[3], false));
+});
+</script>
+</body>
+</html>

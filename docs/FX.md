@@ -239,14 +239,26 @@ and the impulse responses, with their spectrograms.
 | both | 222 us (7.6 %) | 417 us (14.4 %) |
 | **as built: delay full, reverb half** | | **267 us (9.2 %)** |
 
-**As built: the delay at the full rate, the reverb at half.** The delay's repeats are heard dry and bright beside the
+**Since 0.22: both at half** (the owner, 2026-10-14, after hearing `build/choralroot-delayhalf.fwsc` on the unit:
+"Delay sounded good at half rate"; `cr_fx.c CR_FX_DELAY_DS` 2, the line halved with it, "Memory at the full rate"
+below: POOL 72.7 % for 91.7 % on that branch, 69.4 % for 88.5 % on the 0.22 line after the merge of 3y76, where
+the reverb still runs on core 1 with Dual Core: DUALCORE.md "What each core runs"; `CR_FX_DELAY_DS=1 ./build.sh` is
+0.18 .. 0.21's delay). What follows is 0.18's
+reasoning for the full rate, kept as the record of why it was chosen then.
+
+**As built in 0.18: the delay at the full rate, the reverb at half.** The delay's repeats are heard dry and bright beside the
 note that made them, and the full rate costs it only 25 us on the estimate (it loses its down- and up-sampler); the
 reverb is a dark wash whose top is its own damping, and the full rate would double it (+149 us) and leave 0.37 s of
 delay in the memory that is there.
 
 **Memory at the full rate.** A second a side is 176 KB; the pool has 131 KB for the delay with 17.7 KB left free, so
 the line is 32768 samples: **0.743 s a side** (a 1/4 at 81 BPM and up; a division longer than the line plays at half).
-The owner accepted "or lower if need be". At half rate the same memory is 1.49 s.
+The owner accepted "or lower if need be". At half rate the same memory is 1.49 s. **Since 2026-10-14 the line
+follows the rate** (`XD_N` = 32768 / `CR_FX_DELAY_DS`): `CR_FX_DELAY_DS=2 ./build.sh` keeps 0.743 s in half the
+samples and gives 65 KB of POOL back (the owner: "I'd try storing the delay at half rate, but I might not like the
+sound, so it should be easy to go back": it is a build, `build/choralroot-delayhalf.fwsc`, and the release build is
+the way back); `XD_N=32768 CR_FX_DELAY_DS=2` is the 1.49 s line in the same memory. What the half rate costs the
+sound: the repeats lose what is above 11 kHz, as the reverb does (the half-band filters, "The rates" above).
 
 ### What the unit says, and the formula
 
@@ -265,11 +277,32 @@ the numbers are that stretch's):
 | `pk_late`, `pk_late_stage`, `pk_late_us` | late halves; the latest one's largest stage (1 tick .. 6 wait) and its time |
 | `pk_halves`, `fx_busy_halves` | halves counted; halves in which the effects ran |
 | `fx_down_avg_us` / `_max_us`, `fx_delay_*`, `fx_reverb_*`, `fx_up_*` | inside the fx stage, over `fx_busy_halves`: the sends' down-sampler, the delay, the reverb, the wet's up-sampler |
-| `flash_erases`, `flash_holes`, `saves_settings`, `saves_session` | since power-on: erases (46 ms of silence each), erases into an output above -60 dBFS (the rule: 0), saves |
+| `flash_erases`, `flash_holes`, `saves_settings`, `saves_session` | since power-on: erases (17.8 ms measured on the unit, the interrupts masked and the buffer silenced; the emulator's model and the data sheet: 45), erases into an output above -60 dBFS (the rule: 0), saves |
 | `stale_halves` | **the audible ones**: halves in which the DAC played something old (a boundary nobody served, or a half finished after the DAC had reached it). The rule: 0 |
 | `pk_lag_us` | the furthest the ISR started behind its boundary (an estimate: "Late is not slow") |
 | `pk_wall_us`, `pk_t5_us` | the longest half by the clock, TIMER5 nested in it (`pk_block_us` leaves TIMER5 out), and the most TIMER5 took of one half |
 | `irq_gap_us`, `irq_gap_pc` | TIMER5 comes every 100 us: its longest gap (the interrupts were masked for about that, less 100) and the address it came back to after it (`build/choralroot.dis` names the section) |
+| `key_ons`, `key_pick_us`, `key_eng_avg_us`, `key_eng_us` | the keys' way to the engine (docs/INTEGRATION.md "Keys while a frame draws") |
+| `shed_voices`, `shed_last_voice`, `shed_last_why`, `shed_over_halves`, `shed_last_us`, `voices_faded`, `voices_stolen` | 3y44: what the overload shed did (docs/PROPHET.md "The crackle"). `shed_last_why` 4 (0.22): a voice of the bass part's P5 stack, taken before any chord voice |
+| `p5_core0_voices`, `p5_core1_voices` | 0.22 (3y46, docs/PROPHET.md "Voices"): the most P5 voices core 0 and core 1 rendered in one block. The rule is four each; core 1's are the bass part's P5 voices and its share of the chord part's. With one core everything is core 0's (at most four) |
+| `p5_bass_voices`, `p5_bass_given_up` | the bass part's most P5 voices (four with two cores, one with one), and held bass voices given up to the chord part (the chord comes first) |
+| `erases_auto_sounding` | 3y48, since power-on (never cleared): automatic erases (the Options' or the favourites' poll) that started while something sounded in the second before. The rule is 0 |
+| `last_erase_why`, `last_erase_obj`, `last_erase_ms` | since power-on: the latest erase's writer (0 other: a sound saved, a store; 1 the Options' poll; 2 the favourites' poll; 3 the global save or Reset Settings; 4 the calibration or the update gesture; 5 a backup restore; 6 a loop slot), its object (storage.c `OBJ_*`, 0x100 + k a loop slot) and when (ms since power-on, 0 none) |
+| `irq_gap_ms`, `ua_arm_gap_max_ms`, `ua_cap_reset_ms`, `uptime_ms` | when `irq_gap_us` happened (a peak, cleared with it), when `ua_arm_gap_max_us` did (since power-on), the latest USB capture under- or overrun (the stream restarted: a gap the host hears), and the unit's clock at the read. A stutter in a recording with none of them near its time is not the device's |
+| `pk_c0_busy_us`, `pk_c1_busy_us` | 3y50, **each core's half** (docs/DUALCORE.md "What each core runs"): the largest busy time of core 0 (its stages but `wait`, without core 1's job) and of core 1 (its voices' job and the reverb's), each in its own worst half |
+| `pk_c0_wait_us`, `pk_fx_join_us`, `pk_c1_idle_us` | core 0's waits in one half (both joins: the same as `pk_wait_us`), of them the effects' join alone, and core 1 idle between its voices' end and the reverb's start |
+| `pk_fx_map`, `c1_fx_jobs` | which core ran which effect in the largest whole half (`pk_wall_us`'s): 1 the chorus, 2 the delay, 4 the reverb ran, 8 the reverb on core 1 (so 15: all three, the reverb on core 1; 7: all three on core 0); and the reverb jobs core 1 ran |
+| `saves_auto`, `erases_ahead`, `erases_near`, `flash_prog_us` | **the quiet writes** (values 61..64, 3y52: p5-g's 35..38 appended by name; 0.22, docs/SETTINGS.md "When flash is written"), since power-on: the saves the unit did by itself (an Option's, a favourite's); the erases done ahead (the favourites' and the session's, not the settings': at power-on before the audio starts, then after 10 s without a sound or an input); the erases the unit started by itself while a voice was active or within 2 s of an input (**the rule: 0**; SAVE held, a sound's or a loop's save are the player's and are not counted); the longest page program in us (the driver's wait for the chip, the interrupts masked; the page's SPI transfer before it is not in it) |
+| `ui_frame_max_us`, `ui_frame_avg_us`, `flash_reads_ps`, `flash_read_bytes_ps` | **the UI and the flash reads** (values 65..68, 3y60; docs/PRESETS.md "What browsing reads"), since the last read: a UI frame's own time (input, LEDs, draw; `audio.c ui_ft`, from `main.c`'s loop) the longest and the average in us, without the wait to the next frame; the flash reads (`storage_hw.c st_read`) per second, calls and bytes. Turning PRESETS through a full pool reads a sound's record and patch per load (2 reads, ~270 bytes); 0d227e0 read ~5500 records a detent |
+
+With Dual Core On **`pk_part1_us` is core 1's whole job of a half**: the bass part and, since 0.22, the chord part's
+P5 voices that core 1 renders; `pk_part0_us` is core 0's own render (its share of the chord's voices), `pk_wait_us`
+how long core 0 then waited for core 1. The half is the tick + the longer of the two + the effects + the master.
+Since 3y50 the reverb runs on core 1 while core 0 runs the chorus and the delay: `pk_fx_us` is core 0's side of the
+effects (the sends, the chorus, the delay, the sum), `fx_reverb_*`, `fx_down_*` and `fx_up_*` are measured on core 1
+when it ran them (and added to the fx parts after the join), and `pk_wait_us` now holds both joins: the effects' join
+alone is `pk_fx_join_us`. The emulator's core 1 runs a job when it is handed (inline), so its `fx` stage still holds
+the reverb: perf.sh's figures do not show the overlap (estimates of the work, not of the unit's timing).
 
 The instrumentation is five TIMER4 reads a block. `tools/emu/perf.sh` prints the same four parts ("fx parts"), so the
 two compare line by line. The emulator's, for (l), the heaviest sound with both sends at 127:
@@ -298,7 +331,8 @@ where the host's compiler turned eight lines into two vector operations:
 | CZ-1's chord, part 0 (perf.sh (g): 446 / 864) | | 1699 .. 1985 at its largest | 2.2 |
 
 `CR_FX_RAM=1` changed nothing on the unit (reverb 345 for 331, delay the same): the code cache was not it. It stays a
-build switch, off.
+build switch, off. (Not the whole story: the P5 engine's 3.3 KB sample loop did gain from RAM, a quarter of the
+part's time: [Code in RAM](#code-in-ram-3y41).)
 
 **The cost model that holds**: count the unit's own instructions. `tools/fx_loops.py` lists a function's loops from
 the build's disassembly; times each loop's passes a half, over 205, is its time. The third build's loops, for the
@@ -319,7 +353,10 @@ defaults (wow and Mod on, nothing gliding), a pass being one sample:
 | `xf_block` itself (the parameters' hash, clearing and looking at the half-rate block) | | | ~8 |
 | **both effects** | | | **~290** (second build on the unit: ~560 .. 600) |
 
-These are counts read off the listing, good to about a tenth; **the unit's `fx_*` will say**. The targets were the
+These are counts read off the listing, good to about a tenth; **the unit's `fx_*` will say**. It said (2026-10-14,
+`tools/perf_unit.py`, docs/INTEGRATION.md "The fx stage's parts and TIMER5"): down 20 .. 21, delay 90 .. 108,
+reverb 193 .. 198, up 34 .. 37 on average with an 8-note chord and the bass, 340 .. 385 together: the count times
+1.2 .. 1.3, the reverb 40 % of a stage of 445 .. 535. The targets were the
 reverb under 150, the delay under 100, the stage's four parts under 300: the delay meets its own, the total is at
 it, **the eight-line reverb is about 10 us over**. What would take it under and was not done because it changes the
 sound: two diffusers instead of four (-42 a pass), two swinging lines instead of four (-18). That is
@@ -400,8 +437,8 @@ count is the lag: a half that starts 600 us behind and renders 2400 is as late a
 
 | What | How long (read from the code and the flash's data sheet; not measured) | When |
 | --- | --- | --- |
-| a flash erase (`storage_hw.c st_erase`) | 45 ms, the buffer silenced first | a store's sector fills; never into a sounding output for the settings and the session (`flash_holes`) |
-| a flash page program (`fm1_flash.h fl_write`, 256 bytes a go) | ~1 ms each, one after the other with a gap | every save: settings, session, a loop, a user sound |
+| a flash erase (`storage_hw.c st_erase`) | 45 ms by the data sheet, the buffer silenced first; **the unit read `irq_gap_us` 17 783 and 17 851 (2026-10-13), the second with `irq_gap_pc` 0x02014E9E: in that build's listing the instruction after `st_erase`'s `sti`, behind its call of `fl_erase4k_ram`: 17.8 ms is one sector erase**, five or six halves nobody served (`stale_halves` counts them: 9 erases read 46; they are silence) | EVERY save of a `storage.c` object erased its copy first until 0.22. Since then (docs/SETTINGS.md "When flash is written"): the session's and the favourites' erases are done ahead (not the settings': 3y52, their previous copy is the calibration's fallback; their save erases, as before 0.22), at power-on before the audio starts and after 10 s without a sound or an input; a save of those that still has to erase waits for 4 s of the same when the unit writes by itself (`erases_near`: 0), and SAVE held erases at once. A user sound's, a patch store's and a loop slot's save erase as before (the player's own act) |
+| a flash page program (`storage_hw.c st_prog`, `fm1_flash.h fl_write`; 256 bytes a go) | ~1 ms each by the driver's comments (3 ms the generic maximum), one after the other with the interrupts open between; `flash_prog_us` is the unit's own longest (not read yet) | every save: settings (4 pages), session (5), favourites (3), a loop, a user sound |
 | a flash read through the driver (`st_read`, 256 bytes a go) | ~0.5 ms each | loading a stored loop or record |
 | TIMER5, above the audio ISR (the key and LED scan, USB audio's endpoint, the MIDI in): 10 kHz | not known: `pk_t5_us` is its share of the worst half (29 ticks) | always |
 | the USB recording's service inside the ISR, interrupts off (`ua_isr_service`, `ua_audio`) | under 100 us a block | a computer records |
@@ -432,6 +469,215 @@ Built since (0.18, bit for bit; docs/CZ1.md "The render's cost on the unit"): 2 
 each wave and window, the carrier from a table), and the larger find of the audit that followed: the envelopes'
 definitions were rebuilt for every voice and block. Counted: about 1 980 us -> 630 us for eight voices. 1 is not
 needed for it; 3 cannot be done sample for sample.
+
+## Code in RAM (3y41)
+
+The firmware executes in place from the SPI flash (XIP, through the chip's code cache). Two readings of the owner's
+unit, 2026-10-13, the same playing both times (the P5 engine on the chord part, four voices, and on the bass part;
+reverb, delay and chorus up), peaks in microseconds of a half's 2902:
+
+| build | `pk_block` | `pk_part0` (chord) | `pk_part1` (bass) | `pk_fx` | `pk_master` | `pk_late` | `stale_halves` |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 40acb01, all code in flash | 3136 | 2084 | 1414 | 717 | 187 | 83 | 22 |
+| the same with `P5_RAM=1` | 2623 | 1533 | 1317 | 716 | 159 | 1 | 0 |
+
+`P5_RAM=1` links the P5 engine's two per-sample functions (`p5_samples`, `p5_mod_samples`: 3792 B) at RAM instead of
+flash. **The chord part got 26 % cheaper and not one instruction changed** (`tools/ram_code.py cmp`: the two
+functions are the same 1149 and 155 instructions in both builds). Melodee's notes say the same of its first hardware
+run, and ChoralRoot's own count for CZ-1 has an unexplained gap of the same kind (1066 us measured, 630 counted:
+docs/CZ1.md). The effects' four loops in RAM changed nothing in 0.18 (`CR_FX_RAM`, above): small loops that run many
+passes stay in the cache; a 3.3 KB loop body that runs once a sample apparently does not. **That is a hypothesis.**
+What follows is the means to measure it, stage by stage; nothing but `P5_RAM` is on by default.
+
+**`P5_RAM` is 1 in a device build since 3y41** (`tools/build.py`; `P5_RAM=0 ./build.sh` is the all-flash build, byte
+for byte 40acb01's default). The host and the emulator never see the flag.
+
+### The switches
+
+Each moves one stage's functions to RAMTEXT (`0x01C00000`, 24 576 B, of which the flash driver has 2888 and the
+second core's loop 128). Environment variables of `./build.sh`, all off unless set to 1:
+
+| switch | functions (bytes) | moved | RAMTEXT with it alone (P5 in) |
+| --- | --- | --- | --- |
+| `P5_RAM` (default 1) | `p5_samples` 3352, `p5_mod_samples` 440 | 3792 | 6808 |
+| `CR_RAM_FX` | `xd_run` 1708 (the delay), `xr_run` 2000 (the reverb), `xf_down` 308, `xf_up` 244 (the half-band filters), `xf_block` 794, `xc_block` 636 (the chorus), the eight `mix_loop*` 1800 (a part's level, pan and sends into the buses) | 7490 + an 8 B veneer | 14 308 |
+| `CR_RAM_MASTER` | `master_block` 3534 (Classic), `clean_block` 948 (Clean's look-ahead limiter), `clean_post` 110, `clean_post17` 90, `clean_split` 36, `usb_fixed_dac` 46 | 4764 | 11 572 |
+| `CR_RAM_CORE` | `track_render_x` 1432 (the voice loop, the envelopes, the calls of the engine), `mix_part_out` 960 (drive, level, pan, the choice of mix loop), `mod_begin` 640, `mod_voice` 390, `mod_voice_add` 122, `mod_tsrc` 82, `mod_end` 70 (the matrix), `track_lfo_tick` 272, `c1_part1_job` 100 | 4068 | 10 876 |
+| `CR_RAM_CZ` | `cz_native_line_mv` 7340, `cz_native_line` 6098, `cz_native_render` 1464, `cz_native_noise` 554, `cz_native_defs` 218, `cz_env_tick` 206, `cz_native_vibrato` 134, `cz_native_pd` 122, `cz_native_krate` 106, `cz_native_amp` 90, `cz_hw_rate` 58 | 16 390 | 23 200 |
+| `CR_RAM_VA` | `va_render` 8406 (the oscillators and the filter are inlined in it), `va_morph` 582, `va_render_mono` 22, `memset` 12 | 9022 | 15 832 |
+| `CR_RAM_FM6` | `fm6_render` 3518 (the operators' kernel is inlined in it), `fm6_control` 2476, `fm6_eg_step` 138, `fm6_mulhi` 74 | 6206 + 28 B of veneers | 13 044 |
+| `CR_RAM_TABLES_P5` | not code: `P5_TANH_Q15` 4098, `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256, the tables `p5_samples` reads every sample | 5376 B of RAM `.data` | RAM 86 820 of 98 304 |
+
+Together: FX + MASTER 19 072; **FX + MASTER + CORE 23 140** (1436 B spare); every switch at once would need about
+54 800 and does not link. `tools/build.py` refuses a build that leaves less than 512 B of RAMTEXT. So the three engines
+cannot ride with the rest: each is built alone beside P5 (CZ-1 alone leaves 1376 B).
+
+**What still runs from flash under a switch**, by reading the listing (`python3 tools/ram_code.py list
+build/choralroot.dis`):
+
+- **The audio ISR's own body, under every switch**: `fm1_alnk0_irq` is 5656 B with `mix_block`, `audio_block`, the
+  engine's tick and the event dispatch inlined into it (it calls 43 functions directly, most of them a key's or a
+  loop's handling). That is `pk_tick` (clearing the five buses, `events_block`, `cr_tick`, `cr_loop_tick`), the
+  mid/side sums before the master, **the DAC word packing** (`audio_block`: x 128, the scope, Clean's fraction bits)
+  and the profile's own reads. It was not moved: it does not fit beside FX + MASTER + CORE, and its loops are a few
+  instructions each. `shed_check`, `cr_prof_whole`, `cr_tick` (432 B), `cr_loop_tick`, `crl_tick1` stay too.
+- `CR_RAM_FX`: `xf_block` calls `xf_coefs` (flash, through a veneer) only in a block in which a parameter or the
+  tempo moved. A part's drive (`track_dist`) is inlined in `mix_part_out`: that is CORE's.
+- `CR_RAM_CORE`: `track_render_x` calls the engine (`render`, `done`, `block`: six calls through `engine_t`'s
+  pointers): flash, unless that engine's switch is on. P5's per-block code (`p5_render` 1240 B, `p5_env_tick` 342,
+  `p5_block` 214, `p5_post` 130) is in flash under every switch: a candidate if C shows a gain.
+- `CR_RAM_FM6`: an envelope's or the pitch envelope's change of segment calls `fm6_eg_go` / `fm6_peg_go` in flash
+  (veneers in RAM; a few times a note, not per sample). `fm6_block` (per part and block, 1374 B) stays in flash.
+- `CR_RAM_VA`: `va_block` (per part and block, 558 B) stays in flash. `CR_RAM_CZ`: nothing.
+- The constant tables, under every switch but `CR_RAM_TABLES_P5` (below).
+
+### The mechanism
+
+The compiler is not told that a function will run from RAM. Two obvious ways were tried and each changed the code it
+moved:
+
+- **A section attribute** (as `P5_HOT`, `RAMFN`): this compiler does not inline a function into one that lives in
+  another section unless it is `always_inline`. With the attribute on `xf_block`, `osc_sine` and `clamp` turned into
+  calls, back into flash, inside the loops.
+- **The calls across written through a pointer in the source**: the callee's address escapes, and the compiler drops
+  what it knew of its callers. `clean_block` is compiled for `n == 32` because every caller passes it; reached
+  through a pointer it grew its general path back, and `xd_run`, `mod_begin`, `fm6_control` each came out different.
+
+So (`firmware/src/cr_ram.h`, `cr_ram.c`, `tools/ram_code.py`):
+
+1. The sources carry **a marker**, `CR_HOT_FX` .. `CR_HOT_FM6`, in front of each function's definition. It expands
+   to nothing in every build.
+2. `tools/build.py` compiles as always. For the switches that are on it then calls `ram_code.place` on the object:
+   each marked function's section `.text.NAME` is renamed `.rhot.NAME` (six bytes of the section-name table; a
+   marked function that the compiler did not emit on its own, because it was inlined, stops the build), and
+   `firmware/app.ld` puts `.rhot.*` in the `.ram_text` output section, after the flash driver. `main.c` copies the
+   whole section from the image at power-on (`_rt_load` .. , up to `_rt_end`, whatever its size) and
+   `fm1_guard.h`'s second PC window is `_rt_start .. _rt_end - 1`: both follow the section by themselves.
+3. **Calls.** XIP (`0x02001000`) and RAMTEXT (`0x01C00000`) are 4 MiB + 4 KiB apart; pi32v2's direct call is
+   PC-relative and reaches 4 MiB. The linker refuses a longer one (`relocation truncated to fit:
+   R_PI32V2_LONG_JUMP_23M2`): it cannot be missed silently. A call across goes through **a veneer** on the caller's
+   side, a C function the same switch compiles in (`cr_ram.c`): it loads the target's absolute address into a
+   register and calls or jumps there. `ram_code.place` points the direct calls at it by rewriting the symbol of their
+   relocation entries, and the veneer's own reference at the real function. The listing, both directions:
+
+   ```
+   fm1_alnk0_irq (flash)     200a666: 81 ea 92 37        call 159524 <cr_v_xf_block : 203158e >   PC-relative, to the veneer
+   cr_v_clean_block (flash)  20315aa: c2 ff 04 4e c0 01  r2 = 29380100 <clean_block : 1c04e04 >   the absolute address
+                             20315b0: d2 00              goto r2
+   xf_block (RAM)            1c03d52: 80 ea be 0a        call 5500 <cr_v_xf_coefs : 1c052d2 >     PC-relative, inside RAMTEXT
+   cr_v_xf_coefs (RAM)       1c052d2: c0 ff 20 89 00 02  r0 = 33589536 <xf_coefs : 2008920 >      absolute, back into flash
+                             1c052d8: d0 00              goto r0
+   xf_block (RAM)            1c03e9e: bf ea eb f6        call -4650 <xd_run : 1c02c78 >           RAM to RAM: direct, as before
+   ```
+   (package C's listing)
+
+   A veneer with stack arguments is a real call (`cr_v_mix_part_out`: push, copy the two stack words, `call r4`,
+   pop: 24 B). The existing RAM code uses the older form: a `volatile` pointer on the stack, then `call rN`
+   (`FL_FAR`, `P5_RAM`'s `run`, `XF_CALL`). The engines' `render` and the mix loops were already reached through
+   pointers and need nothing.
+
+A build without a switch has no `.rhot` section, no veneer and an object nobody touched.
+
+### The proof that only the place changed
+
+`python3 tools/ram_code.py cmp BASE.dis NEW.dis` reads two listings (and `choralroot.sym` beside each) and compares
+**every function of both**, instruction by instruction, with addresses replaced by what they point into (a place in
+the function itself, another function, a constant by the nearest named object before it). It accepts: a function
+whose address moved; a call whose target became `cr_v_NAME` for `NAME`; the veneers, which it prints whole and whose
+one address must be their target's, on the other side. Anything else fails. Results, each against the default build
+(`P5_SHIPPED=all`, 841 functions):
+
+| build | moved | functions that differ | veneers (bytes) |
+| --- | --- | --- | --- |
+| `P5_RAM=0` -> the default | 2 | 0 | 0 |
+| `CR_RAM_FX` | 14 | 0 | 3 (40) |
+| `CR_RAM_MASTER` | 6 | 0 | 5 (40) |
+| `CR_RAM_CORE` | 9 | 0 | 5 (72) |
+| `CR_RAM_CZ` | 11 | 0 | 0 |
+| `CR_RAM_VA` | 4 | 0 | 1 (8) |
+| `CR_RAM_FM6` | 4 | 0 | 3 (40) |
+| FX + MASTER (package B) | 20 | 0 | 8 (80) |
+| FX + MASTER + CORE (C) | 29 | 0 | 13 (152) |
+| C + `CR_RAM_TABLES_P5` (D) | 29 | 0 | 13 (152) |
+
+No function's instruction count differs. (The tool is not blind: `CR_FX_LITE=1` against the default fails on
+`xr_run`, 675 -> 677 instructions.) The default build's listing is byte for byte the one `P5_RAM=1 ./build.sh` made
+at 40acb01, and `P5_RAM=0`'s is 40acb01's default. `tests/target_budget.py` reads functions by name and passes on
+every one of these listings unchanged. The host and the emulator build none of it: the 246 golden renders and the
+17 suites are the proof on that side.
+
+### The tables
+
+A table in flash is read through the same cache as the code. What the hot paths read, by the listing
+(`.rodata` is XIP; FM6's five are RAM `.data` already, 11 780 B, since Felucca):
+
+| path | every sample | every block or voice |
+| --- | --- | --- |
+| P5 | **`P5_TANH_Q15` 4098** (seven look-ups a sample), `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256: 5382 B, XIP; RAM with `CR_RAM_TABLES_P5` | `PITCH_OCT` 768, `P5_ENV_ATK` 512, `P5_ENV_SSM` 512, `P5_ENV_EXP` 256, `P5_LFO_INC` 512, `P5_AMOUNT_Q15` 256 |
+| CZ-1 | `CZ_CARRIER` 4096 (every loop), `CZ_RECIP` 8192 (the `_mv` loops and NOISE): XIP | `CZ_AMP` 256, `PITCH_OCT` |
+| FM6 | `FM6_SIN` 4100, `FM6_MKI_LOG` 4096, `FM6_MKI_EXP` 2048, `FM6_OPL_LOG` 1024, `FM6_OPL_EXP` 512: **RAM already** | `FM6_FREQ` 4100, `FM6_EXP2` 4100, `FM6_ALG` 192, the small ones: XIP |
+| VA | `SINE` 2050, `TANH_Q15` 514: XIP | `SVF_G` 256, `PITCH_OCT` 768, `ENV_EXP` 256, `ENV_LIN` 512 (one copy with `P5_ENV_ATK`: the same bytes), `VA_BROWN_*` |
+| FM TONE | `QUAD_HARM` 27 702, `SINE`, `TANH_Q15`, five of 256: XIP | |
+| the chorus, the effects' block | | `SINE` (the LFOs, once a block), `LFO_INC` |
+| the delay's and the reverb's loops | none | |
+| a part's drive, the master | `TANH_Q15` 514 (when the drive is on; the limiters' soft clip) | `LEVEL_Q12` 256 |
+| the matrix | | `TP` 1820, `PITCH_OCT` |
+
+RAM has 16 860 B free (81 444 of 98 304), 11 484 with the P5 tables in. POOL (316 052 of 344 064) is zero-filled
+memory with no image behind it: a table there would need a copy loop at power-on, and the build keeps 8 KB of it
+spare. **Worth a RAM copy, as an estimate only**: the P5 four (built: `CR_RAM_TABLES_P5`); then `SINE` + `TANH_Q15`
+(2564 B: VA, the chorus, the drive, both limiters, FM TONE, WHEEL); then `CZ_CARRIER` (4096 B). `CZ_RECIP` (8192)
+fits only without the P5 tables; `QUAD_HARM` does not fit. None but the first is built: D against C says first
+whether a table in RAM is worth anything.
+
+### The measurement plan
+
+Eight packages in `build/scratch/p5-ram/` of the main checkout (its `README.txt` has each one's switches, hash and
+size line), all with the 200 programs:
+
+| package | switches |
+| --- | --- |
+| `choralroot-0-all-flash.fwsc` | `P5_RAM=0`: the first row of the table above, for a control |
+| `choralroot-A-p5.fwsc` | the default: the second row (byte for byte the build that was read) |
+| `choralroot-B-p5-fx-master.fwsc` | A + `CR_RAM_FX` + `CR_RAM_MASTER` |
+| `choralroot-C-all-audio.fwsc` | B + `CR_RAM_CORE` (the engines left out: they do not fit) |
+| `choralroot-D-all-tables.fwsc` | C + `CR_RAM_TABLES_P5` |
+| `choralroot-E-p5-cz.fwsc`, `-F-p5-va.fwsc`, `-G-p5-fm6.fwsc` | A + `CR_RAM_CZ`, `CR_RAM_VA`, `CR_RAM_FM6`, one each |
+
+For each: install, **power-cycle**, read `python3 tools/fm1_install.py --debug` once to clear the peaks, play, read
+again. The peaks are the worst half since the last read, so play the same thing for the same time (30 s is enough).
+
+- **A, B, C, D**: the playing of the table above: P5 on the chord part (01 ITS PROPHET5, four keys held, then
+  changed a few times) and P5 on the bass part, reverb, delay and chorus sends up. Compare `pk_part0_us`,
+  `pk_part1_us`, `pk_fx_us`, `pk_master_us`, `pk_tick_us`, `pk_block_us`, and `fx_delay_avg_us`,
+  `fx_reverb_avg_us`. Expect: A = the second row. B against A: `pk_fx_us` and `pk_master_us` (0.18 said the four
+  loops gain nothing; the chorus, the mix loops and the limiter were not in that test). C against B: `pk_part0_us`
+  and `pk_part1_us` (the framework around the engine). D against C: `pk_part0_us`, `pk_part1_us` (the tables).
+- **E**: CZ-1 on the chord part, eight keys (`python3 tools/cz_pop_check.py --play` plays it): `pk_part0_us` against
+  A's with the same playing, and against the count's 630.
+- **F**: a VA chord and bass (LUSH PAD). **G**: an FM6 chord. `pk_part0_us` against A's with the same playing.
+- With every package: `pk_late`, `stale_halves` (the rule: 0), `flash_erases`, `flash_holes` (the rule: 0), `erases_near` (the rule: 0).
+
+Nothing here has run on a unit but A (as 40acb01 + `P5_RAM=1`).
+
+### What to keep in mind
+
+- **RAM code can be overwritten; flash code cannot.** The write guards (`fm1_guard.h`) cover the two stack bands and
+  the top of RAM, not RAMTEXT: a stray write into `0x01C00000 .. 0x01C05FFF` would change audio code silently where
+  the same write is harmless today. It is so for the flash driver and for P5's loop already; B and C put 12 to 16 KB
+  more there.
+- **The PC guard** allows two windows, XIP up to `_etext` and `_rt_start .. _rt_end - 1`; the second covers
+  `.ram_text` with `.rhot.*` in it and `.c1_text`, whatever their size, on both cores. Nothing else in the firmware
+  looks at a PC's range (`irq_gap_pc` is reported, not judged: a value in `0x01C0....` now names a RAM function, in
+  the same listing).
+- **The second core** runs `c1_part1_job` and `track_render_x` from RAM under `CR_RAM_CORE`, `.c1_text` sits behind
+  `.rhot.*` instead of right behind the flash driver; `fm1_c1_main`'s address is the linker's either way. A Dual
+  Core session belongs in C's reading.
+- **The flash driver's rule is unchanged**: below `_rt_hot` nothing may call (`tools/build.py` checks the listing);
+  the audio code above it runs only with the flash on (the driver masks the interrupts and core 1 works only inside
+  core 0's audio interrupt).
+- A veneer is one more call level: 8 bytes of stack for the three with stack arguments, twelve to thirteen far
+  calls a block in C (about forty instructions a half).
 
 ## The delay
 ## The delay
@@ -757,9 +1003,80 @@ both limiters at rest and the delay empty, and fades in (`out_fade`, `out_master
 ChoralRoot's unit) and Felucca's own builds always run Classic. `EMU_OUTPUT=classic` holds the emulator at Classic
 whatever the settings say (`tools/emu/classic_exact.sh`).
 
+## The master filter (0.22)
+
+GitHub issue 16 (etyrnal, 2026-10-14): "Many of the patches contain a lot of harsh upper tones", and softening a pad,
+clearing what competes with the bass, or leaving room for a singer wants "a simple single knob lpf/hpf". The owner's
+answer there: a final EQ or band-pass in the FX section, apart from the engines; before the FX chain or after it?
+
+**What it is**: a **low cut** and a **high cut** on the stereo master, the eighth page of the FX layer, **Filter**
+(SELECT past Drive): Low cut (Off, then 20 Hz .. 2 kHz), High cut (200 Hz .. 16 kHz, then Off), Slope (6 or 12 dB an
+octave) and Filter (Off / On) on KNOB 1 .. 4. Both cuts in is a band-pass. A new unit has it Off with both cuts at
+their Off ends; **turning a cutoff switches the filter on** (and FX, as a send turned does), so the knob is heard at
+once; KNOB 4 switches it off and on again with the cutoffs kept, to compare. FX off takes it out with the effects
+(its cell reads Off). The four are the instrument's, like every effect parameter: no sound load touches them, the
+global save keeps them (SETTINGS.md: tags 31 .. 34).
+
+**Where in the chain, and why**: after the effects and before the master (`fx.c mix_block`: `xq_block` on the mix
+after `xf_block`, before `out_master`). So the reverb's and the delay's wash is tamed with the parts (a high cut
+softens the tail too, a low cut takes the reverb's mud with the chord's), and the limiter and the clip see what the
+filter leaves: a low cut makes room under the limiter's threshold instead of being limited first. Before the
+effects it would have left the wash as bright as it was and the limiter working on a signal the filter then changed.
+The other place the request could go, **a cut per part** (in each part's chain beside its drive, before its sends),
+is not built: it costs twice over for the same ear (both parts, every voice), has no effect on the wash, and the
+issue's cases are all "the whole sound" cases; it stays an option if a player wants the bass full under a cut chord
+(the issue reply says so). Nothing of it is in the engines: every engine keeps its own filter.
+
+**The arithmetic** (`cr_fx.c xq_*`): a cut is one stage (6 dB) or two in a row (12 dB) of a one-pole, `y += k (x -
+y)` with k in Q12, the low cut's stage `x` minus its low-pass. The knob reads the cut's -3 dB corner: two identical
+poles are 3 dB down at 0.6436 of their own corner, so at 12 dB the poles sit at 1.554 x the knob. Every product keeps
+its remainder (`xf_rs`, as every loop in the file): no dead band at a low k (a 20 Hz cut's k is 15 of 4096: without
+the remainder its stage would stop 270 units short and leave a DC offset of that), no offset, exact zeros after
+silence. The mix into a cut is held to +-3 x full scale (`XQ_MAX` 98304: the Classic limiter is 15 dB into its work
+by then, the Clean one 11.5 dB; the products fit 32 bits with the second stage's difference at 4 x that). **Off
+touches nothing**: with FX off, Filter Off, or both cuts at their Off ends, `xq_block` returns before it reads a
+sample and its states are at rest: the master is bit for bit what it was (`cr_fx_test.c`: the defaults, FX off,
+Filter Off, On with both cuts Off, and again after a cut was in). A cut switched in or out **fades**, its wet share
+a straight line across each block over 16 blocks (11.6 ms, Options > Output's fade), the stages running from rest
+under it; a cutoff turned **eases**, the k in use moving an eighth of itself towards the knob's each block (an
+octave in 6 blocks: no zipper; the test sweeps the high cut from Off to 200 Hz and back under a tone, a detent every
+20 ms, and no sample step exceeds the tone's own by 3 %). The slope eases the same way: the second stage's k goes to
+4096 (y = x exactly) when 12 dB goes to 6 and the stage is skipped once there; 6 to 12 starts it at its input and
+eases its k down. (An ease of a quarter of the way a block, the first try, stepped the second stage's slew by a
+third at once on a slope change: a 1.5 x step under a tone. The geometric ease was the fix.) Only a cut that is in
+costs anything.
+
+**The cost on the unit** (the listing, `python3 tools/fx_loops.py build/choralroot.dis xq_cut`, at 205 instructions
+a microsecond; the unit's `fx_*` will say, as for the effects: the fx stage's figure includes it, between `up` and
+the master):
+
+| a cut's loop, a sample a side | instructions | both sides, a half of 128 | us |
+| --- | --- | --- | --- |
+| low cut, 6 dB | 17 | 4352 | 21 |
+| low cut, 12 dB | 24 | 6144 | 30 |
+| high cut, 6 dB | 16 | 4096 | 20 |
+| high cut, 12 dB | 22 | 5632 | 27 |
+| both at 12 dB (a band-pass) | | 11776 | **57** |
+| both at 6 dB | | 8448 | 41 |
+| Off (the hash of four values, nothing else) | | ~40 | 0.2 |
+
+One cut at 12 dB, the issue's case, is 27 .. 30 us of the half's 2902 (1 %); the band-pass at 12 dB is 57, the
+"under 40" asked for only at 6 dB. The remainder is 2 of a stage's 6 instructions and the clamp 3 of a loop's: no
+cheaper loop keeps the project's arithmetic. A fade's block costs the loop plus a copy and a mix (18 a sample).
+The host's count (`cr_fx_test.c`, a guard): off 132 instructions a half, one 12 dB cut 1280, both 2560. XIP +1712 B
+(the four loops, the fade, the block, the page), POOL +240 B (`xq`: the states and a fade's block of 32).
+
+**Tests**: `tests/cr_fx_test.c t_filter` (above: Off bit-exact four ways and after a cut was in; each cut at three
+corners x two slopes x three frequencies against the one-pole's own formula within 0.3 dB, both sides the same; both
+cuts at their far ends with a square at the clamp and noise over it, bounded and exactly 0 within a second of
+silence; the sweep and the toggles under a tone; the cost); `tools/emu/scripts/cr_fx_filter.txt` (the page, the
+knobs, the cells, the session's four tags, and the WAV: a D major chord with the filter Off, then through the 200 Hz
+high cut, its D4, F#4 and A4 at the formula's 53, 41 and 33 % of themselves, falling with the pitch);
+`tests/cr_settings_test.c` (the block's four new entries took `rsv_fx`'s bytes, every other field where it was).
+
 ## The FX layer
 
-SELECT steps seven pages; the picker shows the page's name (Sends, or the effect) over five marks, the label an
+SELECT steps eight pages; the picker shows the page's name (Sends, the effect, or Filter) over six marks, the label an
 effect's page (`fx · on · 1/2`). The layer opens on Sends on a new unit and after a reset or a revert with nothing
 saved; otherwise on the page it was left on (the session's `fx.sel`, a tag a page: `CSS_FXE_SENDS` is the new one,
 6. A record written before it names an effect's page and opens there; an older firmware that reads a record naming
@@ -774,6 +1091,7 @@ Sends does not know the tag and keeps Reverb 1).
 | Delay 1 | Time (echoes) | Spread (spread) | Feedback (echoes) | Send (mix) |
 | Delay 2 | Sync (sync) | Mode (ping) | Tone (moon) | Wow (lfo) |
 | Drive | – | – | – | Send (clip) |
+| Filter (0.22) | Low cut (cut) | High cut (moon) | Slope (text: 6 dB / 12 dB) | Filter (text: Off / On) |
 
 **Sends** (the owner, 2026-10-12: "I also really like in this sound editor page being able to set the send levels for
 each FX, so I think when you enter the FX menu from main the first page should also show the 4 FX send levels for
@@ -824,7 +1142,8 @@ the far wall's direction turned round.
    say otherwise, and both are one build flag.
 2. **0.74 s a side** (a 32768-sample line: what the pool has).
 3. **16-bit lines** for the reverb (32 bits: 48 dB less noise for the delay's last 0.15 s).
-4. **`CR_FX_RAM` is off**: on the unit it changed nothing (reverb 345 us for 331). Kept as a switch.
+4. **`CR_FX_RAM` is off**: on the unit it changed nothing (reverb 345 us for 331). Kept as a switch. `CR_RAM_FX` (3y41) moves the
+   whole stage, the chorus and the mix loops too: to be measured ("Code in RAM").
 5. **A tail ends at one unit of the line** (-90 dBFS of it), nowhere above.
 6. **"Inf" takes the damping out of the loop.**
 7. **Nothing is saved while a tail rings**, with no time limit: with the reverb frozen, nothing is stored until it is
@@ -858,3 +1177,9 @@ the far wall's direction turned round.
     nothing is stored that depends on them.
 26. **CZ-1 is as it was**: its options are listed, none built.
 27. **Six more values in SysEx 78 PEAK** (30 for 24); a host that reads 24 sees the same 24.
+28. **The master filter sits after the effects and before the master** (0.22, "The master filter"), not before the
+    effects and not per part; **one-pole stages, 6 or 12 dB, no resonance** (a resonant two-pole with the same
+    arithmetic was 55 us a side at 12 dB by the count); **turning a cutoff switches it on**; **its four session tags
+    are written only off their defaults** (the FX block grew from 24 entries to 28 into `rsv_fx`; a firmware before
+    0.22 reading a record with more than 24 takes that block's defaults, SETTINGS.md).
+29. **The clamp at 3 x full scale** before a cut (`XQ_MAX`): a sample out there is already 15 dB into the limiter.

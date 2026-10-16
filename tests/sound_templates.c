@@ -7,16 +7,19 @@
  *   ./build/host/sound_templates                 prints the JSON below
  *   ./build/host/sound_templates --packs         prints the factory presets as user records (web/packs: tools/make_packs.py)
  *   ./build/host/sound_templates --check FILE..  exits 1 unless every FILE contains each template's base64 string
- *                                                and the two factory-table strings below, verbatim, and
+ *                                                and the three factory-table strings below, verbatim, and
  *                                                every selectable engine's name in quotes ("FM TONE": the
  *                                                clients' ENGINE_NAMES)
  *                                                (tests/run_cr_tests.sh runs it on the two clients)
  *
  * JSON: { "templates": { "fm6": <base64 up_rec_t>, "cz": <base64 up_rec_t>, "quad": <base64 up_rec_t> },
  *         "fixtures": { "fm6_blob": <base64 128>, "fm6_vced": <base64 155>, "fm6_fn": <base64 8: the packed
- *                       function defaults, blob bytes 114..121>, "cz_tone": <base64 144>, "quad_blob": <base64 80:
+ *                       function defaults, blob bytes 114..121>, "cz_tone": <base64 144>, "quad_blob": <base64 96:
  *                       QUAD's first factory preset, EP> } }
- * (QUAD has no .syx: its template and blob are the test fixtures of the "quad" patch kind, not pinned in the clients) 
+ * (QUAD has no .syx: its template is the record a Digitone .dnsnd import gets (web/fm1dnsnd.js), pinned in the
+ * clients as the other two; its blob is the test fixture of the "quad" patch kind)
+ *   ./build/host/sound_templates --quad-ranges   FM TONE's per-value [min, max, def] (web/test_dnsnd.mjs compares)
+ *   ./build/host/sound_templates --quad-check    stdin: 96-byte blobs (version 4) in hex, one a line -> "ok" / "bad" (quad_blob_ok)
  * A template is a valid record (up_valid) of the engine with every parameter at its default (param_desc_of), np =
  * P_COUNT, ver UP_VER, the name "SYX IMPORT" (the importer replaces it with the voice's name), no pattern. The
  * firmware maps a record's values by count, so a template stays valid when P_COUNT grows (upreset.c). The fixtures:
@@ -25,8 +28,13 @@
  *
  * "factory": {"<engine>": [name, ..]}: ENGINES[e]->presets[k].name for every engine with eng_ok, and
  * "factory_first": {"<engine>": n}: the first of them in the engine's pool (cr_bank.c pool_f0: the CZ-1's preset 0,
- * INIT TONE, is the pool's INIT). Both printed compact on one line each; a client embeds the two strings verbatim (a
- * JSON object of strings and numbers is a JS and a Python literal) and names a binding from them (docs/SOUNDS.md). */
+ * INIT TONE, and P5's preset 0, INIT P5, are the pools' INIT). Both printed compact on one line each; a client embeds
+ * the two strings verbatim (a JSON object of strings and numbers is a JS and a Python literal) and names a binding from
+ * them (docs/SOUNDS.md). Built with P5 (FELUCCA_PROPHET 1, as the unit): its names are the shipped list's
+ * (assets/prophet5-factory/shipped.txt, through build/gen/melodee_prophet_factory.h), so a client cannot drift from it.
+ * "factory_ids": {"16": [id, ..]}: per P5 preset k its favourites id (cr_ui.c cu_fav_key: the program's Sequential
+ * number, eng_prophet_test.c p5_preset_id; 0 for INIT), the key under which object 23 marks it (cr_favs.c); every other
+ * engine's id is the preset's index itself, so it is not listed. One line, embedded verbatim as the two above. */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -102,6 +110,19 @@ static void factory_json(char *fac, size_t nf, char *first, size_t n1)
     snprintf(fac + o, nf - o, "}");
     snprintf(first + o1, n1 - o1, "}");
 }
+/* the favourites ids of the presets whose id is not their index: P5's (its Sequential numbers); {} without P5 */
+static void ids_json(char *out, size_t n)
+{
+    size_t o = (size_t)snprintf(out, n, "{");
+#if FELUCCA_PROPHET
+    uint32_t k;
+    o += (size_t)snprintf(out + o, n - o, "\"%u\":[", (unsigned)ENGI_PROPHET);
+    for (k = 0; k < ENGINES[ENGI_PROPHET]->npresets && o + 8 < n; k++)
+        o += (size_t)snprintf(out + o, n - o, "%s%u", k ? "," : "", (unsigned)p5_preset_id(k));
+    o += (size_t)snprintf(out + o, n - o, "]");
+#endif
+    snprintf(out + o, n - o, "}");
+}
 
 /* --packs: every factory preset of every engine with eng_ok as the record SAVE would store it (cr_bank.c cb_store of
  * a chord part loaded with it, cr_ui.c cu_load; bound to itself: note[15] 0xA6, flags[15] k + 1) and its engine's
@@ -164,7 +185,7 @@ static void packs_json(void)
 int main(int argc, char **argv)
 {
     static char t_fm6[400], t_cz[400], t_quad[400], f_blob[200], f_vced[240], f_fn[20], f_tone[200], f_quad[200],
-        fac[16384], first[512];
+        fac[16384], first[512], ids[2048];
     up_rec_t r;
     uint8_t blob[FM6_BLOB], v[FP_SIZE + 1u], fn[FM6_NFN], qb[QUAD_BLOB];
     up_boot();                                   /* (as tests/cr_backup_test.c power_on: the mirrors, no UI) */
@@ -197,6 +218,27 @@ int main(int argc, char **argv)
     b64(blob + 114u, 8u, f_fn);
     b64(CZ_FACTORY[0], CZ_BYTES, f_tone);
     factory_json(fac, sizeof fac, first, sizeof first);
+    ids_json(ids, sizeof ids);
+    if (argc == 2 && !strcmp(argv[1], "--quad-ranges")) {   /* FM TONE's per-value [min, max, def] (web/fm1dnsnd.js) */
+        uint32_t i;
+        printf("[");
+        for (i = 0; i < QP_NP; i++) {
+            quad_rng_t g = quad_range(i);
+            printf("%s[%d,%d,%d]", i ? "," : "", g.min, g.max, g.def);
+        }
+        printf("]\n");
+        return 0;
+    }
+    if (argc == 2 && !strcmp(argv[1], "--quad-check")) {    /* stdin: a 96-byte blob in hex a line -> ok / bad */
+        char line[400];
+        while (fgets(line, sizeof line, stdin)) {
+            uint32_t i, n = 0, x;
+            for (i = 0; n < QUAD_BLOB && sscanf(line + 2u * i, "%2x", &x) == 1; i++)
+                qb[n++] = (uint8_t)x;
+            printf("%s\n", n == QUAD_BLOB && quad_blob_ok(qb) ? "ok" : "bad");
+        }
+        return 0;
+    }
     if (argc == 2 && !strcmp(argv[1], "--packs")) {
         packs_json();
         return 0;
@@ -217,7 +259,7 @@ int main(int argc, char **argv)
             s = calloc((size_t)n + 1u, 1);
             fread(s, 1, (size_t)n, f);
             fclose(f);
-            if (!strstr(s, t_fm6) || !strstr(s, t_cz)) {
+            if (!strstr(s, t_fm6) || !strstr(s, t_cz) || !strstr(s, t_quad)) {
                 fprintf(stderr, "%s: the sound templates differ from the firmware's defaults (run tests/sound_templates and paste)\n", argv[i]);
                 bad = 1;
             }
@@ -238,14 +280,18 @@ int main(int argc, char **argv)
                 fprintf(stderr, "%s: the factory preset table differs from the firmware's (run tests/sound_templates and paste \"factory\" / \"factory_first\")\n", argv[i]);
                 bad = 1;
             }
+            if (!strstr(s, ids)) {
+                fprintf(stderr, "%s: the factory presets' favourites ids differ from the firmware's (P5's Sequential numbers: run tests/sound_templates and paste \"factory_ids\")\n", argv[i]);
+                bad = 1;
+            }
             free(s);
         }
         printf("sound_templates: %s\n", bad ? "FAIL" : "ok");
         return bad;
     }
     printf("{\n \"templates\": {\"fm6\": \"%s\", \"cz\": \"%s\", \"quad\": \"%s\"},\n \"fixtures\": {\"fm6_blob\": \"%s\", \"fm6_vced\": \"%s\", \"fm6_fn\": \"%s\", \"cz_tone\": \"%s\", \"quad_blob\": \"%s\"},\n"
-           " \"p_count\": %u, \"fm6_name\": \"%.10s\", \"cz_name\": \"%.16s\",\n \"factory\": %s,\n \"factory_first\": %s\n}\n",
+           " \"p_count\": %u, \"fm6_name\": \"%.10s\", \"cz_name\": \"%.16s\",\n \"factory\": %s,\n \"factory_first\": %s,\n \"factory_ids\": %s\n}\n",
            t_fm6, t_cz, t_quad, f_blob, f_vced, f_fn, f_tone, f_quad, (unsigned)P_COUNT, (const char *)(v + 145),
-           (const char *)(CZ_FACTORY[0] + 128), fac, first);
+           (const char *)(CZ_FACTORY[0] + 128), fac, first, ids);
     return 0;
 }

@@ -680,6 +680,65 @@ closed in docs/CZ1.md ("Level", "The second round"). What matters to the output 
   emulator's scripts, which strike at one velocity).
 - Listening files, through Clean at the power-on MASTER: `../audio-0.19/cz-trim/`.
 
+## FM TONE's level (0.23, 2026-10-16)
+
+The owner after 0.22: FM TONE ("the new Digitone Engine") "is quite a bit louder than the other engines". ChoralRoot
+has no per-sound trims of the kind Sloop's `preset_trim.h` holds (`cr_bank.c CB_TRIM` is empty on this unit since
+CZ-1's -6 dB of 0.19, above): an engine's level is its own, set against the others'. Measured with
+`tests/va_levels.c loud` (every sound of FM TONE, the VA, FM6, CZ-1 and P5) and `dnsnd` (the 256 Digitone factory
+sounds through the device manager's `.dnsnd` import, `web/fm1dnsnd.js dnsndToQuad`): BS.1770-4 integrated loudness
+(K-weighted, 400 ms blocks, the -70 LUFS and -10 LU gates; re the Q15 output's full scale) of what leaves the master
+as a player hears it at power-on: Output Clean, MASTER as at power-on, the part at its default LEVEL 104, the sends at
+0, FM TONE's Drive its sound's, velocity 100. Three phrases: **held**, a 6-note chord (D6/9maj7) held 6 s, read 0.3 ..
+5.9 s; **phrase**, four 4-note chords struck a second apart and held 0.9 s (a MONO sound: a bass line); **notes**, the
+chords' top notes alone, one voice (the limiter does not take part: the engine's own level). Each also at LEVEL 80,
+read +12 dB, the level under the limiter ("lin" in the tool's lines).
+
+Medians over the chord sounds (MONO ones left out), LUFS, held / phrase / notes; a11e0ca (0.22) and after:
+
+| | 0.22 | after |
+| --- | --- | --- |
+| FM TONE, the 16 presets (13 chord sounds) | -18.8 / -20.0 / -25.8 | -18.8 / -20.0 / -25.9 |
+| FM TONE INIT (LEVEL 110) | -15.9 / -15.4 / -16.1 | -16.0 / -16.1 / -22.1 |
+| the 256 Digitone factory sounds, imported | -17.2 / -17.6 / -20.9 | -21.2 / -21.6 / -26.7 |
+| .. of them Drive 0 (162) | -16.6 / -17.3 / -21.4 | -22.1 / -22.2 / -27.4 |
+| .. Drive 40 .. 127 (64) | -17.4 / -17.8 / -19.2 | -19.6 / -19.9 / -22.6 |
+| VA (21) | -16.2 / -17.7 / -23.9 | the same, bit for bit |
+| FM6 (19) | -28.6 / -21.2 / -27.6 | the same |
+| CZ-1 (65) | -27.8 / -22.7 / -28.1 | the same |
+| P5 (116) | -24.5 / -23.5 / -29.0 | the same |
+
+So the factory presets were not the loud ones (voiced at AMP LEVEL 62 .. 90 on FM TONE's squared law), the sounds at
+the Digitone's own VOL (100 .. 127: INIT, every import) were, by 4 to 9 dB against the other engines' medians: the whole
+engine at its natural levels, not a few sounds. Fixed at the engine's output scale (`eng_quad.c quad_render`: a voice
+into its part `>> 12`, was `>> 11`), before the part's DRIVE (the platform's DIST, which every engine feeds: a scale
+after it made a strongly driven FM TONE sound 6 dB quieter than any other engine's at the same Drive), with the 16
+presets' LEVEL x 1.41 so that they stay where they were voiced. Never the master. The imports now sit inside the other
+engines' spread (phrase -21.6 against -17.7 .. -23.5, notes -26.7 against -23.9 .. -29.0). Each preset:
+
+| sound | LEVEL | held 6-note chord | phrase of 4-note chords | single notes |
+| --- | --- | --- | --- | --- |
+| EP | 72 -> 102 | -23.1 | -22.1 | -28.0 |
+| BELL | 80 -> 113 | -27.0 | -20.2 | -25.8 -> -25.9 |
+| BASS (MONO) | 110 -> 127 | -17.3 -> -20.8 | -19.3 -> -22.8 | -19.3 -> -22.8 |
+| PLUCK | 72 -> 102 | (silent: decays) | -25.0 -> -24.9 | -31.0 |
+| BRASS | 76 -> 107 | -17.0 | -19.4 -> -19.5 | -25.0 -> -25.1 |
+| GLASS PAD | 88 -> 124 | -15.9 | -17.9 | -23.6 -> -23.7 |
+| HOLLOW | 76 -> 107 | -14.6 | -14.5 | -20.3 -> -20.4 |
+| SQUARE LEAD (MONO) | 110 -> 127 | -12.3 -> -15.8 | -16.1 -> -19.6 | -16.1 -> -19.6 |
+| METAL | 70 -> 99 | -24.6 | -20.0 | -25.9 |
+| WOBBLE (MONO) | 115 -> 127 | -18.1 -> -21.6 | -20.3 -> -23.6 | -20.3 -> -23.6 |
+| CLAV | 90 -> 127 | (silent: decays) | -25.5 | -30.3 |
+| STRINGS | 80 -> 113 | -16.3 | -17.4 | -23.3 -> -23.4 |
+| MARIMBA | 78 -> 110 | -60.0 | -24.7 | -30.2 |
+| DRONE | 74 -> 105 | -14.9 | -16.3 -> -16.2 | -21.2 -> -21.1 |
+| FEEDBACK | 72 -> 102 | -18.8 | -20.4 | -26.6 |
+| NOISE-ISH | 62 -> 88 | -18.3 | -19.1 | -25.0 -> -24.9 |
+
+(PLUCK and CLAV have decayed before the held chord's window: no level there.) The three MONO sounds reach the top of
+LEVEL at 127 and are 3.3 .. 3.5 dB quieter; SQUARE LEAD is still FM TONE's loudest. The rest: docs/QUAD.md "Level",
+HISTORY 3y119.
+
 ## Round 3: the hold, the chorus in stereo, the click, MASTER at power-on
 
 The owner's decisions of 2026-10-12, after hearing the first two rounds ("dry, little difference between Clean and
@@ -1002,6 +1061,9 @@ build/host/master_measure render P --send 120,45,120 --decay 100 --fdbk 105   # 
 python3 tools/master_listen_hold.py BEFORE NOW WAVDIR     # the hold's listening files (two directories of chain records)
 python3 tools/chorus_response.py                          # the chorus's comb: 0.18's tap, 0.19's two, Sloop's half turn
 sh tools/chorus_listen.sh [WAVDIR]                        # the chorus's listening files (the emulator, EMU_CHORUS=mono)
+cc -O2 -w -Ibuild/gen -Ifirmware/src -o build/host/va_levels tests/va_levels.c -lm
+build/host/va_levels loud                                 # every sound's LUFS (FM TONE, VA, FM6, CZ-1, P5), the medians
+build/host/va_levels dnsnd LIST                           # .. imported Digitone sounds (LIST: "name|blob hex|drive|pan")
 ```
 (a variant of the hold: `-DCLN_HOLD=`, `-DCLN_HOLD_HIT=`, `-DCLN_HIT=`, `-DCLN_REHOLD=`, `-DCLN_CREEP=`; rounds 1 and
 2's limiter is `-DCLN_HOLD=1764u -DCLN_HOLD_HIT=1764u -DCLN_REHOLD=5 -DCLN_CREEP=31`.)

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-only */
 /* The firmware side of the emulator: the firmware sources (emu_firmware.h) and the hooks of emu_hooks.h.
  * Everything Felucca-specific the emulator relies on is in this file's hook bodies. */
+#include <math.h>                                  /* (emu_touch_feed: a lean in octaves) */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -135,6 +136,7 @@ void emu_fw_init(int demo)
         cho_mono = c && !strcmp(c, "mono");
     }
     cr_settings_boot();                           /* .. and the settings record (Felucca's fields + ChoralRoot's) */
+    crs_ahead_boot();                             /* .. and the spare copies erased ahead (cr_shim.c persist_boot) */
     {   /* the MASTER pot at power-on: EMU_MASTER=ADC (0..1023), else where a caller put it, else 724 (-> master_q12
          * 2047, felucca_init's default); main.c reads it before the audio starts (master_boot) */
         const char *m = getenv("EMU_MASTER");
@@ -152,12 +154,20 @@ void emu_fw_init(int demo)
         const char *c1 = getenv("EMU_C1");
         cr_c1_test_nostart = c1 && !strcmp(c1, "nostart");
         cr_c1_test_hang = c1 && !strcmp(c1, "hang");
+#if CR_C1_THREAD
+        cr_c1_test_thread = c1 && !strcmp(c1, "thread");   /* the job on a second thread (cr_cpu1.h; README.md) */
+#endif
+        {   /* a unit that does not keep up (emu_firmware.h emu_shed_model) */
+            const char *so = getenv("EMU_SHED_OVER"), *sa = getenv("EMU_SHED_AT");
+            emu_shed_over = so ? (uint32_t)atoi(so) : 0u;
+            if (sa && sscanf(sa, "%u:%u", &emu_shed_at0, &emu_shed_at1) != 2)
+                emu_shed_at0 = emu_shed_at1 = 0;
+        }
         cr_dbg.prof_on = getenv("EMU_STAGES") != NULL;
         if (cr_dbg.prof_on)
             cr_prof_calibrate();
         CR_STAGE(BS_CPU1);
-        if (!cr_safe)
-            cr_c1_boot();
+        cr_c1_power_on(cr_safe, (int)bootguard.counted);   /* (main.c) */
     }
     atexit(emu_fw_exit);
     usb.up = 1;                                   /* a host is there: MIDI out flows (usb.c midi_out_event) */
@@ -172,6 +182,83 @@ void emu_fw_init(int demo)
     emu_hal.led_play_green = LED_PLAY_GREEN;
     lcd_fill(0, 0, 240, 240, T_BG);
     emu_hal.ready = 1;
+}
+
+/* The key sensing as the FM-1 would read it (cr_sense.c, fed here instead of by the scan's hooks; after fm1-ctl's
+ * host/ctl_host.c): a key the script holds at a velocity lands at the driven reading the map gives that velocity
+ * (the map inverted over its table), reads 300 pulled up (seated), and, once its rest has settled (SN_P_SETTLE and
+ * a little), deeper by the lean the script gives it, so cu_touch_poll reads that pressure; a key with no velocity
+ * given lands at 100; a key let go reads 1023 until the sensing has seen it open. The samples alternate driven and
+ * pulled up as the key asks (dnext), as the scan does, so the velocity is known at the second pulled-up sample. */
+#define EMU_TOUCH_PULL 300u
+static uint16_t emu_touch_land[32];
+static uint32_t emu_touch_t0[32];
+static uint16_t emu_land_for(uint32_t vel)        /* the smallest driven reading the map at Velocity Curve 0 reads as vel
+                                                   * (or the nearest): the script's velocity is the press's strength on
+                                                   * Velo's scale, so another Curve reads the same press differently */
+{
+    uint32_t d, best = SN_FLOOR, bd = 255;
+    uint8_t curve = cr_touch_curve;
+    if (vel >= 127u)
+        return (uint16_t)(SN_FLOOR - 1u);
+    cr_touch_curve = 3;
+    for (d = SN_FLOOR; d <= SN_CEIL; d++) {
+        uint32_t v = sn_velocity(d), e = v > vel ? v - vel : vel - v;
+        if (e < bd) {
+            bd = e;
+            best = d;
+        }
+        if (v <= vel)
+            break;
+    }
+    cr_touch_curve = curve;
+    return (uint16_t)best;
+}
+#define EMU_PROBE_BASE 770u                        /* PA10 at rest (Velo: the LED conducting on the pull-up) */
+static uint32_t emu_probe_rise(uint32_t vel)      /* the probe's rise above its baseline that the curve reads as vel */
+{
+    uint32_t r;
+    for (r = 0; r < SN_P_HI; r++)
+        if (sn_probe_velocity(r) >= vel)
+            return r;
+    return SN_P_HI;
+}
+static void emu_touch_feed(uint32_t ms, uint32_t held)
+{
+    uint32_t k;
+    for (k = SN_TOP0; k < SN_TOP0 + SN_NTOP; k++)  /* the top row through the probe: every 4 ms (the unit: 3.3) */
+        if ((ms & 3u) == 0u) {
+            uint32_t down = (held >> k) & 1u, vel = emu_hal.key_vel[k] ? emu_hal.key_vel[k] : 100u;
+            cr_sense_probe(k, down ? EMU_PROBE_BASE + emu_probe_rise(vel) : EMU_PROBE_BASE, down);
+        }
+    for (k = 0; k < 20u; k++) {                    /* the keys on the analog rows */
+        volatile sn_key_t *s = &sn_key[k];
+        if (!((held >> k) & 1u)) {
+            emu_touch_t0[k] = 0;
+            if (s->st != SN_OPEN) {
+                if (s->dnext)
+                    cr_sense_sample(k, 1023u, 1);
+                cr_sense_sample(k, 1023u, 0);
+            }
+            continue;
+        }
+        if (s->st == SN_OPEN)
+            emu_touch_land[k] = emu_land_for(emu_hal.key_vel[k] ? emu_hal.key_vel[k] : 100u);
+        if (s->dnext) {
+            uint32_t d = emu_touch_land[k];
+            if (s->st == SN_DOWN && !emu_touch_t0[k])
+                emu_touch_t0[k] = ms;
+            if (emu_touch_t0[k] && ms - emu_touch_t0[k] > SN_P_SETTLE + 20u && emu_hal.key_lean[k]) {
+                double span = (double)SN_P_SPAN[cr_touch_atsens > 2u ? 0u : cr_touch_atsens];
+                double lean = ((double)SN_P_DEAD + (double)emu_hal.key_lean[k] * span / 100.0) / 256.0;   /* octaves */
+                double r = (double)(d > SN_DBASE ? d - SN_DBASE : 1u) / pow(2.0, lean);
+                d = SN_DBASE + (uint32_t)(r > 2.0 ? r + 0.5 : 2.0);
+            }
+            cr_sense_sample(k, d, 1);
+        } else {
+            cr_sense_sample(k, EMU_TOUCH_PULL, 0);
+        }
+    }
 }
 
 /* the 1 ms timer: what fm1_timer5_irq / fm1_input_tick give the main loop */
@@ -216,6 +303,8 @@ void emu_fw_tick(uint32_t ms)
         __atomic_fetch_or(&host_notes, down, __ATOMIC_SEQ_CST);
     fm1_in.buttons = in_btn;
     fm1_in.notes = in_key;
+    if ((ms & 1u) == 0u)                          /* the analog rows' samples, every 2 ms (the unit: 2.2) */
+        emu_touch_feed(ms, in_key);
     for (i = 0; i < EMU_NENC; i++) {
         int32_t s = __atomic_exchange_n(&emu_hal.enc[i], 0, __ATOMIC_SEQ_CST);
         if (s && !dead)
@@ -233,7 +322,7 @@ static uint32_t real_us(void)
 
 void emu_fw_frame(void)                           /* main.c's loop body (choralroot.c: the same calls) */
 {
-    uint32_t t0, d;
+    uint32_t t0, d, ft0 = fm1_ticks();             /* (audio.c ui_ft: the frame's own time, as main.c) */
     fm1_irq_off();
     t0 = real_us();
     master_poll();                                /* main.c: the MASTER pot (ADC) through its IIR */
@@ -244,6 +333,7 @@ void emu_fw_frame(void)                           /* main.c's loop body (choralr
     if (d > emu_hal.ui_lock_max_us)
         emu_hal.ui_lock_max_us = d;
     cr_ui_draw();
+    ui_ft_add(ft0);
     if (!usb.sx_on && usb.sx_len >= 6u && usb.sysex[usb.sx_len - 1u] == 0xF7u && usb.sysex[1] == 0x7Du) {
         crb_handle(usb.sysex + 1, usb.sx_len - 2u);   /* our SysEx (7D 46 4C), as main.c's ed_service: the handler
                                                        * (scripts' "sysex"); the reply has no transport here */
@@ -365,14 +455,14 @@ void emu_fw_dump(void)
            (unsigned)cs.key_on, (unsigned)cs.tonic, (unsigned)cs.scale, (unsigned)cr.perform_on,
            (unsigned)cr.perform_mode, (unsigned)cr.bass_on, (unsigned)cs.bass_sound, (int)cr.voicing, (int)cu.octave,
            (unsigned)cs.bpm, (unsigned)cs.view, (unsigned)cu_layer(), (unsigned)cu.opt_open, (unsigned)cs.key_play);
-    printf("  kbd: plays %s keyboard %s single %u split-note %u page %u (engine: notes %u full %u single %u)\n",
+    printf("  kbd: plays %s keyboard %s single %u split-note %u page %u (engine: notes %u full %u single %u snap %u)\n",
            cs.key_notes ? "notes" : "chords", cs.kbd_full ? "full" : "chords", (unsigned)cs.single,
            (unsigned)cr.split_note, (unsigned)cu.kpage + 1u, (unsigned)cr.key_notes, (unsigned)cr.full,
-           (unsigned)cr.single);
+           (unsigned)cr.single, (unsigned)cr.snap);
     {                                               /* the KEY layer's Numerals and what the Chord view shows for it now */
         char rn[CR_NUMERAL_MAX];
         cu_numeral(rn);
-        printf("  numerals: %s shown \"%s\"\n", cs.numerals ? "on" : "off", rn);
+        printf("  numerals: %s shown \"%s\"\n", CU_NUMS_TR[cs.numerals % 3u], rn);
     }
     printf("  lock: on %u latched %02X type-key %s ext-keys %s\n", (unsigned)cu.clock, (unsigned)cu.mlatch,
            cs.lock_keep ? "keeps" : "clears", cs.lock_push ? "pushed" : "toggle");   /* (latched: bit cr_mod_t) */
@@ -413,16 +503,18 @@ void emu_fw_dump(void)
          * (quarters; 0: whole steps); the pass of the loop (mod 12); the steps that have a property; the loop voices
          * in use (sounding or a ratchet between two hits) */
         {
-            unsigned q, np = 0, nv = 0;
+            unsigned q, np = 0, nv = 0, npre = 0;
             for (q = 0; q < CRL_STEPS; q++)
                 np += crl.d.st[q][0] || crl.d.st[q][1];
             for (q = 0; q < (unsigned)CR_MAX_LOOPV; q++)
                 nv += crl.pv[q].used != 0;
-            printf("  loop3: epage %u cursor %u ratchet %d cond %d voicing %d chance %d frac %u pass %u props %u loopv %u\n",
+            for (q = 0; q < (unsigned)CR_MAX_LOOPV; q++)   /* the step preview's voices (0.22, issue 8) */
+                npre += (crl.pre >> q) & 1u;
+            printf("  loop3: epage %u cursor %u ratchet %d cond %d voicing %d chance %d frac %u pass %u props %u loopv %u pre %u\n",
                    (unsigned)cu.le_page + 1u, (unsigned)(crl.ed_t0 / CRL_STEP) + 1u,
                    crl.ed ? cr_loop_ed_prop(&crl, CRL_SP_RATCH) : -1, crl.ed ? cr_loop_ed_prop(&crl, CRL_SP_COND) : -1,
                    crl.ed ? cr_loop_ed_prop(&crl, CRL_SP_VOIC) : -1, crl.ed ? cr_loop_ed_prop(&crl, CRL_SP_CHANCE) : -1,
-                   (unsigned)(crl.ed ? cr_loop_ed_nfrac(&crl) : 0u), (unsigned)crl.pass12, np, nv);
+                   (unsigned)(crl.ed ? cr_loop_ed_nfrac(&crl) : 0u), (unsigned)crl.pass12, np, nv, npre);
         }
         /* 0.18: the loop editor's cursor step: its events as root/qx (in the array's order: the last one names it);
          * the chord the loop struck last since it started (the editor's playing name; -: none) */
@@ -485,6 +577,24 @@ void emu_fw_dump(void)
                        : "low: the backlight, the key matrix and the LEDs alive", (unsigned)emu_pa2_ms);
     printf("  flash: %s, %u writes, settings saves %u (record: %s)\n", emu_flash_path[0] ? emu_flash_path : "RAM only",
            (unsigned)emu_flash_writes, (unsigned)crs_saves, crs_last_rc == 1 ? "current" : crs_last_rc == 2 ? "migrated" : "defaults");
+    {   /* the favourites (cr_favs.c): the marks in all, the flash writes, one still to be written, what power-on found,
+         * ", filter on" while the favourites filter is, then every mark as tag:id (tag: the engine's index, 128 the user
+         * slots; P5's id: the Sequential number), "c" / "b" after a mark typed Chord / Bass */
+        unsigned k, i, off = 0;
+        printf("  favs: %u marked, saves %u, pending %u (at power-on: %s)%s :", (unsigned)crf_count(), (unsigned)crf_saves,
+               (unsigned)crf_dirty, crf_last_rc == 1 ? "read" : crf_last_rc < 0 ? "not understood" : "none",
+               crf_filter ? ", filter on" : "");
+        for (k = 0; k < CRF_NSEC; off += CRF_SEC[k].bytes, k++)
+            for (i = 0; i < CRF_SEC[k].bytes * 8u; i++)
+                if ((crf_bits[off + i / 8u] >> (i % 8u)) & 1u)
+                    printf(" %u:%u%s", (unsigned)CRF_SEC[k].tag, i,
+                           crf_type(CRF_SEC[k].tag, i) == CRF_CHORD ? "c" : crf_type(CRF_SEC[k].tag, i) == CRF_BASS ? "b" : "");
+        for (k = 0; k < CRF_NSEC; k++)             /* (.. then "~tag:id" + "c" / "b": a sound typed and not marked) */
+            for (i = 0; i < CRF_SEC[k].bytes * 8u; i++)
+                if (!crf_has(CRF_SEC[k].tag, i) && crf_type(CRF_SEC[k].tag, i) != CRF_BOTH)
+                    printf(" ~%u:%u%s", (unsigned)CRF_SEC[k].tag, i, crf_type(CRF_SEC[k].tag, i) == CRF_CHORD ? "c" : "b");
+        printf("\n");
+    }
     {   /* the session (cr_settings.c css_*, docs/SETTINGS.md): its saves, what power-on found, the state as it would be
          * saved now and as flash holds it (cr_session_hash; "pending 1": they differ, a global save would write it),
          * and the state itself: the FX layer, each part's sound */
@@ -497,9 +607,8 @@ void emu_fw_dump(void)
                "latched %02X\n", (unsigned)css_saves, css_last_rc == 1 ? "current" : css_last_rc == 2 ? "migrated" :
                css_last_rc < 0 ? "not these settings'" : "none", (unsigned)cr_session_hash(&x), (unsigned)css_flash,
                (unsigned)(cr_session_hash(&x) != css_flash), (int)x.voicing, (int)x.octave, (unsigned)x.bass_on, (unsigned)x.lock, (unsigned)x.latched);
-        printf("  session fx: on %u sel %u (%s %u/%u) amt", (unsigned)cs.fx_on, (unsigned)cs.fx_sel,
-               cs.fx_page == CU_FXPG_SENDS ? "Sends" : CU_FX[cs.fx_sel % CU_NFX].name,
-               cs.fx_page == CU_FXPG_SENDS ? 1u : (unsigned)cs.fx_page + 1u, (unsigned)CU_FXP[cu_fx_pg()].of);
+        printf("  session fx: on %u sel %u (%s %u/%u) amt", (unsigned)cs.fx_on, (unsigned)cs.fx_sel, cu_fx_pgname(),
+               cs.fx_page >= CU_FXPG_SENDS ? 1u : (unsigned)cs.fx_page + 1u, (unsigned)CU_FXP[cu_fx_pg()].of);
         for (k = 0; k < CU_NFX; k++)
             printf(" %u", (unsigned)cs.fx_amt[k]);
         printf(" sends");
@@ -556,8 +665,21 @@ void emu_fw_dump(void)
     }
     printf("  voices: given up %u (budget fades + overload sheds %u), own voices taken for a new note %u\n",
            (unsigned)voice_kills, (unsigned)shed_count, (unsigned)voice_steals);
+    if (emu_shed_over || emu_shed_at1)            /* (the overload model alone: no line in any other run) */
+        printf("  shed: halves over 85 %% %u, last voice %05X why %u at %u us (audio.c shed_check; the model: "
+               "EMU_SHED_OVER %u, EMU_SHED_AT %u:%u)\n", (unsigned)cr_dbg.shed_over_n, (unsigned)cr_dbg.shed_last,
+               (unsigned)cr_dbg.shed_why, (unsigned)cr_dbg.shed_us, (unsigned)emu_shed_over, (unsigned)emu_shed_at0, (unsigned)emu_shed_at1);
     printf("  flash erases with the audio stalled %u (%u blocks of silence, %u ms each erase)\n", (unsigned)emu_stalls,
            (unsigned)emu_stall_blocks_all, (unsigned)EMU_ERASE_MS);
+    /* the quiet writes (cr_settings.c, storage.c "erase ahead"): every erase (at power-on too: no audio to stall),
+     * those done ahead, those the unit started by itself near playing (the rule: 0), its own saves, the interrupts'
+     * masked time by the model (EMU_ERASE_MS an erase, EMU_PROG_US a page), each spare copy's state, and when the
+     * last erase started against the last input (ms since power-on) */
+    printf("  quiet writes: erases %u (ahead %u, at power-on %u), near %u, auto saves %u, masked %u ms, ready %u%u%u, "
+           "last erase at %u ms (input at %u, now %u)\n", (unsigned)st_erases, (unsigned)crq.ahead,
+           (unsigned)crq.ahead_boot, (unsigned)st_near, (unsigned)crq.auto_saves, (unsigned)(emu_masked_us / 1000u),
+           (unsigned)st_ready(OBJ_SETTINGS), (unsigned)st_ready(OBJ_SESSION), (unsigned)st_ready(OBJ_FAVS),
+           (unsigned)emu_erase_ms, (unsigned)cu.last_input, (unsigned)fm1_ms);
     fm1_irq_on();
     {   /* the settings as they would be saved now (crs_capture: its own IRQ lock) and as they are in the record last
          * written; the panel calibration table and HOLD (Felucca's fields of the same flash object) */
@@ -662,7 +784,8 @@ void emu_fw_stages(char *buf, uint32_t n)
                                 (double)cr_dbg.tot_sum[k] / cr_dbg.tot_n / CR_PROF_PER_US,
                                 (double)cr_dbg.tot_max[k] / CR_PROF_PER_US);
     if (o < n)
-        o += (uint32_t)snprintf(buf + o, n - o, "; c1 %s, jobs %u", cr_c1_name(), (unsigned)cr_dbg.c1_jobs);
+        o += (uint32_t)snprintf(buf + o, n - o, "; c1 %s, jobs %u, reverb jobs %u", cr_c1_name(), (unsigned)cr_dbg.c1_jobs,
+                                (unsigned)cr_dbg.c1x_jobs);   /* (3y50: the reverb on core 1, fx.c mix_fx_split) */
     /* the fx stage's parts, over the halves in which the effects ran (the unit's 73 DEBUG has the same four) */
     if (o < n && cr_dbg.x_tot_busy) {
         o += (uint32_t)snprintf(buf + o, n - o, "\ncpu: fx parts (device us per half, avg / max over %u halves with the "

@@ -11,8 +11,9 @@
  * group's button opens it (at its remembered screen and lane), tapped again it cycles the group's screens; held it
  * does nothing (reserved). SELECT moves the LANE (the four parameters on KNOB 1..4: a row, an oscillator, a slot)
  * and runs on across the screens (past the last lane: the next screen's first, wrapping), so SELECT alone reaches
- * everything. GLO = SHIFT: a tap latches it (fine steps, its LED lit, "fine" in the title line), held it is
- * momentary. KNOB 1..4 edit the active lane's cells (a detent 5 % of the range, enums one by one; SHIFT: one step).
+ * everything. GLO = SHIFT (OPT): a tap latches it (snap, its LED lit, "snap" in the title line), held it is
+ * momentary. KNOB 1..4 edit the active lane's cells (accelerated: cr_pages.c kn_lin; enums and named choices one by one;
+ * SHIFT: the value snaps, kn_snap).
  * The editor remembers its group per part, every group its screen and lane (RAM).
  *
  * The screens are built from the engine's deep pages (core.h eng_deep_t: its sections OSC FILTER ENV LFO MOD, pages
@@ -32,6 +33,14 @@
  * instead: each screen one or two pages under a band (ENG_B_*), its title, each cell's label and style (ENG_C_*: big
  * numbers, the ratio fraction, harm / detune glyphs, a wave + phase span cell); an engine without a MOD section (QUAD)
  * has the platform's MOD routes. VA, FM6 and CZ-1 have no plan: their screens are as before.
+ * An engine with a compiled CLASSIC layout (build/gen/cr_layouts.h CR_LAYC, docs/LAYOUT-TOOL.md "Step 4": P5's rows)
+ * has the layout's pages and screen plan as its own: cr_pages.c cp_deep serves them, each column going through to its
+ * built-in (page, column), so the screens are the plan's as above (MOD: the plan's, then EXPR). An engine with a
+ * compiled FREE layout (cr_layout.c; only in a build that has one, CR_LAY_FREE: the layout tool's preview) shows its
+ * layout's free screens in OSC .. MOD instead (CE_S_FREE, drawn as CR_K_FREE): each a lane per SELECT stop, KNOB 1..4
+ * the elements bound in it (an empty slot: nothing), the parameters the engine's own by their built-in (page, column),
+ * so the knobs, SHIFT, the hot mark, cu_edited and the blob are the edit8 screens'. MOD's last screen is still EXPR
+ * (after the layout's MOD screens); FX and MIX stay the platform's.
  *
  * No motion (the user's feedback, 2026-10-06: responsiveness first; Options > Motion does not apply here): a screen,
  * a lane, a value and the wide band are drawn as they are, in the frame after the detent; only the hot cell (the one
@@ -51,7 +60,8 @@ static const uint8_t CE_SEC_BTN[CE_NSEC] = {B_FX, B_SCL, B_ENV, B_LFO, B_SEQ, B_
 /* a cell's parameter: a deep page's column, a track parameter, a fixed text, a dash (an empty column) */
 enum { CE_R_NONE, CE_R_DEEP, CE_R_TRK, CE_R_TXT, CE_R_DASH };
 typedef struct { uint8_t k, a, b; } ce_ref_t;             /* DEEP: page a, column b; TRK: id a; TXT: CE_TXT[a] */
-static const char *const CE_TXT[] = {"ENV", "LFO", "FILT", "PITCH", "SHAPE", "AMP"};
+static const char *const CE_TXT[] = {"ENV", "LFO", "FILT", "PITCH", "SHAPE", "AMP", "VEL", "AT", "CUT", "auto"};
+enum { CE_T_AMP = 5, CE_T_VEL, CE_T_AT, CE_T_CUT, CE_T_AUTO };
 static const uint8_t CE_PMOD[4][2] = {{0, 2}, {0, 3}, {0, 4}, {1, 5}};   /* the platform MOD's sources, dests */
 
 /* a screen of a group: what its lanes are */
@@ -60,8 +70,13 @@ enum { CE_S_PLAT,                         /* the platform's pages (an engine wit
        CE_S_TRANS,                        /* a stack: lane i = column i of the one page pg[0] ("LFO SYN") */
        CE_S_MIXER,                        /* one lane: the LEVEL column of the pages pg[0..n) */
        CE_S_EDIT,                         /* edit8: lane i = deep page pg[i] (n <= 2) */
-       CE_S_PAGE };                       /* edit8: one lane, the page pg[0] (a page of no instance: "VOICE") */
-typedef struct { uint8_t type, n, pg[CR_ED_ROWS], hs; } ce_scr_t;   /* hs: the plan's screen + 1 (eng_deep_t.screens) */
+       CE_S_PAGE,                         /* edit8: one lane, the page pg[0] (a page of no instance: "VOICE") */
+       CE_S_EXPR,                         /* the MOD group's last screen on every engine: Expression, two lanes (the
+                                           * sound's velocity and aftertouch routings: mod.c slots 3 and 4; after a
+                                           * compiled layout's MOD screens too) */
+       CE_S_FREE };                       /* a compiled layout's screen (li, ls): lane i = its lane i's elements */
+typedef struct { uint8_t type, n, pg[CR_ED_ROWS], hs, li, ls; } ce_scr_t;   /* hs: the plan's screen + 1
+                                          * (eng_deep_t.screens); li, ls: the layout and its screen (cr_layout.c) + 1 */
 
 typedef struct {
     uint8_t kind, n, active, wide, tall;  /* CR_K_EDIT8 / STACK, rows, the row on the knobs, CR_W_*, the mixer */
@@ -70,11 +85,13 @@ typedef struct {
     char right[16];                       /* the title line's right text */
     uint8_t dp0, np, row0;                /* the band's pages (env: dp0 .. + np; filter: dp0); the first row's number */
     uint8_t hs;                           /* a screen of the engine's plan: its index + 1 (0: the title rules) */
+    uint8_t li, ls;                       /* a free screen: the layout and its screen + 1 (cr_screen_t fl_eng, fl_scr) */
+    uint8_t expr;                         /* the EXPR screen (ce_knob: an unset slot takes its default when turned) */
 } ce_view_t;
 
 static struct {
     uint8_t grp[2], scr[2][CE_NSEC], lane[2][CE_NSEC];   /* per part: the group; per group its screen and lane */
-    uint8_t shift;                        /* SHIFT latched (fine steps) */
+    uint8_t shift;                        /* SHIFT latched (snap: OPT held or latched) */
     uint8_t hot_r, hot_c;                 /* the cell last turned (row + 1, 0 none), its column */
     uint8_t hot_slot, hot_src;            /* .. by a quick mapping: its matrix page + 1 (0: an edit), the source */
     uint32_t hot_t0;
@@ -99,6 +116,10 @@ static const eng_deep_t *ce_deep(const track_t *t)
     }
     return d;
 }
+#if CR_LAY_FREE
+/* the engine's compiled free layout (cr_layout.c): its index + 1, 0 none (an engine without deep pages has none) */
+static uint32_t ce_lay(const track_t *t) { return ce_deep(t) ? cr_lay_find(eng_idx(t->eng_req)) : 0u; }
+#endif
 /* the engine's MOD group is its own pages (else the platform's routes) */
 static int ce_has_mod(const eng_deep_t *d) { return d && d->section[4] != 0xFFu; }
 /* the plan's screen of a view / a scan, 0 none */
@@ -215,10 +236,33 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
     uint32_t a, b, p, q, e, n = 0;
     o->type = CE_S_PLAT;
     o->n = 0;
-    o->hs = 0;
-    if (!d || g > CE_MOD || (g == CE_MOD && !ce_has_mod(d)))
+    o->hs = o->li = o->ls = 0;
+#if CR_LAY_FREE
+    if (d && g <= CE_MOD && (a = ce_lay(t)) != 0 && (n = cr_lay_group(a, g, k, &p)) != 0) {   /* a free layout's group */
+        if (p) {
+            o->type = CE_S_FREE;
+            o->n = cr_lay_scr(a, p)->nlanes;
+            o->li = (uint8_t)a;
+            o->ls = (uint8_t)p;
+        } else if (g == CE_MOD && k == n) {      /* (MOD: the layout's screens, then Expression) */
+            o->type = CE_S_EXPR;
+            o->n = 2;
+        }
+        return g == CE_MOD ? n + 1u : n;
+    }
+#endif
+    if (!d || g > CE_MOD || (g == CE_MOD && !ce_has_mod(d))) {
+        if (g == CE_MOD) {                        /* the platform's routes, then Expression */
+            if (k == 1u) {
+                o->type = CE_S_EXPR;
+                o->n = 2;
+            }
+            return 2;
+        }
         return 1;
-    if (d->screens) {                             /* the engine's screen plan for this group (QUAD's) */
+    }
+    if (d->screens) {                             /* the engine's screen plan for this group (QUAD's; a compiled
+                                                   * classic layout's, cr_pages.c cp_deep: P5's rows) */
         for (p = 0; p < d->nscreens; p++)
             if (d->screens[p].sec == g) {
                 const eng_screen_t *h = &d->screens[p];
@@ -231,6 +275,13 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
                 }
                 n++;
             }
+        if (n && g == CE_MOD) {                   /* (MOD: the plan's screens, then Expression, as every engine) */
+            if (n == k) {
+                o->type = CE_S_EXPR;
+                o->n = 2;
+            }
+            return n + 1u;
+        }
         if (n)
             return n;
     }
@@ -280,14 +331,18 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
         }
         return n ? n : 1u;
     }
-    if (g == CE_MOD && ce_is_matrix(d, a)) {      /* the matrix: eight slots a screen */
+    if (g == CE_MOD && ce_is_matrix(d, a)) {      /* the matrix: eight slots a screen; then Expression */
         for (p = a; p < b; p += CR_ED_ROWS, n++)
             if (n == k) {
                 o->type = CE_S_STACK;
                 for (q = p; q < b && q < p + CR_ED_ROWS; q++)
                     o->pg[o->n++] = (uint8_t)q;
             }
-        return n ? n : 1u;
+        if (n == k) {
+            o->type = CE_S_EXPR;
+            o->n = 2;
+        }
+        return n + 1u;
     }
     for (p = a; p < b; p = e) {                   /* FILT, ENV (and MOD's plain pages): the pages of one instance
                                                    * and name, two lanes a screen (CZ-1: "PITCH 1" and "DCW 1" apart) */
@@ -300,6 +355,13 @@ static uint32_t ce_scr(const track_t *t, uint32_t g, uint32_t k, ce_scr_t *o)
                 o->pg[1] = (uint8_t)(q + 1u);
                 o->n = (uint8_t)(e - q >= 2u ? 2u : 1u);
             }
+    }
+    if (g == CE_MOD) {                            /* MOD's plain pages (FM6's FUNC, CZ-1's), then Expression */
+        if (n == k) {
+            o->type = CE_S_EXPR;
+            o->n = 2;
+        }
+        return n + 1u;
     }
     return n ? n : 1u;
 }
@@ -441,6 +503,23 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         if (k > 1u)
             v->right[str_len(v->right) - 1u] = (char)('A' + k);
         break;
+#if CR_LAY_FREE
+    case CE_S_FREE: {                             /* a compiled layout's screen: lane i's slots, its title */
+        const cr_lay_screen_t *ls = cr_lay_scr(sc.li, sc.ls);
+        v->kind = CR_K_FREE;
+        v->n = sc.n;
+        v->li = sc.li;
+        v->ls = sc.ls;
+        for (i = 0; i < sc.n && i < CR_ED_ROWS; i++)
+            for (c = 0; c < 4u; c++) {
+                const cr_lay_elem_t *e = cr_lay_el(sc.li, ls, cr_lay_slot(ls, i, c));
+                v->ref[i][c] = !e || e->page == CR_LAY_NONE ? ce_r(CE_R_NONE, 0, 0)
+                             : e->page == CR_LAY_PART ? ce_r(CE_R_TRK, e->col, 0) : ce_r(CE_R_DEEP, e->page, e->col);
+            }
+        cu_cpy(v->right, cr_lay_str(ls->title), sizeof v->right);
+        break;
+    }
+#endif
     case CE_S_TRANS:                              /* "LFO SYN": lane i = its column i */
         v->kind = CR_K_STACK;
         v->n = sc.n;
@@ -466,6 +545,27 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
         for (c = 0; c < 4u; c++)
             v->ref[0][c] = d->pages[sc.pg[0]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[0], c) : ce_r(CE_R_NONE, 0, 0);
         cu_cpy(v->right, d->pages[sc.pg[0]].title, sizeof v->right);
+        break;
+    case CE_S_EXPR:                               /* Expression: VEL and AT to a destination by an amount (mod.c slots
+                                                   * 3 and 4; an unset slot shows its default: "AMP auto" / "CUT auto") */
+        v->kind = CR_K_STACK;
+        v->n = 2;
+        v->expr = 1;
+        for (c = 0; c < 4u; c++)
+            cu_cpy(v->head[c], H_MOD[c], sizeof v->head[c]);
+        for (i = 0; i < 2u; i++) {
+            uint32_t src = i ? P_MAT_SRC : P_MVEL_SRC;
+            v->ref[i][0] = ce_r(CE_R_TXT, i ? CE_T_AT : CE_T_VEL, 0);
+            if (t->p[src]) {
+                v->ref[i][1] = ce_r(CE_R_TRK, src + 1u, 0);
+                v->ref[i][2] = ce_r(CE_R_TRK, src + 2u, 0);
+            } else {
+                v->ref[i][1] = ce_r(CE_R_TXT, i ? CE_T_CUT : CE_T_AMP, 0);
+                v->ref[i][2] = ce_r(CE_R_TXT, CE_T_AUTO, 0);
+            }
+        }
+        cu_cpy(v->right, "EXPR \267 ", sizeof v->right);
+        cu_cat(v->right, ln ? "AT" : "VEL", sizeof v->right);
         break;
     case CE_S_EDIT:                               /* FILT / ENV n: the instance's pages under the wide band */
         v->n = sc.n;
@@ -609,31 +709,6 @@ static const param_desc_t *ce_param(const track_t *t, ce_ref_t r, int32_t *v)
     return 0;
 }
 
-#ifdef ENGI_VA
-/* an LFO page's RATE reads as a division: its LFO's SYNC on (a "SYNCn" column in the LFO section, or a "SYNC" column
- * on a page of the same LFO) */
-static int ce_synced(const track_t *t, uint32_t pg)
-{
-    const eng_deep_t *d = ce_deep(t);
-    uint32_t a, b, p, n;
-    int32_t k;
-    char l[6] = "SYNC0";
-    if (!d || pg >= d->npages)
-        return 0;
-    ce_range(d, CE_LFO, &a, &b);
-    if (pg < a || pg >= b || !(n = ce_inst(d->pages[pg].title)))
-        return 0;
-    l[4] = (char)('0' + n);
-    for (p = a; p < b; p++) {
-        if ((k = cp_dcol(&d->pages[p], l)) >= 0)
-            return d->get(t, p, (uint32_t)k) != 0;
-        if (ce_inst(d->pages[p].title) == n && (k = cp_dcol(&d->pages[p], "SYNC")) >= 0)
-            return d->get(t, p, (uint32_t)k) != 0;
-    }
-    return 0;
-}
-#endif
-
 /* the value text as the mock-ups write it: "683 ms", "643 Hz", "+7", "-12", "on" (Felucca's numbers and names) */
 static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t v, char *out, uint32_t n)
 {
@@ -644,16 +719,16 @@ static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t
         cu_send_text(v, out, n);
         return;
     }
-    param_format(d, v, val, &unit);
-#ifdef ENGI_VA
-    if (r.k == CE_R_DEEP && t->eng_req == ENGI_VA && cp_eq(d->label, "RATE") && ce_synced(t, r.a)) {
-        cu_cpy(out, N_VA_DIV[(uint32_t)clamp(v, 0, 127) * VA_NDIV / 128u], n);   /* a synced LFO: a division */
+    if (r.k == CE_R_TRK && (r.a == P_MVEL_SRC + 2u || r.a == P_MAT_SRC + 2u)) {   /* the EXPR amounts: the number
+                                                                 * (-64 .. +63), a detent reads as one (the owner,
+                                                                 * 2026-10-15: the percentage moved by one or two) */
+        cu_int(out, v, 1, n);
         return;
     }
-#else
-    (void)t;
+    param_format(d, v, val, &unit);
+    (void)t;                                                    /* (a synced VA LFO's RATE: its descriptor is the
+                                                                 * division list, eng_va.c va_desc) */
     (void)r;
-#endif
     if (d->fmt == F_SEMI || d->fmt == F_DB || (d->fmt == F_INT && d->unit && cu_eq(d->unit, "ct")))
         unit = "";                                              /* (coarse / fine / transpose / level: the number) */
     if (val[0] == '.') {                                        /* ".69" -> "0.69" */
@@ -680,9 +755,20 @@ static void ce_text(const track_t *t, ce_ref_t r, const param_desc_t *d, int32_t
 }
 
 /* a parameter's long label: cr_pages.c's tables, else its short one capitalised ("SYNC1" -> "Sync1") */
+#ifdef CR_LAYOUT_PREVIEW
+/* (the layout tool's preview only, docs/LAYOUT-TOOL.md: a design's own label for deep page p's column c, 1 = given) */
+static int (*ce_label_hook)(const track_t *t, uint32_t p, uint32_t c, char *out, uint32_t n);
+/* (.. and a design's own cell style for deep page p's column c (ENG_C_*, 0 = the editor's rule): its p5 styles on an
+ * edit8 screen, in place or in a plan (a plan's cell[][] has them too) */
+static uint32_t (*ce_style_hook)(const track_t *t, uint32_t p, uint32_t c);
+#endif
 static void ce_label(const track_t *t, ce_ref_t r, const param_desc_t *d, char *out, uint32_t n)
 {
     uint32_t i;
+#ifdef CR_LAYOUT_PREVIEW
+    if (ce_label_hook && r.k == CE_R_DEEP && ce_label_hook(t, r.a, r.b & 3u, out, n))
+        return;
+#endif
     if (r.k == CE_R_TRK)
         for (i = 0; i < NELEM(CP_LABEL); i++)
             if (CP_LABEL[i].id == r.a) {
@@ -999,18 +1085,31 @@ static uint32_t ce_src_col(const char *n)
 {
     return cp_has(n, "ENV") ? CR_COL_YELLOW : cp_has(n, "LFO") ? CR_COL_RED : CR_COL_BLUE;
 }
-/* "ENV2 -> CUT +12 slot 1" (the trace, the hot cell's "ENV2 +12") */
-static void ce_amt_text(char *o, const char *src, int32_t v, uint32_t n)
+/* "ENV2 -> CUT +12 slot 1" (the trace, the hot cell's "ENV2 +12"); an amount column in hundredths (F_FIX2: the VA's
+ * AMT, tenths below 6) without its zeros: "LFO1 +0.3", "LFO1 +12" */
+static void ce_amt_text(char *o, const char *src, const param_desc_t *c, int32_t v, uint32_t n)
 {
     char b[8];
+    uint32_t u = (uint32_t)(v < 0 ? -v : v);
     cu_cpy(o, src, n);
     cu_cat(o, " ", n);
-    cu_int(b, v, 1, sizeof b);
+    if (c->fmt != F_FIX2 || !(u % 100u)) {
+        cu_int(b, c->fmt == F_FIX2 ? v / 100 : v, 1, sizeof b);
+        cu_cat(o, b, n);
+        return;
+    }
+    cu_cat(o, v < 0 ? "-" : "+", n);
+    cu_int(b, (int32_t)(u / 100u), 0, sizeof b);
+    cu_cat(o, b, n);
+    b[0] = '.';
+    b[1] = (char)('0' + u / 10u % 10u);
+    b[2] = (char)(u % 10u ? '0' + u % 10u : 0);
+    b[3] = 0;
     cu_cat(o, b, n);
 }
 
 /* ENV (env 1) or LFO (env 0) held + KNOB k turned s: the last ENV n / LFO n shown modulates the parameter under k */
-static void ce_map(uint32_t knob, int32_t s, uint32_t fine, uint32_t env)
+static void ce_map(uint32_t knob, int32_t s, uint32_t snap, uint32_t env)
 {
     track_t *t = ce_trk();
     const eng_deep_t *d = ce_deep(t);
@@ -1059,7 +1158,7 @@ static void ce_map(uint32_t knob, int32_t s, uint32_t fine, uint32_t env)
         d->set(t, use.pg, (uint32_t)use.cd, dst);
     }
     amt0 = d->get(t, use.pg, (uint32_t)use.ca);
-    amt = cp_dstep(&d->pages[use.pg].col[(uint32_t)use.ca], amt0, s, fine || cx.shift);
+    amt = cp_dstep(&d->pages[use.pg].col[(uint32_t)use.ca], amt0, s, snap || cx.shift);
     if (amt != amt0)
         d->set(t, use.pg, (uint32_t)use.ca, amt);
     amt = d->get(t, use.pg, (uint32_t)use.ca);
@@ -1069,7 +1168,7 @@ static void ce_map(uint32_t knob, int32_t s, uint32_t fine, uint32_t env)
     cx.hot_t0 = cu_now();
     cx.hot_slot = (uint8_t)(use.pg + 1u);
     cx.hot_src = (uint8_t)src;
-    ce_amt_text(tx, nm, amt, sizeof tx);
+    ce_amt_text(tx, nm, &d->pages[use.pg].col[(uint32_t)use.ca], amt, sizeof tx);
     cu_trace("mod: %s -> %s %s slot %u\n", nm, ce_name_of(d, use.pg, (uint32_t)use.cd, dst), tx + str_len(nm) + 1u,
              (unsigned)(use.pg - a + 1u));
     (void)tx;
@@ -1121,7 +1220,7 @@ static uint32_t ce_kmod(void)
 /* a ratio pair (QUAD's RATIO B): an F_INT column of k names over k x k values, v - min = slow x k + fast: the fast
  * hand names[v % k] (the numerator, on top: QUAD's B2), the slow hand names[v / k] (below: B1); k (0: not a pair).
  * The editor needs no engine hook: one detent steps the fast hand (carrying into the slow one on the wrap), SHIFT
- * steps the slow hand (ce_knob: "fine \267 B1"), the cell is a fraction of both (ce_cell_plan) */
+ * steps the slow hand (ce_knob: "snap \267 B1"), the cell is a fraction of both (ce_cell_plan) */
 static uint32_t ce_pair(const param_desc_t *d)
 {
     uint32_t k = 0;
@@ -1171,8 +1270,8 @@ static void ce_trace_value(const param_desc_t *d, int32_t v, char *b, uint32_t n
     cp_value(d, v, b, n);
 }
 
-/* KNOB 1..4 on the active lane's cell (fine: SHIFT latched or held, one step) */
-static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
+/* KNOB 1..4 on the active lane's cell (snap: SHIFT latched or held: cr_pages.c kn_snap; else at the knob's speed) */
+static void ce_knob(uint32_t knob, int32_t s, uint32_t snap)
 {
     track_t *t = ce_trk();
     ce_view_t vw;
@@ -1187,18 +1286,28 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
         return;
     }
     if (m) {                                       /* ENV / LFO held: map */
-        ce_map(knob, s, fine, m == 1u);
+        ce_map(knob, s, snap, m == 1u);
         return;
     }
     ce_view(t, ce.part & 1u, &vw);
     r = vw.ref[vw.active][knob & 3u];
+    if (vw.expr && r.k == CE_R_TXT && (knob & 3u) >= 1u && (knob & 3u) <= 2u) {   /* an unset slot: its default
+                                                                                     * first, then the turn */
+        uint32_t src = vw.active ? P_MAT_SRC : P_MVEL_SRC;
+        fm1_irq_off();
+        t->p[src] = (int16_t)(vw.active ? MS_AT : MS_VEL);
+        t->p[src + 1u] = (int16_t)(vw.active ? MD_CUT : MD_AMP);
+        t->p[src + 2u] = (int16_t)(vw.active ? cr_touch_at_amt() : CR_TOUCH_VEL_DEF_AMT);
+        fm1_irq_on();
+        r = ce_r(CE_R_TRK, src + (knob & 3u), 0);
+    }
     if (!(d = ce_param(t, r, &v0)))
         return;
-    v = cp_dstep(d, v0, s, fine || cx.shift);
+    v = cp_dstep(d, v0, s, snap || cx.shift);
     if (r.k == CE_R_DEEP && d->names && (ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_RATIO ||
                                          ce_cstyle(t, &vw, vw.active, knob & 3u) == ENG_C_BIG))
         v = clamp(v0 + s, d->min, d->max);        /* (a ratio: one step a detent, as the Digitone's) */
-    if (r.k == CE_R_DEEP && (pk = ce_pair(d)) != 0 && (fine || cx.shift)) {   /* a pair, SHIFT: the slow hand (B1) a step */
+    if (r.k == CE_R_DEEP && (pk = ce_pair(d)) != 0 && (snap || cx.shift)) {   /* a pair, SHIFT: the slow hand (B1) a step */
         int32_t c = v0 - d->min, b2 = clamp(c / (int32_t)pk + s, 0, (int32_t)pk - 1);
         v = d->min + b2 * (int32_t)pk + c % (int32_t)pk;
     }
@@ -1214,15 +1323,24 @@ static void ce_knob(uint32_t knob, int32_t s, uint32_t fine)
             cu_edited(ce.part);
         }
         ce_trace_value(d, v, b, sizeof b);
+#if defined(CR_TRACE) && CR_LAYC_N
+        {   /* (a compiled classic layout's page: the trace names the built-in page and column, the engine's address) */
+            uint32_t tp = r.a, tc = r.b;
+            const char *tt = cp_lay_trace_src(t, dd, &tp, &tc);
+            cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)tp, tt,
+                     (unsigned)tc, d->label, (int)v0, (int)v, b, psnd[ce.part].edited ? " edited" : "");
+        }
+#else
         cu_trace("deep: part %u page %u %s col %u %s %d -> %d (%s)%s\n", (unsigned)ce.part, (unsigned)r.a,
                  dd->pages[r.a].title, (unsigned)r.b, d->label, (int)v0, (int)v, b, psnd[ce.part].edited ? " edited" : "");
+#endif
         return;
     }
     if ((i = (uint32_t)ce_send_ref(t, r)) != (uint32_t)-1) {   /* a send: the part's one value (cr_ui.c cu_send_set:
                                                     * the chord part's are the FX amounts). The part's since 0.18, as
                                                     * the MIX group's Level and Pan: not an edit of the sound; but
                                                     * FM TONE's Drive is the sound's: cu_send_set marks it edited */
-        v = cu_send_step(v0, s, fine || cx.shift);                /* (a send's one step, as the FX layer's) */
+        v = cu_send_step(v0, s, snap || cx.shift);                /* (a send's one step, as the FX layer's) */
         cu_send_set(ce.part, i, v);
         cu_send_text(v, b, sizeof b);
         cu_trace("param: part %u %s %s %d -> %d (%s)%s\n", (unsigned)ce.part, CE_SEC_NAME[cx.grp[ce.part & 1u] % CE_NSEC],
@@ -1297,7 +1415,7 @@ static void ce_band(const track_t *t, const ce_view_t *vw, uint8_t *o)
                 if ((k = cp_dcol(&d->pages[pg], EL[i])) >= 0) {
                     int32_t v = d->get(t, (uint32_t)pg, (uint32_t)k);
                     o[i] = ce_pct(&d->pages[pg].col[k], v);
-                    if (i == 4u && d->pages[pg].col[k].fmt == F_TIMEI && v >= d->pages[pg].col[k].max)
+                    if (i == 4u && param_inf(&d->pages[pg].col[k], v))
                         o[6] = 1;                     /* (REL INF: the band's tail held) */
                 }
     } else if (vw->wide == CR_W_ENV) {
@@ -1500,8 +1618,13 @@ static void ce_ptext(const param_desc_t *d, int32_t v, uint32_t style, char *out
             return;
         }
     }
-    if (d->fmt == F_TIMEI && v >= d->max) {      /* a release at INF: the word, whatever the style */
+    if (param_inf(d, v)) {                       /* a release at INF: the word, whatever the style */
         cu_cpy(out, "INF", n);
+        return;
+    }
+    if (d->fmt == F_FIX2) {                      /* hundredths: "42.01", "+41.34", whatever the style */
+        param_format(d, v, val, &unit);
+        cu_cpy(out, val, n);
         return;
     }
     if (style == ENG_C_NUM || style == ENG_C_BAR || style == ENG_C_DETUNE ||
@@ -1515,6 +1638,41 @@ static void ce_ptext(const param_desc_t *d, int32_t v, uint32_t style, char *out
         cu_cat(out, "k", n);                      /* "2.1k" */
     if (style == ENG_C_TEXT)
         ce_title_case(out, d->fmt == F_ONOFF ? 2u : 3u);   /* ("ON" -> "On"; "LP" stays) */
+}
+/* a two-LED button's value names after the text's NUL in b (n bytes): 1 when both fit, else none (zeros) */
+static int ce_p5names(char *b, uint32_t n, const param_desc_t *d)
+{
+    uint32_t l = str_len(b), i, j;
+    for (i = l + 1u; i < n; i++)
+        b[i] = 0;
+    for (i = 0; d->names && i < 2u; i++) {
+        j = str_len(d->names[i]);
+        if (l + 1u + j + 1u > n)
+            break;
+        cu_cpy(b + l + 1u, d->names[i], j + 1u);
+        l += 1u + j;
+    }
+    if (i < 2u)                                   /* (not both: none) */
+        for (i = str_len(b) + 1u; i < n; i++)
+            b[i] = 0;
+    return i == 2u;
+}
+/* a cell in one of the Prophet-5's looks (ENG_C_P5*: cr_screen.h CR_G_P5*): its glyph, pct (the dial, an LED on at
+ * the maximum, the lever's position), pct2 an LED's icon, the value on the row ("64", "On", "Half", "1/2"); a two-LED
+ * button's two value names after its label's NUL, or when they do not fit there after its value's (cr_draw.c
+ * cr_p5glyph draws them over the LEDs) */
+static void ce_cell_p5(const param_desc_t *d, int32_t v, uint32_t st, cr_cell_t *cl)
+{
+    static const uint8_t G[7] = {CR_G_P5KNOB, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED, CR_G_P5LED2, CR_G_P5SWITCH};
+    static const uint8_t I[7] = {0, CR_P5I_NONE, CR_P5I_SAW, CR_P5I_TRI, CR_P5I_SQUARE, 0, 0};
+    uint32_t k = st - ENG_C_P5KNOB < 7u ? st - ENG_C_P5KNOB : 0u;
+    cl->flags = (uint16_t)(CR_CF_ON | (d->min < 0 && d->max > 0 ? CR_CF_BIP : 0u));
+    cl->glyph = G[k];
+    cl->pct = ce_pct(d, v);
+    cl->pct2 = I[k];
+    ce_ptext(d, v, d->fmt == F_INT ? ENG_C_VAL : ENG_C_TEXT, cl->value, sizeof cl->value);
+    if (cl->glyph == CR_G_P5LED2 && !ce_p5names(cl->label, sizeof cl->label, d))
+        ce_p5names(cl->value, sizeof cl->value, d);
 }
 /* cell c of row r (of ref rf) restyled by the plan; a label of the plan's */
 static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c, cr_cell_t *cl)
@@ -1530,6 +1688,10 @@ static void ce_cell_plan(const track_t *t, const ce_view_t *vw, uint32_t r, uint
         cu_cpy(cl->label, h->label[r][c], sizeof cl->label);
     if (st == ENG_C_RULE)
         return;
+    if (st >= ENG_C_P5KNOB) {                     /* the Prophet-5's controls (the layout tool's mock-ups) */
+        ce_cell_p5(d, v, st, cl);
+        return;
+    }
     cl->flags = CR_CF_ON;
     cl->glyph = CR_G_NONE;
     cl->pct = ce_pct(d, v);
@@ -1586,6 +1748,32 @@ static uint32_t ce_span_col(const track_t *t, const ce_view_t *vw, uint32_t r)
     return 4u;
 }
 
+#if CR_LAY_FREE
+/* a free screen's cell (cr_layout.h): its element's label, pct2 its state (an led: 1 on, its value above the minimum;
+ * a switch: its position, 0 .. positions - 1, the value's nearest), CR_CF_BIP for a range across 0. The look is the
+ * renderer's, by the element (cr_draw.c CR_K_FREE) */
+static void ce_cell_free(const track_t *t, const ce_view_t *vw, uint32_t r, uint32_t c, cr_cell_t *cl)
+{
+    const cr_lay_screen_t *ls = cr_lay_scr(vw->li, vw->ls);
+    const cr_lay_elem_t *e = cr_lay_el(vw->li, ls, cr_lay_slot(ls, r, c));
+    const param_desc_t *d;
+    int32_t v = 0, span;
+    if (!e || !(cl->flags & CR_CF_ON) || !(d = ce_param(t, vw->ref[r][c], &v)))
+        return;
+    cu_cpy(cl->label, cr_lay_str(e->label), sizeof cl->label);
+    cl->flags = (uint16_t)(CR_CF_ON | (d->min < 0 && d->max > 0 ? CR_CF_BIP : 0u));
+    cl->glyph = CR_G_NONE;
+    v = clamp(v, d->min, d->max);
+    span = d->max - d->min;
+    if (e->type == CR_E_SWITCH) {                 /* (Math.round of web/fm1layout.js p5Op: the nearest position) */
+        int32_t n1 = CR_LF_POS(e->flags) == 3u ? 2 : 1;
+        cl->pct2 = (uint8_t)(span > 0 ? ((v - d->min) * n1 * 2 + span) / (2 * span) : 0);
+    } else {
+        cl->pct2 = (uint8_t)(v > d->min);
+    }
+}
+#endif
+
 static void ce_screen(cr_screen_t *s, uint32_t now)
 {
     track_t *t = ce_trk();
@@ -1615,6 +1803,8 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
     s->active = vw.active;
     s->wide = vw.wide;
     s->tall = vw.tall;
+    s->fl_eng = vw.li;
+    s->fl_scr = vw.ls;
     for (c = 0; c < 4u; c++)
         cu_cpy(s->head[c], vw.head[c], sizeof s->head[c]);
     ce_marks(t, mc);
@@ -1624,8 +1814,25 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
         for (c = 0; c < 4u; c++) {
             int32_t ds;
             ce_cell(t, &vw, vw.ref[r][c], &s->cell[r][c]);
+#if CR_LAY_FREE
+            if (vw.kind == CR_K_FREE)
+                ce_cell_free(t, &vw, r, c, &s->cell[r][c]);
+#endif
             if (vw.hs)
                 ce_cell_plan(t, &vw, r, c, &s->cell[r][c]);
+#ifdef CR_LAYOUT_PREVIEW
+            if (ce_style_hook && vw.kind == CR_K_EDIT8 && !vw.tall && vw.ref[r][c].k == CE_R_DEEP &&
+                (s->cell[r][c].flags & CR_CF_ON)) {        /* (the layout tool: a design's cell style, in place) */
+                uint32_t st = ce_style_hook(t, vw.ref[r][c].a, vw.ref[r][c].b & 3u);
+                const param_desc_t *pd;
+                int32_t pv;
+                if (st >= ENG_C_P5KNOB && (pd = ce_param(t, vw.ref[r][c], &pv))) {
+                    ce_cell_p5(pd, pv, st, &s->cell[r][c]);
+                    if (st == ENG_C_SKETCH)               /* a sketch: the glyph box left empty (CR_G_N draws nothing) */
+                        s->cell[r][c].glyph = CR_G_N;
+                }
+            }
+#endif
             if ((s->cell[r][c].flags & CR_CF_ON) && (ds = ce_dst(t, vw.ref[r][c])) > 0 && ds < (int32_t)CE_NDST && mc[ds])
                 s->cell[r][c].flags |= CR_CF_MARK(mc[ds]);
         }
@@ -1656,7 +1863,8 @@ static void ce_screen(cr_screen_t *s, uint32_t now)
             cr_cell_t *hc = &s->cell[(cx.hot_r - 1u) % CR_ED_ROWS][cx.hot_c & 3u];
             if (d && cx.hot_slot - 1u < d->npages && ce_slot(d, cx.hot_slot - 1u, &sl)) {
                 const char *nm = ce_name_of(d, sl.pg, (uint32_t)sl.cs, cx.hot_src);
-                ce_amt_text(hc->value, nm, d->get(t, sl.pg, (uint32_t)sl.ca), sizeof hc->value);
+                ce_amt_text(hc->value, nm, &d->pages[sl.pg].col[(uint32_t)sl.ca], d->get(t, sl.pg, (uint32_t)sl.ca),
+                            sizeof hc->value);
                 s->hot_col = (uint8_t)ce_src_col(nm);
             }
         }

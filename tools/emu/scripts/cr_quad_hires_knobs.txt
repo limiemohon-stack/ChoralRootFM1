@@ -1,0 +1,142 @@
+# ChoralRoot 0.22: FM TONE's hi-res values (qd-3: hundredths, F_FIX2) under knob acceleration and OPT snap (the knob
+# branch; firmware/src/cr_pages.c kn_whole: FMT_HI). Real timing (the default). FM TONE (01 EP), EDIT:
+# 1. FILTER+ (FILT, SELECT +1: row B): KNOB 1 FREQ (0.00..127.00, version 5): 2 slow detents down (0.01 each), 3
+#    quick ones (6.35 each: the range / 20); GLO held: -1 (down to a whole number), +1 +1 (the next whole numbers).
+# 2. LFO 1: KNOB 1 SPEED (-64.00..+63.99): GLO held -1 x 6 (the speed list down from the INIT's 32.00 to -64.00, the end), +1 x 9 (up
+#    through -32 -16 -8 +8 +16 +32 +63.99, the end).
+# 3. AMP (ENV x 4): KNOB 4 REL (0..126 + INF, an integer since version 5): 2 slow detents, 19 quick ones up (6 each,
+#    to the end 127: INF; EP's REL is 14 since FM TONE's times are the Digitone's, docs/QUAD.md "Times": 11 from its
+#    62 before); GLO held -1 (112, the 16 grid), -1 (96), +1 (112).
+# tools/emu/test_cr.sh reads the "deep:" lines.
+wait 300
+btn EDIT down
+wait 400
+knob SELECT +1               # the engine picker: FM6 -> FM TONE
+wait 300
+btn EDIT up
+btn OCT+                      # FM TONE (01 EP)
+wait 300
+btn EDIT                      # OSC: SYN 1
+wait 400
+btn SEL                       # FILTER (row A)
+wait 400
+knob SELECT +1                # row B: FILTER+
+wait 400
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1                 # the quick run: a detent each UI frame
+wait 15
+knob KNOB1 -1
+wait 15
+knob KNOB1 -1
+wait 300
+btn GLO down
+wait 100
+knob KNOB1 -1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 100
+btn GLO up
+wait 300
+btn LFO                       # LFO 1
+wait 400
+btn GLO down
+wait 100
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 100
+btn GLO up
+wait 300
+btn ENV                       # ENV A/B
+wait 400
+btn ENV                       # ENV 2
+wait 400
+btn ENV                       # ENV 3
+wait 400
+btn ENV                       # AMP
+wait 400
+knob KNOB4 +1                 # a slow detent first (0.01), then the quick run
+wait 300
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 15
+knob KNOB4 +1
+wait 300
+shot build/emu/test/cr_quad_hires_rel.ppm
+btn GLO down
+wait 100
+knob KNOB4 -1
+wait 300
+knob KNOB4 -1
+wait 300
+knob KNOB4 +1
+wait 100
+btn GLO up
+wait 300
+quit

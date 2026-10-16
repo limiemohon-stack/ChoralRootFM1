@@ -1,10 +1,24 @@
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments */
 /* The few libc routines the compiler may call implicitly (struct copies,
- * zeroing). Freestanding: no other libc. */
-void *memset(void *d, int c, unsigned n)
+ * zeroing). Freestanding: no other libc.
+ * 3y50: a word at a time where both ends allow it (the pointers aligned to 4: the voice and mix buffers, the engines'
+ * states and the struct copies are), byte by byte for the rest and for anything unaligned: the same bytes written,
+ * in the same forward order of words (a copy whose two areas overlap is undefined, as in any libc; none here does).
+ * Words are written through a may_alias type: no aliasing assumption about the caller's objects */
+#include "cr_ram.h"                /* (CR_HOT_VA: a marker, nothing for the compiler) */
+typedef unsigned int __attribute__((may_alias)) cr_w32;
+CR_HOT_VA void *memset(void *d, int c, unsigned n)   /* (in RAM with va_render, which clears 48 bytes with it every
+                                                     * voice and block; its other callers then come through a veneer) */
 {
     unsigned char *p = d;
+    if (!((unsigned)(unsigned long)p & 3u) && n >= 4u) {
+        unsigned w = (unsigned char)c * 0x01010101u;
+        cr_w32 *q = (cr_w32 *)p;
+        for (; n >= 4u; n -= 4u)
+            *q++ = w;
+        p = (unsigned char *)q;
+    }
     while (n--)
         *p++ = (unsigned char)c;
     return d;
@@ -14,6 +28,14 @@ void *memcpy(void *d, const void *s, unsigned n)
 {
     unsigned char *p = d;
     const unsigned char *q = s;
+    if (!(((unsigned)(unsigned long)p | (unsigned)(unsigned long)q) & 3u)) {
+        cr_w32 *a = (cr_w32 *)p;
+        const cr_w32 *b = (const cr_w32 *)q;
+        for (; n >= 4u; n -= 4u)
+            *a++ = *b++;
+        p = (unsigned char *)a;
+        q = (const unsigned char *)b;
+    }
     while (n--)
         *p++ = *q++;
     return d;
@@ -22,6 +44,9 @@ void *memcpy(void *d, const void *s, unsigned n)
 int memcmp(const void *a, const void *b, unsigned n)
 {
     const unsigned char *p = a, *q = b;
+    if (!(((unsigned)(unsigned long)p | (unsigned)(unsigned long)q) & 3u))
+        for (; n >= 4u && *(const cr_w32 *)p == *(const cr_w32 *)q; n -= 4u, p += 4, q += 4)
+            ;                                       /* (equal words skipped; the first that differs: by its bytes) */
     for (; n; n--, p++, q++)
         if (*p != *q)
             return *p - *q;

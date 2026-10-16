@@ -142,27 +142,48 @@ async function handshake(link, tries = 3) {
   return null;
 }
 
+// an input's output: the output of the same name; when several ports have that name (two FM-1s, as CoreMIDI may list
+// them), the k-th connected output of the name for the k-th connected input (tools/fm1_install.py port_labels)
+export function pairOutput(access, input) {
+  const live = (m) => [...m.values()].filter((p) => p.name === input.name && p.state !== "disconnected");
+  const k = live(access.inputs).indexOf(input);
+  return k < 0 ? null : live(access.outputs)[k] || null;
+}
+const FM1_PORT = /fm-1|felucca|ota|composite|sinco|usb-midi/i;   // never probe other gear
+
 export class Updater {
   constructor(access, log) {
     this.access = access;
     this.log = log || (() => {});
   }
 
-  // every in/out pair with the same port name that answers the handshake
-  async find(filter) {
-    const outs = [...this.access.outputs.values()];
-    for (const input of this.access.inputs.values()) {
-      if (input.state === "disconnected") continue;
-      if (!/fm-1|felucca|ota|composite|sinco|usb-midi/i.test(input.name || "")) continue;   // never probe other gear
-      const output = outs.find((o) => o.name === input.name && o.state !== "disconnected");
+  // the input ports that may be an FM-1 (connected, a name that matches)
+  candidates() {
+    return [...this.access.inputs.values()].filter((p) => p.state !== "disconnected" && FM1_PORT.test(p.name || ""));
+  }
+
+  // every in/out pair with the same port name that answers the handshake (all: every one, their links closed)
+  async find(filter, all = null) {
+    for (const input of this.candidates()) {
+      const output = pairOutput(this.access, input);
       if (!output) continue;
       try { await input.open(); await output.open(); } catch (_) { continue; }
       const link = new Link(input, output);
       const id = await handshake(link, 2);
-      if (id && (!filter || filter(id))) return { link, id, name: input.name };
+      if (id && (!filter || filter(id))) {
+        if (!all) return { link, id, name: input.name };
+        all.push({ id, name: input.name, input, output });
+      }
       link.close();
     }
     return null;
+  }
+
+  // several FM-1s (docs/INSTALL-COMPAT.md "Several FM-1s"): every pair that answers -> [{id, name, input, output}]
+  async all(filter) {
+    const got = [];
+    await this.find(filter, got);
+    return got;
   }
 
   async waitFor(filter, ms) {

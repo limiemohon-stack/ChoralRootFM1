@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
 # Build ChoralRoot FM-1 on macOS (see BUILDING.md): build/choralroot.fwsc (identity FM-1_920).
-#   ./build.sh [--release X.Y]      (a release: build/choralroot-X.Y.fwsc, version "ChoralRoot X.Y")
+#   ./build.sh [--release X.Y]      (a release: build/choralroot-X.Y.fwsc, version "ChoralRoot X.Y", and the single-core
+#                                    package choralroot-X.Y-1core.fwsc, "ChoralRoot X.Y 1-core": docs/DUALCORE.md)
+#   CR_SINGLE_CORE=1 ./build.sh     (build/choralroot.fwsc as the single-core package)
 #   JIELI_TOOLCHAIN  JieLi Linux toolchain (default: ~/.jieli/toolchain)
 #   AC79_SDK         JieLi AC79 SDK checkout (default: ~/fw-AC79_AIoT_SDK if present, else tools/sdk: the three files, vendored)
 set -e

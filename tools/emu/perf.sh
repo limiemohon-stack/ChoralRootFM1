@@ -17,6 +17,10 @@
 #   (l) (c) with the delay and the reverb fully on (0.18, docs/FX.md): the chord part's sends at 127, Decay 13 s,
 #       Feedback up: the heaviest sound scenario with both effects' loops running in every block (budget: both effects
 #       <= 350 us a block, no block over 80 %)
+#   (p) a 6-key P5 chord (01 ITS PROPHET5: the SSI filter, its envelope sweeping; four voices, the cap) + the
+#       P5 bass (BASSMENT, place 85 of the shipped 115) with the default sends, a chord change (docs/PROPHET.md "Cost on the unit": the
+#       unit's figures are counted from its listing, tools/p5_cost.py; these are the emulator's estimates)
+#   (q) (p) with the VA bass (PUNCH BASS)
 # The heavy scenarios (c, d, e, i, l) also get a "keys" line each (tools/emu/keylat.py, docs/INTEGRATION.md "Keys while
 # a frame draws"): 40 taps of G5 at pseudo-random times while the chord is held, with a redraw's strip taking 2.7 ms of
 # the device's clock (the emulator's worst frame: 16 ms for six strips) and 7.8 ms (2.9 times that: the upper end of the
@@ -27,11 +31,13 @@
 # Every scenario runs twice: as above (the figures), then with EMU_STAGES=1 for the audio ISR's stages (firmware/src/
 # cr_cpu1.h cr_dbg: the engine tick, part 0 (chord), part 1 (bass: what the second core takes over), the rest of the mix
 # and the FX, the master; device us per half, avg / max).
-# These are one core's: Options > Dual Core is Off by default (settings v12), the budget every user has. Then every
-# scenario again with Dual Core On ("== (x) Dual Core On"): on a copy of a flash whose settings say On (tools/emu/
-# scripts/cr_dualcore_on.txt on a fresh flash file, the Options path): its block, its voices, its stages and whether its
-# WAV is the default's. The emulator runs the bass job inline: its block is one core's there too (the device estimate);
-# with core 1 the device's half is about the block less part1, plus the wait.
+# These are a fresh unit's: since 0.22 Options > Dual Core is On by default, so each part has its budget and P5's chord
+# voices are shared out between the cores. THE EMULATOR RUNS CORE 1's JOB INLINE: its "block" is the two cores' work
+# added up, one after the other. The unit's half is the tick + the LONGER of part0 (core 0's own render) and part1
+# (core 1's job: the bass part and, with P5 on the chord part, core 1's share of its voices) + fx + master: the stages
+# line says both. Then every scenario again with Dual Core Off ("== (x) Dual Core Off"): on a copy of a flash whose
+# settings say Off (tools/emu/scripts/cr_dualcore_opt.txt on a fresh flash file, the Options path): one core's block,
+# its voices, its stages and whether its WAV is the default's.
 #   (k) the global save (0.18, docs/SETTINGS.md "Manual and automatic"): a chord, then a session change (the voicing) and
 #       SAVE held, against the same run with an Option changed (Play Style) and the automatic settings save
 #       0.17 had: the audio block's worst case (the state is captured in the main loop, at the save: never in the
@@ -54,10 +60,10 @@ if [ "$EMU" = build/host/emu ] && { [ ! -x "$EMU" ] || [ -n "$(find tools/emu fi
     sh tools/emu/build.sh || { echo "build failed"; exit 1; }
 fi
 mkdir -p "$OUT"
-for s in a b c d e f g h i j l; do
+for s in a b c d e f g h i j l p q; do
     n=perf_$s
     "$EMU" --headless --script "tools/emu/scripts/$n.txt" --wav "$OUT/$n.wav" >"$OUT/$n.log" 2>&1
-    echo "== ($s) $(sed -n '1s/^# tools\/emu\/perf.sh ([a-l]): //p' "tools/emu/scripts/$n.txt")"
+    echo "== ($s) $(sed -n '1s/^# tools\/emu\/perf.sh ([a-q]): //p' "tools/emu/scripts/$n.txt")"
     grep '^audio: [0-9]* blocks\|^cpu:\|^ui:' "$OUT/$n.log" | sed 's/^/   /'
     grep 'voices: given up\|erases with' "$OUT/$n.log" | tail -2 | sed 's/^ */   /'
     python3 tools/emu/wavclicks.py "$OUT/$n.wav" --from 0.4 | tail -1 | sed 's/^/   /'
@@ -65,23 +71,23 @@ for s in a b c d e f g h i j l; do
     LC_ALL=C grep -a '^cpu: stages\|^cpu: fx parts' "$OUT/${n}_stages.log" | sed 's/^cpu: /   /'
     case $s in c|d|e|i|l) python3 tools/emu/keylat.py --emu "$EMU" "tools/emu/scripts/$n.txt" ;; esac
 done
-DCON="$OUT/dualcore_on_flash.bin"             # Options > Dual Core On, saved: the flash of the runs below (a copy each)
+DCON="$OUT/dualcore_off_flash.bin"            # Options > Dual Core Off, saved: the flash of the runs below (a copy each)
 rm -f "$DCON"
-"$EMU" --headless --flash "$DCON" --script tools/emu/scripts/cr_dualcore_on.txt >"$OUT/dualcore_on.log" 2>&1 ||
-    { echo "Dual Core On: the Options script failed (see $OUT/dualcore_on.log)"; exit 1; }
-for s in a b c d e f g h i j l; do
+"$EMU" --headless --flash "$DCON" --script tools/emu/scripts/cr_dualcore_opt.txt >"$OUT/dualcore_off.log" 2>&1 ||
+    { echo "Dual Core Off: the Options script failed (see $OUT/dualcore_off.log)"; exit 1; }
+for s in a b c d e f g h i j l p q; do
     n=perf_$s
     cp "$DCON" "$OUT/dualcore_run_flash.bin"
     "$EMU" --headless --flash "$OUT/dualcore_run_flash.bin" --script "tools/emu/scripts/$n.txt" --wav "$OUT/${n}_dc.wav" >"$OUT/${n}_dc.log" 2>&1
-    echo "== ($s) Dual Core On"
+    echo "== ($s) Dual Core Off"
     grep '^cpu: host instructions per 128-frame block' "$OUT/${n}_dc.log" | sed 's/^/   /'
     grep 'voices: given up' "$OUT/${n}_dc.log" | tail -1 | sed 's/^ */   /'
     cp "$DCON" "$OUT/dualcore_run_flash.bin"
     EMU_STAGES=1 "$EMU" --headless --flash "$OUT/dualcore_run_flash.bin" --script "tools/emu/scripts/$n.txt" >"$OUT/${n}_dc_stages.log" 2>&1
     LC_ALL=C grep -a '^cpu: stages' "$OUT/${n}_dc_stages.log" | sed 's/^cpu: /   /'
-    LC_ALL=C grep -aq '^cpu: stages .* c1 ok, jobs [1-9]' "$OUT/${n}_dc_stages.log" || echo "   NO CORE 1: this run was not dual core"
-    cmp -s "$OUT/$n.wav" "$OUT/${n}_dc.wav" && echo "   wav: the default's (one core), bit for bit" ||
-        echo "   wav: differs from the default's (one core)"
+    LC_ALL=C grep -aq '^cpu: stages .* c1 off' "$OUT/${n}_dc_stages.log" || echo "   CORE 1 RAN: this run was not one core"
+    cmp -s "$OUT/$n.wav" "$OUT/${n}_dc.wav" && echo "   wav: the default's (two cores), bit for bit" ||
+        echo "   wav: differs from the default's (two cores)"
 done
 for n in perf_k_session perf_k_settings; do
     "$EMU" --headless --script "tools/emu/scripts/$n.txt" --wav "$OUT/$n.wav" >"$OUT/$n.log" 2>&1

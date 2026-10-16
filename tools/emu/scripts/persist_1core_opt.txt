@@ -1,0 +1,23 @@
+# test_persist.sh, the two packages (docs/DUALCORE.md "Two packages"): Options > Dual Core (entry 24), KNOB 1 -1, the
+# value line shot; Options > Version (entry 26) shot; the splash first. On the single-core package (build/host/emu_1core)
+# the value reads "1 core build" and the turn changes nothing; the version "ChoralRoot X.Y 1-core". Closed, quiet past
+# the save delay, quit
+wait 300
+shot build/emu/test/persist_1core_splash.ppm
+wait 200
+btn GLO 80
+wait 300
+knob SELECT +25
+wait 300
+knob KNOB1 -1
+wait 400
+shot build/emu/test/persist_1core_opt.ppm
+dump
+knob SELECT +2
+wait 300
+shot build/emu/test/persist_1core_version.ppm
+dump
+btn GLO 80
+wait 2500
+dump
+quit

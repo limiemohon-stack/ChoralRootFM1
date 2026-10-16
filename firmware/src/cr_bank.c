@@ -19,6 +19,13 @@ static struct {
 static void ui_message(const char *s);            /* cr_ui.c: a message box */
 static void ui_say(const char *a, const char *b);
 static uint32_t up_gen;                           /* bumped on every user bank change */
+/* 3y60: the pools' order (section 4), resolved once from upool.c's name table and kept until a slot changes (upn_note
+ * clears ok; up_gen moving does too): each slot's pool and the factory place it is bound to (PF_NONE: added, or not
+ * used), the added sounds per engine. Browsing never reads a record from flash (0d227e0 read up to 5500 a detent) */
+static struct {
+    uint32_t gen;
+    uint8_t ok, eng[UP_SLOTS], bnd[UP_SLOTS], nadd[NENGINES];
+} cbc;
 static uint8_t sync_reload;                       /* (Felucca's editor RELOAD push: no editor) */
 enum { UNDO_SOUND = 1, UNDO_PAT = 2 };
 static void load_begin(track_t *t, uint32_t what) { (void)t; (void)what; }   /* ChoralRoot keeps no undo copy */
@@ -75,6 +82,7 @@ static void cr_bank_boot(void)                    /* persist_boot (after flash_o
         return;
     cb_booted = 1;
     up_boot();
+    crf_boot();                                   /* the favourites (cr_favs.c) */
 }
 
 /* ----------------------------------------------- 3. the trims of the loud presets --- */
@@ -148,6 +156,10 @@ static uint32_t pool_f0(uint32_t e)               /* the engine's first factory 
     if (e == ENGI_CZ)
         return 1u;                                /* (preset 0, INIT TONE: the pool's INIT) */
 #endif
+#if FELUCCA_PROPHET
+    if (e == ENGI_PROPHET)
+        return 1u;                                /* (preset 0, INIT P5: the pool's INIT) */
+#endif
     (void)e;
     return 0u;
 }
@@ -157,45 +169,84 @@ static uint32_t pool_nf(uint32_t e)               /* the factory presets in the 
     return n > pool_f0(e) ? n - pool_f0(e) : 0u;
 }
 #define CB_RETIRED_POOL (FELUCCA_ANALOG ? 0u : ENGI_VA)   /* a retired engine's records (cr_ui.c cu_load_user) */
-static uint32_t cb_rec_engine(uint32_t k)          /* the pool a used slot's record is in */
+/* what the binding needs of slot k's record: its engine, step 16's two bytes, a drum grid. UP_POOL: upool.c's name table
+ * (RAM, POOL section), never the record in flash; else the RAM mirror */
+static void cb_rec_raw(uint32_t k, uint32_t *e, uint32_t *n15, uint32_t *f15, int *grid)
 {
-    uint32_t e = up_rec(k)->engine;
+#if UP_POOL
+    const upn_t *n = &upn[k % UP_SLOTS];
+    *e = n->engine;
+    *n15 = n->n15;
+    *f15 = n->f15;
+    *grid = (n->flags & UPN_GRID) != 0;
+#else
+    const up_rec_t *r = up_rec(k);
+    *e = r->engine;
+    *n15 = r->note[15];
+    *f15 = r->flags[15];
+    *grid = up_grid(r);
+#endif
+}
+static uint32_t cb_pool_of(uint32_t e)              /* the pool a record of engine e is in */
+{
     if (eng_ok(e))
         return e;
     return e == ENGI_DIGITAL ? ENGI_FM6 : CB_RETIRED_POOL;
 }
-static uint32_t cb_bind_raw(uint32_t k)            /* the factory preset slot k's record names, PF_NONE */
+static uint32_t cb_bind_of(uint32_t k)              /* the factory preset slot k's record names, PF_NONE */
 {
-    const up_rec_t *r = up_rec(k);
-    uint32_t e, f;
-    if (!up_used(k) || up_grid(r) || r->note[15] != CB_BIND_MARK || !r->flags[15])
+    uint32_t re, n15, f15, e, f;
+    int grid;
+    cb_rec_raw(k, &re, &n15, &f15, &grid);
+    if (!up_used(k) || grid || n15 != CB_BIND_MARK || !f15)
         return PF_NONE;
-    e = cb_rec_engine(k);
-    if (e != r->engine && r->engine != ENGI_DIGITAL)
+    e = cb_pool_of(re);
+    if (e != re && re != ENGI_DIGITAL)
         return PF_NONE;                           /* (ANALOG's, a retired engine's record: added to the pool it plays
                                                    * in; a DIGITAL one binds in FM6's, as it converts) */
-    f = r->flags[15] - 1u;
+    f = f15 - 1u;
     return f >= pool_f0(e) && f < ENGINES[e]->npresets ? f : PF_NONE;
 }
+/* cbc from the table (3y60): once after a change, O(slots^2) byte compares in RAM, no flash */
+static void cb_cache(void)
+{
+    uint8_t raw[UP_SLOTS];
+    uint32_t k, j, re, n15, f15;
+    int grid;
+    if (cbc.ok && cbc.gen == up_gen)
+        return;
+    memset(cbc.nadd, 0, sizeof cbc.nadd);
+    for (k = 0; k < UP_SLOTS; k++) {
+        cb_rec_raw(k, &re, &n15, &f15, &grid);
+        cbc.eng[k] = (uint8_t)cb_pool_of(re);
+        raw[k] = (uint8_t)cb_bind_of(k);
+        cbc.bnd[k] = raw[k];
+        for (j = 0; raw[k] != PF_NONE && j < k; j++)
+            if (raw[j] == raw[k] && cbc.eng[j] == cbc.eng[k])
+                cbc.bnd[k] = PF_NONE;             /* (the first bound slot wins: this one is added) */
+        if (up_used(k) && cbc.bnd[k] == PF_NONE && cbc.eng[k] < NENGINES)
+            cbc.nadd[cbc.eng[k]]++;
+    }
+    cbc.gen = up_gen;
+    cbc.ok = 1;
+}
+static uint32_t cb_rec_engine(uint32_t k)          /* the pool a used slot's record is in */
+{
+    cb_cache();
+    return cbc.eng[k % UP_SLOTS];
+}
+static uint32_t cb_bind_raw(uint32_t k) { return k < UP_SLOTS ? cb_bind_of(k) : PF_NONE; }
 static uint32_t cb_bound(uint32_t k)               /* .. unless an earlier slot binds it already (then: added) */
 {
-    uint32_t f = cb_bind_raw(k), e, j;
-    if (f == PF_NONE)
-        return PF_NONE;
-    e = cb_rec_engine(k);
-    for (j = 0; j < k; j++)
-        if (cb_bind_raw(j) == f && cb_rec_engine(j) == e)
-            return PF_NONE;
-    return f;
+    cb_cache();
+    return k < UP_SLOTS ? cbc.bnd[k] : PF_NONE;
 }
 static int cb_added(uint32_t e, uint32_t k) { return up_used(k) && cb_rec_engine(k) == e && cb_bound(k) == PF_NONE; }
 
 static uint32_t pool_count(uint32_t e)             /* INIT + the factory presets + the added ones */
 {
-    uint32_t k, n = 1u + pool_nf(e);
-    for (k = 0; k < UP_SLOTS; k++)
-        n += (uint32_t)cb_added(e, k);
-    return n;
+    cb_cache();
+    return 1u + pool_nf(e) + (e < NENGINES ? cbc.nadd[e] : 0u);
 }
 static uint32_t pool_bound_slot(uint32_t e, uint32_t f)   /* the slot bound to factory preset f, UP_SLOTS none */
 {

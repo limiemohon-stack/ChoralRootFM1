@@ -1,6 +1,6 @@
 # test_persist.sh, Options > Reset Settings (the owner, 2026-10-12), run 1 on a fresh flash file: a user sound saved
 # (U01 "ADG", as cr_save.txt), a handful of settings changed and saved (137 BPM, Play Style Advanced, Motion Off, Dual
-# Core On, Hold Time, Key Mode on). Run 2 (reset_do.txt, the same file): the reset. Run 3 (reset_check.txt): still
+# Core Off (0.22: On is the default), Hold Time, Key Mode on). Run 2 (reset_do.txt, the same file): the reset. Run 3 (reset_check.txt): still
 # default after a relaunch, U01 still there.
 #   Options: 0 Play Style .. 3 6th with 7th .. 14 Motion, 15 Chord Names, 17 Hold Time, 20 USB Rate, 21 Dual Core, 22 Output, 23 Version, 24 Calibrate, 25 Reset Settings
 wait 300
@@ -22,7 +22,7 @@ btn GLO                       # Options: Play Style Advanced
 wait 200
 knob KNOB1 +1
 wait 200
-knob SELECT +14               # Motion: Off
+knob SELECT +18               # Motion: Off
 wait 200
 knob KNOB1 +2
 wait 200
@@ -30,9 +30,9 @@ knob SELECT +3                # Hold Time: +1 (entry 17, past Chord Names and LE
 wait 200
 knob KNOB1 +1
 wait 200
-knob SELECT +4                # Dual Core: On (entry 21)
+knob SELECT +4                # Dual Core: Off (entry 21; On is the default since 0.22)
 wait 200
-knob KNOB1 +1
+knob KNOB1 -1
 wait 200
 btn GLO
 wait 200

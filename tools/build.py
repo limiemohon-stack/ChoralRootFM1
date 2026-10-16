@@ -10,8 +10,10 @@ Outputs in build/: choralroot.bin (app.bin: the boot stub's 0xEE0 bytes, then th
 choralroot.dis (the app), stub/stub.{bin,elf,dis} (the boot stub, firmware/stub; docs/BOOT-SAFETY.md),
 loader/ota.bin (update loader), choralroot.fwsc (package, identity FM-1_920). A release build (--release X.Y) keeps the identity, sets the
 version string to "ChoralRoot X.Y" and writes choralroot-X.Y.fwsc and a folder release-X.Y/ with the package,
-the app (choralroot-X.Y-app.bin), SHA256SUMS and the licence files (the CC0 sample attribution only for a build with
-FELUCCA_SAMPLE=1: ChoralRoot is all-synth, its image holds no samples).
+the app (choralroot-X.Y-app.bin), the single-core package and its app (choralroot-X.Y-1core.fwsc,
+choralroot-X.Y-1core-app.bin: CR_SINGLE_CORE=1, docs/DUALCORE.md "Two packages"), SHA256SUMS and the licence files
+(the CC0 sample attribution only for a build with FELUCCA_SAMPLE=1: ChoralRoot is all-synth, its image holds no
+samples). CR_SINGLE_CORE=1 without --release: build/choralroot.fwsc is the single-core package.
 After the checks it prints the section sizes against the XIP slot and the RAM / POOL / NOINIT regions.
 See BUILDING.md for the toolchain and the SDK.
 
@@ -38,6 +40,7 @@ LDR = OUT / "loader"
 STB = OUT / "stub"
 sys.path.insert(0, str(SRC / "tools"))
 import fm1pkg_make  # noqa: E402
+import ram_code  # noqa: E402
 import lz4blk  # noqa: E402
 
 STUB_XIP = 0x02000120               # app.bin offset 0 in the XIP map; the SPL jumps here: the boot stub
@@ -60,6 +63,8 @@ SDK_SHA256 = {
 UNIT = "choralroot"                 # firmware/src/UNIT.c; outputs build/UNIT.{bin,elf,dis,fwsc}
 PRODUCT = "FM-1_920"                # package identity (ChoralRoot: constant, releases too)
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/choralroot.c)
+RAMTEXT_LEN, RAMTEXT_SPARE = 0x6000, 512            # firmware/app.ld RAMTEXT; what a build must leave of it
+RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6")
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
 
 
@@ -101,7 +106,7 @@ def tc_all(*cmds):
 
 
 def generate():
-    """generated headers (UI fonts, icons, keycaps, palettes, tables, samples)"""
+    """generated headers (UI fonts, icons, keycaps, palettes, tables, layouts, samples)"""
     GEN.mkdir(parents=True, exist_ok=True)
     for old in ("felucca_font.h", "felucca_icons.h"):     # headers of the bitmap font and icon atlas
         (GEN / old).unlink(missing_ok=True)
@@ -112,8 +117,12 @@ def generate():
             [tools / "gen_aa_keycaps.py", GEN / "ui_keycaps.h"],
             [tools / "gen_ui_palettes.py", GEN / "ui_palettes.h"],
             [tools / "gen_tables.py", GEN / "felucca_tables.h"],
+            # the compiled layouts (docs/LAYOUT-TOOL.md "Step 4": P5's panel; no firmware file includes them yet)
+            [tools / "gen_layout.py", GEN / "cr_layouts.h"],
             [tools / "gen_fm6_patches.py", GEN / "felucca_fm6.h"],
             [tools / "gen_cz1_factory.py", GEN / "melodee_cz1.h"],   # CZ-1: Casio's 64 tones (Melodee's)
+            # PROPHET: Sequential's 200 factory programs (Melodee's; included with FELUCCA_P5_FACTORY)
+            [tools / "gen_prophet_factory.py", GEN / "melodee_prophet_factory.h"],
             [tools / "gen_samples.py", GEN / "felucca_samples.h"]]
     procs = [subprocess.Popen([sys.executable, *map(str, c)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                               text=True) for c in cmds]
@@ -251,20 +260,34 @@ def build_stub():
 
 # ---- app
 
-def build_app(stub):
+def build_app(stub, single=False):
     flags = [*CFLAGS, "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
+    if single:                      # the single-core package (docs/DUALCORE.md "Two packages"): core 1 never started,
+        flags.append("-DCR_SINGLE_CORE=1")  # the version string "ChoralRoot X.Y 1-core" (firmware/src/cr_ui.h)
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
                  "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_ICONS", "FELUCCA_KEYCAPS", "FELUCCA_SLICE",
                  "FELUCCA_SLICER", "FELUCCA_FM4", "FELUCCA_SAMPLE", "FELUCCA_GRAIN", "FELUCCA_DRUM", "FELUCCA_SEQ",
                  "FELUCCA_CZ", "FELUCCA_QUAD", "FELUCCA_ANALOG", "FELUCCA_PHASE", "FELUCCA_LOFI", "FELUCCA_VOICE",
-                 "FELUCCA_TRIO", "FELUCCA_NOISE", "FELUCCA_PHYS"):
+                 "FELUCCA_TRIO", "FELUCCA_NOISE", "FELUCCA_PHYS", "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY"):
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
+    # Code in RAM (docs/FX.md "Code in RAM"). P5_RAM: the P5 engine's sample loop in .ram_text, 1 in a device build
+    # since 3y41 (the unit: the chord part 2084 -> 1533 us; P5_RAM=0 for the flash build to measure against). The
+    # host and the emulator never see these flags: there the source's default (0) holds
+    flags.append("-DP5_RAM=" + ("0" if os.environ.get("P5_RAM") == "0" else "1"))
+    for flag in RAM_SWITCHES:       # each 1 moves one stage's functions to RAMTEXT (firmware/src/cr_ram.h); unset: 0
+        if os.environ.get(flag) == "1":
+            flags.append(f"-D{flag}=1")
+    if os.environ.get("CR_RAM_TABLES_P5") == "1":   # the four tables the P5 engine reads every sample in RAM .data,
+        flags.append("-DCR_RAM_TABLES_P5=1")        # 6.7 KB (build/gen/felucca_tables.h P5_TABLE)
     # the delay's and the reverb's rate (1 full, 2 half) and their loops in RAM (docs/FX.md "Half rate or full"): for
     # the builds that are measured against each other on the unit; unset: firmware/src/cr_fx.c's defaults
     for flag, ok in (("CR_FX_DELAY_DS", ("1", "2")), ("CR_FX_REVERB_DS", ("1", "2")), ("CR_FX_RAM", ("0", "1")),
-                     ("CR_FX_LITE", ("0", "1"))):
+                     ("CR_FX_LITE", ("0", "1")),
+                     ("XD_N", ("16384", "32768")),      # the delay line's samples (cr_fx.c: 32768 / CR_FX_DELAY_DS)
+                     ("LCD_BAUD", ("2", "3", "4", "5"))):   # the LCD's SPI clock, 60 MHz / (BAUD + 1): 4 = 12 MHz (lcd.c),
+                                                        # 2 = 20 MHz (docs/EDITOR.md "Responsiveness": to try on the unit)
         v = os.environ.get(flag)
         if v in ok:
             flags.append(f"-D{flag}={v}")
@@ -293,6 +316,16 @@ def build_app(stub):
                        check=True)
         tc("cc", *[f for f in flags if not f.startswith(("-I", "-D", "-W"))], "-c",
            OUT / f"{UNIT}_size.ll", "-o", OUT / f"{UNIT}.o")
+    # Code in RAM: the functions the sources mark for each switch that is on (firmware/src/cr_ram.h CR_HOT_x) get
+    # their sections renamed in the object, .text.NAME -> .rhot.NAME, and app.ld links .rhot.* at RAMTEXT; the
+    # direct calls across are pointed at the veneers the switch compiled in (cr_ram.c). Nothing else is compiled
+    # differently. No switch: the object is not touched
+    hot = [n for names in ram_code.marks([f for f in RAM_SWITCHES if os.environ.get(f) == "1"]).values() for n in names]
+    if hot:
+        sizes, calls = ram_code.place(OUT / f"{UNIT}.o", hot)
+        print(f"ram: {len(sizes)} functions, {sum(sizes.values())} B, to RAMTEXT ("
+              + ", ".join(f for f in RAM_SWITCHES if os.environ.get(f) == "1") + "); calls across through a veneer: "
+              + (", ".join(f"{n} x{c}" for n, c in calls.items()) or "none"))
     elf = OUT / f"{UNIT}.elf"
     # --gc-sections (as the loader and the stub): the functions nothing refers to stay out (-ffunction-sections: the
     # engine's and the looper's API this unit does not call, fm1_vec.S's weak fault handler when cr_cpu1.h has its
@@ -311,6 +344,7 @@ def build_app(stub):
                                ("common/bin/objdump", "-d", "-j", ".ram_text", elf),
                                ("common/bin/objdump", "-h", elf))
     (OUT / f"{UNIT}.dis").write_text(dis)
+    (OUT / f"{UNIT}.sym").write_text(syms)          # (tools/ram_code.py cmp: which of the listing's labels are code)
 
     def symv(name):
         return int(re.search(r"^([0-9a-f]+) .*\s" + name + r"$", syms, re.M).group(1), 16)
@@ -358,11 +392,36 @@ def check(img, syms, dis, rt):
         errors.append(f"_start is not at {APP_XIP:#x}")
     if img[STUB_LEN:STUB_LEN + 4] != bytes.fromhex("04818000"):
         errors.append(f"the app starts with {img[STUB_LEN:STUB_LEN + 4].hex()}, not its entry (goto +4; rts)")
-    rt_calls = [ln for ln in rt.splitlines() if re.search(r"\bcall\b", ln)]
+    # .ram_text has two parts (firmware/app.ld). Below _rt_hot: the flash driver (and P5_RAM's loop), which runs
+    # with the flash off: no call at all. From _rt_hot: the audio code the CR_RAM_* switches moved; it runs with the
+    # flash on, calls its neighbours directly and XIP through a register (hal/fm1_cc.h FM1_FAR): a direct call or
+    # goto that leaves RAMTEXT cannot be encoded (the linker refuses it), checked here all the same
+    hot = re.search(r"^([0-9a-f]+) .*\s_rt_hot$", syms, re.M)
+    hot = int(hot.group(1), 16) if hot else 1 << 32
+    rt_lo, rt_calls, hot_n, hot_far, hot_out = [], [], 0, 0, []
+    for ln in rt.splitlines():
+        mm = LINE.match(ln)
+        if not mm:
+            continue
+        if int(mm.group(1), 16) < hot:
+            rt_lo.append(ln)
+            if re.search(r"\bcall\b", ln):
+                rt_calls.append(ln)
+            continue
+        hot_n += 1
+        hot_far += bool(re.search(r"\bcall r\d+", mm.group(3)))
+        for a in re.findall(r"(?:call|goto) -?\d+ <[^:>]*: ([0-9a-f]+) >", mm.group(3)):
+            if not 0x01C00000 <= int(a, 16) < 0x01C00000 + RAMTEXT_LEN:
+                hot_out.append(ln.strip())
     if rt_calls:                    # RAM code runs with the flash off: no calls into XIP
         errors.append(f".ram_text contains calls: {rt_calls[:3]}")
     else:
-        notes.append(f".ram_text: {len([ln for ln in rt.splitlines() if LINE.match(ln)])} insns, no calls")
+        notes.append(f".ram_text: {len(rt_lo)} insns, no calls")
+    if hot_out:
+        errors.append(f".rhot: a direct call or goto out of RAMTEXT: {hot_out[:3]}")
+    elif hot_n:
+        notes.append(f".rhot: {hot_n} insns from {hot:#x}, {hot_far} calls through a register, none direct out of "
+                     "RAMTEXT")
     for ln in dis.splitlines():     # nothing may call or load an address in the chip ROM
         mm = LINE.match(ln)
         if not mm:
@@ -383,6 +442,10 @@ def check(img, syms, dis, rt):
                  f"pool {pool} B of {0x54000}")
     if bss > 96 * 1024:
         errors.append("RAM region overflow")
+    rt_used = sym("_rt_end") - sym("_rt_start")   # .ram_text and .c1_text (the linker stops at the region's end)
+    if RAMTEXT_LEN - rt_used < RAMTEXT_SPARE:
+        errors.append(f"RAMTEXT {rt_used} B of {RAMTEXT_LEN}: under {RAMTEXT_SPARE} B spare (too many CR_RAM_* "
+                      "switches at once: docs/FX.md \"Code in RAM\")")
     if 0x54000 - pool < 8192:                     # keep >= 8 KiB of the pool spare
         errors.append(f"pool headroom {0x54000 - pool} B < 8192 B")
     return errors, notes
@@ -447,6 +510,7 @@ def main():
             raise SystemExit(f"--release {a.release}: use X.Y, X.Y.Z or X.Y-suffix")
         VERSION = "ChoralRoot " + a.release.lower()      # e.g. ChoralRoot 1.0, ChoralRoot 1.1-rc1
         name = f"{UNIT}-{a.release}.fwsc"
+        name1 = f"{UNIT}-{a.release}-1core.fwsc"     # the single-core package (docs/DUALCORE.md "Two packages")
     fm1pkg_make.SDK = a.sdk
     for rel, sha in SDK_SHA256.items():          # fail early without the SDK
         if hashlib.sha256(fm1pkg_make.sdk_file(rel)).hexdigest() != sha:
@@ -457,24 +521,34 @@ def main():
         gen.result()
         ota = ldr.result()
         stub = stb.result()
-    img, syms, dis, rt, hdr = build_app(stub)
-    errors, notes = check(img, syms, dis, rt)
-    hal_err = mmio_check()
-    errors += hal_err
-    if not hal_err:
-        notes.append("register access: hal/ only (src/, loader/ clean)")
-    for n in notes:
-        print("  ok   ", n)
-    for e in errors:
-        print("  FAIL ", e)
-    print(size_line(hdr))
-    if errors:
-        raise SystemExit("build: checks failed")
-    flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY)
-    pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
-    print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
-          f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "
-          f"{len(img) - STUB_LEN + (-len(img) % 4)} B")
+    # CR_SINGLE_CORE=1: this build is the single-core package. A release builds both, the single-core one first, so
+    # that build/choralroot.{bin,elf,dis} are the standard package's when it ends
+    single_env = os.environ.get("CR_SINGLE_CORE") == "1"
+    variants = [True, False] if a.release else [single_env]
+    one = None
+    for single in variants:
+        img, syms, dis, rt, hdr = build_app(stub, single)
+        errors, notes = check(img, syms, dis, rt)
+        hal_err = mmio_check()
+        errors += hal_err
+        if not hal_err:
+            notes.append("register access: hal/ only (src/, loader/ clean)")
+        for n in notes:
+            print("  ok   ", n)
+        for e in errors:
+            print("  FAIL ", e)
+        print(("1-core " if single else "") + size_line(hdr))
+        if errors:
+            raise SystemExit("build: checks failed")
+        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY)
+        pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
+        print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
+              f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "
+              f"{len(img) - STUB_LEN + (-len(img) % 4)} B")
+        if single and a.release:
+            one = (pkg, bytes(img))
+            (OUT / name1).write_bytes(pkg)
+            print(f"package  {OUT / name1}  {len(pkg)} B, identity {PRODUCT} (single core)")
     (OUT / name).write_bytes(pkg)
     att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
     att_on = att.exists() and os.environ.get("FELUCCA_SAMPLE") == "1"   # the SAMPLE sets' credit: only when built in
@@ -483,16 +557,17 @@ def main():
         shutil.copy(att, OUT / "ATTRIBUTION.txt")
     print(f"app      {OUT / f'{UNIT}.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
-    print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}")
+    print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}" + (" (single core)" if single_env and not a.release else ""))
     if a.release:                   # what a release carries: the package, the app and every licence they need
         rel = OUT / f"release-{a.release}"
         shutil.rmtree(rel, ignore_errors=True)
         (rel / "LICENSES").mkdir(parents=True)
         app = f"{UNIT}-{a.release}-app.bin"
-        (rel / name).write_bytes(pkg)
-        (rel / app).write_bytes(img)
-        (rel / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n"
-                                                for n, b in ((name, pkg), (app, bytes(img)))))
+        app1 = f"{UNIT}-{a.release}-1core-app.bin"
+        files = ((name, pkg), (app, bytes(img)), (name1, one[0]), (app1, one[1]))
+        for n, b in files:
+            (rel / n).write_bytes(b)
+        (rel / "SHA256SUMS").write_text("".join(f"{hashlib.sha256(b).hexdigest()}  {n}\n" for n, b in files))
         for f in sorted((SRC / "LICENSES").glob("*.txt")):
             shutil.copy(f, rel / "LICENSES" / f.name)
         for doc in ("LICENSE", "LICENSING.md"):

@@ -1,0 +1,22 @@
+# test_persist.sh, P5 run 2 (the same flash file): the power-on sound is P5's place 03, edited (dump);
+# EDIT, FILT (SEL), KNOB 1 +1 (the rows' CUTOFF): the cutoff reads the saved value ("CUT b -> a"); a chord on it sounds
+wait 500
+dump
+btn EDIT
+wait 400
+btn SEL
+wait 400
+knob KNOB1 +1
+wait 300
+btn EDIT
+wait 300
+key F3 down
+wait 40
+btn D4 down
+wait 600
+expect sound
+btn D4 up
+key F3 up
+wait 300
+dump
+quit

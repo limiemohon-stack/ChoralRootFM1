@@ -5,7 +5,7 @@
 wait 500
 btn GLO
 wait 100
-knob SELECT +24
+knob SELECT +28
 wait 100
 shot build/emu/test/cr_calib_opt.ppm
 btn OCT+

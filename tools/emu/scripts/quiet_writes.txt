@@ -1,0 +1,74 @@
+# test_persist.sh, the quiet writes (0.22; docs/SETTINGS.md "When flash is written"; cr_settings.c, storage.c "erase
+# ahead"), run 1, a new unit: a favourite marked in the SAVE menu (KNOB 4), a chord 1.6 s later, as the owner played
+# when the unit glitched. Marks 1 and 2 find a blank copy to write (a new unit's two): programmed 1.5 s after the
+# mark, no erase at all (dumps 1, 2). Mark 3 has to erase (the spare is the copy mark 1 wrote and no erase ahead has
+# come): it waits for 4 s without a sound and without input instead of one silent second (dump 3: still pending 2.9 s
+# after the chord; dump 4: written, one erase, none near playing). 11 s idle: the erase ahead (dump 5). Mark 4 then
+# programs only; a knob every 6 s keeps the erase ahead away (dump 6); 11 s without one: it comes (dump 7)
+wait 300
+btn SAVE
+wait 300
+knob KNOB4 +1                 # mark 1 (TINE EP on)
+wait 200
+btn OCT-
+wait 1400
+key F3 down                   # 1.6 s after the mark: MAJ + D4
+wait 40
+btn D4 down
+wait 400
+btn D4 up
+key F3 up
+wait 100
+dump                          # 1: written before the chord (favs saves 1), erases 0
+wait 6000
+btn SAVE
+wait 300
+knob KNOB4 -1                 # mark 2 (off)
+wait 200
+btn OCT-
+wait 1400
+key F3 down
+wait 40
+btn D4 down
+wait 400
+btn D4 up
+key F3 up
+wait 100
+dump                          # 2: written, the second blank copy: erases 0; the spare is now the first copy
+wait 6000
+btn SAVE
+wait 300
+knob KNOB4 +1                 # mark 3 (on): has to erase
+wait 200
+btn OCT-
+wait 1400
+key F3 down
+wait 40
+btn D4 down
+wait 400
+btn D4 up
+key F3 up
+wait 2900
+dump                          # 3: 4.9 s after the mark, 2.9 s after the chord: not written (pending 1), erases 0
+wait 6000
+dump                          # 4: written (4 s without sound or input): erases 1, near 0
+wait 11000
+dump                          # 5: the erase ahead: erases 2 (ahead 1), ready
+btn SAVE
+wait 300
+knob KNOB4 -1                 # mark 4 (off): programs only
+wait 200
+btn OCT-
+wait 5500
+knob KNOB1 +1                 # an input every 6 s: no erase ahead
+wait 6000
+knob KNOB1 -1
+wait 6000
+knob KNOB1 +1
+wait 6000
+knob KNOB1 -1
+wait 3000
+dump                          # 6: 27 s after mark 4: written (saves 4), erases still 2, the spare not ready
+wait 8500
+dump                          # 7: 11.5 s after the last input: erases 3 (ahead 2)
+quit

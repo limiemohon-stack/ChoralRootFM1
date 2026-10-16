@@ -1,0 +1,128 @@
+# ChoralRoot 0.22: knob acceleration and OPT snap (firmware/src/cr_pages.c kn_*, docs/EDITOR.md "Knob acceleration and
+# OPT snap"). Real timing ("knobs real", the default): a detent 300 ms after the last is slow (the finest step), detents
+# a UI frame apart (15 ms) the quickest (the range / 20). GLO (OPT, the editor's SHIFT) held: the value snaps.
+# 1. VA (GLO + PRESETS +2: LUSH PAD), EDIT, FILT: KNOB 1 the cutoff (0..127): 3 slow detents, then 6 quick ones;
+#    GLO held: +1 +1 (the 16s), -1; MIX: KNOB 2 Pan (-64..63) GLO held +1 +1 (0 8 16), KNOB 3 Voice (an enum) GLO
+#    held +1: one item.
+# 2. FM TONE (EDIT left, GLO + PRESETS -1), EDIT, OSC tapped: SYN 2, KNOB 1 OFS C (-1.00 .. +1.00 in 0.01): 3 slow
+#    detents, 10 quick; GLO held +1 (the whole number 1.00), -1 -1 (0.00, -1.00); LFO: LFO 1's SPEED (bipolar,
+#    -64..63): GLO held +1 +1 (16 -> 32 -> 63), then -1 -1 -1 (32 16 8).
+# tools/emu/test_cr.sh reads the "deep:" / "param:" lines.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +2               # OPT + PRESETS: the engine (FM6 -> FM TONE -> VA, LUSH PAD), on OPT's release
+wait 100
+btn GLO up
+wait 1500
+btn EDIT
+wait 400
+btn SEL
+wait 400
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1                 # the quick run: a detent each UI frame
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 300
+btn GLO down
+wait 100
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 -1
+wait 100
+btn GLO up
+wait 300
+btn REC                       # MIX: Level Pan Voice Glide
+wait 400
+btn GLO down
+wait 100
+knob KNOB2 +1
+wait 300
+knob KNOB2 +1
+wait 300
+knob KNOB3 +1
+wait 100
+btn GLO up
+wait 300
+btn EDIT                      # leave the editor
+wait 400
+btn GLO down
+wait 100
+knob PRESETS -1               # OPT + PRESETS: VA -> FM TONE
+wait 100
+btn GLO up
+wait 1500
+btn EDIT
+wait 400
+btn FX                        # OSC: SYN 1 (the part's group was MIX)
+wait 400
+btn FX                        # OSC again: SYN 2 (OFS C A B1 B2)
+wait 400
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 15
+knob KNOB1 +1
+wait 300
+btn GLO down
+wait 100
+knob KNOB1 +1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 100
+btn GLO up
+wait 300
+btn LFO
+wait 400
+btn GLO down
+wait 100
+knob KNOB1 +1
+wait 300
+knob KNOB1 +1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 300
+knob KNOB1 -1
+wait 100
+btn GLO up
+wait 300
+quit

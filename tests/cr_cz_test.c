@@ -37,6 +37,7 @@ static uint8_t sx_out[600];
 static uint32_t sx_out_n, sx_out_count;
 #define CZ_SEND(p, n) (memcpy(sx_out, (p), (n)), sx_out_n = (n), sx_out_count++)
 #include "../tools/emu/emu_firmware.h"
+#include "cr_pool_shim.h"                       /* (0.22: the patches in the sound pool) */
 
 #ifndef CZ_VOICE_GAIN
 #define CZ_VOICE_GAIN 4                              /* (this file in a tree before 0.19's trim: the constants below) */
@@ -183,7 +184,7 @@ int main(void)
     for (k = 0, bad = 1; k < NENG_SHOWN; k++)
         if (ENGINE_ORDER[k] == ENGI_VA)
             bad = !(k + 1u < NENG_SHOWN && ENGINE_ORDER[k + 1u] == ENGI_CZ);
-    OK(ENGI_CZ == 14u && NENGINES == 15u + FELUCCA_QUAD && ENGINES[ENGI_CZ] == &ENG_CZ && !strcmp(ENG_CZ.name, "CZ-1") && eng_ok(ENGI_CZ) &&
+    OK(ENGI_CZ == 14u && NENGINES == 15u + FELUCCA_QUAD + FELUCCA_PROPHET && ENGINES[ENGI_CZ] == &ENG_CZ && !strcmp(ENG_CZ.name, "CZ-1") && eng_ok(ENGI_CZ) &&
        !bad, "engine: CZ-1 is 14 (after VA's 13; Melodee: 15), shown after the VA (0.14)");
     for (k = 0, bad = 0; k < CZ_FACTORY_N; k++)
         bad += !cz_patch_valid(CZ_FACTORY[k]);
@@ -611,26 +612,26 @@ int main(void)
         memcpy(raw, cz_patch[0].raw, CZ_BYTES);
         k = (uint32_t)up_store(slot, "CZ EDIT");
         OK(k == 0u || k == 3u, "store: U05 saved (a CZ-1 sound)");
-        OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES) && czu[0].used == 1u << slot,
+        OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES) && pool_used_of(ENGI_CZ, 0) == 1u << slot,
            "store: its tone in the CZ-1 tone store (object 1 of 2, slot 5)");
         cu_load(t, ENGI_CZ, 3, 0);
         cu_load_user(t, slot, 0);
         OK(!memcmp(cz_patch[0].raw, raw, CZ_BYTES) && t->eng_req == ENGI_CZ, "store: U05 loads its own tone");
-        memset(czu, 0, sizeof czu);
+        memset(upn, 0, sizeof upn);
         up_boot();
         OK(czu_get(slot, b2) == 0 && !memcmp(raw, b2, CZ_BYTES), "store: from flash after a reboot");
-        OK(up_store(20, "UPPER") == 0 && czu[1].used == 1u << 4 && st_sector(OBJ_CZSTORE0, 0) == 0x9D000u &&
+        OK(up_store(20, "UPPER") == 0 && pool_used_of(ENGI_CZ, 1) == 1u << 4 && st_sector(OBJ_CZSTORE0, 0) == 0x9D000u &&
            st_sector(OBJ_CZSTORE1, 0) == 0xA0000u, "store: U21 in the second object (0x9D000 / 0xA0000)");
         cu_load(t, 7, 0, 0);                         /* WHEEL (PHASE until 0.18: retired) */
         up_store(slot, "WHEEL NOW");
         OK(czu_get(slot, b2) != 0, "store: another engine's sound over U05 clears its tone");
         up_put(20, 0);
-        OK(czu_get(20, b2) != 0 && !czu[1].used, "store: an erased slot clears its tone");
+        OK(czu_get(20, b2) != 0 && !pool_used_of(ENGI_CZ, 1), "store: an erased slot clears its tone");
         cu_load(t, ENGI_CZ, 0, 0);                   /* a slot without a tone: its BANK / PTCH */
         t->p[P_E0] = 3;
         t->p[P_E1] = 16;
         up_store(slot, "NO TONE");
-        czu_put(slot, 0);
+        pool_patch_clear(slot);
         cu_load(t, ENGI_CZ, 5, 0);
         cu_load_user(t, slot, 0);
         OK(!memcmp(cz_patch[0].raw, CZ_FACTORY[63], CZ_BYTES), "store: a slot of no tone loads BANK D PTCH 16 (H-8)");
@@ -638,9 +639,9 @@ int main(void)
             uint32_t n = 0;
             for (k = 0; k < CRB_N; k++)
                 n += crb_is_cz(CRB_IDS[k]);
-            OK(n == 10u && crb_obj(12) == OBJ_CZSTORE0 && crb_obj(13) == OBJ_CZSTORE1 && crb_obj(21) == OBJ_CZBANK0 + 7u &&
+            OK(n == 8u && crb_index(12) < 0 && crb_obj(12) == OBJ_CZSTORE0 && crb_obj(13) == OBJ_CZSTORE1 && crb_obj(21) == OBJ_CZBANK0 + 7u &&
                crb_size_ok(12, sizeof(czu_t)) && !crb_size_ok(12, sizeof(czu_t) - 1u) && sizeof(czu_t) == 2320u &&
-               sizeof(cz_bank_t) == 2332u, "backup: objects 12, 13 (the tone store, 2320 B) and 14..21 (the banks, 2332 B)");
+               sizeof(cz_bank_t) == 2332u, "backup: objects 14..21 (the banks, 2332 B) listed; 12, 13 (the tone store, 2320 B: 0.22, legacy) taken by a PUT, not listed");
         }
     }
 

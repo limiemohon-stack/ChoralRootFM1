@@ -17,7 +17,7 @@
 #endif
 #define FM6U_MAGIC 0x55364D46u                   /* "FM6U" */
 #define FM6U_VER 1u
-#define FM6U_HALF (UP_SLOTS / 2u)
+#define FM6U_HALF (UP_LEGACY / 2u)
 typedef struct {
     uint32_t magic;
     uint16_t ver, nslot;                         /* FM6U_VER, FM6U_HALF */
@@ -27,7 +27,9 @@ typedef struct {
 } fm6u_t;
 _Static_assert(sizeof(fm6u_t) == 16u + FM6U_HALF * FM6_BLOB && sizeof(fm6u_t) + 256u <= 4096u - 256u,
                "FM6 store layout: header + 16 blobs, the sector's tail erased");
+#if !UP_POOL
 static fm6u_t fm6u[2] __attribute__((section(".pool")));
+#endif
 
 static int fm6u_valid(const fm6u_t *s, uint32_t h)
 {
@@ -41,6 +43,7 @@ static int fm6u_valid(const fm6u_t *s, uint32_t h)
     return 1;
 }
 
+#if !UP_POOL       /* (since 0.22 the pool, upool.c, keeps the patches: the store above is read once, the migration) */
 static void fm6u_empty(uint32_t h)
 {
     memset(&fm6u[h], 0, sizeof fm6u[h]);
@@ -59,7 +62,7 @@ static uint16_t fm6u_crc16(const uint8_t *b) { return (uint16_t)st_crc32(b, FM6_
 static int fm6u_get(uint32_t k, uint8_t *b)
 {
     const fm6u_t *s = &fm6u[(k / FM6U_HALF) & 1u];
-    if (k >= UP_SLOTS || s->magic != FM6U_MAGIC || !((s->used >> (k % FM6U_HALF)) & 1u))
+    if (k >= UP_LEGACY || s->magic != FM6U_MAGIC || !((s->used >> (k % FM6U_HALF)) & 1u))
         return 1;
     memcpy(b, s->b[k % FM6U_HALF], FM6_BLOB);
 #if defined(CR_TRACE) && CR_TRACE
@@ -89,7 +92,7 @@ static int fm6u_put(uint32_t k, const uint8_t *b)
     uint8_t old[FM6_BLOB];
     uint32_t h = (k / FM6U_HALF) & 1u, i = k % FM6U_HALF, used;
     fm6u_t *s = &fm6u[h];
-    if (k >= UP_SLOTS || (b && !fm6_blob_ok(b)))
+    if (k >= UP_LEGACY || (b && !fm6_blob_ok(b)))
         return 1;
     if (!fm6u_valid(s, h))
         fm6u_empty(h);
@@ -157,7 +160,8 @@ static void fm6u_loading(const up_rec_t *r)
     fm6_user_pending = 0;
     if (r->engine != ENGI_FM6)
         return;
-    for (b = 0; b < UP_SLOTS / UP_PER_BANK; b++)
+    for (b = 0; b < UP_LEGACY / UP_PER_BANK; b++)
         if (r >= up_bank[b].r && r < up_bank[b].r + UP_PER_BANK)
             fm6_user_pending = (uint8_t)(b * UP_PER_BANK + (uint32_t)(r - up_bank[b].r) + 1u);
 }
+#endif /* !UP_POOL */

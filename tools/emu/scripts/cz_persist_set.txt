@@ -1,5 +1,5 @@
 # test_persist.sh, CZ-1 run 1: OPT + PRESETS +4: the CZ-1, 01 BRASS 1 (Casio's A-1); EDIT, ENV four times: DCW 1, SELECT +1: its
-# levels, KNOB 1 -20: L1 to 0; HOME; SAVE, OCT+ (U01): the trace "cz: save slot 1 part 0 tone crc XXXX"; the settings
+# levels, KNOB 1 -22: L1 to 0 (99: one, one, then five a detent); HOME; SAVE, OCT+ (U01): the trace "cz: save slot 1 part 0 tone crc XXXX"; the settings
 # record saved past the quiet time; quit
 wait 300                      # (+ 200 ms of the engine change below: the same timeline)
 btn GLO down
@@ -20,7 +20,7 @@ btn ENV
 wait 400
 knob SELECT +1
 wait 250
-knob KNOB1 -20
+knob KNOB1 -22
 wait 300
 btn HOME
 wait 400

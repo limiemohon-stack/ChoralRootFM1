@@ -27,6 +27,9 @@
 #ifndef FELUCCA_QUAD
 #define FELUCCA_QUAD 1                                /* as choralroot.c: the QUAD engine (15), its patch store */
 #endif
+#ifndef FELUCCA_PROPHET
+#define FELUCCA_PROPHET 1                             /* as choralroot.c: Melodee's Prophet-5 engine (16) */
+#endif
 #ifndef FELUCCA_SAMPLE
 #define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, GRAIN, DRUM retired */
 #endif
@@ -88,6 +91,11 @@
 /* cr_engine.h's cr_param_t (the perform parameter enum) and cr_screen.h's (a params column) share a name: the
  * engine's is renamed in this unit (cr_out.c / cr_ui.c call it cr_eparam_t) */
 #define cr_param_t cr_eparam_t
+/* the key sensing (firmware/src/cr_sense.c, docs/VELOCITY.md), as the unit has it, fed by emu_fw.c from the script's
+ * velocities and leans instead of the scan's hooks; the scan's analog state it would switch is a stub here */
+#define CR_SENSE_NO_HOOKS 1
+#include "../../firmware/src/cr_sense.c"
+static struct { uint8_t drive, probe; } fm1_an;
 #include "../../firmware/src/cr_engine.h"
 #include "../../firmware/src/cr_engine.c"
 #undef cr_param_t
@@ -105,6 +113,25 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
     cr_click_mix(out, n);                              /* the metronome / count-in click */
     CR_PROF(CRP_MASTER);         /* the master, the USB tap, the click */
 }
+/* A UNIT THAT DOES NOT KEEP UP, MODELLED (docs/PROPHET.md "The crackle"; README "Overload"): the host renders a half
+ * in microseconds, so audio.c's shed never runs here. With one of these set (emu_fw.c reads the environment) the time
+ * shed_check is given for a half is 90 % of the budget whenever the model says the unit would be over:
+ *   EMU_SHED_OVER=N    a half that ends with N or more voices sounding (all parts; a fading one is not counted)
+ *   EMU_SHED_AT=A:B    every half between A and B ms of audio since power-on
+ * and the half's own time otherwise. What is modelled is the shed's DECISION (two such halves in a row fade a voice,
+ * one more each half while it lasts); nothing here makes a half late or stale */
+static uint32_t emu_shed_over, emu_shed_at0, emu_shed_at1, emu_shed_halves;
+static uint32_t emu_shed_model(uint32_t all)
+{
+    uint32_t p, i, n = 0, ms = (uint32_t)((uint64_t)emu_shed_halves++ * HALF_FRAMES * 1000u / FS);
+    for (p = 0; p < NPART; p++)
+        for (i = 0; i < NVOICE; i++)
+            n += trk[p].v[i].active && trk[p].v[i].stage != 4u;
+    if ((emu_shed_over && n >= emu_shed_over) || (emu_shed_at1 && ms >= emu_shed_at0 && ms < emu_shed_at1))
+        return (HALF_FRAMES * 1000000u / FS) * 90u / 100u * FM1_TICKS_PER_US;
+    return all;
+}
+#define CR_SHED_MODEL(all) (emu_shed_over || emu_shed_at1 ? emu_shed_model(all) : (all))
 #include "../../firmware/src/audio.c"                 /* fm1_alnk0_irq: the audio ISR, called per block */
 
 /* --------------------------------------------------------------------- UI --- */
@@ -124,10 +151,13 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 #include "../../firmware/src/gfx.c"
 #include "../../firmware/src/panel.c"
 #include "../../firmware/src/cr_gfx.c"                /* (includes build/gen/cr_fonts.h) */
+#include "../../firmware/src/cr_layout.c"             /* the compiled layouts (build/gen/cr_layouts.h) */
 #include "../../firmware/src/cr_draw.c"               /* (includes cr_screen.h) */
 #include "../../firmware/src/cr_anim.c"
+#define ST_AHEAD 1                                    /* (choralroot.c's: the erase ahead) */
 #include "../../firmware/src/storage.c"               /* (before the sounds: upreset.c's banks, the loop slots) */
 #define CR_TRACE 1                                    /* cr_ui.c: "param: / page: / save: .." lines in the logs */
+#include "../../firmware/src/cr_favs.c"               /* the favourites (before the sounds) */
 #include "../../firmware/src/cr_bank.c"               /* upreset.c (the flash file) and the factory bank */
 #include "../../firmware/src/cr_pages.c"
 #include "../../firmware/src/cr_name.c"
@@ -136,6 +166,29 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
  * with a second run, tools/emu/test_cr.sh) */
 #define CR_REBOOT() do { bootguard_settled(&bootguard); printf("reboot: guard failed %u pending %u\n", (unsigned)bootguard.failed, \
                                 (unsigned)bootguard.pending); fflush(stdout); exit(0); } while (0)
+/* GEEK OUT 2 (cr_ui.c cu_geek2). RAM and POOL: the device's link map (app.ld); the host has none: "n/a", in the grey.
+ * CORE 0: audio.c's measure is the host's wall time here (a fast host: about 0 %); with EMU_STAGES=1 the ISR's stages
+ * in device us instead (emu_fw.c: host instructions / 259), core 1's job left out, the wait in (cu_geek2 takes it
+ * off); the peak the stages' peaks summed (an upper bound) */
+#define CR_MEM_USED(r, p) ((r) = (p) = 0xFFFFFFFFu)
+#define CR_CORE0_US(avg, max) emu_core0_us(&(avg), &(max))
+static void emu_core0_us(uint32_t *avg, uint32_t *mx)
+{
+    *avg = cpu_last.avg_us;
+    *mx = cpu_last.max_us;
+#if CR_CPU1
+    if (cr_dbg.prof_on) {
+        uint32_t k;
+        *avg = *mx = 0;
+        for (k = 0; k < CRP_N; k++)
+            if (k != CRP_WAIT || cr_dbg.c1 == C1_OK)
+                if (k != CRP_PART1 || cr_dbg.c1 != C1_OK) {
+                    *avg += cr_dbg.avg_us[k];
+                    *mx += cr_dbg.max_us[k];
+                }
+    }
+#endif
+}
 #include "../../firmware/src/cr_ui.c"
 #include "../../firmware/src/cr_settings.c"           /* the settings record (after cr_ui.c and storage.c) */
 #include "../../firmware/src/fm6_store.c"             /* FM6: DX7 SysEx (Melodee's; after cr_ui.c: the editor's part) */
