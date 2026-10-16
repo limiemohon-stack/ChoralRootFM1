@@ -3413,6 +3413,24 @@ bo() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.* notes-
     bad "a repeated chord: notes out $(bo 10) -> $(bo 11) -> $(bo 12)"
 silent_end cr_harm_buttons
 
+echo "Harmony mode, BASS held: PRESETS the bass sound, ALGORITHM its level, the mode staying open; BASS tapped: on / off"
+export EMU_UI_LOG=0
+run cr_harm_bass
+unset EMU_UI_LOG
+L="$OUT/cr_harm_bass.log"
+hk() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* perform \([0-9]\) mode [0-9] bass \([0-9]\) (sound \([0-9]*\)).* layer \([0-9]*\) .*/perf \1 bass \2 sound \3 layer \4/'; }
+[ "$(hk 1)" = "perf 0 bass 0 sound 0 layer 6" ] && [ "$(hk 2)" = "perf 0 bass 1 sound 1 layer 6" ] &&
+    LC_ALL=C grep -aq '^bass: level 94 (harmony, BASS + ALGORITHM)' "$L" && ! LC_ALL=C grep -aq '^layer: open 4' "$L" &&
+    LC_ALL=C grep -aq "^  screen reads: value '94' sub '' label 'bass level'" "$L" &&
+    ok "ENV held + PRESETS: the next bass sound; + ALGORITHM twice: its level 92 -> 94; Harmony stays open (no BASS layer)" ||
+    bad "the bass combination: '$(hk 1)' / '$(hk 2)'"
+[ "$(hk 3)" = "$(hk 2)" ] && [ "$(hk 4)" = "perf 1 bass 1 sound 1 layer 6" ] &&
+    ok "ENV held past the hold time, nothing turned: nothing; ALGORITHM alone: the mode's motion as before" ||
+    bad "the long hold / motion: '$(hk 3)' / '$(hk 4)'"
+[ "$(hk 5)" = "perf 1 bass 0 sound 1 layer 6" ] && [ "$(hk 6)" = "perf 1 bass 1 sound 1 layer 6" ] &&
+    ok "ENV tapped in the mode: the bass off, tapped again: on (as before)" || bad "the tap: '$(hk 5)' / '$(hk 6)'"
+silent_end cr_harm_bass
+
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0
 run cr_harm_motion

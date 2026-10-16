@@ -1411,6 +1411,8 @@ static struct {
     uint8_t wbtn, abtn;            /* the world / approach button held that counts (cr_mod_t; 0xFF: none) */
     uint8_t flav;                  /* the notes added (bit cr_mod_t: 6, m7, M7, 9; cr_harm_flavour) */
     uint8_t last_k, last_n, has_last;   /* the root key the keys last played and its note (a world button's re-voice) */
+    uint8_t bhold, bused;          /* BASS held in the mode (its own: no BASS layer over it), and turned something */
+    uint32_t bt0;                  /* when it went down (held past the hold time and let go: no tap) */
     uint32_t revoice_at;           /* a world button let go: the re-voice, a moment later (0: none) -- a key let go in
                                     * the same instant is up by then, and its chord is not re-sounded for nothing */
     cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
@@ -4751,6 +4753,25 @@ static void cu_btn_press(uint32_t b)
         }
         return;
     }
+    if (b == BT_BASS && cu.armed == NB && cu_layer() == L_HARM && !cu.page) {   /* Harmony mode: BASS held is the
+                                                   * mode's own (cu_hm_bass_knob), never the BASS layer over it; a tap
+                                                   * still turns the bass on / off */
+        cu_hm.bhold = 1;
+        cu_hm.bused = 0;
+        cu_hm.bt0 = cu_now();
+        return;
+    }
+    if (cu_hm.bhold && ((cu.bheld >> BT_BASS) & 1u) && (b == BT_EDIT || b == BT_SAVE)) {   /* BASS held + EDIT / SAVE
+                                                   * in the mode: the bass sound's editor / saving, as everywhere */
+        cu_hm.bused = 1;
+        cu.swallow |= CU_BIT(b);
+        cu.lock = L_NONE;
+        if (b == BT_EDIT)
+            cu_edit_open(1);
+        else
+            cu_save_open(1);
+        return;
+    }
     if (cu.armed == NB) {
         if (b == BT_EDIT && cu.page != PG_EDIT)   /* EDIT held: the engine picker of the chord sound */
             ce.part = 0;
@@ -4813,6 +4834,13 @@ static void cu_btn_release(uint32_t b)
     }
     if (cu.swallow & CU_BIT(b)) {
         cu.swallow &= ~CU_BIT(b);
+        return;
+    }
+    if (b == BT_BASS && cu_hm.bhold) {            /* Harmony mode's BASS: a tap, nothing turned, the bass on / off;
+                                                   * held past the hold time and let go: nothing (as a layer's hold) */
+        cu_hm.bhold = 0;
+        if (!cu_hm.bused && cu_now() - cu_hm.bt0 < (uint32_t)HOLD_MS[settings_hold % 4u])
+            cu_tap(b);
         return;
     }
     if (b == cu.armed) {
@@ -4927,6 +4955,33 @@ static int cu_bass_level_hold(int32_t s)
     return 1;
 }
 
+static void cu_bass_sound_step(int32_t s)         /* ALGORITHM's own job: OFF, then the bass part's pool, wrapping */
+{
+    int32_t n = (int32_t)pool_count(trk[CR_PART_BASS].eng_req % NENGINES) + 1;
+    int32_t v = ((int32_t)cs.bass_sound + s % n + n) % n;
+    if (cuf_n(1, trk[CR_PART_BASS].eng_req))       /* the favourites filter: OFF, then the bass part's favourites */
+        v = cuf_move(1, (int32_t)cs.bass_sound - 1, s, 1, 1) + 1;
+    cu_bass_go((uint32_t)v);
+    cu_sound_popup(1);
+    cu_trace("sound: part 1 pos %u %s\n", (unsigned)cs.bass_sound, cs.bass_sound ? psnd[1].name : "off");
+}
+/* Harmony mode, BASS held (the owner, 2026-10-16: "be able to change the bass ... and adjust the volume of it", without
+ * touching what the mode's knobs do): PRESETS the bass sound (ALGORITHM's job outside the mode: OFF, then its pool),
+ * ALGORITHM the bass level (as BASS held + ALGORITHM everywhere). OPT + ALGORITHM is still its engine. Let go: the mode
+ * as it was; BASS tapped alone: the bass on / off as before */
+static void cu_hm_bass_knob(uint32_t role, int32_t s)
+{
+    cu_hm.bused = 1;
+    cu.last_input = cu.last_local = cu_now();
+    if (role == EN_PRESET) {
+        cu_bass_sound_step(s);
+        return;
+    }
+    trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, 0);
+    cu_popup_num(trk[CR_PART_BASS].p[P_LEVEL], 0, "", "bass level", CR_COL_ORANGE, 0, 127, 12);
+    cu_trace("bass: level %d (harmony, BASS + ALGORITHM)\n", (int)trk[CR_PART_BASS].p[P_LEVEL]);
+}
+
 /* the knobs on the naming page of Save as new (the owner, 2026-10-13: "the editor to name the preset needs work. All
  * the other knobs do default things which is weird. Select knob should select character, knob 1 to change the letter
  * at selected index, knob 4 CCW as a backspace, the other knobs 2 and 3 in the name editor should not do anything"):
@@ -4964,6 +5019,10 @@ static void cu_knob(uint32_t role, int32_t s)
                                                     * else (cu_name_knob): before the holds and shifts below */
         cu_activity();
         cu_name_knob(role, s);
+        return;
+    }
+    if (cu_hm.bhold && ((cu.bheld >> BT_BASS) & 1u) && (role == EN_PRESET || role == EN_ALGO) && !cu_shift()) {
+        cu_hm_bass_knob(role, s);                  /* Harmony mode, BASS held: the bass sound / level */
         return;
     }
     if (role == EN_ALGO && cu_bass_level_hold(s))  /* BASS held + ALGORITHM: the bass level */
@@ -5215,15 +5274,7 @@ static void cu_knob(uint32_t role, int32_t s)
         }
         break;
     case EN_ALGO:                                  /* OFF, then the bass part's engine's pool, wrapping */
-        {
-            int32_t n = (int32_t)pool_count(trk[CR_PART_BASS].eng_req % NENGINES) + 1;
-            v = ((int32_t)cs.bass_sound + s % n + n) % n;
-            if (cuf_n(1, trk[CR_PART_BASS].eng_req))   /* the favourites filter: OFF, then the bass part's favourites */
-                v = cuf_move(1, (int32_t)cs.bass_sound - 1, s, 1, 1) + 1;
-        }
-        cu_bass_go((uint32_t)v);
-        cu_sound_popup(1);
-        cu_trace("sound: part 1 pos %u %s\n", (unsigned)cs.bass_sound, cs.bass_sound ? psnd[1].name : "off");
+        cu_bass_sound_step(s);
         break;
     case EN_SELECT:
         cu_set_tempo((int32_t)cs.bpm + s);

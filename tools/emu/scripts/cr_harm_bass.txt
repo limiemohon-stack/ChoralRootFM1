@@ -1,0 +1,57 @@
+# Harmony mode, BASS (ENV) held (cr_ui.c cu_hm_bass_knob): PRESETS the bass sound, ALGORITHM the bass level, the mode
+# staying open (no BASS layer over it); BASS tapped alone: the bass on / off as before. Home C major.
+#  A. C major (MAJ + C5), LATCH held (the mode), LATCH tapped (Sticky), D4 tapped (dump 1)
+#  B. ENV held, PRESETS +1, ALGORITHM +2, ENV up: the bass sound one on, the level up, still the mode (dump 2)
+#  C. ENV held 900 ms (past the hold), nothing turned, up: no layer, no tap -- the bass still on (dump 3)
+#  D. ALGORITHM +1, no ENV: the mode's motion as before (dump 4)
+#  E. ENV tapped: the bass off (dump 5); tapped again: on (dump 6)
+#  F. LATCH tapped (Sticky off), OCT-, PANIC
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+btn LFO
+wait 200
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn ENV down
+wait 100
+knob PRESETS +1
+wait 100
+knob ALGORITHM +1
+wait 100
+knob ALGORITHM +1
+wait 100
+btn ENV up
+wait 300
+dump
+btn ENV down
+wait 900
+btn ENV up
+wait 300
+dump
+knob ALGORITHM +1
+wait 300
+dump
+btn ENV
+wait 300
+dump
+btn ENV
+wait 300
+dump
+btn LFO
+wait 200
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump
