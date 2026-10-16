@@ -1246,7 +1246,7 @@ static void cu_harm_feed(void)
  * it sounds: Transpose added); OCT+ makes the chord you are on home. KNOB 1: the colour world (bare, triads, jazz:
  * the palette as written, lush, quartal, altered, upper structure: cr_harmony.h); KNOB 2: the voicing style (Shell, Spread, Colour); ALGORITHM: the motion (a perform mode, or
  * off); KNOB 3: its time; KNOB 4: glide; SELECT (the tempo outside the mode): the mode, bright to dark -- Lydian,
- * major, Mixolydian, Dorian, minor, Phrygian -- on the same home (cr_harm_lanes_mode). A chord key held: a flavour, or (MAJ, MIN, DIM) that root's own chord. The chords sound as keyed chords given whole
+ * major, Mixolydian, Dorian, minor, Phrygian -- on the same home (cr_harm_lanes_mode). The chord keys are its buttons (cu_hm_button): the upper row a colour world while held, the lower row an approach (pressed before a root) or an added note (after). The chords sound as keyed chords given whole
  * (cr_out.c CRE_HSPEC, CRE_HNOTE, CRE_HKEY; cr_engine.c cr_key_chord): released with their key, latched by LATCH,
  * played by a performance mode, recorded by the looper (its root and type: a loop plays its chords at the live
  * voicing, so a loop of a walk keeps the walk's chords and register, not each inversion), heard by the history */
@@ -1258,6 +1258,14 @@ static struct {
     uint8_t colour;                /* KNOB 1: the colour world, CR_HCOL_* (CR_HCOL_JAZZ: the palette as written) */
     uint8_t style;                 /* KNOB 2: CR_HSTYLE_* */
     uint8_t hinted;                /* the "OCT+: home" hint shown since the mode opened */
+    uint16_t own;                  /* the chord keys pressed as the mode's buttons (bit: key 0 = F3 ..): their release
+                                    * is the mode's too, wherever it lands */
+    uint16_t fown;                 /* .. those of them pressed while a root key was held: adding a note */
+    uint8_t wbtn, abtn;            /* the world / approach button held that counts (cr_mod_t; 0xFF: none) */
+    uint8_t flav;                  /* the notes added (bit cr_mod_t: 6, m7, M7, 9; cr_harm_flavour) */
+    uint8_t last_k, last_n, has_last;   /* the root key the keys last played and its note (a world button's re-voice) */
+    uint32_t revoice_at;           /* a world button let go: the re-voice, a moment later (0: none) -- a key let go in
+                                    * the same instant is up by then, and its chord is not re-sounded for nothing */
     cr_chord_info_t cur;           /* the chord you are on: what the keys last played (known here at once, before the
                                     * engine's snapshot shows it), else the player's chord when something else struck
                                     * it (a chord key held, a pad, MIDI in: cu_hm_frame) */
@@ -1356,6 +1364,10 @@ static void cu_hm_enter(void)
         cu_hm_home_here();
     cu_hm.seen = *ci;
     cu_hm.hinted = 0;
+    cu_hm.has_last = 0;
+    cu_hm.wbtn = cu_hm.abtn = 0xFFu;             /* (a chord key still held from before: not a button) */
+    cu_hm.flav = 0;
+    cu_hm.fown = 0;
     cu_hm_layout();
     cu_hm_trace("mode on, on");
 }
@@ -1493,13 +1505,92 @@ static void cu_hm_knob(uint32_t knob, int32_t s)
         cu_trace("harm: style %s\n", STY[cu_hm.style]);
     }
 }
-/* a root key down in Harmony mode: its chord at the colour, in the style (the same notes every time), posted as a
- * chord given whole. A chord key held with it flavours it: SUS a sus4, 6 the 6th for the 7th (6/9 with the 9th), m7
- * a flat 7th, M7 a major 7th, 9 an added 9th (they stack); MAJ, MIN or DIM held: that root plays its own chord as
- * ever (the way to jump anywhere). The Bass part on: rootless (it plays the root).
- * The whole under the key's own note n (its release is the ordinary CRE_KEY up). 0: play it as ever (a chord key held:
- * the player's own chord. A chord type latched by LOCK does not count: the mode was opened on purpose, a latch may
- * be long forgotten) */
+/* The chord keys in the mode (the owner, 2026-10-16: they "seem a bit obsolete now" -- "pressing these buttons and
+ * instantly flick into different styles of harmony"). Upper row, a colour world while held, over KNOB 1's: MAJ Lush,
+ * MIN Quartal, SUS Upper, DIM Altered; pressed or let go while a chord of the keys sounds (its key held, or LATCH),
+ * that chord turns into it at once. Lower row, decided by what comes first: pressed BEFORE a root, an approach while
+ * held -- a root then plays the chord that leads into its chord instead (cr_harm_approach): 6 a side-slip from a
+ * semitone above, m7 its dominant, M7 the diminished 7th under it, 9 the tritone substitute; let go and play the key
+ * to land. Pressed WHILE a root is held: it adds its note to that chord at once, and to the keys played while it is
+ * held (6 the 6th, m7 a flat 7th, M7 a major 7th, 9 the 9th: cr_harm_flavour; heard in full in Jazz and Triads --
+ * Triads plus 6 is C6). The engine never sees them as chord keys. */
+static const uint8_t CU_HM_WORLD_OF[CR_NMOD] = {   /* cr_mod_t -> CR_HCOL_* (0xFF: not a world button) */
+    CR_HCOL_ALTERED, CR_HCOL_QUARTAL, CR_HCOL_LUSH, CR_HCOL_UPPER, 0xFFu, 0xFFu, 0xFFu, 0xFFu };
+static const uint8_t CU_HM_APPR_OF[CR_NMOD] = {    /* cr_mod_t -> CR_HAPP_* */
+    0xFFu, 0xFFu, 0xFFu, 0xFFu, CR_HAPP_SLIP, CR_HAPP_DOM, CR_HAPP_DIM, CR_HAPP_TRITONE };
+static const char *const CU_HM_COL_NAME[CR_HCOL_N] = {"bare", "triads", "jazz", "lush", "quartal", "altered", "upper"};
+static const char *const CU_HM_APPR_NAME[CR_HAPP_N] = {"slide in", "its dominant", "dim lead-in", "tritone sub"};
+static int cu_hm_play(uint32_t k, uint32_t n);
+static void cu_hm_btn_pick(void)                 /* after a button goes up: another still held of its kind counts */
+{
+    uint32_t i;
+    cu_hm.wbtn = cu_hm.abtn = 0xFFu;
+    cu_hm.flav = 0;
+    for (i = 0; i < CU_ROOT0; i++) {
+        uint32_t m = CU_MOD_OF_KEY[i];
+        if (m == 0xFFu || !((cu_hm.own >> i) & 1u))
+            continue;
+        if ((cu_hm.fown >> i) & 1u) cu_hm.flav |= (uint8_t)(1u << m);
+        else if (CU_HM_WORLD_OF[m] != 0xFFu) cu_hm.wbtn = (uint8_t)m;
+        else cu_hm.abtn = (uint8_t)m;
+    }
+}
+static uint32_t cu_hm_world(void)                /* the world the keys play in now */
+{
+    return cu_hm.wbtn != 0xFFu ? CU_HM_WORLD_OF[cu_hm.wbtn] : cu_hm.colour;
+}
+static void cu_hm_revoice(void)                  /* a world / added note: the chord the keys play turns into it now */
+{
+    uint32_t k = cu_hm.last_k, held;
+    if (!cu_hm.has_last || cu_hm.abtn != 0xFFu)  /* (an approach held: the next key decides) */
+        return;
+    held = (cu.kheld >> k) & 1u;
+    if (!held && !((cs.sticky || (cs.perform_on && cs.par[CU_PERF[cs.perf_sel].mode][CR_P_HOLD])) &&
+                   cr_snap.ci.valid && cr_snap.ci.sounding && cu_ci_same(&cr_snap.ci, &cu_hm.cur)))
+        return;                                  /* (its key up and the chord not latched on -- LATCH, a Hold mode --
+                                                  * or another sounding: nothing to turn, never a blip) */
+    if (cu_hm_play(k, cu_hm.last_n) && !held)
+        cr_post(CRE_KEY, cu_hm.last_n, 0, 0);    /* (its key is up: a tap, which LATCH keeps) */
+}
+static void cu_hm_button(uint32_t k, int down)   /* chord key k (not B3) in the mode */
+{
+    uint32_t m = CU_MOD_OF_KEY[k], bit = 1u << k, was = cu_hm_world(), wasf = cu_hm.flav;
+    if (down) {
+        cu_hm.own |= (uint16_t)bit;
+        cu_hm.fown &= (uint16_t)~bit;
+        if (CU_HM_WORLD_OF[m] != 0xFFu) {
+            cu_hm.wbtn = (uint8_t)m;
+            cu_message(CU_HM_COL_NAME[CU_HM_WORLD_OF[m]], CR_COL_YELLOW);
+            cu_trace("harm: world %s (held)\n", CU_HM_COL_NAME[CU_HM_WORLD_OF[m]]);
+        } else if (cu_hm.has_last && ((cu.kheld >> cu_hm.last_k) & 1u) && cu_hm.abtn == 0xFFu) {
+            static const char *const ADD[CR_NMOD] = {"", "", "", "", "add 6th", "add b7", "add maj7", "add 9th"};
+            cu_hm.fown |= (uint16_t)bit;         /* after a root key, held: it adds its note (the chord keys' way) */
+            cu_hm.flav |= (uint8_t)(1u << m);
+            cu_message(ADD[m], CR_COL_YELLOW);
+            cu_trace("harm: %s (held)\n", ADD[m]);
+        } else {                                 /* before a root key: the approach into it */
+            cu_hm.abtn = (uint8_t)m;
+            cu_message(CU_HM_APPR_NAME[CU_HM_APPR_OF[m]], CR_COL_YELLOW);
+            cu_trace("harm: approach %s (held)\n", CU_HM_APPR_NAME[CU_HM_APPR_OF[m]]);
+        }
+    } else {
+        cu_hm.own &= (uint16_t)~bit;
+        cu_hm.fown &= (uint16_t)~bit;
+        cu_hm_btn_pick();
+        cu_trace("harm: button up, world %s, approach %s, added %02x\n", CU_HM_COL_NAME[cu_hm_world()],
+                 cu_hm.abtn != 0xFFu ? CU_HM_APPR_NAME[CU_HM_APPR_OF[cu_hm.abtn]] : "none", (unsigned)cu_hm.flav);
+    }
+    if ((cu_hm_world() != was || cu_hm.flav != wasf) && cu_layer() == L_HARM) {
+        if (down)
+            cu_hm_revoice();                     /* (a press: at once, the flick) */
+        else
+            cu_hm.revoice_at = cu_now() + 30u | 1u;
+    }
+}
+/* a root key down in Harmony mode: its chord in the world (KNOB 1's, or a world button's held), in the style (the
+ * same notes every time), posted as a chord given whole; an approach button held: the approach into it instead. The
+ * Bass part on: rootless (it plays the root). The whole under the key's own note n (its release is the ordinary
+ * CRE_KEY up). 0: play it as ever (not a root of the map) */
 static int cu_hm_play(uint32_t k, uint32_t n)
 {
     const cr_hmap_chord_t *d;
@@ -1507,18 +1598,22 @@ static int cu_hm_play(uint32_t k, uint32_t n)
     uint8_t notes[CR_CHORD_MAX], root_note, lq, lx;
     char nm_r[3], nm_q[5], nm_s[CR_SUP_MAX];
     int nv;
-    uint32_t i, flav = 0;                       /* bit cr_mod_t: the chord keys held */
-    for (i = 0; i < CU_ROOT0 && !cs.kbd_full; i++)
-        if (CU_MOD_OF_KEY[i] != 0xFFu && ((cu.kheld >> i) & 1u))
-            flav |= 1u << CU_MOD_OF_KEY[i];
-    if (flav & ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MIN) | (1u << CR_MOD_DIM)))
-        return 0;
+    uint32_t i;
     d = cu_hm_dest(k);
     if (!d)
         return 0;
-    cr_harm_flavour(d, flav, &e);               /* the flavours */
-    nv = cr_harm_voice_world(&e, cu_hm.colour, cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note, nm_r, nm_q,
-                             nm_s, &lq, &lx);
+    e = *d;
+    if (cu_hm.abtn != 0xFFu)
+        cr_harm_approach(d, CU_HM_APPR_OF[cu_hm.abtn], &e);
+    else if (cu_hm.flav) {
+        cr_hmap_chord_t f = e;
+        cr_harm_flavour(&f, cu_hm.flav, &e);
+    }
+    cu_hm.last_k = (uint8_t)k;
+    cu_hm.last_n = (uint8_t)n;
+    cu_hm.has_last = 1;
+    nv = cr_harm_voice_world(&e, (int)cu_hm_world(), cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note, nm_r,
+                             nm_q, nm_s, &lq, &lx);
     if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
         return 0;
     cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)lq << 4) | lx), nv);
@@ -1543,6 +1638,11 @@ static int cu_hm_play(uint32_t k, uint32_t n)
 static void cu_hm_frame(void)
 {
     const cr_chord_info_t *ci = &cr_snap.ci;
+    if (cu_hm.revoice_at && (int32_t)(cu_now() - cu_hm.revoice_at) >= 0) {
+        cu_hm.revoice_at = 0;
+        if (cu_layer() == L_HARM)
+            cu_hm_revoice();
+    }
     if (cu_layer() != L_HARM)
         return;
     if (!ci->valid || !ci->sounding || cr_snap.ldisp || ci->quality == CR_Q_NONE)
@@ -4015,6 +4115,10 @@ static void cu_key_press(uint32_t k)
      * chord key, no LOCK, no LOCK layer; the latch behind it (cu.mlatch, down in the engine, which ignores it in this
      * mode) is what it was when the mode is left. One place keeps them: the KEY layer with its keys on pick, which
      * owns the keys (MAJ / MIN the scale, a root the tonic; B3 nothing there) */
+    if (k < CU_ROOT0 && !cs.kbd_full && cu_layer() == L_HARM && CU_MOD_OF_KEY[k] != 0xFFu) {
+        cu_hm_button(k, 1);                        /* Harmony mode: the chord keys are its world / approach buttons */
+        return;
+    }
     if (k < CU_ROOT0 && (!cs.kbd_full || cu_key_pick())) {   /* the chord block keeps its job in every layer but KEY's, where */
         if (cu_key_pick()) {                       /* MAJ / MIN pick the scale (cu_key_scale); B3 is LOCK everywhere */
             cu.kpick |= (uint16_t)(1u << k);
@@ -4065,6 +4169,10 @@ static void cu_key_release(uint32_t k)
             cu.b3_pend = 0;
             cu_lock_tap();
         }
+        return;
+    }
+    if (k < CU_ROOT0 && ((cu_hm.own >> k) & 1u)) {  /* pressed as Harmony mode's button: its release is too */
+        cu_hm_button(k, 0);
         return;
     }
     if (k < CU_ROOT0 && !cu.key_note[k]) {         /* (pressed as a chord key: not a Full-keyboard note) */
@@ -4992,7 +5100,10 @@ static void cr_leds(void)
             }
             continue;
         }
-        cu_led(nl, 14u + k, (int)((sn->mods_active >> CU_MOD_OF_KEY[k]) & 1u));
+        if (l == L_HARM)                           /* Harmony mode: its buttons, lit while held */
+            cu_led(nl, 14u + k, (int)((cu_hm.own >> k) & 1u));
+        else
+            cu_led(nl, 14u + k, (int)((sn->mods_active >> CU_MOD_OF_KEY[k]) & 1u));
         cu_led(nf, 14u + k, 1);
     }
     /* the roots: a layer's map, or the voiced notes where they sound */

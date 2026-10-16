@@ -326,40 +326,49 @@ static void lanes_section(lanestats_t *ls)
                 ls->band[0], ls->band[1], ls->band[2], ls->same);
 }
 
-/* 6: every chord the palette's keys can play (home C in each of the six modes, 18 keys, 7 worlds, 32 sets of chord keys held:
- * SUS m7 M7 6 9) against each chord of each phrase: 3 the same notes, 2 the same chord (an inessential note left out,
+/* 6: every chord the palette's keys can play (home C in each of the six modes, 18 keys, 7 worlds -- KNOB 1 or a world
+ * button --; the key itself, one of the four approaches into it, or it with notes added: the lower chord keys pressed
+ * before or after the root) against each chord of each phrase: 3 the same notes, 2 the same chord (an inessential note left out,
  * or a 5th added), 1 the same chord over the wrong bass, 0 not it */
 typedef struct { unsigned char sc, key, world, fl, nfl, root, bass; unsigned short pcs; } pal_t;
 typedef struct { int one, change, bass, missing, playable; char miss[512]; } packstats_t;
-static pal_t PAL[CR_HMODE_N * 18 * CR_HCOL_N * 32];
+static pal_t PAL[CR_HMODE_N * 18 * CR_HCOL_N * (1 + CR_HAPP_N + 15)];
 static const char *const WNAME[CR_HCOL_N] = { "bare", "triads", "jazz", "lush", "quartal", "altered", "upper" };
 static const int WORDER[CR_HCOL_N] = { CR_HCOL_JAZZ, CR_HCOL_LUSH, CR_HCOL_TRIAD, CR_HCOL_BARE, CR_HCOL_QUARTAL,
                                        CR_HCOL_ALTERED, CR_HCOL_UPPER };
-static const char *const FLN[5] = { "SUS", "m7", "M7", "6", "9" };
+static const char *const APN[CR_HAPP_N] = { "slip", "dom", "dim", "tritone" };   /* the approach buttons 6 m7 M7 9 */
+static const char *const ADN[4] = { "6", "m7", "M7", "9" };                        /* .. as added notes */
+static const cr_mod_t ADM[4] = { CR_MOD_6, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_9 };
 static const char *const KEYN[18] = { "D4", "E4", "F4", "G4", "A4", "B4", "C5", "D5", "E5", "F5", "G5",
                                       "D#4", "F#4", "G#4", "A#4", "C#5", "D#5", "F#5" };
 static int npal;
 static void pal_build(void)
 {
-    static const cr_mod_t FM[5] = { CR_MOD_SUS, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_6, CR_MOD_9 };
     cr_hmap_t m;
-    int sc, k, w, f, b, c, i;
+    int sc, k, w, f, c, i;
     for (sc = 0; sc < CR_HMODE_N; sc++) {
         cr_harm_lanes_mode(0, sc, &m);
         for (k = 0; k < 18; k++)
             for (w = 0; w < CR_HCOL_N; w++)
-                for (f = 0; f < 32; f++) {
-                    cr_hmap_chord_t e;
+                for (f = 0; f <= CR_HAPP_N + 15; f++) {   /* 0: the key; 1 + CR_HAPP_*: an approach into it; then
+                                                           * the key with added notes (15 sets of 6 m7 M7 9) */
+                    const cr_hmap_chord_t *d = k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W];
+                    cr_hmap_chord_t e = *d;
                     uint8_t n[CR_CHORD_MAX], r, lq, lx;
                     char a[3], q[5], su[CR_SUP_MAX];
-                    unsigned fl = 0;
                     pal_t *p = &PAL[npal++];
-                    for (b = 0; b < 5; b++) if (f >> b & 1) fl |= 1u << FM[b];
-                    cr_harm_flavour(k < CR_HMAP_W ? &m.w[k] : &m.b[k - CR_HMAP_W], fl, &e);
+                    if (f >= 1 && f <= CR_HAPP_N) cr_harm_approach(d, f - 1, &e);
+                    else if (f > CR_HAPP_N) {
+                        unsigned fl = 0, b;
+                        for (b = 0; b < 4; b++) if ((f - CR_HAPP_N) >> b & 1) fl |= 1u << ADM[b];
+                        cr_harm_flavour(d, fl, &e);
+                    }
                     c = cr_harm_voice_world(&e, w, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx);
                     p->sc = (unsigned char)sc; p->key = (unsigned char)k; p->world = (unsigned char)w;
                     p->fl = (unsigned char)f; p->root = e.root_pc; p->bass = (unsigned char)(n[0] % 12);
-                    p->nfl = 0; for (b = 0; b < 5; b++) p->nfl = (unsigned char)(p->nfl + (f >> b & 1));
+                    p->nfl = (unsigned char)(f == 0 ? 0 : f <= CR_HAPP_N ? 1 :
+                                             ((f - CR_HAPP_N) & 1) + ((f - CR_HAPP_N) >> 1 & 1) + ((f - CR_HAPP_N) >> 2 & 1) +
+                                             ((f - CR_HAPP_N) >> 3 & 1));
                     p->pcs = 0; for (i = 0; i < c; i++) p->pcs = (unsigned short)(p->pcs | 1u << (n[i] % 12));
                 }
     }
@@ -386,8 +395,8 @@ static void pack_section(packstats_t *ps)
     int mcount[64], nm = 0;
     memset(ps, 0, sizeof *ps);
     pal_build();
-    if (!json) printf("6. THE RESEARCH PACK'S 40 PHRASES on the palette (home C in any of the six modes; key world [+chord keys "
-                      "held]; ~ the same chord, not every note; (bass!) needs a bass of its own)\n\n");
+    if (!json) printf("6. THE RESEARCH PACK'S 40 PHRASES on the palette (home C in any of the six modes; key world [+approach, or "
+                      "notes added]; ~ the same chord, not every note; (bass!) needs a bass of its own)\n\n");
     else printf("\"pack\":[");
     for (i = 0; i < NPACK; i++) {
         const pk_phrase_t *ph = &PACK[i];
@@ -448,7 +457,8 @@ static void pack_section(packstats_t *ps)
                 printf("%s%s ", j ? " | " : "", ph->ev[j].sym);
                 if (!p) { printf("MISSING"); continue; }
                 printf("%s %s", KEYN[p->key], WNAME[p->world]);
-                for (x = 0; x < 5; x++) if (p->fl >> x & 1) printf("%s%s", x == 0 || !(p->fl & ((1 << x) - 1)) ? " +" : "+", FLN[x]);
+                if (p->fl && p->fl <= CR_HAPP_N) printf(" +%s", APN[p->fl - 1]);
+                else if (p->fl) { printf(" add"); for (x = 0; x < 4; x++) if ((p->fl - CR_HAPP_N) >> x & 1) printf(" %s", ADN[x]); }
                 printf("%s", blev[j] == 1 ? " (bass!)" : blev[j] == 2 ? " ~" : "");
             }
             printf("\n");

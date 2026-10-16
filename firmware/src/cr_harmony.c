@@ -698,6 +698,7 @@ int cr_harm_voice_style(const cr_hmap_chord_t *d, int style, int shift, int root
 }
 
 /* ============================================================== colour worlds === */
+static void crh_strcpy(char *d, const char *s, int max);
 enum { CRH_CL_MAJ, CRH_CL_DOM, CRH_CL_MIN, CRH_CL_SUS, CRH_CL_DIM, CRH_NCL };   /* a chord's job */
 static int crh_class(uint8_t q, uint8_t ext)
 {
@@ -729,6 +730,59 @@ static const crh_world_t CRH_WORLDS[4][CRH_NCL] = {
         { { 3, 6, 10, 17 }, 4, 0, -1, "m", "11 b5" } },
 };
 
+/* which chords a world recolours (the owner, 2026-10-16: only Lush, maybe Jazz, felt musical at once on every key):
+ * each world keeps the job of the chords it does not suit, so the palette still rests at home and pulls at the right.
+ *   LUSH      every chord
+ *   QUARTAL   the stable ones: major, minor, sus (on white keys); dominants and approach chords keep their pull
+ *   UPPER     the same: a triad over the root is colour on a resting chord, blur on a pulling one
+ *   ALTERED   the pulling ones: dominants, sus, diminished, every approach chord; home and the resting chords stay
+ *             as written -- jazz that leans harder, with somewhere to land
+ * And a diminished 7th (the lead-in approach, cr_harm_approach) is a diminished 7th in every world but ALTERED's own
+ * (Lush would make it m11b5: another chord). */
+static int crh_world_suits(int world, int cl, const cr_hmap_chord_t *d)
+{
+    if (cl == CRH_CL_DIM && (d->ext & CR_EXT_6) && world != CR_HCOL_ALTERED) return 0;
+    switch (world) {
+    case CR_HCOL_QUARTAL:
+    case CR_HCOL_UPPER: return !d->approach && (cl == CRH_CL_MAJ || cl == CRH_CL_MIN || cl == CRH_CL_SUS);
+    case CR_HCOL_ALTERED: return d->approach || cl == CRH_CL_DOM || cl == CRH_CL_SUS || cl == CRH_CL_DIM;
+    default: return 1;
+    }
+}
+
+/* an approach into the chord to (Harmony mode's lower chord keys held with a root, cr_harmony.h) */
+void cr_harm_approach(const cr_hmap_chord_t *to, int kind, cr_hmap_chord_t *out)
+{
+    int minor = to->quality == CR_Q_MIN || to->quality == CR_Q_DIM;
+    *out = *to;
+    out->home = 0;
+    out->flav = 0;
+    out->cat = CR_HCAT_CHROMATIC;
+    switch (kind) {
+    case CR_HAPP_SLIP:                                      /* the same chord a semitone up (its world, its shape) */
+        out->root_pc = (uint8_t)((to->root_pc + 1) % 12);
+        break;
+    case CR_HAPP_DIM:                                       /* the diminished 7th a semitone under it */
+        out->root_pc = (uint8_t)((to->root_pc + 11) % 12);
+        out->quality = CR_Q_DIM;
+        out->ext = CR_EXT_6;
+        out->approach = 1;
+        break;
+    case CR_HAPP_TRITONE:                                   /* the dominant a semitone over it (bII7: V's tritone) */
+        out->root_pc = (uint8_t)((to->root_pc + 1) % 12);
+        out->quality = CR_Q_MAJ;
+        out->ext = CRH_DOM9;
+        out->approach = 1;
+        break;
+    default:                                                /* CR_HAPP_DOM: its V (a 7th into a minor one) */
+        out->root_pc = (uint8_t)((to->root_pc + 7) % 12);
+        out->quality = CR_Q_MAJ;
+        out->ext = minor ? CR_EXT_M7 : CRH_DOM9;
+        out->approach = 1;
+        break;
+    }
+}
+
 static void crh_strcpy(char *d, const char *s, int max) { int i = 0; while (s[i] && i < max - 1) { d[i] = s[i]; i++; } d[i] = 0; }
 
 int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shift, int rootless,
@@ -757,13 +811,19 @@ int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shif
         *loop_q = CR_Q_POW; *loop_x = 0;
         return n;
     }
+    cl = crh_class(d->quality, d->ext);
+    if (world > CR_HCOL_JAZZ && world < CR_HCOL_N && !crh_world_suits(world, cl, d))
+        world = CR_HCOL_JAZZ;                               /* (a chord the world does not suit keeps its job) */
     if (world <= CR_HCOL_JAZZ || world >= CR_HCOL_N) {      /* the palette's own chords (6ths, flavours) */
         n = cr_harm_voice_style(&e, style, shift, rootless, notes, root_note);
         cr_chord_name(e.root_pc, e.quality, e.ext, root, qual, sup);
+        if (e.quality == CR_Q_DIM && e.ext == CR_EXT_6) {   /* (the engine's "dim6": a diminished 7th, said so) */
+            crh_strcpy(qual, "\260", 5);
+            crh_strcpy(sup, "7", CR_SUP_MAX);
+        }
         *loop_q = e.quality; *loop_x = e.ext;
         return n;
     }
-    cl = crh_class(d->quality, d->ext);
     w = &CRH_WORLDS[world - CR_HCOL_LUSH][cl];
     if (world == CR_HCOL_ALTERED && cl == CRH_CL_DOM) {      /* an approach: 7b9 (the 5th kept); the 9 key: #9 */
         static const crh_world_t ALT[2][2] = {

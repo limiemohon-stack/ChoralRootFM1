@@ -2800,8 +2800,8 @@ case "$(hv 7)" in "voices 1 "*"chord Am7 9 "*) [ $(( $(no 7) - $(no 6) )) = 3 ] 
 case "$(hv 8)" in "voices 0 "*) ok "Sticky off: the latched chord ends";; *) bad "Sticky off: $(hv 8)";; esac
 case "$(hv 9)|$(hv 10)|$(hv 11)" in *"chord CM sounding 1 notes 48 60 64 67|"*"chord C5 sounding 1 notes 48 55 60 67|"*"notes 48 59 64")
     ok "KNOB 1: D4 at triads is C, at bare C5; KNOB 2 at Shell: C3 B3 E4";; *) bad "colour / style: $(hv 9) / $(hv 10) / $(hv 11)";; esac
-case "$(hv 12)|$(hv 13)" in *"chord C6 9 sounding 1 notes 48 62 64 67 69|"*"chord C7 9 sounding 1 notes 48 62 64 67 70")
-    ok "chord keys flavour a key: 6 + D4 is C6/9, m7 + D4 is C9";; *) bad "flavours: $(hv 12) / $(hv 13)";; esac
+case "$(hv 12)|$(hv 13)" in *"chord C#M7 9 sounding 1 notes 49 60 63 65 68|"*"chord G7 9 sounding 1 notes 43 59 62 65 69")
+    ok "approach buttons: 6 + D4 slides in from C#maj9, m7 + D4 is its dominant, G9";; *) bad "approaches: $(hv 12) / $(hv 13)";; esac
 case "$(hv 14)" in *"chord CM7 9 sounding 1 notes 59 62 64 67") has '^bass: on' "$L" &&
     ok "the bass on: D4 is rootless, B3 D4 E4 G4 (the bass part plays C)";; *) false;; esac || bad "rootless: $(hv 14)"
 has '^harm: motion Strum$' "$L" && has '^harm: motion Strum rate 45' "$L" && has '^harm: motion off' "$L" &&
@@ -2816,13 +2816,16 @@ has '^loop: loop recorded (state 2 layers 1 events 2 ' "$L" && [ "${pb% *}" -ge 
     ok "REC, F4, C5, REC: the loop holds the two chords (Em7, Abmaj9) and plays them ($pb)" || bad "the loop: $pb"
 case "$(hm 17)" in "home, on G#M7 9 | home G# major | keys G#M* Fm Cm "*) ok "OCT+: the chord you are on (Abmaj9) is home: the palette moves to Ab major: $OUT/cr_harm_home.ppm";;
     *) bad "OCT+: '$(hm 17)'";; esac
-case "$(hv 21)" in "voices 1 "*"chord Em sounding 1 notes 64 67 71") ok "MIN held + E4: E minor as ever (E4 G4 B4)";;
+case "$(hv 21)" in "voices 1 "*"chord Fm7 9 sounding 1 notes 41 58 63 68 72") ok "MIN held (quartal) + E4: Fm11 as a stack of 4ths (F2 Bb3 Eb4 Ab4 C5)";;
     *) bad "MIN + E4: $(hv 21)";; esac
 case "$(hv 19)|$(hv 20)" in *"notes 44 60 62 67 70|"*"notes 44 60 62 65 70")
     LC_ALL=C grep -aq '^harm: played, on G#M9 #11 ' "$L" && LC_ALL=C grep -aq '^harm: played, on A#/G# ' "$L" &&
     ok "KNOB 1 lush: D4 under home Ab is Abmaj9#11; upper: Bb/Ab, a triad over the root";; *) false;; esac ||
     bad "the colour worlds: $(hv 19) / $(hv 20)"
-case "$(hm 21)" in "key mode, on Em | home C major |"*) ok "KEY tapped in the mode: Key Mode's C major is home at once; tapped off, home stays";;
+LC_ALL=C grep -a '^harm: ' "$L" | sed -n '/world quartal/,/key mode/p' | grep -aq '^harm: played, on Fm7 9' &&
+    bad "MIN let go after E4 (no latch): the chord was re-voiced (a blip)" ||
+    ok "MIN let go just after E4's release, nothing latched: no re-voice (no blip of a chord that has ended)"
+case "$(hm 21)" in "key mode, on Fm11 | home C major |"*) ok "KEY tapped in the mode: Key Mode's C major is home at once; tapped off, home stays";;
     *) bad "Key Mode in the mode: '$(hm 21)'";; esac
 has '^layer: close 6' "$L" && case "$(hv 23)" in "voices 1 "*"chord C sounding 1 notes 72") true;; *) false;; esac &&
     ok "OCT-: the mode ends; C5 alone is its single note again (Key Mode off)" || bad "after OCT-: $(hv 23)"
@@ -2889,6 +2892,26 @@ mm 'home, on Bm7 | home B minor | keys Bm\* GM DM ' && mm 'home, on C#m7 | home 
     ok "OCT+ on a minor chord: Lydian (a major mode) gives way to B minor; in Dorian, Dorian stays (C# dorian)" ||
     bad "OCT+ and the mode: $(LC_ALL=C grep -a '^harm: home' "$L" | tr '\n' '/')"
 silent_end cr_harm_modes
+
+echo "Harmony mode's chord keys: colour worlds while held (the chord sounding turned at once), approaches into a key"
+export EMU_UI_LOG=0
+run cr_harm_buttons
+unset EMU_UI_LOG
+L="$OUT/cr_harm_buttons.log"
+bv() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.*chord //'; }   # bv N: the Nth dump's chord
+[ "$(bv 1)" = "CM7 9 sounding 1 notes 48 59 62 64 67" ] && [ "$(bv 2)" = "CM7 9 sounding 1 notes 48 62 64 66 71" ] &&
+    [ "$(bv 3)" = "$(bv 1)" ] && LC_ALL=C grep -aq '^harm: played, on CM9 #11 ' "$L" &&
+    ok "MAJ held over a latched Cmaj9: it turns Lush at once (Cmaj9#11), let go: Cmaj9 again" ||
+    bad "the world flick: '$(bv 1)' / '$(bv 2)' / '$(bv 3)'"
+[ "$(bv 4)" = "$(bv 1)" ] && [ "$(bv 5)" = "G7 9 sounding 1 notes 43 59 63 65 68" ] &&
+    [ "$(bv 6)" = "G7 9 sounding 1 notes 43 59 62 65 69" ] &&
+    ok "DIM held (Altered): home stays Cmaj9, F5 leans as G7b9b13; let go: G9" || bad "altered: '$(bv 4)' / '$(bv 5)' / '$(bv 6)'"
+[ "$(bv 7)" = "C#dim6 sounding 1 notes 49 61 64 67 70" ] && [ "$(bv 8)" = "Dm7 9 sounding 1 notes 50 60 64 65 69" ] &&
+    LC_ALL=C grep -aq "^harm: played, on C#$(printf '\260')7 " "$L" &&
+    ok "M7 held + A4: C#dim7, the lead-in; let go, A4: Dm9 lands" || bad "the lead-in: '$(bv 7)' / '$(bv 8)'"
+[ "$(bv 9)" = "C6 9 sounding 1 notes 48 62 64 67 69" ] && [ "$(bv 10)" = "CM7 9 sounding 1 notes 48 59 62 64 67" ] &&
+    ok "D4 held, then 6 pressed: it adds the 6th at once (C6/9); let go: Cmaj9 again" || bad "adding a note: '$(bv 9)' / '$(bv 10)'"
+silent_end cr_harm_buttons
 
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0

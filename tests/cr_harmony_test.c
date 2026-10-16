@@ -577,7 +577,7 @@ static void t_worlds(void)
             { 0, CR_HCOL_BARE, 0, "C5", "48 55 60 67" },          { 0, CR_HCOL_TRIAD, 0, "CM", "48 60 64 67" },
             { 0, CR_HCOL_LUSH, 0, "CM9 #11", "48 62 64 66 71" },  { 1, CR_HCOL_LUSH, 0, "Am11", "45 59 60 62 67" },
             { 9, CR_HCOL_ALTERED, 0, "G7 b9b13", "43 59 63 65 68" }, { 1, CR_HCOL_QUARTAL, 0, "Am11", "45 50 55 60 64" },
-            { 0, CR_HCOL_UPPER, 0, "D/C", "48 52 62 66 69" },     { 9, CR_HCOL_UPPER, 0, "A/G7", "43 53 61 64 69" },
+            { 0, CR_HCOL_UPPER, 0, "D/C", "48 52 62 66 69" },     { 9, CR_HCOL_UPPER, 0, "G7 9", "43 59 62 65 69" },
             { 0, CR_HCOL_TRIAD, F_(6), "C6", "48 60 64 67 69" },  { 0, CR_HCOL_TRIAD, F_(MAJ7), "CM7", "48 59 60 64 67" },
             { 0, CR_HCOL_TRIAD, F_(M7), "C7", "48 60 64 67 70" }, { 1, CR_HCOL_TRIAD, F_(M7), "Am7", "45 60 64 67 69" },
             { 0, CR_HCOL_TRIAD, F_(6) | F_(9), "C6 9", "48 62 64 67 69" }, { 0, CR_HCOL_JAZZ, F_(6), "C6 9", "48 62 64 67 69" },
@@ -603,7 +603,7 @@ static void t_worlds(void)
         }
         (void)NN;
     }
-    ok(ok_c, "worlds in C: C5, C, Cmaj9#11, Am11, G7b9b13, quartal Am11 (A D G C E), D/C, A/G7; triads with chord "
+    ok(ok_c, "worlds in C: C5, C, Cmaj9#11, Am11, G7b9b13, quartal Am11 (A D G C E), D/C, upper leaves G9 as it is; triads with chord "
              "keys: C6 Cmaj7 C7 Am7 C6/9; altered approach keys: A7b9 (A7#9 with 9, the #9 over the 3rd), E7b9");
 }
 
@@ -678,9 +678,73 @@ static void t_modes(void)
        "modes: names (an unknown mode is major)");
 }
 
+static void t_roles_approach(void)
+{
+    /* the worlds keep the job of the chords they do not suit; the four approaches into Dm9, in their worlds */
+    static const struct { int key, world, ap; const char *name, *notes; } X[] = {
+        { 0, CR_HCOL_ALTERED, -1, "CM7 9", "48 59 62 64 67" },     /* home stays as written in Altered */
+        { 1, CR_HCOL_ALTERED, -1, "Am7 9", "45 60 64 67 71" },
+        { 9, CR_HCOL_QUARTAL, -1, "G7 9", "43 59 62 65 69" },      /* the V keeps its pull in Quartal .. */
+        { 8, CR_HCOL_QUARTAL, -1, "Gsus7", "43 50 55 60 65" },     /* .. its sus is a stack of 4ths */
+        { 7, CR_HCOL_UPPER, -1, "A#7 9", "46 60 62 65 68" },       /* a dominant in Upper: as written */
+        { 4, CR_HCOL_JAZZ, CR_HAPP_SLIP, "D#m7 9", "51 61 65 66 70" },
+        { 4, CR_HCOL_QUARTAL, CR_HAPP_SLIP, "D#m11", "51 56 61 66 70" },   /* the quartal shape slides as itself */
+        { 4, CR_HCOL_JAZZ, CR_HAPP_DOM, "A7", "45 61 64 67 69" },
+        { 4, CR_HCOL_ALTERED, CR_HAPP_DOM, "A7 b9", "45 61 64 67 70" },
+        { 4, CR_HCOL_LUSH, CR_HAPP_DOM, "A13", "45 59 61 66 67" },
+        { 4, CR_HCOL_JAZZ, CR_HAPP_DIM, "C#\2607", "49 61 64 67 70" },
+        { 4, CR_HCOL_LUSH, CR_HAPP_DIM, "C#\2607", "49 61 64 67 70" },     /* a dim7 in Lush too */
+        { 4, CR_HCOL_JAZZ, CR_HAPP_TRITONE, "D#7 9", "51 61 65 67 70" },
+        { 0, CR_HCOL_JAZZ, CR_HAPP_DOM, "G7 9", "43 59 62 65 69" },        /* into a major chord: its V9 */
+    };
+    cr_hmap_t m;
+    int i, ok_x = 1, all = 1, t, sc, k, w, ap;
+    cr_harm_lanes(0, CR_SCALE_MAJOR, &m);
+    for (i = 0; i < (int)(sizeof X / sizeof X[0]); i++) {
+        uint8_t n[CR_CHORD_MAX], r, lq, lx;
+        char a[3], q[5], su[CR_SUP_MAX], nm[24], ns[32];
+        cr_hmap_chord_t e = m.w[X[i].key];
+        int c, j;
+        size_t o = 0;
+        if (X[i].ap >= 0) cr_harm_approach(&m.w[X[i].key], X[i].ap, &e);
+        c = cr_harm_voice_world(&e, X[i].world, CR_HSTYLE_COLOUR, 0, 0, n, &r, a, q, su, &lq, &lx);
+        snprintf(nm, sizeof nm, "%s%s%s", a, q, su);
+        ns[0] = 0;
+        for (j = 0; j < c; j++) o += (size_t)snprintf(ns + o, sizeof ns - o, "%s%d", j ? " " : "", n[j]);
+        if (strcmp(nm, X[i].name) || strcmp(ns, X[i].notes)) {
+            printf("     case %d: %s [%s], want %s [%s]\n", i, nm, ns, X[i].name, X[i].notes);
+            ok_x = 0;
+        }
+    }
+    ok(ok_x, "roles: Altered leaves home and the resting chords as written, Quartal and Upper leave the dominants; "
+             "approaches into Dm9: Ebm9 (quartal: its shape), A7 (A7b9 altered, A13 lush), C#dim7 everywhere, Eb9; into C: G9");
+    for (sc = 0; sc < 2; sc++)
+        for (t = 0; t < 12; t++) {
+            cr_harm_lanes((uint8_t)t, (uint8_t)sc, &m);
+            for (k = 0; k < 18; k++)
+                for (ap = 0; ap < CR_HAPP_N; ap++)
+                    for (w = 0; w < CR_HCOL_N; w++) {
+                        const cr_hmap_chord_t *d = k < 11 ? &m.w[k] : &m.b[k - 11];
+                        cr_hmap_chord_t e;
+                        uint8_t n[CR_CHORD_MAX], r, lq, lx;
+                        char a[3], q[5], su[CR_SUP_MAX];
+                        int c, j, want;
+                        cr_harm_approach(d, ap, &e);
+                        want = ap == CR_HAPP_DOM ? (d->root_pc + 7) % 12 : ap == CR_HAPP_DIM ? (d->root_pc + 11) % 12
+                                                                                              : (d->root_pc + 1) % 12;
+                        c = cr_harm_voice_world(&e, w, CR_HSTYLE_SPREAD, 0, 0, n, &r, a, q, su, &lq, &lx);
+                        if (e.root_pc != want || c < 3 || c > 5 || !a[0] || r % 12u != e.root_pc || n[0] % 12u != e.root_pc)
+                            all = 0;
+                        for (j = 1; j < c; j++) if (n[j] <= n[j - 1]) all = 0;
+                    }
+        }
+    ok(all, "approaches: into every key of every home, in every world: the right root, 3..5 notes ascending, named");
+}
+
 int main(void)
 {
     t_lanes_shape();
+    t_roles_approach();
     t_modes();
     t_lanes_transpose();
     t_lanes_voicing();

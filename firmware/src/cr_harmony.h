@@ -218,8 +218,11 @@ enum { CR_HSTYLE_SHELL, CR_HSTYLE_SPREAD, CR_HSTYLE_COLOUR, CR_HSTYLE_N };
  *   JAZZ     the palette as written: Cmaj9, Am9, G9 (the default)
  *   LUSH     11ths and 13ths: Cmaj9#11, Am11, G13, G13sus, Bm11b5
  *   QUARTAL  stacked 4ths: C6/9 (E A D G), Am11 (A D G C E), G13 (F B E A), G7sus (D G C F)
- *   ALTERED  the dark side: C+maj7, AmM9, G7sus b9, Bo7; a dominant on a black key (an approach) 7b9: A7b9 into
- *            Dm, on a white key 7b9b13: G7b9b13; the 9 key held brightens either to #9 (A7#9, G7#9b13)
+ *   ALTERED  the dark side: G7sus b9, Bo7; a dominant on a black key (an approach) 7b9: A7b9 into Dm, on a white
+ *            key 7b9b13: G7b9b13 (flavour 9: #9, A7#9, G7#9b13)
+ * Each world recolours the chords it suits and leaves the others as JAZZ plays them (crh_world_suits): QUARTAL and
+ * UPPER the major, minor and sus chords of the white keys (dominants and approaches keep their pull); ALTERED only
+ * the pulling chords (dominants, sus, diminished, approaches: home and the resting chords stay as written).
  *   UPPER    a triad floating over the root: D/C (Cmaj13#11), G/Am (Am11), A/G7 (G13#11), F/G (G11sus)
  * cr_harm_voice_world voices d (flavours already applied to it) in the world and the style; root, qual and sup
  * are its name for the screen (as cr_chord_name's three strings); loop_q / loop_x the nearest chord the engine
@@ -230,6 +233,14 @@ enum { CR_HCOL_BARE, CR_HCOL_TRIAD, CR_HCOL_JAZZ, CR_HCOL_LUSH, CR_HCOL_QUARTAL,
  * flavour, and are ignored here): SUS makes it sus4, m7 a flat 7th, M7 a major 7th, 6 a 6th (each of the three
  * replaces the others), 9 adds the 9th. out = d flavoured, out->flav = flav (a world may read it: TRIAD, ALTERED) */
 void cr_harm_flavour(const cr_hmap_chord_t *d, unsigned flav, cr_hmap_chord_t *out);
+/* Approaches (Harmony mode: a lower chord key held with a root, cr_ui.c): the chord that leads into the key's chord
+ * `to` instead of it; out is voiced like any chord (cr_harm_voice_world). In C, into Dm9:
+ *   SLIP     Ebm9: the same chord a semitone up (in its world: a quartal shape slides as itself)
+ *   DOM      A7: its V (a 7th into a minor chord, a 9th into a major one)
+ *   DIM      C#dim7: the diminished 7th a semitone under it (a dim7 in every world)
+ *   TRITONE  Eb9: the dominant a semitone over it (V's tritone substitute) */
+enum { CR_HAPP_SLIP, CR_HAPP_DOM, CR_HAPP_DIM, CR_HAPP_TRITONE, CR_HAPP_N };
+void cr_harm_approach(const cr_hmap_chord_t *to, int kind, cr_hmap_chord_t *out);
 int cr_harm_voice_world(const cr_hmap_chord_t *d, int world, int style, int shift, int rootless,
                         uint8_t notes[CR_CHORD_MAX], uint8_t *root_note, char root[3], char qual[5],
                         char sup[CR_SUP_MAX], uint8_t *loop_q, uint8_t *loop_x);
