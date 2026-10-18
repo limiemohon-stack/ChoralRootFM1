@@ -1964,8 +1964,13 @@ static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato)
     cu_hm.has_last = 1;
     nv = cr_harm_voice_world(&e, (int)cu_hm_world(), cu_hm.style, 12 * cu.octave, cs.bass_on, notes, &root_note, nm_r,
                              nm_q, nm_s, &lq, &lx);
-    if (nv <= 0 || !cr_post_room((uint32_t)nv + 2u))   /* (the whole group or none of it: a full queue loses a key) */
+    if (nv <= 0)
         return 0;
+    if (!cr_post_room((uint32_t)nv + 2u)) {      /* (the whole group or none of it: a full queue loses the key, never
+                                                  * turns it into a single note) */
+        cu_trace("harm: queue full, key %u dropped\n", (unsigned)k);
+        return 1;
+    }
     cr_post(CRE_HSPEC, root_note, (uint32_t)(((uint32_t)lq << 4) | lx), nv);
     for (i = 0; i < (uint32_t)nv; i++)
         cr_post(CRE_HNOTE, i, notes[i], 0);
@@ -5216,6 +5221,14 @@ static void cu_key_press(uint32_t k)
             return;
         }
         cr_klat_post(CU_KEY_T0(k));                /* (78 PEAK: the key's way to the engine, timed) */
+        if (l == L_HARM && k < CU_ROOT0) {         /* Harmony mode, FM-1's C4 / C#4 (roots there, not on the map:
+                                                    * it is D4 .. G5 in both layouts): nothing, never a stray single
+                                                    * note under a latched chord (the owner, 2026-10-18: "I just hear
+                                                    * ... one note, then I press again and I hear the whole chord") */
+            cu.key_note[k] = 0xFFu;
+            cu_trace("harm: key %u is off the map\n", (unsigned)k);
+            return;
+        }
         if (l == L_HARM && cu_hm_play(k, (uint32_t)n)) {   /* Harmony mode: the key plays its place on the map (at
                                                     * the key's velocity, as any key: cu_hm_play_ex) */
             cu.key_note[k] = (uint8_t)(n + 1);

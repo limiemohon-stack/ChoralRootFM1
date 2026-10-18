@@ -3,8 +3,8 @@
 # is SUS's button (Upper), B3 is the 9 (an approach / an added note). SEQ held: LOCK's settings on KNOB 2 / 3.
 #  A. C major (MAJ + C5), LFO held: the mode (dump 1); LFO tapped: LATCH on (Sticky) (dump 2)
 #  B. D4 tapped: Cmaj9 latched (dump 3); G#3 + A#3 down together: Upper (dump 4); up
-#  C. B3 held + A4: the tritone sub's lead-in (dump 5); up
-#  D. LFO tapped: LATCH off; OCT-: out; SEQ held, KNOB 2 +1, KNOB 3 +1: LOCK keeps / pushed (dump 6); OCT-, PANIC
+#  C. B3 held + A4: the tritone sub's lead-in (dump 5); up; C4 tapped (a root in FM-1, off the map): nothing (dump 6)
+#  D. LFO tapped: LATCH off; OCT-: out; SEQ held, KNOB 2 +1, KNOB 3 +1: LOCK keeps / pushed (dump 7); OCT-, PANIC
 wait 500
 btn A#3 down
 wait 40
@@ -39,6 +39,11 @@ dump
 btn A4 up
 btn B3 up
 wait 300
+btn C4 down
+wait 40
+btn C4 up
+wait 300
+dump
 btn LFO 80
 wait 200
 btn OCT-

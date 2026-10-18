@@ -3464,8 +3464,11 @@ fo() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.* notes-
     bad "the pair: '$(fv 4)' / $(LC_ALL=C grep -a '^harm: world' "$L" | tr '\n' ' ')"
 [ "$(fv 5)" = "D#7 9 sounding 1 notes 51 61 65 67 70" ] && LC_ALL=C grep -aq '^harm: approach tritone sub (held)' "$L" &&
     ok "B3 (the 9 in FM-1) held + A4: the tritone sub into Dm9 (Eb9)" || bad "B3: '$(fv 5)'"
-[ "$(fl 6 | sed 's/.*type-key/type-key/')" = "type-key keeps ext-keys pushed" ] && LC_ALL=C grep -aq '^layer: open 7' "$L" &&
-    ok "SEQ held (the METRO layer), KNOB 2 / KNOB 3: LOCK's Type key Keeps, Ext keys Pushed" || bad "LOCK's settings on SEQ: '$(fl 6)'"
+[ "$(fv 6)" = "$(fv 5)" ] && [ "$(fo 6)" = "$(fo 5)" ] && LC_ALL=C grep -aq '^harm: key 7 is off the map' "$L" &&
+    ok "C4 tapped in the mode (a root in FM-1, not on the map): nothing sounds, the latched Eb9 rings on (never a stray single note)" ||
+    bad "C4 in the mode: '$(fv 6)' notes-out $(fo 5) -> $(fo 6)"
+[ "$(fl 7 | sed 's/.*type-key/type-key/')" = "type-key keeps ext-keys pushed" ] && LC_ALL=C grep -aq '^layer: open 7' "$L" &&
+    ok "SEQ held (the METRO layer), KNOB 2 / KNOB 3: LOCK's Type key Keeps, Ext keys Pushed" || bad "LOCK's settings on SEQ: '$(fl 7)'"
 silent_end cr_harm_fm1
 
 echo "Harmony mode, BASS held: PRESETS the bass sound, ALGORITHM its level, the mode staying open; BASS tapped: on / off"
