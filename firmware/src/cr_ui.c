@@ -1412,6 +1412,7 @@ static struct {
     uint8_t flav;                  /* the notes added (bit cr_mod_t: 6, m7, M7, 9; cr_harm_flavour) */
     uint8_t last_k, last_n, has_last;   /* the root key the keys last played and its note (a world button's re-voice) */
     uint8_t bhold, bused;          /* BASS held in the mode (its own: no BASS layer over it), and turned something */
+    uint8_t view;                  /* the mode's screen: CU_HV_* (HOME held + SELECT; kept until power-off) */
     uint32_t bt0;                  /* when it went down (held past the hold time and let go: no tap) */
     uint32_t revoice_at;           /* a world button let go: the re-voice, a moment later (0: none) -- a key let go in
                                     * the same instant is up by then, and its chord is not re-sounded for nothing */
@@ -1422,6 +1423,10 @@ static struct {
     cr_hmap_t map;
 } cu_hm;
 
+enum { CU_HV_CHORD, CU_HV_PIANO, CU_HV_N };   /* Harmony mode's screens (HOME held + SELECT steps them) */
+static void cu_pv_reset(void);
+static void cu_hm_view_step(int32_t s);
+static void cu_hm_piano(cr_screen_t *s);
 static uint8_t cu_hm_pc(int32_t pc) { return (uint8_t)(((pc % 12) + 12) % 12); }
 static int cu_ci_same(const cr_chord_info_t *a, const cr_chord_info_t *b)
 {
@@ -1512,6 +1517,7 @@ static void cu_hm_enter(void)
     } else
         cu_hm_home_here();
     cu_hm.seen = *ci;
+    cu_pv_reset();
     cu_hm.hinted = 0;
     cu_hm.has_last = 0;
     cu_hm.wbtn = cu_hm.abtn = 0xFFu;             /* (a chord key still held from before: not a button) */
@@ -5025,6 +5031,16 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_hm_bass_knob(role, s);                  /* Harmony mode, BASS held: the bass sound / level */
         return;
     }
+    if (role == EN_SELECT && cu_layer() == L_HARM && ((cu.bheld >> BT_HOME) & 1u) && !cu.page && !cu_shift()) {
+        cu.last_input = cu.last_local = cu_now();  /* Harmony mode, HOME held + SELECT: the mode's next / previous
+                                                    * screen (until 2026-10-18 the mode changed and HOME's release left
+                                                    * the mode: nothing anyone used). HOME's release then does nothing:
+                                                    * still in the mode. Nothing is posted: no note, no setting moves */
+        cu.home_hold = 0;
+        cu.swallow |= CU_BIT(BT_HOME);
+        cu_hm_view_step(s);
+        return;
+    }
     if (role == EN_ALGO && cu_bass_level_hold(s))  /* BASS held + ALGORITHM: the bass level */
         return;
     cu_activity();
@@ -6779,6 +6795,154 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
 }
 
 static int cu_arp_layer(uint32_t now);
+/* Harmony mode's Piano view (the owner, 2026-10-18; cr_draw.c cr_p_piano draws it): the chord you are on as its notes
+ * sound, on a keyboard of real octaves, to play it again on a full-sized keyboard. The notes are the chord the keys
+ * last played (cu_hm.cur: exactly the notes the engine was given) and, the bass part on, the bass note the engine
+ * holds (cr_snap.sound: its BASS stream, the lowest; the same note MIDI sends). A set of notes is taken as the chord
+ * once it has held two frames (the keys' chord shows before the engine's bass follows it: never a half-changed
+ * chord), and the one before is kept: a note in both is "kept" (blue), one only in the new is "new" (yellow), one only
+ * in the old "left" (a dot). The bass (orange) is the bass part's note, or the voicing's lowest with the bass part off.
+ * A motion stepping (Arp, Pattern): the notes it sounds this instant are marked under their keys (CR_PK_NOW), its
+ * notes outside the chord too. The chord ended (no chord of the player's sounding): the last one stays, dimmed. The
+ * keyboard: C2..B4 (every default voicing, the bass part's register too), 4 octaves when a note leaves it */
+#define CU_PV_N 12u
+static struct {
+    uint8_t n, note[CU_PV_N], bass;            /* the chord shown, low to high (with its bass); the bass (0xFF: none) */
+    uint8_t pn, pnote[CU_PV_N];                /* the chord before it */
+    uint8_t cn, cnote[CU_PV_N], cbass, cframes;   /* the notes sounding, waiting to hold two frames */
+} cu_pv;
+static void cu_pv_reset(void)
+{
+    cu_pv.n = cu_pv.pn = cu_pv.cn = cu_pv.cframes = 0;
+    cu_pv.bass = cu_pv.cbass = 0xFFu;
+}
+static int cu_pv_has(const uint8_t *a, uint32_t n, uint32_t note)
+{
+    uint32_t i;
+    for (i = 0; i < n; i++)
+        if (a[i] == note)
+            return 1;
+    return 0;
+}
+static uint32_t cu_pv_gather(uint8_t *out, uint8_t *bass)   /* the notes sounding now, low to high */
+{
+    const cr_chord_info_t *c = &cu_hm.cur;
+    uint32_t i, j, n = 0;
+    *bass = 0xFFu;
+    if (cr_snap.bass_on)
+        for (i = 0; i < 128u; i++)
+            if (cr_snap.sound[i] & 2u) {           /* (the BASS stream: bit 1) */
+                *bass = (uint8_t)i;
+                out[n++] = (uint8_t)i;
+                break;
+            }
+    for (i = 0; i < c->nnotes && n < CU_PV_N; i++) {
+        uint8_t v = c->notes[i];
+        if (cu_pv_has(out, n, v))
+            continue;
+        for (j = n; j && out[j - 1] > v; j--)
+            out[j] = out[j - 1];
+        out[j] = v;
+        n++;
+    }
+    return n;
+}
+static void cu_pv_frame(void)
+{
+    uint8_t nt[CU_PV_N], b;
+    uint32_t n, i;
+    if (!cr_snap.pl_on)                            /* (nothing of the player's sounding: the last chord stays) */
+        return;
+    n = cu_pv_gather(nt, &b);
+    if (n == cu_pv.cn && b == cu_pv.cbass && !memcmp(nt, cu_pv.cnote, n)) {
+        if (cu_pv.cframes < 255u)
+            cu_pv.cframes++;
+    } else {
+        memcpy(cu_pv.cnote, nt, n);
+        cu_pv.cn = (uint8_t)n;
+        cu_pv.cbass = b;
+        cu_pv.cframes = 1;
+    }
+    if (cu_pv.cframes < 2u || (n == cu_pv.n && b == cu_pv.bass && !memcmp(nt, cu_pv.note, n)))
+        return;
+    memcpy(cu_pv.pnote, cu_pv.note, cu_pv.n);      /* a new chord: the one shown becomes the one before */
+    cu_pv.pn = cu_pv.n;
+    memcpy(cu_pv.note, nt, n);
+    cu_pv.n = (uint8_t)n;
+    cu_pv.bass = b;
+    cu_trace("piano: chord");
+    for (i = 0; i < n; i++)
+        cu_trace(" %u%s", (unsigned)nt[i], nt[i] == b ? "b" : cu_pv_has(cu_pv.pnote, cu_pv.pn, nt[i]) ? "k" : "n");
+    cu_trace(" | before");
+    for (i = 0; i < cu_pv.pn; i++)
+        cu_trace(" %u", (unsigned)cu_pv.pnote[i]);
+    cu_trace("\n");
+}
+static void cu_hm_piano(cr_screen_t *s)
+{
+    static const char *const COL[CR_HCOL_N] = {"bare", "triads", "jazz", "lush", "quartal", "altered", "upper"};
+    static const char *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
+    uint8_t role[128];
+    uint32_t i, k = 0, lowest = 127u, highest = 0u, step;
+    int lo, octs = 3;
+    s->kind = CR_K_PIANO;
+    memset(role, 0, sizeof role);
+    for (i = 0; i < cu_pv.n; i++) {
+        uint32_t v = cu_pv.note[i], kept = cu_pv_has(cu_pv.pnote, cu_pv.pn, v);
+        int bass = cu_pv.bass != 0xFFu ? v == cu_pv.bass : i == 0u;
+        role[v] = (uint8_t)(bass ? (kept ? CR_PK_BASS_KEPT : CR_PK_BASS) : (kept ? CR_PK_KEPT : CR_PK_NEW));
+        if (v < lowest) lowest = v;
+        if (v > highest) highest = v;
+    }
+    for (i = 0; i < cu_pv.pn; i++)                 /* the notes that left */
+        if (!role[cu_pv.pnote[i]])
+            role[cu_pv.pnote[i]] = CR_PK_LEFT;
+    step = cr_snap.pl_on && cr_snap.perform_on && cr_snap.perf_step;
+    for (i = 0; step && i < 128u; i++)             /* a motion stepping: what it sounds now (the MAIN stream) */
+        if (cr_snap.sound[i] & 1u)
+            role[i] = (uint8_t)((role[i] && (role[i] & 7u) != CR_PK_LEFT ? role[i] : CR_PK_PASS) | CR_PK_NOW);
+    lo = 36;                                       /* C2 .. B4, or 4 octaves from the lower of C2 and the lowest C */
+    if (cu_pv.n && (lowest < 36u || highest > 71u)) {
+        octs = 4;
+        if (lowest < 36u)
+            lo = (int)(lowest / 12u) * 12;
+        if ((int)highest > lo + 47)
+            lo = (int)(lowest / 12u) * 12;
+    }
+    s->pk_lo = (uint8_t)lo;
+    s->pk_octs = (uint8_t)octs;
+    s->pk_flags = (uint8_t)(cr_snap.pl_on ? 0u : CR_PK_DIM);
+    for (i = 0; i < 128u; i++) {
+        if (!role[i])
+            continue;
+        if ((int)i < lo || (int)i >= lo + octs * 12) {
+            if ((role[i] & 7u) <= CR_PK_BASS_KEPT)
+                s->pk_flags |= (uint8_t)((int)i < lo ? CR_PK_OVER_LO : CR_PK_OVER_HI);
+            if ((role[i] & 7u) != CR_PK_NEW && (role[i] & 7u) != CR_PK_KEPT && (role[i] & 7u) != CR_PK_BASS &&
+                (role[i] & 7u) != CR_PK_BASS_KEPT)
+                continue;                          /* (a dot or a bar off the keys: nothing; a chord note: the notes
+                                                    * line still names it) */
+        }
+        if (k < CR_PK_MAX) {
+            s->pk_note[k] = (uint8_t)i;
+            s->pk_role[k] = role[i];
+            k++;
+        }
+    }
+    s->pk_n = (uint8_t)k;
+    cu_cpy(s->footer, COL[cu_hm_world() % CR_HCOL_N], sizeof s->footer);
+    cu_cat(s->footer, " \267 ", sizeof s->footer);
+    cu_cat(s->footer, STY[cu_hm.style % CR_HSTYLE_N], sizeof s->footer);
+    cu_cat(s->footer, cr_snap.bass_on ? " \267 bass on" : " \267 bass off", sizeof s->footer);
+}
+static void cu_hm_view_step(int32_t s)
+{
+    static const char *const NAME[CU_HV_N] = {"Chord view", "Piano view"};
+    cu_hm.view = (uint8_t)(((int32_t)cu_hm.view + (s > 0 ? 1 : -1) + CU_HV_N) % CU_HV_N);
+    cu_message(NAME[cu_hm.view], CR_COL_YELLOW);
+    cu_trace("harm: view %s\n", NAME[cu_hm.view]);
+}
+
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
@@ -6912,7 +7076,10 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         cr_chord_info_t ci = cu_hm.cur;
         s->kind = CR_K_CHORD;
         cu_name(&s->name, &ci);
-        cu_notes(s, &ci);
+        if (cu_hm.view == CU_HV_PIANO)
+            cu_hm_piano(s);                        /* the Piano view: the notes on real octaves */
+        else
+            cu_notes(s, &ci);
         cr_chord_numeral(ci.root_pc, ci.quality, cu_hm.home_pc, cu_hm.home_scale, s->numeral);
         s->numeral_on = 1;
         s->line_col = CR_COL_MID;
@@ -7797,6 +7964,8 @@ static void cr_ui_frame(void)                      /* after the scan: the engine
     cr_snapshot();
     cu_harm_feed();                                /* Harmony: the chords played since the last frame */
     cu_hm_frame();                                 /* Harmony mode: the chord you are on, the map around it */
+    if (cu_layer() == L_HARM)
+        cu_pv_frame();                             /* .. its Piano view: the notes sounding, the chord before */
 #ifdef CR_TRACE
     {                                              /* the emulator's log: the sounding chord as it changes */
         static char last[24];

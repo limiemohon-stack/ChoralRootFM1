@@ -2878,6 +2878,109 @@ static void cr_ring_draw(const cr_screen_t *s)
     }
 }
 
+static void cr_cpy_note(char *b, const char *nm, int32_t oct)   /* "C#" and 4: "C#4" (octave -1..9) */
+{
+    uint32_t i = 0;
+    while (*nm && i < 3u) b[i++] = *nm++;
+    if (oct < 0) { b[i++] = '-'; oct = -oct; }
+    b[i++] = (char)('0' + oct % 10);
+    b[i] = 0;
+}
+/* Harmony mode's Piano view (CR_K_PIANO; the owner, 2026-10-18: "play a chord on Harmony, glance at the screen, and
+ * reproduce that voicing on my Korg keyboard"). Under the top line: the numeral (blue, 16 px, baseline 44), the name
+ * (40 px, baseline 84), the notes low to high with their octaves (13 px, baseline 107, each in its role's colour), then
+ * the keyboard at rows 118..195 with the octaves' names under its Cs (C4, middle C, white). pk_octs 3: 21 white keys of
+ * 11 px from x 5 (C2..B4, where every default voicing sits, the bass part's too); 4: 28 of 8 px from x 8. Whole pixels
+ * (cr_fill), so a key costs its rows in the strip and nothing else. A key's role: yellow new to this chord, blue kept
+ * from the one before, orange the bass (the bass part's note, or the voicing's lowest with the bass part off: the left
+ * hand), a dark dot on a key of the chord before that left, a white bar under a key the motion sounds this instant.
+ * CR_PK_DIM (the chord ended): the same keys dimmed, the dots and bars gone. A note outside the keys: a 2 px mark at
+ * that edge (CR_PK_OVER_LO / HI). */
+#define CR_PK_Y 118
+#define CR_PK_H 78
+static int cr_pk_black(uint32_t pc) { return pc == 1u || pc == 3u || pc == 6u || pc == 8u || pc == 10u; }
+static uint16_t cr_pk_col(uint32_t role, int dim)
+{
+    static const uint16_t LIT[5] = {CR_RGB(242, 183, 5), CR_RGB(43, 80, 200), CR_RGB(240, 122, 26), CR_RGB(240, 122, 26), 0};
+    static const uint16_t DIM[5] = {CR_RGB(112, 88, 22), CR_RGB(38, 56, 110), CR_RGB(112, 66, 26), CR_RGB(112, 66, 26), 0};
+    role &= 7u;
+    if (role < CR_PK_NEW || role > CR_PK_BASS_KEPT) return 0;
+    return dim ? DIM[role - 1u] : LIT[role - 1u];
+}
+static void cr_p_piano(const cr_screen_t *s)
+{
+    static const char *const NN[12] = {"C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+    uint8_t role[128];
+    int dim = (s->pk_flags & CR_PK_DIM) != 0;
+    int32_t octs = s->pk_octs == 4u ? 4 : 3, kw = octs == 3 ? 11 : 8, x0 = octs == 3 ? 5 : 8, bw = octs == 3 ? 7 : 5;
+    int32_t lo = s->pk_lo, hi = lo + octs * 12, y = CR_PK_Y, h = CR_PK_H, bh = CR_PK_H * 6 / 10, n, place, i;
+    int32_t ws[CR_PK_MAX], total = 0, x;
+    char b[6];
+    for (i = 0; i < 128; i++)
+        role[i] = 0;
+    for (i = 0; i < (int32_t)s->pk_n && i < (int32_t)CR_PK_MAX; i++)
+        role[s->pk_note[i] & 127u] = s->pk_role[i];
+    if (s->numeral[0])
+        cr_text(P8(120), P8(44), s->numeral, CR_NUM_PX, 1, CR_C, 4096, CR_NAMED[CR_COL_BLUE], T_BG, 0);
+    if (s->name.root[0])
+        cr_name(&s->name, P8(120), P8(84), 40, 224, 4096);
+    for (i = 0; i < (int32_t)s->pk_n; i++) {            /* the notes line: the chord's own, low to high */
+        uint32_t r = s->pk_role[i] & 7u, nt = s->pk_note[i];
+        ws[i] = 0;
+        if (r < CR_PK_NEW || r > CR_PK_BASS_KEPT) continue;
+        b[0] = 0;
+        cr_cpy_note(b, NN[nt % 12u], (int32_t)(nt / 12u) - 1);
+        ws[i] = cr_tw(b, 13, 1);
+        total += ws[i] + (total ? P8(9) : 0);
+    }
+    for (i = 0, x = P8(120) - total / 2; i < (int32_t)s->pk_n; i++) {
+        uint32_t nt = s->pk_note[i];
+        if (!ws[i]) continue;
+        cr_cpy_note(b, NN[nt % 12u], (int32_t)(nt / 12u) - 1);
+        cr_text(x, P8(107), b, 13, 1, CR_L, 4096, cr_pk_col(s->pk_role[i], dim), T_BG, 0);
+        x += ws[i] + P8(9);
+    }
+    for (n = lo, place = 0; n < hi; n++) {               /* the white keys */
+        int32_t kx;
+        uint32_t r = role[n] & 7u;
+        uint16_t c;
+        if (cr_pk_black((uint32_t)n % 12u)) continue;
+        kx = x0 + place * kw;
+        c = cr_pk_col(r, dim);
+        cr_fill(kx, y, kw - 1, h, c ? c : T_KEY);
+        if (r == CR_PK_LEFT && !dim)
+            cr_disc((kx * 2 + kw - 1) * 8, (y + h - 8) * 16, 44, CR_RGB(60, 60, 66));
+        if ((role[n] & CR_PK_NOW) && !dim)
+            cr_fill(kx + 1, y + h + 2, kw - 3, 3, CR_WHITE);
+        if (n % 12 == 0) {
+            cr_cpy_note(b, "C", n / 12 - 1);
+            cr_text(P8(kx) + (kw - 1) * 128, P8(y + h + 13), b, 9, 1, CR_C, 4096, n == 60 ? CR_WHITE : T_MID, T_BG, 0);
+        }
+        place++;
+    }
+    for (n = lo, place = 0; n < hi; n++) {               /* the black keys over them, a background gap around each */
+        int32_t kx;
+        uint32_t r = role[n] & 7u;
+        uint16_t c;
+        if (!cr_pk_black((uint32_t)n % 12u)) {
+            place++;
+            continue;
+        }
+        kx = x0 + place * kw - (bw + 1) / 2;
+        c = cr_pk_col(r, dim);
+        cr_fill(kx - 1, y, bw + 2, bh + 1, T_BG);
+        cr_fill(kx, y, bw, bh, c ? c : CR_RGB(44, 44, 50));
+        if (r == CR_PK_LEFT && !dim)
+            cr_disc(kx * 16 + bw * 8, (y + bh - 7) * 16, 36, CR_RGB(150, 150, 158));
+        if ((role[n] & CR_PK_NOW) && !dim)
+            cr_fill(kx, y + bh + 2, bw, 3, CR_WHITE);
+    }
+    if (s->pk_flags & CR_PK_OVER_LO)
+        cr_fill(x0 - 4, y, 2, h, CR_NAMED[CR_COL_ORANGE]);
+    if (s->pk_flags & CR_PK_OVER_HI)
+        cr_fill(x0 + octs * 7 * kw + 1, y, 2, h, CR_NAMED[CR_COL_YELLOW]);
+}
+
 /* the whole screen into the canvas (its rows only) */
 static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
 {
@@ -2901,6 +3004,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_TEXT: cr_p_text(s); break;
     case CR_K_BIG: cr_p_big(s, ph); break;
     case CR_K_SCOPE: cr_p_scope(s, ph); break;
+    case CR_K_PIANO: cr_p_piano(s); break;
     default: break;
     }
     if (s->footer[0]) {

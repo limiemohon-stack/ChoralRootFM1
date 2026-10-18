@@ -35,6 +35,8 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
                                      * "Step 4"): its elements drawn in the p5 style from the table, cell[lane][slot] every
                                      * lane's values (pct2: an led's on, a switch's position), `active` the lane on the
                                      * knobs, fl_eng / fl_scr the layout and screen */
+       CR_K_PIANO,                  /* Harmony mode's Piano view: the notes sounding on a keyboard of real octaves
+                                     * (pk_*), the chord's name and numeral over them */
        CR_K_N };
 
 /* CR_K_LOOPMENU's middle (lm_mid) */
@@ -143,6 +145,15 @@ enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ,     /* CR_W_DX: a DX7
 #define CR_KEYS 27u                 /* key index 0..26 = F3..G5 */
 #define CR_LINES_MAX 6u
 #define CR_WAVE_N 240u              /* scope: one sample per column */
+#define CR_PK_MAX 24u               /* piano: the keys marked (the chord, its bass, the notes that left, the arp's) */
+enum { CR_PK_NEW = 1, CR_PK_KEPT, CR_PK_BASS, CR_PK_BASS_KEPT, CR_PK_LEFT, CR_PK_PASS };   /* piano: a key's role (low
+                                     * 3 bits): new to this chord, kept from the one before, the bass (new / kept), a
+                                     * note of the one before that left (a dot), a note the motion plays outside the
+                                     * chord (the bar only); | CR_PK_NOW: sounding this instant under a motion */
+#define CR_PK_NOW 0x80u
+#define CR_PK_DIM 1u                /* piano pk_flags: the chord ended (the last one, dimmed, to copy) */
+#define CR_PK_OVER_LO 2u            /* .. a note below the keyboard shown */
+#define CR_PK_OVER_HI 4u            /* .. above it */
 
 typedef struct { char root[4], quality[6], sup[12]; uint8_t col_root, col_quality, col_sup; } cr_name_t;   /* (sup: the
                                                              * engine's CR_SUP_MAX, cr_ui.c asserts it: "add4 JAZZ",
@@ -294,6 +305,12 @@ typedef struct {
     /* panel: scope (the master output, triggered; -127..127 = the panel's half height; hashed with the rest, so a
      * moving trace redraws and a still one costs nothing) */
     int8_t wave[CR_WAVE_N];
+
+    /* panel: piano (CR_K_PIANO, Harmony mode's Piano view): the keyboard from MIDI pk_lo (a C) over pk_octs octaves (3:
+     * 11 px keys, 4: 8 px), the pk_n keys marked low to high (pk_note, pk_role: CR_PK_*), pk_flags CR_PK_DIM / OVER_*;
+     * name, numeral and footer as the chord screen's */
+    uint8_t pk_lo, pk_octs, pk_n, pk_flags;
+    uint8_t pk_note[CR_PK_MAX], pk_role[CR_PK_MAX];
 
     /* panel: loopmenu (CR_K_LOOPMENU, the PLAY menu, docs/LOOPER-MODES.md): the knobrow's picker band = the record mode
      * (items / sel / col as a knobrow; the slide), cell[0][0..3] = Quantize Count-in Level Keys (as a knobrow's; hot_r /

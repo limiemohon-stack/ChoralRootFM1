@@ -3431,6 +3431,34 @@ hk() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* perform \
     ok "ENV tapped in the mode: the bass off, tapped again: on (as before)" || bad "the tap: '$(hk 5)' / '$(hk 6)'"
 silent_end cr_harm_bass
 
+echo "Harmony mode's Piano view: HOME held + SELECT; the notes sounding on real octaves, kept / new / left, the bass"
+run cr_harm_piano
+L="$OUT/cr_harm_piano.log"
+pv() { LC_ALL=C grep -a '^piano: chord' "$L" | sed -n "${1}p" | sed 's/^piano: chord //'; }
+hl() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* layer \([0-9]*\) .*/\1/'; }
+LC_ALL=C grep -aq '^harm: view Piano view' "$L" && [ "$(hl 1)" = 6 ] &&
+    ok "HOME held + SELECT +1 in the mode: the Piano view; HOME let go: still in the mode (layer 6)" ||
+    bad "the view gesture: layer '$(hl 1)'"
+[ "$(pv 1)" = "48n 59n 62n 64n 67n | before" ] && [ "$(pv 2)" = "45n 60n 64k 67k 71n | before 48 59 62 64 67" ] &&
+    ok "Cmaj9 then Am9: every note new, then E4 G4 kept and C3 B3 D4 left (the notes the engine sounds)" ||
+    bad "kept / new: '$(pv 1)' / '$(pv 2)'"
+[ "$(pv 4)" = "43b 59n 62n 65k 69k | before 38 60 64 65 69" ] &&
+    ok "the bass part on, Dm9 then G9: the bass part's G2 (the engine's BASS stream) under B3 D4 F4 A4, F4 A4 kept" ||
+    bad "the bass: '$(pv 4)'"
+px() { pixel "build/emu/test/$1.ppm" "$2" "$3"; }
+is_orange() { set -- $1; [ "$1" -gt 200 ] && [ "$2" -gt 90 ] && [ "$2" -lt 150 ] && [ "$3" -lt 60 ]; }
+is_dim() { set -- $1; [ "$1" -gt 90 ] && [ "$1" -lt 135 ] && [ "$3" -lt 60 ]; }
+is_blue() { set -- $1; [ "$3" -gt 160 ] && [ "$1" -lt 80 ]; }
+is_orange "$(px cr_piano_cmaj9 87 180)" && is_dim "$(px cr_piano_dim 87 180)" && is_blue "$(px cr_piano_am9 186 180)" &&
+    ok "the screen: C3 orange (the bass) on the C2..B4 keyboard, dimmed once the chord ends; Am9's E4 blue (kept):" \
+       "build/emu/test/cr_piano_cmaj9.ppm cr_piano_dim.ppm cr_piano_am9.ppm cr_piano_g9bass.ppm" ||
+    bad "the keys' colours: C3 '$(px cr_piano_cmaj9 87 180)' dim '$(px cr_piano_dim 87 180)' E4 '$(px cr_piano_am9 186 180)'"
+LC_ALL=C grep -aq '^harm: view Chord view' "$L" && [ "$(hl 5)" = 6 ] &&
+    LC_ALL=C grep -aq '^harm: mode, on G7 9 | home C lydian' "$L" &&
+    ok "HOME held + SELECT -1: the Chord view again, still in the mode; SELECT alone still turns the mode (C lydian)" ||
+    bad "back / the mode: layer '$(hl 5)'"
+silent_end cr_harm_piano
+
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0
 run cr_harm_motion
