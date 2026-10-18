@@ -43,7 +43,8 @@
                                   * user sample slots; ChoralRoot sets 0: engine 4 a retired slot (engines.c ENG_GONE) */
 #endif
 #ifndef FELUCCA_GRAIN
-#define FELUCCA_GRAIN 1          /* the GRAIN engine (eng_grain.c, needs SAMPLE's sets); ChoralRoot: 0, engine 8 retired */
+#define FELUCCA_GRAIN 1          /* the GRAIN engine (eng_grain.c; ChoralRoot 0.22: grains over material it renders itself,
+                                  * engine 8; its filter, LFO sync and amount rule are the VA's, va_common.c, in every build) */
 #endif
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 1           /* the DRUM engine (eng_drum.c, drum_voice.c); ChoralRoot: 0, engine 10 retired */
@@ -199,6 +200,9 @@ static void params_by_count(int16_t *out, const int16_t *in, uint32_t np, const 
 }
 
 /* engine indices the stores name (engines.c ENGINES[]: append-only) */
+#define ENGI_GRAIN 8u            /* GRAIN (eng_grain.c; ChoralRoot 0.22: back in slot 8 over its own material) */
+#define GRAIN_BLOB_V1 20u        /* GRAIN's first build's patch record (version 1, 3y136): the pool and a restore take it
+                                  * beside the 64-byte version 2 (3y139); eng_grain.c converts it on load */
 #define ENGI_PHYS 9u
 #define ENGI_DRUM 10u
 /* PHYS MODEL DRUM (MODEL 4, before 1.0) -> the DRUM engine, its E values in place: {MODEL, TUNE, TONE, DECY,
@@ -271,7 +275,9 @@ typedef struct {
 /* ChoralRoot's editor (cr_edit.c, docs/EDITOR.md §4): an engine's screen plan (eng_deep_t.screens), in place of the
  * title rules for the groups it has screens for: a screen is one or two pages (rows A, B) under a band, its title and
  * each cell's style */
-enum { ENG_B_NONE, ENG_B_ENV, ENG_B_FILTER, ENG_B_WINDOW, ENG_B_ALGO, ENG_B_ADE2 };   /* the band: none, the AHDSR
+enum { ENG_B_NONE, ENG_B_ENV, ENG_B_FILTER, ENG_B_WINDOW, ENG_B_ALGO, ENG_B_ADE2,
+       ENG_B_WAVE };             /* .. GRAIN: the buffers' envelopes, POS, SPRD and the grains (cr_wave_t, below) */
+                                 /* the band: none, the AHDSR
                                     * (ATK DEC SUS REL), the filter's response (FREQ / CUT RESO / RES TYPE), the same
                                     * with the base-width window (BASE WIDTH), the algorithm (ALGO FDBK MIX), two
                                     * attack-decay-end envelopes (rows A and B: ATK DEC END LEV each) */
@@ -307,6 +313,18 @@ typedef struct {
     const char *label[2][4];     /* the cells' labels, 0 = the editor's (cr_pages.c CP_DLABEL) */
 } eng_screen_t;
 #define ENG_BLOB_MAX 160u       /* the largest blob (CZ-1: 144; the VA's 110 and FM6's 128 keep their store records) */
+/* ENG_B_WAVE's data (GRAIN, eng_grain.c grain_wave; drawn by cr_draw.c CR_W_WAVE through cr_screen.h's cr_wave_src): the
+ * two buffers' envelopes, cols columns of (min, max) in 1/127 of full scale; the grains sounding (a position 0..255
+ * across the buffer, its level 0..255: each reads A and B mixed); POS 0..127 as the voices read it (SCAN included),
+ * SPRD 0..127, MORPH 0..127 (B's weight in the mix, as the latest note plays it); busy: a source is being rendered
+ * (in place, the grains playing on); gen: the renders completed (low byte) */
+#define CR_WAVE_GRAINS 16u
+typedef struct {
+    uint32_t cols;
+    const int8_t *env[2];
+    uint8_t n, gpos[CR_WAVE_GRAINS], glev[CR_WAVE_GRAINS];
+    uint8_t pos, sprd, morph, busy, gen;
+} cr_wave_t;
 typedef struct {
     uint32_t npages;
     const eng_page_t *pages;

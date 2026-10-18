@@ -3,6 +3,8 @@
 # ChoralRoot FM-1 in the browser: the emulator's firmware side as a standalone WebAssembly module, and its page.
 #   [CR_VERSION=1.0] sh tools/emu/web/build_web.sh
 #   -> build/emu-web/{index.html, emu.js, keymap.js, worklet.js, choralroot.wasm, version.txt (the version string)}
+#   -> build/emu-web-smk37/{index.html, smk.js, worklet.js, choralroot-smk37.wasm, version.txt}: the SMK-37's (SMK37.md,
+#      tools/emu/emu_smk_hal.h): the BOARD_SMK37 firmware on a modelled SMK-37 panel, its own page (tools/emu/web/smk)
 # Needs emcc (the Emscripten SDK: ~/emsdk/emsdk_env.sh is sourced when emcc is not on the PATH) and the firmware's
 # generated headers (build/gen: the generate step of tools/build.py runs when they are missing, as build.sh does).
 # CR_VERSION: the version the firmware shows ("1.0" -> "ChoralRoot 1.0", as tools/build.py --release); default
@@ -50,4 +52,16 @@ printf '%s\n' "$VER" > "$OUT/version.txt"        # (web/make_site.py: the landin
 echo "emu-web: $OUT ($VER)"
 for f in choralroot.wasm index.html emu.js keymap.js worklet.js; do
     printf '  %-16s %8d B\n' "$f" "$(wc -c < "$OUT/$f")"
+done
+# the SMK-37's module (EMU_SMK37, BOARD_SMK37: tools/emu/emu_smk_hal.h) and page, the version "... -smk37"
+OUT2=build/emu-web-smk37
+mkdir -p "$OUT2"
+sh tests/hostcc.sh emcc -O2 -w -std=gnu11 -I$W/compat -Ibuild/gen -Ifirmware/src -DEMU_WEB -DEMU_SMK37=1 -DBOARD_SMK37=1 \
+    "-DFELUCCA_VERSION=\"$VER-smk37\"" --no-entry -sSTANDALONE_WASM -sFILESYSTEM=0 -sSTACK_SIZE=1048576 \
+    -sINITIAL_MEMORY=33554432 -o "$OUT2/choralroot-smk37.wasm" $W/emu_web.c
+cp $W/smk/index.html $W/smk/smk.js $W/smk/worklet.js "$OUT2/"
+printf '%s\n' "$VER-smk37" > "$OUT2/version.txt"
+echo "emu-web-smk37: $OUT2 ($VER-smk37)"
+for f in choralroot-smk37.wasm index.html smk.js worklet.js; do
+    printf '  %-22s %8d B\n' "$f" "$(wc -c < "$OUT2/$f")"
 done

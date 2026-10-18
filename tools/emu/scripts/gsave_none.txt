@@ -2,6 +2,7 @@
 # tempo (SELECT +17: 137 BPM), the KEY layer's tonic (KEY held, KNOB 1 +2: D, Key Mode on) and an Option (OPT, KNOB 1
 # +1: Play Style Advanced) are changed; 5 s of nothing; quit WITHOUT a SAVE held. The Option is written by itself
 # (settings saves 1); the tempo and the key are not in flash (the block as written holds the old ones).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 knob SELECT +17
 wait 200

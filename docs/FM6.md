@@ -168,6 +168,11 @@ tables in `.data`, 12 KB, the per-sample lookups out of the flash cache; Felucca
 part state left the RAM); POOL 294740 -> 303116 B (85.7 -> 88.1 %, +8376: the DX7 receive buffer 4104, the patch
 store 2 x 2064, the bank 3472 -> 3612; `eng_state` takes no more than PHYS's slots took).
 
+Since 3y127 (the flash diet) three of the RAM tables are not stored in flash at all: `FM6_SIN` is built at power-on by
+Dexed's integer rotation (`fm6_tables_init`, generated into `build/gen/felucca_tables.h`; bit for bit the table
+`gen_tables.py` computes, `FM6_SIN_CHECK` its checksum), and `FM6_MKI_LOG` / `FM6_OPL_LOG` are mirrored from the half
+they repeat (`FM6_MKI_LOG_H`, `FM6_OPL_LOG_H`): the same RAM (`.bss` where it was `.data`), 6.5 KB of XIP less.
+
 ## Tests
 
 - `tests/cr_fm6_test.c` (in `tests/run_cr_tests.sh`): F1..F24, the blob round trip of every factory patch, a bad

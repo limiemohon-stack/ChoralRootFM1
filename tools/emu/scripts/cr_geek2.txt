@@ -3,6 +3,7 @@
 # chord held (as cr_dualcore.txt) and the bass on (core 1's job); the view menu (HOME held), B4 (the sixth white
 # root): Geek Out 2, OCT+ ok; 1.5 s for the second's cpu window to close and the bars to glide; then the keys up and
 # HOME tapped six times: round the six views back to it
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 knob ALGORITHM +19            # OFF -> VA 18 PUNCH BASS (as cr_dualcore.txt): the bass part plays the root
 wait 300

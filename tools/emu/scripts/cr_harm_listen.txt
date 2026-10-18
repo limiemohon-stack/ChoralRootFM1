@@ -8,6 +8,7 @@
 #     LATCH tapped again (Sticky off: the latched chord ends)
 #  5. LATCH held (Harmony mode), E4 held 400 ms (a key of the palette), OCT- (the mode ends): history too
 #  6. KEY tapped twice (Key Mode on, off): history starts again; C major (MAJ + C5) 400 ms: alone in it; PANIC
+keys classic                  # (LATCH tapped outside the mode: Classic's; this script predates FM-1)
 wait 500
 btn G#3 down
 wait 40

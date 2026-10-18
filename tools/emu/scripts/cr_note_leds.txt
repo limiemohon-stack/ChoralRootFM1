@@ -2,6 +2,7 @@
 # or shifted out of the keys' two octaves (D4..G5) still shows, on both octaves' keys; never a chord key. The dump's
 # "key leds:" line: F3..C4 (the chord keys and B3), then D4..G5: 0 off 1 faint 2 dim 3 mid 4 lit. tools/emu/test_cr.sh
 # reads the dumps by number.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn A#3 down                  # MAJ + D4: D major (62 66 69)
 wait 60

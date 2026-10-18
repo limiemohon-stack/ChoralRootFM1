@@ -1631,7 +1631,7 @@ int main(int argc, char **argv)
             snprintf(name, sizeof name, "KEY page 2: Numerals \"Solf\350ge\" whole in KNOB 4's cell (%u ink px against %u for On), the other cells untouched",
                      c3s, c3);
             check(name, got == 1u && !cut && c3s > c3 + 60u && !other && strlen("Solf\350ge") < sizeof s.cell[0][3].value &&
-                  AF_CRB.nex == 11u && AF_CRB_EX[10] == 0xE8u);
+                  glyph_at(&AF_CRB, 0xE8u) >= 0);          /* (e grave is one of CRB's extras: gen_aa_font.py CRB_EXTRAS) */
         }
     }
 

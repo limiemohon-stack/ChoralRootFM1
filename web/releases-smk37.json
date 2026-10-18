@@ -1,0 +1,136 @@
+{
+  "about": "The SMK-37 test builds the SMK-37 test installer (webapp/smk37/, not linked from the site) offers, newest first. Each version lists its three models' packages (choralroot-X.Y-smk37[-elite|-mke][-1core].fwsc, tools/build.py BOARD=smk37 --release X.Y-smk37) with their sha256, from the release's SHA256SUMS: web/make_site.py refuses a package that does not match, and the page checks it again in the browser before any write. The FM-1's list is web/releases.json; this one never goes there. Adding a version: BUILDING.md, 'An SMK-37 test release'. tests/releases_test.py checks this file.",
+  "repo": "https://github.com/Quixotic7/ChoralRootFM1",
+  "releases": [
+    {
+      "version": "0.25-smk37",
+      "base": "0.25",
+      "date": "2026-10-16",
+      "tag": "v0.25-smk37",
+      "title": "ChoralRoot 0.25 on the SMK-37: GRAIN's MORPH blends the sources",
+      "bullets": [
+        "ChoralRoot 0.25 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play, with everything of 0.24-beta3-smk37.1 (the stock mapping's fix among it).",
+        "GRAIN's MORPH now blends sources A and B into one sound the grains play, smoothly also when ENV 2, an LFO or the matrix moves it.",
+        "Turning a GRAIN source's TONE, MOTION, SEED or TYPE changes the sound as you turn, with no silence while it is rebuilt.",
+        "GRAIN sounds that use MORPH sound different from 0.24-beta3-smk37.1: seven of the eight presets (FROZEN is unchanged) and your own sounds with MORPH between the ends or modulated.",
+        "The FM-1's own chord layout options of 0.24 (Chord Keys, SUS Window, Full K Shorts, MIDI Keys) are hidden here: the chord block stays on the pads.",
+        "genkigenki's port (the fm1-to-smk37 guide), built from the FM-1's 0.25."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub.",
+        "Updating from 0.24-beta3-smk37.1, 0.24-beta3-smk37 or 0.24-beta2-smk37 keeps your settings, sounds, loops and favourites; saved sounds keep their format.",
+        "Going back: M-Vave's package for your model with M-UPGRADE. Going back to 0.24-beta3-smk37.1 keeps your sounds; GRAIN's MORPH acts as before there."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "730dd7beac70f6ec829ae79c06dcc32ca49c8e395516539a4efb37560d0f5c5e",
+          "sha256_1core": "3983ed45dc6046c31fe40f926a6fc7dd4433f9581ed6d385f566c6fd7e8e338c"
+        },
+        "elite": {
+          "sha256": "981ba44916e9fc04208ae439264406e1f62cc6805d8f22715c9de874483e6eaa",
+          "sha256_1core": "5affd337ab02bec98c25ad092deb0edb9b4491ca94665b3d993f9bc1c971f8a0"
+        },
+        "mke": {
+          "sha256": "0fae0a345b368499d963a38afdae6f40d0ddc18c1287e1cb71947912616dd2c5",
+          "sha256_1core": "295b7ae9bc71198b7c316062fcdc2cd93dc055fd3da27a01c3ff13c2bb16a724"
+        }
+      }
+    },
+    {
+      "version": "0.24-beta3-smk37.1",
+      "base": "0.24-beta3",
+      "date": "2026-10-16",
+      "tag": "v0.24-beta3-smk37.1",
+      "title": "0.24-beta3-smk37 with the stock firmware's key mapping kept after going back",
+      "bullets": [
+        "Going back to the stock firmware now keeps its key, knob and fader mapping working: every key plays its own note (genkigenki's fix).",
+        "ChoralRoot removes the stock firmware's end marker before it first writes into the stock mapping's flash, so the stock firmware rebuilds its factory mapping when you go back.",
+        "A keyboard whose keys already all play one note after going back is fixed by starting this build once, then going back with M-UPGRADE.",
+        "Everything else as 0.24-beta3-smk37; genkigenki's port (the fm1-to-smk37 guide)."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub.",
+        "Updating from 0.24-beta3-smk37 or 0.24-beta2-smk37 keeps your settings, sounds, loops and favourites; a saved sound bank sector may move to a new place at the first start.",
+        "Going back: M-VAVE's package for your model with M-UPGRADE. Going back to 0.24-beta3-smk37 works, but a sound saved on this build may read as its earlier version there."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "7e294c28a51e9319247bae29e7b06305fc7651212d74a6953f9f434286e95ed1",
+          "sha256_1core": "1cf0c16f62f4b1c8ef86f76397bae1cb13e1dc37a286a11893f0d69d0124be7b"
+        },
+        "elite": {
+          "sha256": "e2903f29157c265564aa28b0fd058a54bffabe6f6594b375d14ceb2f66e21a5b",
+          "sha256_1core": "03863a71c010281db38775c22c9d5dc4402594c97851f305672b373404669863"
+        },
+        "mke": {
+          "sha256": "7873dac3b69b0f34efa8bf3b51eb5cb96517467b077e8feaec4ff6bd52bb3817",
+          "sha256_1core": "deed75297fe5bfcc28a7f93c86e55063a77bbe5d8d16b42eab7b78e85f558c13"
+        }
+      }
+    },
+    {
+      "version": "0.24-beta3-smk37",
+      "base": "0.24-beta3",
+      "date": "2026-10-16",
+      "tag": "v0.24-beta3-smk37",
+      "title": "ChoralRoot 0.24-beta3 on the SMK-37: the second community test build",
+      "bullets": [
+        "ChoralRoot 0.24-beta3 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play, with everything of the first test build.",
+        "FM TONE uses about 27 KB less working memory with an identical sound; a full chord on a HARM preset (GLASS PAD, DRONE, HOLLOW, CLAV, STRINGS, SQUARE LEAD) takes slightly more of the processor.",
+        "0.24-beta3's fix for the FM-1's SAFE MODE Flash Data (it now clears the saved sounds) was already how the SMK-37 build worked.",
+        "genkigenki's port (the fm1-to-smk37 guide), brought onto 0.24-beta3."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub.",
+        "Updating from 0.24-beta2-smk37 keeps your settings, sounds, loops and favourites. The first start from the stock firmware clears its settings; a keyboard that ran genkigenki's earlier ChoralRoot build keeps its sounds.",
+        "Going back: 0.24-beta2-smk37 at any time, with nothing changed for your data; or M-VAVE's package for your model with M-UPGRADE. The calibration is never written."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "dd6d7cff1c58ec8704eb2aeb1ec2e69786a12bb0a6a90d10ab78ec3a14a57cb0",
+          "sha256_1core": "0cd17c86cf9b4e6f871d2d8d2ed2ef445b903d08962f99ee6907cd24a2a462c8"
+        },
+        "elite": {
+          "sha256": "f2ee166d40d5932ba39f3a578ce765d8d1f2978523c5cd62b0b9e9e441ad72bb",
+          "sha256_1core": "2c027cea4d5678179c7c4862982661f505c6b01c9bdcf08cac5b3482e67ee3a2"
+        },
+        "mke": {
+          "sha256": "66af1d7faa3e5d0e4cf9c1ecd11005995b7842b08745e2dff79e01aa6659b0c0",
+          "sha256_1core": "4c1704b2b00dcc791f2f24c14c7ce4965de668937044a38da59cde04affff107"
+        }
+      }
+    },
+    {
+      "version": "0.24-beta2-smk37",
+      "base": "0.24-beta2",
+      "date": "2026-10-16",
+      "tag": "v0.24-beta2-smk37",
+      "title": "ChoralRoot 0.24-beta2 on the SMK-37: the first community test build",
+      "bullets": [
+        "ChoralRoot 0.24-beta2 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play: every engine (GRAIN among them), the looper, the sound pool, favourites and dual core.",
+        "The whole keybed plays roots with velocity; the chord types, the extensions and LOCK are on the pads, with the performance modes on the pads left over.",
+        "The faders set the effect sends, the wheels bend and add vibrato, K1 is the volume and K5..K8 are the four sound knobs.",
+        "genkigenki's port (the fm1-to-smk37 guide), brought onto 0.24-beta2."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub.",
+        "The first start clears the stock firmware's settings. A keyboard that ran genkigenki's earlier ChoralRoot build keeps its sounds.",
+        "Going back: M-VAVE's package for your model with M-UPGRADE. The calibration is never written."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "043c56f0f336cc071d6ea2e440543aefb7fc4f7bff96b05681f28f20cb660a12",
+          "sha256_1core": "000bc5ce4d4275681312c5cdad86560494d9db1872e4aaeb095ce9661f5a78d3"
+        },
+        "elite": {
+          "sha256": "ac2ff66a882dbc2873d4b858d6e2fe227619149a9ff834a0d86059a7a2d50ce6",
+          "sha256_1core": "e218593e9ecd9931a3081378ec61ad814ac7c509806b3c1f89d7931914e4ebb0"
+        },
+        "mke": {
+          "sha256": "830981c33e5ebefc2b6613e3946d5273b87f60be11fa0818a73c08903e80d342",
+          "sha256_1core": "994be9f44dc9e4df0d488e1b011c2824b5a0b22c4cb651e4885652d1237ed707"
+        }
+      }
+    }
+  ]
+}

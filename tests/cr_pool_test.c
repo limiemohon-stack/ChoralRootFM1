@@ -48,8 +48,8 @@ static void power_cycle(void)                        /* the table and the stores
 
 int main(void)
 {
-    static const uint32_t ENG[] = {ENGI_VA, ENGI_FM6, ENGI_CZ, ENGI_QUAD, ENGI_PROPHET};
-    static const char *const NM[] = {"VA SAVED", "FM6 SAVED", "CZ SAVED", "QUAD SAVED", "P5 SAVED"};
+    static const uint32_t ENG[] = {ENGI_VA, ENGI_FM6, ENGI_CZ, ENGI_QUAD, ENGI_PROPHET, ENGI_GRAIN};
+    static const char *const NM[] = {"VA SAVED", "FM6 SAVED", "CZ SAVED", "QUAD SAVED", "P5 SAVED", "GRAIN SAVED"};
     track_t *t = &trk[CR_PART_CHORD];
     uint8_t b0[UPP_MAX], b1[UPP_MAX];
     uint32_t i, k, n, bad;
@@ -139,6 +139,39 @@ int main(void)
         }
         OK(!tbad, "FM TONE: the two-decimal texts (\"42.01\" \"43.49\" \"+41.34\" \"126.85\" \"-64.00\" INF ..): %u wrong", tbad);
         OK(up_put(127, 0) == 0 && !up_used(127), "FM TONE: U128 erased");
+    }
+
+    /* ---- GRAIN's first build (3y136) saved 20-byte version-1 records (the owner's U033 DARK HAZE): such a slot loads as
+     * the sound it saved (its 18 values, SCAN halved and forward, the rest INIT's), the record read whole with zeros
+     * after it (3y139; before: refused for its length, the slot played a scrambled INIT) ---- */
+    {
+        uint8_t v1[UPP_MAX], h[2];
+        int8_t want[GQ_NP];
+        uint32_t j, pos, mbad = 0;
+        cu_pool_load(0, ENGI_GRAIN, 1);
+        OK(cb_store(t, 0, 127, "DARK HAZE", 0) == 0 && up_used(127), "GRAIN: saved into U128");
+        memset(v1, 0, sizeof v1);
+        v1[0] = 'G', v1[1] = 1;
+        for (j = 0; j < GQ_NP_V1; j++)
+            v1[2 + j] = (uint8_t)(int8_t)((j * 29u + 3u) % 150u - 20u);   /* values of every knob, some past a range */
+        v1[2 + GQ_SCAN] = 100;
+        h[0] = (uint8_t)(ENGI_GRAIN + 1u), h[1] = GRAIN_BLOB_V1;
+        OK(sp_write(127, UPP_DATA, v1, UPP_MAX) == 0 && sp_write(127, UPP_HDR, h, 2) == 0, "GRAIN: U128 made a slot of the first build");
+        power_cycle();
+        OK(up_patch_get(127, ENGI_GRAIN, b1, GRAIN_BLOB) == 0 && !memcmp(b1, v1, GRAIN_BLOB),
+           "GRAIN: the slot's 20-byte version-1 patch read (the rest zeros)");
+        grain_init_patch(want);
+        for (j = 0; j < GQ_NP_V1; j++)
+            want[j] = grain_clampv(j, (int8_t)v1[2 + j]);
+        want[GQ_SCAN] = grain_clampv(GQ_SCAN, 50);
+        pos = pool_pos_slot(ENGI_GRAIN, 127);
+        cu_pool_load(0, ENGI_GRAIN, pos);
+        for (j = 0; j < 8u; j++)
+            mbad += t->p[P_E0 + j] != want[GRAIN_MAC[j]];
+        OK(psnd[0].kind == PK_USER && psnd[0].slot == 127 && !memcmp(grain_patch[0], want, GQ_NP) && !mbad,
+           "GRAIN: the version-1 slot loads as the sound it saved (TYPE %d TONE %d .. SCAN %d, %u macros off)",
+           grain_patch[0][GQ_TYPE1], grain_patch[0][GQ_TONE1], grain_patch[0][GQ_SCAN], (unsigned)mbad);
+        OK(up_put(127, 0) == 0 && !up_used(127), "GRAIN: U128 erased");
     }
 
     /* ---- a rename keeps the patch; another engine's sound over a slot drops it ---- */

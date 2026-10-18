@@ -1,0 +1,186 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     The panel's arrangement after genkigenki's (M. Geisler, makkuro) Vector37 simulator for the SMK-37 Pro, GPL-3.0. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>ChoralRoot SMK-37 Emulator</title>
+<style>
+@font-face { font-family: "Inter Tight"; src: url("../../../InterTight.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root {
+  --ground: #080808; --cream: #F6F2EE; --red: #E63829; --orange: #F67918; --yellow: #F6B600;
+  --blue: #2950CD; --green: #29B27B; --grey: #6A696A; --dark: #313031; --text: #D9D5D1;
+  --body: #1B1B1B; --bed: #101010; --cap: #2E2D2E;
+  /* the SMK-37 Pro's own colours (the panel only): the grey body, its dark print, the orange parts, the cream pads */
+  --smk-body: #7B7F85; --smk-face: #868A90; --smk-edge: #5E6268; --smk-print: #232529; --smk-print2: #3A3D42;
+  --smk-orange: #F26A1B; --smk-orange-hi: #FF8A45; --smk-orange-lo: #C9530F; --smk-pad: #F1EDE6; --smk-slot: #2A2C30;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--ground); color: var(--text); }
+body { font: 500 16px/1.45 "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; }
+a { color: var(--cream); }
+.wrap { margin: 0 auto; padding: 0 16px 48px; }    /* (the page's whole width: the panel scales with the window) */
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 20px 0 12px; flex-wrap: wrap; }
+h1 { margin: 0; font-size: clamp(26px, 4.4vw, 44px); line-height: 1; font-weight: 900; letter-spacing: -0.02em; color: var(--cream); }
+h1 span { color: var(--yellow); }
+header a { font-weight: 700; text-decoration: none; font-size: 15px; }
+header a:hover { text-decoration: underline; }
+.stripe { display: flex; height: 8px; margin-bottom: 20px; }
+.stripe i { flex: 1; }
+#gate { display: flex; align-items: center; max-width: 720px; margin: 0 auto 16px; background: var(--red); }
+#gate[hidden] { display: none; }
+#gate p { margin: 0; padding: 10px 16px; color: var(--cream); font-weight: 700; font-size: 15px; line-height: 1.3; }
+button { font: inherit; }
+.btn { border: 0; cursor: pointer; font-weight: 800; color: var(--ground); background: var(--cream); padding: 10px 16px; }
+.btn:hover { background: var(--yellow); }
+#start { flex: none; background: var(--ground); color: var(--cream); font-size: 26px; font-weight: 900; padding: 14px 36px; border: 4px solid var(--red); cursor: pointer; }
+#start:hover { background: var(--orange); color: var(--ground); }
+
+/* the SMK-37 Pro as it is laid out: one band, left to right, the wheels, the screen with its six buttons under it, K1..K8
+ * over the 16 pads (a pad column under each knob; the block takes the width that is left), the faders over the 2 x 6
+ * buttons; the keybed under the whole band. Under 900 px the band wraps: wheels and screen, then knobs and pads, then
+ * faders and buttons; the keybed stays full width */
+.smk { background: linear-gradient(180deg, var(--smk-face), var(--smk-body) 60%); border: 2px solid var(--smk-edge);
+       border-radius: 28px; padding: 18px 20px 20px; user-select: none; box-shadow: inset 0 1px 0 #ffffff33;
+       -webkit-user-select: none; touch-action: none; }
+.top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 20px clamp(16px, 2vw, 40px); align-items: start; }
+.blk { display: flex; gap: 14px; align-items: flex-start; }
+.lab { text-align: center; color: var(--smk-print); font-size: 11px; font-weight: 800; letter-spacing: .06em; margin-top: 5px; }
+input.v { writing-mode: vertical-lr; direction: rtl; -webkit-appearance: none; appearance: none; background: transparent;
+          width: 40px; height: 168px; margin: 0; cursor: pointer; }
+.faders input.v { height: clamp(96px, 7.5vw, 150px); }
+/* the faders: orange caps in dark slots; the wheels: orange rollers in their dark wells */
+input.v::-webkit-slider-runnable-track { width: 8px; border-radius: 4px; background: var(--smk-slot); border: 1px solid #1b1c1f; }
+input.v::-moz-range-track { width: 8px; border-radius: 4px; background: var(--smk-slot); border: 1px solid #1b1c1f; }
+input.v::-webkit-slider-thumb { -webkit-appearance: none; width: 34px; height: 16px; border-radius: 3px; margin-left: -14px;
+          background: linear-gradient(180deg, var(--smk-orange-hi), var(--smk-orange) 45%, var(--smk-orange-lo));
+          border: 1px solid #7a2f06; box-shadow: 0 2px 3px #0006; }
+input.v::-moz-range-thumb { width: 30px; height: 12px; border-radius: 3px; background: var(--smk-orange); border: 1px solid #7a2f06; }
+input.v.w::-webkit-slider-runnable-track { width: 30px; border-radius: 8px; background: var(--smk-slot); }
+input.v.w::-moz-range-track { width: 30px; border-radius: 8px; background: var(--smk-slot); }
+input.v.w::-webkit-slider-thumb { width: 30px; height: 60px; border-radius: 10px; margin-left: -1px;
+          background: repeating-linear-gradient(180deg, var(--smk-orange) 0 5px, var(--smk-orange-lo) 5px 7px); }
+input.v.w::-moz-range-thumb { width: 28px; height: 56px; border-radius: 10px; background: var(--smk-orange); }
+.scr { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.lcdbox { background: #000; padding: 6px; border: 2px solid #1c1d20; border-radius: 6px; }
+/* the screen: 240 x 240 (ST7789V, square). By default its share of the panel as on the unit, the glass about as wide
+ * as the 2 x 3 buttons under it: at whole device pixels where that size allows (a retina display: 120 CSS px is 1:1),
+ * else scaled smoothly; "Big screen": 240 CSS px (480 from 2400 px wide), whole pixels (smk.js sizeScreen) */
+#lcd { display: block; width: 240px; height: 240px; image-rendering: pixelated; image-rendering: crisp-edges; background: #000; }
+#lcd.smooth { image-rendering: auto; }
+.nav .b { font-size: 9.5px; min-height: 36px; }
+.nav .b small { font-size: 8.5px; }
+.nav { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }   /* (2 x 3 as on the unit: KNOB BANK | FADER BANK,
+                                                                        * < | >, OCTAVE- | OCTAVE+; the screen's width) */
+.b { border: 1px solid #7a2f06; border-radius: 5px; background: var(--smk-orange); color: var(--smk-print); cursor: pointer; text-align: center;
+     box-shadow: inset 0 1px 0 #ffffff40, 0 1px 2px #0005;
+     font-size: 10.5px; font-weight: 800; padding: 4px 2px; min-height: 42px; display: flex; flex-direction: column;
+     justify-content: center; line-height: 1.15; position: relative; }
+.b small { display: block; color: #3d1a06; opacity: .75; font-size: 9.5px; font-weight: 700; }
+.b kbd, .key kbd, .pad kbd { position: absolute; right: 3px; bottom: 2px; font: 700 8px/1 "Inter Tight", system-ui, sans-serif;
+     color: #00000088; background: none; padding: 0; }
+/* a lit button: its LED shines through, a near-white fill with a white glow; SEQ PLAY green / red */
+.b.lit { background: #FFF4EA; color: var(--smk-print); box-shadow: 0 0 12px 2px #ffffffcc, inset 0 0 6px #ffb37a; }
+.b.lit small { color: #6b3410; }
+.b.red { background: var(--red); color: #fff; box-shadow: 0 0 12px 2px #ff6a5a99; }
+.b.red small, .b.red kbd { color: #ffffffcc; }
+.b.green { background: #7CF0B4; color: #10261a; box-shadow: 0 0 12px 2px #7cf0b499; }
+.b.held, .pad.held { outline: 2px solid var(--smk-print); outline-offset: -3px; }
+.key.held { outline: 2px solid var(--smk-print); outline-offset: -3px; }
+.mid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); row-gap: 10px; }
+.knob { display: flex; flex-direction: column; align-items: center; gap: 3px; cursor: ns-resize; touch-action: none; }
+/* the knobs: orange caps (a highlight on top, a dark pointer) */
+.knob .dial { width: 50px; height: 50px; border-radius: 50%; position: relative; border: 1px solid #7a2f06;
+              background: radial-gradient(circle at 38% 30%, var(--smk-orange-hi), var(--smk-orange) 55%, var(--smk-orange-lo));
+              box-shadow: 0 3px 4px #0006, inset 0 -2px 3px #0003; }
+.knob .dial::after { content: ""; position: absolute; left: 50%; top: 4px; width: 3px; height: 15px; margin-left: -1.5px;
+                     background: #3b1606; border-radius: 2px; transform-origin: 50% 20px; transform: rotate(var(--a, 0deg)); }
+.knob.sel .dial { box-shadow: 0 0 0 3px #fff, 0 3px 4px #0006; }
+.knob b { font-size: 12px; font-weight: 900; color: var(--smk-print); }
+.knob small { color: var(--smk-print2); font-size: 9.5px; font-weight: 700; text-align: center; line-height: 1.1; min-height: 2.2em; }
+/* the pads: cream, a soft shadow; lit, the firmware's colour through them (smk.js: --pc, --pa, a glow when bright) */
+.pad { aspect-ratio: 1.45; min-height: 40px; margin: 0 clamp(3px, 0.4vw, 8px); border-radius: 5px; border: 1px solid #b9b3a8;
+       background: linear-gradient(rgba(var(--pc, 255, 255, 255), var(--pa, 0)), rgba(var(--pc, 255, 255, 255), var(--pa, 0))), var(--smk-pad);
+       box-shadow: 0 3px 5px #0005, inset 0 -3px 0 #0000001a; cursor: pointer; position: relative; }
+.pad i { position: absolute; left: 6px; right: 4px; top: 4px; overflow: hidden; font-style: normal; color: var(--smk-print);
+         font-size: clamp(9px, 0.72vw, 13px); font-weight: 800; line-height: 1.1; }
+.rgt { display: flex; flex-direction: column; gap: 10px; width: clamp(300px, 24vw, 470px); }
+.faders { display: flex; justify-content: space-around; }
+.grid6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.keys { position: relative; height: clamp(130px, 11vw, 240px); display: flex; margin-top: 18px; touch-action: none;
+        background: #3a3d42; padding: 2px; border-radius: 4px; }
+.key { cursor: pointer; border-radius: 0 0 7px 7px; position: relative; }
+/* the keybed: white naturals, orange sharps; a key down shows darker (the white ones a light orange) */
+.key.w { flex: 1; border: 1px solid #9a9da2; margin: 0 1px; background: linear-gradient(180deg, #fbfbfa, #f1f0ee); box-shadow: inset 0 -4px 0 #0000000d; }
+.key.b { position: absolute; top: 0; height: 62%; border: 1px solid #7a2f06; z-index: 2;
+         background: linear-gradient(180deg, var(--smk-orange-lo), var(--smk-orange) 20%, var(--smk-orange)); box-shadow: 0 3px 4px #0005; }
+.key.w.down { background: #FFD7B5; }
+.key.b.down { background: #A9440C; }
+.key.w kbd { color: #6A696A; }
+.key.b kbd { color: #3d1a06; }
+.key span { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 9px; font-weight: 700; color: #8C8B8C; }
+.bar label input { width: 18px; height: 18px; margin: 0; accent-color: var(--orange); }
+.bar label { font-weight: 700; color: var(--cream); font-size: 14px; display: flex; gap: 6px; align-items: center; }
+.bar [hidden] { display: none; }
+select { background: var(--dark); color: var(--cream); border: 0; padding: 8px 10px; max-width: 220px; font: inherit; }
+.bar { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; justify-content: center; margin: 14px 0 0; }
+.meter { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 14px; color: var(--cream); }
+.meter b { display: block; width: 90px; height: 12px; background: var(--dark); position: relative; }
+.meter b i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--green); }
+#status { min-height: 1.4em; font-weight: 600; color: var(--grey); text-align: center; margin-top: 10px; }
+.legend { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-top: 14px; }
+.legend div { padding: 12px 14px; }
+.legend h3 { margin: 0 0 4px; font-size: 13px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ground); }
+.legend p { margin: 0; font-size: 14px; line-height: 1.5; color: var(--ground); font-weight: 600; }
+.legend kbd { font: 800 13px/1 "Inter Tight", system-ui, sans-serif; background: rgba(8, 8, 8, 0.82); color: var(--cream); padding: 2px 5px; }
+footer { margin-top: 24px; font-size: 13px; color: var(--grey); text-align: center; }
+@media (max-width: 900px) { .top { grid-template-columns: minmax(0, 1fr); } .blk { justify-content: center; } .rgt { width: 100%; } }
+@media (max-width: 760px) { .knob .dial { width: 32px; height: 32px; } .knob .dial::after { height: 10px; transform-origin: 50% 12px; }
+  .pad { min-height: 32px; margin: 0 2px; } .keys { height: 120px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>ChoralRoot <span>SMK-37</span> &middot; try it</h1>
+    <a href="../">&larr; the SMK-37 test installer</a>
+  </header>
+  <div class="stripe"><i style="background:#E63829"></i><i style="background:#F67918"></i><i style="background:#F6B600"></i><i style="background:#29B27B"></i><i style="background:#2950CD"></i></div>
+  <div id="gate">
+    <button id="start">Start</button>
+    <p>The SMK-37 build of the firmware in your browser (a community test build, not tested by the maintainer). Press Start for sound.</p>
+  </div>
+  <div class="smk" id="smk">
+    <div class="top">
+      <div class="blk">
+        <div><input class="v w" id="pitch" type="range" min="445" max="640" value="535" aria-label="pitch wheel"><div class="lab">PITCH</div></div>
+        <div><input class="v w" id="mod" type="range" min="0" max="155" value="0" aria-label="mod wheel"><div class="lab">MOD</div></div>
+        <div class="scr"><div class="lcdbox"><canvas id="lcd" width="240" height="240" aria-label="The screen"></canvas></div><div class="nav" id="nav"></div></div>
+      </div>
+      <div class="mid" id="mid"></div>
+      <div class="rgt"><div class="faders" id="faders"></div><div class="grid6" id="grid6"></div></div>
+    </div>
+    <div class="keys" id="keys"></div>
+  </div>
+  <div id="status">Loading&hellip;</div>
+  <div class="bar">
+    <div class="meter" title="the share of real time the browser spends running the device">LOAD <b><i id="load"></i></b> <span id="loadv">&ndash;</span></div>
+    <button id="midi" class="btn">Enable MIDI</button>
+    <label hidden>Out <select id="mout"><option value="">none</option></select></label>
+    <label hidden>In <select id="min"><option value="">none</option></select></label>
+    <button id="reset" class="btn" title="forget the saved settings and sounds (this browser only)">Reset flash</button>
+    <label title="the screen larger than on the keyboard, at whole pixels"><input type="checkbox" id="big"> Big screen</label>
+  </div>
+  <section class="legend" aria-label="Computer keyboard">
+    <div style="background:#F6F2EE"><h3>Chord pads</h3><p><kbd>F1</kbd>&ndash;<kbd>F4</kbd> DIM MIN MAJ SUS &middot; <kbd>2</kbd>&ndash;<kbd>5</kbd> 6 m7 M7 9 &middot; <kbd>Tab</kbd> LOCK &middot; the mode pads with the mouse</p></div>
+    <div style="background:#F6B600"><h3>Keys</h3><p><kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> &hellip; <kbd>'</kbd> <kbd>]</kbd> white C4&ndash;G5 &middot; <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd> <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd> black &middot; the mouse: low on a key plays loud, high soft; <kbd>Shift</kbd> soft</p></div>
+    <div style="background:#F67918"><h3>Buttons</h3><p><kbd>F5</kbd>&ndash;<kbd>F10</kbd> FX SCALE CHORD NOTE&nbsp;REPEAT PARA GLOBE &middot; <kbd>7</kbd> <kbd>8</kbd> <kbd>9</kbd> <kbd>0</kbd> <kbd>-</kbd> <kbd>=</kbd> PATCH BT ARP SEQ PLAY REC &middot; <kbd>,</kbd> <kbd>.</kbd> &lt; &gt; &middot; <kbd>`</kbd> KNOB BANK &middot; <kbd>/</kbd> FADER BANK</p></div>
+    <div style="background:#29B27B"><h3>Knobs &amp; more</h3><p><kbd>PgDn</kbd> <kbd>PgUp</kbd> pick a knob, <kbd>&uarr;</kbd> <kbd>&darr;</kbd> turn it (or drag / wheel any knob) &middot; <kbd>Z</kbd> <kbd>X</kbd> OCTAVE &minus; / + &middot; <kbd>End</kbd> panic &middot; right-click latches a key, pad or button</p></div>
+  </section>
+  <footer>GPL-3.0 &middot; ChoralRoot's SMK-37 build and its emulator, compiled to WebAssembly; the panel's arrangement after genkigenki's Vector37 simulator. Settings and sounds you save stay in this browser.</footer>
+</div>
+<script src="smk.js"></script>
+</body>
+</html>

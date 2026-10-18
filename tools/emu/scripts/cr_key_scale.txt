@@ -3,6 +3,7 @@
 # without a job there dark (B3 stays LOCK). Nothing of it reaches the engine or the LOCK latch: MIN latched before
 # the layer is still the only latched key after it, and a root alone then plays the minor chord.
 #   chord block: F3 6, F#3 DIM, G3 m7, G#3 MIN, A3 M7, A#3 MAJ, B3 LOCK, C4 9, C#4 SUS
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 expect led A#3 faint            # the view: the chord keys' own state (none held)
 expect led G#3 faint
@@ -91,7 +92,7 @@ btn B3                        # LOCK off: the latch cleared
 wait 300
 btn GLO 80                    # Options > LEDs: Stock (two levels: the idle keys lit, the active dark)
 wait 300
-knob SELECT +20
+knob SELECT +23
 wait 300
 knob KNOB1 +1
 wait 300

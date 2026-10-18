@@ -34,6 +34,8 @@
 #   web_emu_build  sh tools/emu/web/build_web.sh        (Emscripten: ~/emsdk)
 #   layout_build   sh tools/layout/build_layout.sh      (Emscripten: the layout tool's preview module, docs/LAYOUT-TOOL.md)
 #   layout_test    node web/test_layout.mjs             (after layout_build and web_emu_build)
+#   web_emu_smk    node tools/emu/web/test_web_emu_smk.mjs (after web_emu_build: the SMK-37 emulator, build/emu-web-smk37;
+#                                                        it measures no real time, so it runs beside the others)
 #   web_emu_test   node tools/emu/web/test_web_emu.mjs  (last and alone: it times the audio render against real time)
 # What may not run at the same time, and why the rest may:
 #   - test_cr, test_persist and test_retired share build/emu/test but not a file in it (cr_*, persist_* / gsave_*,
@@ -64,7 +66,7 @@ set -u
 cd "$(dirname "$0")/.." || exit 1
 export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/lib}"
 export SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy
-ALL="build cr_tests cr_draw emu_build test_cr test_persist test_retired test_pool run_tests install releases layout_gen web_backup web_manager web_sounds web_dnsnd web_installer web_web web_emu_build layout_build layout_test web_emu_test"
+ALL="build cr_tests cr_draw emu_build test_cr test_persist test_retired test_pool run_tests install releases layout_gen web_backup web_manager web_sounds web_dnsnd web_installer web_web web_emu_build layout_build layout_test web_emu_smk web_emu_test"
 only=
 while [ $# -gt 0 ]; do
     case $1 in
@@ -118,6 +120,7 @@ command_of() {
         web_emu_build) echo "sh tools/emu/web/build_web.sh" ;;
         layout_build) echo "sh tools/layout/build_layout.sh" ;;
         layout_test) echo "node web/test_layout.mjs" ;;
+        web_emu_smk) echo "node tools/emu/web/test_web_emu_smk.mjs" ;;
         web_emu_test) echo "node tools/emu/web/test_web_emu.mjs" ;;
     esac
 }
@@ -127,6 +130,7 @@ waits_of() {    # the suites that must have ended before this one starts (those 
         test_cr|test_persist|test_retired|test_pool) echo "build emu_build" ;;
         run_tests) echo "build web_emu_build layout_build" ;;
         layout_test) echo "build web_emu_build layout_build" ;;
+        web_emu_smk) echo "build web_emu_build" ;;
         web_dnsnd) echo "build cr_tests" ;;
         web_emu_test) for o in $ALL; do [ "$o" = web_emu_test ] || echo "$o"; done ;;
         *) echo "build" ;;

@@ -17,6 +17,12 @@ found must be published with the listed sha256 and offered by the installer; eac
 version with --require-all, a version that is not listed). When build/choralroot.fwsc is itself a listed release
 (the build is reproducible) and every package is there, the site is also built as the Pages job builds it
 (--require-all, into build/scratch/site-release) and checked the same way.
+The SMK-37 test installer (web/releases-smk37.json, SMK37.md): built from made-up SMK packages (build/choralroot.fwsc
+under the three models' identities) and a made-up list (CR_SMK_RELEASES_JSON): webapp/smk37/index.html with the three
+models' packages in its META, firmware/smk37/ with each package, SHA256SUMS and index.html, linked from no other page;
+a wrong sha256, an FM-1 package in an SMK model's place and a missing package with --require-all refused before
+anything is written; a local build without the packages makes no SMK page. With build/emu-web-smk37 (build_web.sh):
+the SMK-37 emulator at webapp/smk37/emu/ (noindex), linked from the SMK page and from no FM-1 page.
 """
 import hashlib
 import json
@@ -140,9 +146,18 @@ def read_meta(page):
         return None
 
 
-def make(args):
+def make(args, env=None):
     return subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, args)],
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=env)
+
+
+def no_smk_env(env=None):
+    """the FM-1's --require-all builds without the SMK-37 list (smk_site() checks that part on its own list): an empty
+    web/releases-smk37.json, so that no SMK package of the tree's list is required of them"""
+    f = SCRATCH / "site-smk-none.json"
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps({"about": "none", "repo": RELEASES["repo"], "releases": []}), encoding="utf-8")
+    return {**(env or os.environ), "CR_SMK_RELEASES_JSON": str(f)}
 
 
 def versions(out, meta, want, stdout):
@@ -178,7 +193,7 @@ def versions(out, meta, want, stdout):
        and all(f'/tree/{r["tag"]}"' in idx for r in rel if r.get("tag")) and all(f'href="{x}"' in idx for x in ("LICENSE", "LICENSING.md", "LICENSES/")),
        "firmware/index.html: every package, its sha256, its source at its tag, the licences")
     ok(not any(f"choralroot-{v}.fwsc" in idx or (fw / f"choralroot-{v}.fwsc").exists() for v in ("0.14", "0.15")), "firmware/: 0.14 and 0.15 are not published")
-    ok(stdout.count("skipped: ") == len(RELEASES["releases"]) - len([w for w in want if w["version"] != VERSION]) + len(skipped1),
+    ok(stdout.count("skipped: ") - stdout.count("skipped: SMK ") == len(RELEASES["releases"]) - len([w for w in want if w["version"] != VERSION]) + len(skipped1),
        "make_site.py: one \"skipped:\" line for each listed version without a package")
 
 
@@ -236,7 +251,7 @@ def one_core():
     top.pop("going_back", None)
     top.pop("beta", None)                           # (9.9 is a stable version, whatever the first entry is)
     lst.write_text(json.dumps({**RELEASES, "releases": [top] + RELEASES["releases"]}), encoding="utf-8")
-    env = {**os.environ, "CR_RELEASES_JSON": str(lst)}
+    env = no_smk_env({**os.environ, "CR_RELEASES_JSON": str(lst)})
     run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
     r = run(PKG, "9.9", out, "--packages", pk)
     if not ok(r.returncode == 0, "1-core: make_site.py builds a release with a single-core package"):
@@ -295,7 +310,7 @@ def beta_site():
     stable = {**base, "version": "9.8", "tag": "v9.8", "sha256": hashlib.sha256(old).hexdigest(),
               "bullets": ["The stable one: what a visitor gets without the opt-in."]}
     lst.write_text(json.dumps({**RELEASES, "releases": [beta, stable]}), encoding="utf-8")
-    env = {**os.environ, "CR_RELEASES_JSON": str(lst)}
+    env = no_smk_env({**os.environ, "CR_RELEASES_JSON": str(lst)})
     run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
     (emu / "index.html").write_text("<!doctype html><title>emu</title>\n", encoding="utf-8")
     (emu / "version.txt").write_text("ChoralRoot 9.9-beta1\n", encoding="utf-8")
@@ -331,7 +346,7 @@ def beta_site():
 def release_site(cur):
     """the site as the Pages job builds it: the newest release as the current version, every listed version required"""
     out = SCRATCH / "site-release"
-    r = make([PKG, cur["version"], out, "--packages", PACKAGES, "--require-all"])
+    r = make([PKG, cur["version"], out, "--packages", PACKAGES, "--require-all"], env=no_smk_env())
     if not ok(r.returncode == 0, f"make_site.py --require-all builds the site for {cur['version']} (build/scratch/site-release)"):
         print(r.stdout + r.stderr)
         return
@@ -356,6 +371,97 @@ def release_site(cur):
 def escape_html(s):
     """as web/make_site.py writes a bullet (html.escape: quotes too, so a bullet with an apostrophe, 0.22's, matches)"""
     return html_escape(s)
+
+
+def as_product(raw, product):
+    """a package's 20 identity markers rewritten (make_site.py product_of): the site test's SMK-37 stand-ins"""
+    b = bytearray(raw)
+    for i in range(20):
+        b[i * 0x30 + 0x2F] = (ord(product[i]) + i + 1) & 0xFF if i < len(product) else 0x7D
+    return bytes(b)
+
+
+def smk_site():
+    pk, out, lst = SCRATCH / "site-smk-packages", SCRATCH / "site-smk", SCRATCH / "site-smk-releases.json"
+    for d in (pk, out):
+        if d.exists():
+            shutil.rmtree(d)
+    pk.mkdir(parents=True)
+    raw, v, names, entry = PKG.read_bytes(), "9.9-smk37", {}, {}
+    for key, (model, sfx) in {"pro": ("SMK-37 Pro", ""), "elite": ("SMK-37 Elite", "-elite"), "mke": ("MKE-P37", "-mke")}.items():
+        std, one = as_product(raw, model + "_920"), bytearray(as_product(raw, model + "_920"))
+        one[-1] ^= 0x5A
+        names[key] = (f"choralroot-{v}{sfx}.fwsc", f"choralroot-{v}{sfx}-1core.fwsc", model + "_920")
+        (pk / names[key][0]).write_bytes(std)
+        (pk / names[key][1]).write_bytes(one)
+        entry[key] = {"sha256": hashlib.sha256(std).hexdigest(), "sha256_1core": hashlib.sha256(one).hexdigest()}
+    rel = {"version": v, "base": "9.9", "date": "2026-10-16", "tag": "v" + v, "title": "test", "bullets": ["b"], "notes": ["n"],
+           "packages": entry}
+    lst.write_text(json.dumps({"about": "test", "repo": RELEASES["repo"], "releases": [rel]}), encoding="utf-8")
+    env = {**os.environ, "CR_SMK_RELEASES_JSON": str(lst)}
+    run = lambda *a: subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), *map(str, a)], capture_output=True, text=True, env=env)
+    r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
+    if not ok(r.returncode == 0, "SMK: make_site.py builds the site with the SMK-37 test installer"):
+        print(r.stdout + r.stderr)
+        return
+    page = out / "webapp" / "smk37" / "index.html"
+    ph = page.read_text(encoding="utf-8") if page.is_file() else ""
+    meta = read_meta(ph) or {}
+    models = ((meta.get("releases") or [{}])[0]).get("models", {})
+    fw = out / "firmware" / "smk37"
+    ok(page.is_file() and "/*LIB*/" not in ph and "/*META*/" not in ph and 'content="noindex, nofollow"' in ph,
+       "SMK: webapp/smk37/index.html, the libraries and META inlined, noindex")
+    ok(set(models) == {"pro", "elite", "mke"} and all(
+        models[k]["product"] == names[k][2] and models[k]["sha256"] == entry[k]["sha256"] and
+        models[k]["sha256_1core"] == entry[k]["sha256_1core"] and (page.parent / models[k]["pkg"]).resolve() == (fw / names[k][0]).resolve() and
+        (page.parent / models[k]["pkg_1core"]).resolve() == (fw / names[k][1]).resolve() for k in models),
+       "SMK: META lists the three models, each package's identity, sha256s and paths (they resolve)")
+    sums = (fw / "SHA256SUMS").read_text(encoding="utf-8").splitlines() if (fw / "SHA256SUMS").is_file() else []
+    ok(all((fw / n).is_file() and sha(fw / n) == entry[k][f] and f"{entry[k][f]}  {n}" in sums
+           for k in names for n, f in ((names[k][0], "sha256"), (names[k][1], "sha256_1core"))) and len(sums) == 6 and
+       (fw / "index.html").is_file(), "SMK: firmware/smk37/: the six packages, SHA256SUMS, index.html")
+    others = [out / "index.html", out / "webapp" / "installer" / "index.html", out / "webapp" / "installer" / "manager.html",
+              out / "firmware" / "index.html"]
+    emu_src = ROOT / "build" / "emu-web-smk37"
+    if (emu_src / "index.html").is_file():
+        eh = (out / "webapp" / "smk37" / "emu" / "index.html")
+        ok(eh.is_file() and (eh.parent / "choralroot-smk37.wasm").is_file() and 'href="emu/"' in ph and
+           'content="noindex, nofollow"' in eh.read_text(encoding="utf-8"),
+           "SMK: webapp/smk37/emu/ (the SMK-37 emulator, noindex), linked from the SMK page")
+        others.append(out / "emu" / "index.html") if (out / "emu" / "index.html").is_file() else None
+    else:
+        print(f"skip: {emu_src.relative_to(ROOT)} missing: the SMK emulator not checked (sh tools/emu/web/build_web.sh)")
+    ok(all("smk37" not in p.read_text(encoding="utf-8") for p in others) and
+       not any(n.startswith("choralroot-9.9-smk37") for n in os.listdir(out / "firmware")),
+       "SMK: no other page links it, the FM-1's firmware/ holds no SMK package")
+    shutil.rmtree(out)
+    bad = bytearray((pk / names["elite"][0]).read_bytes())
+    bad[-3] ^= 0xFF
+    (pk / names["elite"][0]).write_bytes(bad)
+    r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
+    ok(r.returncode != 0 and "refused" in r.stderr and not out.exists(), "SMK: a package whose sha256 is not the listed one: refused, nothing written")
+    fm1 = PKG.read_bytes()
+    (pk / names["elite"][0]).write_bytes(fm1)
+    entry["elite"]["sha256"] = hashlib.sha256(fm1).hexdigest()
+    lst.write_text(json.dumps({"about": "test", "repo": RELEASES["repo"], "releases": [{**rel, "packages": entry}]}), encoding="utf-8")
+    r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
+    ok(r.returncode != 0 and "SMK-37 Elite_9xx" in r.stderr and not out.exists(), "SMK: an FM-1 package in the Elite's place: refused, nothing written")
+    (pk / names["elite"][0]).unlink()
+    top = {**RELEASES["releases"][0], "version": "9.9", "tag": "v9.9", "sha256": sha(PKG)}   # (the FM-1's list: 9.9 alone,
+    for k in ("going_back", "beta", "sha256_1core"):                                        # this build, so that its
+        top.pop(k, None)                                                                    # own checks pass)
+    fl = SCRATCH / "site-smk-fm1.json"
+    fl.write_text(json.dumps({**RELEASES, "releases": [top]}), encoding="utf-8")
+    r = subprocess.run([sys.executable, str(ROOT / "web" / "make_site.py"), str(PKG), "9.9", str(out), "--packages", str(pk),
+                        "--smk-packages", str(pk), "--require-all"], capture_output=True, text=True, env={**env, "CR_RELEASES_JSON": str(fl)})
+    fl.unlink()
+    ok(r.returncode != 0 and names["elite"][0] in r.stderr and not out.exists(), "SMK: --require-all refuses a missing package, naming it")
+    r = run(PKG, VERSION, out, "--packages", PACKAGES, "--smk-packages", pk)
+    ok(r.returncode == 0 and "skipped: SMK 9.9-smk37" in r.stdout and not (out / "webapp" / "smk37").exists() and
+       not list((out / "firmware").glob("smk37/*.fwsc")), "SMK: a local build without them: skipped, no SMK page")
+    for d in (pk, out):
+        shutil.rmtree(d)
+    lst.unlink()
 
 
 def main():
@@ -403,6 +509,7 @@ def main():
     refusals()
     one_core()
     beta_site()
+    smk_site()
     cur =next((r for r in RELEASES["releases"] if r["sha256"] == sha(PKG)), None)
     if cur is not None and cur is RELEASES["releases"][0] and len(here) == len(RELEASES["releases"]):
         release_site(cur)

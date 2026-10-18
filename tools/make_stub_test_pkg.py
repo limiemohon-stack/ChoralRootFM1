@@ -41,9 +41,12 @@ def main():
     ap.add_argument("--app", type=Path, default=SRC / "build" / "choralroot.bin")
     ap.add_argument("--ota", type=Path, default=SRC / "build" / "loader" / "ota.bin")
     ap.add_argument("-o", "--out", type=Path)
-    ap.add_argument("--product", default="FM-1_920")
+    ap.add_argument("--product", help="the identity (default: FM-1_920; --board smk37: SMK-37 Pro_920)")
+    ap.add_argument("--board", choices=sorted(P.BOARDS), default="fm1", help="the flash layout (fm1pkg_make --board)")
     ap.add_argument("--sdk", type=Path, help="JieLi AC79 SDK checkout (default: $AC79_SDK, else tools/sdk)")
     a = ap.parse_args()
+    P.set_board(a.board)
+    a.product = a.product or P.BOARDS[a.board][1] + "_920"
     P.SDK = a.sdk or (None if P.os.environ.get("AC79_SDK") else SRC / "tools" / "sdk")
     app, ota = a.app.read_bytes(), a.ota.read_bytes()
     if not P.has_stub(app):

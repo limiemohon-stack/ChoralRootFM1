@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.23 on the M-VAVE FM-1 (what is new in 0.22 is marked so; 0.23's: [releases/0.23.md](releases/0.23.md)). It is written for someone who owns an
+For ChoralRoot 0.25.1 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.25.1's: [releases/0.25.1.md](releases/0.25.1.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -43,7 +43,7 @@ How the manual names things:
 ChoralRoot turns the FM-1 into a chord instrument in the manner of the Telepathic Instruments Orchid. The left end of
 the keybed says what kind of chord you want, the rest of the keybed plays its root, and the instrument builds the
 chord, voices it and writes its name on the screen. Around that it has a bass part that follows the chords,
-performance modes (strum, arpeggio, patterns), effects, a looper that records chords, five synth engines with a deep
+performance modes (strum, arpeggio, patterns), effects, a looper that records chords, seven synth engines with a deep
 sound editor, MIDI out on three channels and USB audio recording.
 
 What it is not:
@@ -67,10 +67,10 @@ You can try everything in this manual without the hardware: the firmware runs in
 **Switch on.** The screen shows `choralroot` over three stripes, with the version under them for a moment. The logo
 stays until you touch something.
 
-**Play a note.** Press D4, the sixth white key from the left. Every key from D4 up to G5 is a **root key**. On its own
+**Play a note.** Press D4, the sixth white key from the left. Every key from C4 up to G5 is a **root key**. On its own
 a root key plays one note; the screen shows `D` and under it `D4`.
 
-**Play a chord.** The lowest five white keys and the four black keys between them are the **chord block**. Hold MAJ
+**Play a chord.** The lowest four white keys and the three black keys between them are the **chord block**. Hold MAJ
 (the black key A#3) and press D4: D major. The screen shows `DM` (a major chord has a capital `M` after its root, so
 that it cannot be taken for the single note `D`) and the notes `D4 F#4 A4` under it, and the
 three root keys where those notes sound light up. Now hold MIN (G#3) and m7 (the white key G3) together and press D4:
@@ -79,9 +79,10 @@ three root keys where those notes sound light up. Now hold MIN (G#3) and m7 (the
 
 The chord keys have to be down when the root goes down. The name stays on the screen after you let go.
 
-**Free a hand with LOCK.** Tap B3. It lights, and `lock` appears at the top right. Hold MIN and let go: MIN stays lit
-and every root you play is now minor. Tap 9 (the white key C4) to add a ninth, tap it again to take it away. Tap MAJ:
-major, with the extensions cleared. Tap B3 again to switch LOCK off.
+**Free a hand with LOCK.** Tap the button printed **LFO** (LOCK, in ChoralRoot). It lights, and `lock` appears at the
+top right. Hold MIN and let go: MIN stays lit and every root you play is now minor. Tap 9 (the white
+key B3) to add a ninth, tap it again to take it away. Tap MAJ: major, with the extensions cleared. Tap LFO again to
+switch LOCK off.
 
 **Change the voicing.** Hold a chord and turn KNOB 1. Each click moves the lowest note up an octave (or, the other
 way, the highest note down); the screen reads `voicing +2`.
@@ -99,7 +100,7 @@ a hold opens its layer. [Layers](#5-layers) has the rules.
 **Change the sound.** Turn PRESETS: the next sound of the same engine loads at once, and the screen shows its place:
 the engine in orange (`FM6`), the number big (`02`), the name (`FM BELL`), a stripe for every preset of the engine,
 and `Hold OPT to change engine`. To change the engine, hold **OPT** (printed GLO) and turn PRESETS: the engines pass by
-(FM6, FM TONE, VA, CZ-1, P5 and WHEEL). Let go of OPT and the engine you stopped on is loaded.
+(FM6, FM TONE, VA, CZ-1, P5, WHEEL and, from 0.24-beta2, GRAIN). Let go of OPT and the engine you stopped on is loaded.
 
 **Add the bass.** Tap **BASS** (printed ENV). A bass note now plays under every chord, and `Bass` shows at the top
 right. ALGORITHM changes the bass sound. Tap BASS again to switch it off.
@@ -117,24 +118,32 @@ Holding them **with HOME** for five seconds is the way into update mode, see
 
 ### The keybed
 
-27 keys, F3 to G5. The left end is the chord block; the other 18 keys are the roots.
+27 keys, F3 to G5. The left end is the chord block (seven keys); the other 20 keys are the roots.
 
 | Keys | ChoralRoot | Job |
 | --- | --- | --- |
-| F#3 G#3 A#3 C#4 (black) | **DIM MIN MAJ SUS** | the chord type, while held |
-| F3 G3 A3 C4 (white) | **6 m7 M7 9** | extensions, while held; they stack |
-| B3 | **LOCK** | tap: the chord block latches (lit while on); held: the LOCK layer (how it latches) |
-| D4 to G5 (18 keys) | **roots** | a single note alone, a chord with a chord key held or latched; OCT- / OCT+ shift them by octaves |
+| F#3 G#3 A#3 (black) | **DIM MIN MAJ** | the chord type, while held |
+| G#3 + A#3 together | **SUS** | both small black keys at once (one finger on both) |
+| F3 G3 A3 B3 (white) | **6 m7 M7 9** | extensions, while held; they stack |
+| C4 to G5 (20 keys) | **roots** | a single note alone, a chord with a chord key held or latched; OCT- / OCT+ shift them by octaves |
+
+LOCK, which latches the chord block, is the **LFO** button (below).
 
 ```
-black      DIM   MIN   MAJ         SUS
-           F#3   G#3   A#3         C#4     D#4   ...
-white    6     m7    M7    LOCK  9       D4    E4    F4   ...   G5
-         F3    G3    A3    B3    C4      |-------- roots --------|
+black      DIM   MIN   MAJ         C#4   D#4         F#4   ...
+           F#3   G#3   A#3
+                 \__ SUS __/   (G#3 + A#3 together)
+white    6     m7    M7    9     C4    D4    E4    F4   ...   G5
+         F3    G3    A3    B3    |---------- roots: C4 .. G5 ---------|
 ```
 
 In a layer, a menu or a dialog the root keys may take another job (they pick a slot, type a letter, choose an
 engine). The chord block keeps its job everywhere but in the KEY layer, where MAJ and MIN pick the scale.
+
+This is the **FM-1** layout, made for this keybed and the default since 0.25.1 (a unit updated from an older version
+is moved to it once). **Options > Chord Keys** switches to **Classic**, the Orchid's layout: SUS on C#4, the 9 on C4,
+LOCK on B3, the roots D4 to G5. See [The FM-1 chord keys](#the-fm-1-chord-keys) and
+[The Classic chord keys](#the-classic-chord-keys).
 
 ### The buttons
 
@@ -145,7 +154,7 @@ Two rows of six, and the two octave buttons.
 | FX | **FX** | the effects on / off | the FX layer |
 | SEL | **KEY** | Key Mode on / off | the KEY layer |
 | ENV | **BASS** | the bass on / off | the BASS layer |
-| LFO | **LATCH** | latch on / off | nothing |
+| LFO | **LOCK** (Classic chord keys: **LATCH**) | LOCK on / off; GLO held, then LFO: LATCH on / off (Classic: LATCH on / off) | the LOCK layer (Classic: nothing) |
 | EDIT | **EDIT** | the sound editor | the engine picker |
 | GLO | **OPT** | the Options | with a knob: the knob's second job |
 | HOME | **HOME** | back to the view; on the view: the next view | 0.6 s: the view menu |
@@ -169,7 +178,7 @@ None of them can be pressed. A turn (of any knob but MASTER) shows its value lar
 | SELECT | the tempo, 20 to 300 BPM; in a layer or a menu: moves the picker (the KEY layer: turns its page) | the metronome's level |
 | PRESETS | the chord sound: the next or previous one of its engine | the chord sound's engine |
 | ALGORITHM | the bass sound: off, then the bass engine's sounds | the bass sound's engine (with BASS held instead: the bass level) |
-| KNOB 1 | the chord's voicing (on the Full keyboard: the octave) | the Single Notes split point |
+| KNOB 1 | the chord's voicing (on the Full keyboard too, since 0.24) | the Single Notes split point |
 | KNOB 2 | the bass register, in octaves | |
 | KNOB 3 | the first parameter of the performance mode | |
 | KNOB 4 | the chord part's send into the selected effect, in per cent | |
@@ -202,7 +211,8 @@ MIDI message wakes it and does its normal job at the same time.
 
 | Light | Means |
 | --- | --- |
-| KEY, PERF, FX, BASS, LATCH lit | that function is on |
+| KEY, PERF, FX, BASS lit | that function is on |
+| LFO lit / pulsing | LOCK is on / LATCH is on (both: pulsing between lit and the middle level). Classic chord keys: LFO lit is LATCH, and B3 shows LOCK |
 | SEQ and EDIT blinking together | the loop editor is open: either of them goes back to the PLAY menu |
 | SEQ lit | the PLAY menu is open: SEQ leaves it |
 | a layer button blinking | its layer is open |
@@ -213,10 +223,10 @@ MIDI message wakes it and does its normal job at the same time.
 | LOOP lit, its green light | the slot holds a loop, the loop is playing |
 | OCT- lit, OCT+ blinking | in a layer, menu or dialog: back, OK (where there is nothing to confirm: close) |
 | OCT- or OCT+ lit on the view | the roots are shifted down or up |
-| chord keys | lit while held or latched; B3 lit while LOCK is on; otherwise a faint glow, the lowest level. In the KEY layer: MAJ and MIN glow, the selected scale's is lit, the others are dark |
+| chord keys | lit while held or latched (a latched SUS: G#3 and A#3); otherwise a faint glow, the lowest level (Classic: B3 lit while LOCK is on). In the KEY layer: MAJ and MIN glow, the selected scale's is lit, the others are dark |
 | root keys | the notes of the sounding chord, by name: every root key with the name of a note that sounds is lit (a chord with a G in it lights both G keys), wherever on the keyboard the chord is voiced; the note a performance mode is playing blinks, on all its keys; a playing loop's notes glow dim the same way. With Key Mode on they show the key (below) |
 
-**Key Mode on the keys.** The key lights have four levels: faint (an idle chord key, B3), low (the glow: a note of
+**Key Mode on the keys.** The key lights have four levels: faint (an idle chord key), low (the glow: a note of
 the scale, an idle button), middle (the tonic) and fully lit. With Key Mode off the root keys are dark: only the notes
 that sound are lit (and a playing loop's notes glow), so the chord keys' faint row is all that shows on an idle
 keyboard; on the Full keyboard all 27 keys are dark until played. With Key Mode on the roots show the key, wherever they play (on the views, in the PERF, FX and LOCK
@@ -250,13 +260,20 @@ Hold one chord type and any extensions, then press a root.
 | F#3 | DIM | 3, 6 | `Ddim` |
 | G#3 | MIN | 3, 7 | `Dm` |
 | A#3 | MAJ | 4, 7 | `DM` |
-| C#4 | SUS | 5, 7 | `Dsus` |
+| G#3 + A#3 | SUS | 5, 7 | `Dsus` |
 | F3 | 6 | adds 9 | `D` with a small `6` |
 | G3 | m7 | adds 10 | `D` with a small `7` (on a sus chord: `m7`) |
 | A3 | M7 | adds 11 | `D` with a small `M7` |
-| C4 | 9 | adds 14 | `D` with a small `9` |
+| B3 | 9 | adds 14 | `D` with a small `9` |
 
-- With two types held, the one pressed last counts (unless it is a [secret chord](#secret-chords)).
+The keys are the FM-1 layout's, the default ([The Classic chord keys](#the-classic-chord-keys) has the other one: SUS
+on C#4, the 9 on C4).
+
+- **SUS is G#3 and A#3 together**, always: press both small black keys with one finger. A root pressed while the pair
+  is still landing waits for it ([the SUS Window](#the-fm-1-chord-keys)), so a minor chord never turns into a sus
+  chord under your fingers.
+- With two types held, the one pressed last counts (unless it is a [secret chord](#secret-chords); G#3 + A#3 is
+  always SUS).
 - Extensions stack: MAJ + 6 + 9 reads `D` `6 9`. Three extensions read `JAZZ`, all four `WTF`.
 - **A major chord on its own reads with a capital `M`: `DM`.** A minor chord has a small `m` (`Dm`). With an
   extension the major chord's `M` is left out, as chord names are usually written: `D` with a small `7`, `6`, `9` or
@@ -318,7 +335,9 @@ The full list, with the notes of every chord, is in [CHORD-NAMES.md](CHORD-NAMES
 
 ### LOCK
 
-B3 switches LOCK on and off; B3 is lit and `lock` shows at the top right while it is on. With LOCK on:
+The **LFO** button switches LOCK on and off; LFO is lit and `lock` shows at the top right while it is on (with the
+Classic chord keys LOCK is the key B3). A chord key pressed while LFO is down switches LOCK at that moment. With LOCK
+on:
 
 - the chord keys you are holding stay on when you let go (they stay lit);
 - then, with no chord key held, a **type** key replaces the latched chord with that type alone, and an **extension**
@@ -335,12 +354,15 @@ meanwhile does not. This is always so with LOCK on, whatever the two settings be
 set to Chords a lone root is still the scale's chord, with the latched extensions.)
 
 Switching LOCK off, or PANIC, clears what is latched. LOCK and what it latched are part of what a global save keeps
-(SAVE held): the FM-1 then comes back with the same chord type and extensions lit (new in 0.18). On the Full keyboard (Key Mode,
-below) there is no LOCK: B3 is a note there.
+(SAVE held): the FM-1 then comes back with the same chord type and extensions lit (new in 0.18). LOCK holds chord
+types, not keys, so it keeps what it latched when you change the layout (and when a unit is moved to the FM-1 keys
+by an update): a latched SUS shows on G#3 + A#3. On the Full keyboard (Key Mode, below) the chord keys are notes; LOCK
+on LFO works there too (Classic: B3 is a note there and there is no LOCK).
 
-**The LOCK layer.** Hold B3 past the hold time (a tap is still on / off; a hold does not switch LOCK). The layer
-stays open like the others, B3 blinks, and the top left says `lock · on` or `lock · off`. The keys play as usual
-in it, so you hear what a setting does. OCT-, OCT+, HOME or holding B3 again closes it. Two settings, both
+**The LOCK layer.** Hold LFO past the hold time (a tap is still on / off; a hold does not switch LOCK). The layer
+stays open like the others, LFO blinks, and the top left says `lock · on` or `lock · off` (the bottom line:
+`LFO: on/off`). The keys play as usual in it, so you hear what a setting does. OCT-, OCT+, HOME or holding LFO again
+closes it (Classic: B3 for all of this). Two settings, both
 remembered and both acting only while LOCK is on:
 
 | Knob | Setting | Values |
@@ -360,7 +382,8 @@ same type pressed again (off, above) and a type pressed when none is latched lea
 
 - **KNOB 1** revoices the chord: one click up moves the lowest note up an octave, one click down moves the highest
   note down, from -12 to +12. The screen adds `voicing +2` under the notes. The voicing applies to every chord that
-  follows, and to a playing loop. (On the Full keyboard there is no chord to voice: KNOB 1 is the octave there.)
+  follows, and to a playing loop. On the Full keyboard too (since 0.24: chords play there, Key plays Chords and
+  G5's chords); its octave is OCT- / OCT+'s.
 - **OCT-** and **OCT+** shift the root keys by octaves, from -2 to +2 (`Oct +1` at the top right). A low voicing can
   put chord notes below D4, where no key can light for them; the notes line on the screen always has them.
 
@@ -387,16 +410,79 @@ sounds in that chord until then.
 
 ### Secret chords
 
-Options > Secret Chords: Off (default), Simple (only while Play Style is Simple) or All. When it applies, two types
+Options > Secret Chords: Off (default), Simple (only while Play Style is Simple) or All. When it applies, type keys
 held together make a third chord:
 
-| Held | Chord | On the screen |
-| --- | --- | --- |
-| DIM + SUS | power chord (root, fifth, octave) | `D` with a small `5` |
-| MAJ + SUS | augmented | `D+` |
-| MIN + SUS | minor with a fourth instead of a fifth | `Dm` with a small `add4` |
+| Held (FM-1 keys) | Classic keys | Chord | On the screen |
+| --- | --- | --- | --- |
+| F#3 + G#3 + A#3 (DIM + SUS) | DIM + SUS | power chord (root, fifth, octave) | `D` with a small `5` |
+| F#3 + A#3 | MAJ + SUS | augmented | `D+` |
+| F#3 + G#3 | MIN + SUS | minor with a fourth instead of a fifth | `Dm` with a small `add4` |
 
 The small `5` and `add4` are red. Extensions stack on top as usual.
+
+### The FM-1 chord keys
+
+The chord keys of this manual, the default since 0.25.1 (**Options > Chord Keys: FM-1**; new in 0.24, where Classic was
+the default). Updating from an older version moves a unit to them once, whatever it had; after that the choice in
+Options stays.
+
+```
+black      DIM   MIN   MAJ         C#4   D#4         F#4   G#4   A#4         C#5   D#5         F#5
+           F#3   G#3   A#3
+                 \__ SUS __/   (G#3 + A#3 together)
+white    6     m7    M7    9     C4    D4    E4    F4    G4    A4    B4    C5    D5    E5    F5    G5
+         F3    G3    A3    B3    |------------------------ roots: C4 .. G5 (20) ------------------------|
+```
+
+- **SUS is G#3 + A#3 held together**, always (press both small black keys with one finger).
+- **The SUS Window** (Options > SUS Window, 30 to 80 ms, 30 by default). One finger never lands on both keys at
+  once. A root pressed while the first of the pair is down and its window still open waits, and plays when the
+  chord is decided: at once when the pair is complete, or when the window closes (then G#3 alone is MIN, A#3 alone
+  MAJ). So you never hear a minor chord turn into a sus chord. A root with no type key down, or with type keys held
+  from before, plays at once. A chord that is already sounding (Advanced, Free, or LOCK with roots held) changes
+  once, at the same moment. In Simple a root pressed before the type keys stays a single note.
+- **Secret chords** (only with Secret Chords on): F#3 + G#3 is m add4, F#3 + A#3 augmented, all three the power
+  chord. With Secret Chords on, a pair waits for the window's close (F#3 could still join). With them off, those
+  pairs are "the last pressed wins", and only G#3 + A#3 combine.
+- **LOCK is on LFO**: tap LFO for LOCK on / off (the LFO light lit), hold it for the LOCK layer (LFO blinks; its
+  bottom line says `LFO: on/off`). A key pressed while LFO is down switches LOCK at that moment. A latched SUS shows
+  as G#3 and A#3 lit; that same pair pressed again on its own switches it off when you let go. In the sound editor
+  LFO is the editor's, and LOCK cannot be switched there.
+- **LATCH is GLO held, then LFO** (LFO held, then GLO, opens the LOCK layer). While LATCH is on the LFO light
+  pulses; with LOCK on as well it pulses between lit and the middle level. Holding GLO on its own never opens the
+  Options: only a quick click does. The screen's `Latch` and `lock` are as before.
+- **The KEY layer** (keys on pick): G#3 and A#3 are its scale keys and nothing else; a one-finger pair picks once.
+- **Picking keys** are on D4 to G5 in both layouts: the loop slots, the naming letters and the KEY layer's tonic;
+  C4 and C#4 do nothing in those maps.
+- Changing the layout lets go of every key held (a chord you are holding stops); what LOCK latched stays, and shows
+  on the new layout's keys.
+- Loops store chords, not keys, so they play the same in either layout.
+
+### The Classic chord keys
+
+**Options > Chord Keys: Classic** is the Orchid's layout (ChoralRoot's only one until 0.24, the default in 0.24 and
+0.25). Everything else in this manual is the same; what moves:
+
+| Keys | Classic | FM-1 |
+| --- | --- | --- |
+| F#3 G#3 A#3 | DIM MIN MAJ | the same |
+| C#4 | **SUS**, a key of its own | a root (SUS is G#3 + A#3) |
+| F3 G3 A3 | 6 m7 M7 | the same |
+| C4 | **9** | a root (the 9 is B3) |
+| B3 | **LOCK** (tap: on / off, lit; held: the LOCK layer) | the 9 |
+| LFO | **LATCH** (tap) | LOCK (LATCH: GLO held + LFO) |
+| roots | D4 to G5 (18) | C4 to G5 (20) |
+
+```
+black      DIM   MIN   MAJ         SUS
+           F#3   G#3   A#3         C#4     D#4   ...
+white    6     m7    M7    LOCK  9       D4    E4    F4   ...   G5
+         F3    G3    A3    B3    C4      |-------- roots --------|
+```
+
+There is no SUS Window in Classic (SUS has its own key), and the secret chords are two types held together (DIM +
+SUS, MAJ + SUS, MIN + SUS). On the Full keyboard B3 is a note, so there is no LOCK there.
 
 ### Key Mode
 
@@ -413,7 +499,7 @@ Hold KEY to open the **KEY layer**:
 | Control | In the KEY layer |
 | --- | --- |
 | any root key | that note becomes the tonic and Key Mode switches on. The scale stays as it is, unless MAJ or MIN is held with the root |
-| MAJ, MIN (the chord keys) | the scale: Major or Minor (`Key: E minor`), at the press, with LOCK on or off. In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; B3 is still LOCK |
+| MAJ, MIN (the chord keys) | the scale: Major or Minor (`Key: E minor`), at the press, with LOCK on or off. In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; LFO is still LOCK (Classic: B3) |
 | KNOB 1 | Tonic, step by step (Key Mode switches on) |
 | KNOB 2 | Scale: Major or Minor |
 | KNOB 3 | Transpose, -24 to +24 semitones. It moves everything you play from then on, in or out of Key Mode |
@@ -465,10 +551,16 @@ makes those roots play instead.
 **Keyboard: Chords or Full** (page 2, KNOB 2). `Chords` is the usual keybed: nine chord keys and eighteen roots.
 `Full` turns all 27 keys, F3 to G5, into an ordinary chromatic keyboard playing single notes of the chord part:
 
-- There are no chord keys and no LOCK: B3 is a note, and holding it does not open the LOCK layer. What you had
-  latched with LOCK is kept untouched and is back, lit, when you return to `Chords`.
-- **KNOB 1** on the view changes the **octave** (the same octave as OCT- and OCT+; the read-out says `octave`),
-  since there is no chord to voice. The voicing you had is kept for the Chords keyboard.
+- There are no chord keys. LOCK is on LFO and works here too; what you had latched is kept and is back, lit, when
+  you return to `Chords`. (With the Classic chord keys there is no LOCK here: B3 is a note, and holding it does not
+  open the LOCK layer.)
+- **KNOB 1** on the view is the **voicing** (until 0.24 it was the octave here); the octave is OCT- and OCT+.
+- **Options > Full K Shorts** On makes F#5 and G5 switches on the Full keyboard (F3 to F5 stay notes, 25 keys).
+  **F#5** brings the layout's chord keys back on the low keys (the Chords keyboard, its roots up to F5); **G5**
+  plays a chord on every key: the chord LOCK latched, else Key Mode's chord for the key, else (nothing latched, Key
+  Mode off) single notes as normal. A quick press toggles; held past the Hold Time, a switch changes only while
+  held. Neither plays a note. G5 starts on with Key Mode on and Key plays Chords (the chords every key played here
+  before), off otherwise. Their lights: faint when off, lit when on.
 - With Key Mode off the keyboard is chromatic. With Key Mode on the key shows on all 27 keys, and **Key plays**
   decides what they do: with `Chords` every key plays the chord that belongs on its note of the scale, as a lone
   root does on the Chords keyboard (in C major, D gives `Dm`, G gives `G`), and a key outside the scale its sus
@@ -481,8 +573,8 @@ makes those roots play instead.
   an octave lower; `Split Bass` gives the left side to the bass part and the right side to the chord part. This
   split is fixed on the Full keyboard; the split point you set with OPT + KNOB 1 belongs to the Chords keyboard and
   is not changed by it.
-- In the KEY layer with its keys on pick, the keys still pick: a root sets the tonic, MAJ and MIN the scale (B3 does
-  nothing there). With the keys on play they are the Full keyboard.
+- In the KEY layer with its keys on pick, the keys still pick: a root sets the tonic, MAJ and MIN the scale (the
+  other low keys do nothing there). With the keys on play they are the Full keyboard.
 
 **Snap: Off, Scale or Chord** (page 2, KNOB 3; off unless you turn it on). With Key plays `Notes`, on either
 keyboard, a key outside the scale is a dead key: Snap gives it a right note to play, the way the Scaler app remaps
@@ -535,11 +627,12 @@ The Geek Out view shows the transposition (`Trans +2`).
 
 ### LATCH
 
-Tap **LATCH** (printed LFO): what you play keeps sounding after you let go, until the next thing you play replaces
-it. `Latch` shows at the top right. With a performance mode on, LATCH is what keeps an arpeggio running with your
-hands off the keys. Tap LATCH again and the held notes stop. A performance mode's own **Hold** (Strum's KNOB 4, the
-arp's) lights LATCH too, since it holds the sound the same way: a tap on the lit LATCH then turns that Hold off and
-the notes stop; the next tap latches as usual.
+Hold **GLO**, then press **LFO** (the Classic chord keys: tap LFO, LATCH's own button there): what you play keeps
+sounding after you let go, until the next thing you play replaces it. `Latch` shows at the top right and the LFO light
+pulses. With a performance mode on, LATCH is what keeps an arpeggio running with your hands off the keys. GLO + LFO
+again and the held notes stop. A performance mode's own **Hold** (Strum's KNOB 4, the arp's) lights LATCH too, since
+it holds the sound the same way: LATCH's gesture then turns that Hold off and the notes stop; the next one latches as
+usual.
 
 LOCK and LATCH are different things: LOCK holds the **chord keys** for you, LATCH holds the **sound**.
 
@@ -661,8 +754,8 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 - The two "2 Octaves" entries are the same modes with the range set to two octaves.
 - The twelve patterns: pulse, alberti, waltz, cascade, updown, syncopate, gallop, skip, ballad, stride, drive, ladder.
   The layer shows the number; KNOB 3 outside the layer shows the name too.
-- Strum's Hold keeps the strummed chord sounding after you let go, as LATCH does, and lights LATCH; a tap on LATCH
-  turns it off again (0.22).
+- Strum's Hold keeps the strummed chord sounding after you let go, as LATCH does, and lights LATCH; LATCH's gesture
+  (GLO held + LFO; Classic: a tap on LFO) turns it off again (0.22).
 
 Outside the layer **KNOB 3** turns the mode's first parameter (the strum rate, the slop amount, the arp division,
 the pattern, the harp rate). An arpeggio stops when you let go of the keys; switch LATCH on to keep it running.
@@ -1122,7 +1215,7 @@ More detail: [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md).
 ## 11. Sounds
 
 ChoralRoot plays two sounds at once: the **chord sound** (PRESETS) and the **bass sound** (ALGORITHM). Each belongs
-to one of six engines.
+to one of seven engines (six before 0.24-beta2).
 
 ### The engines
 
@@ -1134,6 +1227,7 @@ to one of six engines.
 | **CZ-1** | Casio CZ-1 phase distortion, with Casio's own 64 tones | 64 |
 | **P5** | a Prophet-5 model (Melodee's engine; new in 0.22): two oscillators with sync and Poly-Mod into a four-pole filter, two envelopes, the wheel's modulation; Sequential's own programs | 115 |
 | **WHEEL** | a tonewheel organ with nine drawbars | 5 |
+| **GRAIN** | a granular synth (new in 0.24-beta2): clouds of grains read from two sources, A and B, that it makes itself from four knobs each, MORPH between them; the VA's filter, two envelopes, two LFOs and a modulation matrix | 8 |
 
 This is the order in which the instrument shows them. Up to 0.17 there were six more, PHASE, LOFI, VOICE, TRIO,
 NOISE and PHYS; they are retired (see [Sounds from outside](#sounds-from-outside) for what happens to a sound saved on one). At power-on the chord sound is the one of your last global save (on a
@@ -1191,7 +1285,7 @@ Hold **EDIT**. The engine picker opens and stays (EDIT blinks). It is a preview:
 
 | Control | In the engine picker |
 | --- | --- |
-| SELECT | the six engines, one at a time, in the order of the table above (FM6 ... WHEEL). The sound moves to that engine and keeps its envelope and mix |
+| SELECT | the seven engines, one at a time, in the order of the table above (FM6 ... GRAIN). The sound moves to that engine and keeps its envelope and mix |
 | KNOB 1 (or PRESETS) | the engine's pool, as PRESETS |
 | KNOB 2 | INIT: the engine's plain starting sound (`init sound`) |
 | the root keys and the chord keys | play, as always: you hear every engine and preset as you turn to it |
@@ -1407,7 +1501,7 @@ does, follow the link.
 | LFO | (1) the four LFOs as rows: Rate · Wave · Depth · Fade. (2) their Sync. (3) `VOICE`: Uspread, the stereo spread of a unison |
 | MOD | the modulation matrix: eight rows of Source · Dest · Amount. The Amount goes from -64 to +63; below 6 either way it moves in tenths (a slow turn: +0.1, +0.2 ..), from 6 in whole steps, so a gentle vibrato is a small number: LFO to PITCH at +0.5 is about 9 cents with the LFO at full depth, +1 about 19 |
 
-**Quick modulation** (the VA only): hold **ENV** or **LFO** and turn a knob. The envelope or LFO you last looked at
+**Quick modulation** (the VA, and GRAIN from 0.24-beta2): hold **ENV** or **LFO** and turn a knob. The envelope or LFO you last looked at
 (ENV 2 or LFO 1 if none yet) now modulates the parameter under that knob, and the turn sets the amount; the cell
 shows `LFO1 +20`. A modulated parameter carries a small mark in its cell (yellow for an envelope, red for an LFO,
 white for several sources). **OCT- held + a knob** removes every modulation of that parameter (`cleared`). The
@@ -1486,6 +1580,57 @@ WHEEL has one screen in each group:
 | LFO | Rate · Wave · Vibrato · Wah |
 | MOD | four fixed routes with an Amount each: ENV to FILT, ENV to PITCH, ENV to SHAPE, LFO to AMP |
 
+### GRAIN
+
+New in 0.24-beta2. GRAIN plays clouds of short grains read from two sources, **A** and **B**, that it makes itself:
+each is about three quarters of a second of sound, made from four knobs whenever the sound loads or one of those
+knobs turns. The new sound is written over the old one as you turn, a little each screen frame, while the grains go on
+playing: nothing goes quiet, and turning a knob steadily moves the sound several times a second (from 0.25: until
+0.24 a source fell silent while its knobs turned). A GRAIN sound stores its knobs, never audio. **MORPH** mixes the
+two: every grain reads A and B at the same place and blends them, 0 A alone, 127 B alone, in between the two sounds
+mixed into one, which the grains then play; MORPH moves smoothly under the matrix, ENV 2 and the LFOs (until 0.24 each
+grain read one source or the other, MORPH setting how many read B).
+
+| Group | Screens |
+| --- | --- |
+| OSC | (1) `SRC`, two lanes under the wave band: `SRC 1` (source A) and `SRC 2` (source B), each TYPE · TONE · MOTION · SEED. (2) `GRAIN`, two lanes under the wave band: SIZE · DENS · POS · SPRD, and (`GRAIN+`) MORPH · RAND · PITCH · SCAN |
+| FILT | the VA's filter under its curve: (1) `FILTER`: CUT · RES · FTYPE · DRIVE. (2) `FILTER+`: KTRK |
+| ENV | (1) `ENV 1 · amp`, the volume: ATK · DEC · SUS · REL. (2) `ENV 2 · mod`, an envelope for the matrix: ATK · DEC · SUS · REL. Each under the envelope's shape |
+| LFO | (1) `LFO 1` and `LFO 2` as rows: RATE · WAVE · DEPTH · FADE. (2) `LFO SYN`: SYNC1 · SYNC2 |
+| MOD | `MOD 1` to `MOD 8`, the matrix's eight slots: SRC · DST · AMT; then `EXPR`, as on every engine |
+
+- **The source knobs.** **TYPE** picks one of eight families: PLUCK (a plucked string), DRONE (detuned saws under a
+  moving filter), BELL (two-operator FM), BREATH (filtered noise), CHIRP (sweeping sines), SWEEP (a driven saw through
+  a sweeping filter), VOWEL (a voice moving round A E I O U) and METAL (inharmonic partials with a strike). **TONE** is
+  the brightness or colour within the family, **MOTION** how the material moves over its length (decay, sweep,
+  vibrato, strums), **SEED** a variant: the same SEED always makes the same material.
+- **The grain knobs.** **SIZE** is a grain's length (about 10 ms to 0.4 s), **DENS** how many grains start each second
+  (1 to about 100), **POS** where in the material they start, **SPRD** how far round POS they scatter. **RAND** detunes
+  the grains at random and plays some of them in reverse; **PITCH** transposes, -24 to +24 semitones. **SCAN** moves
+  POS through the material by itself: right of 0 forward, left of 0 in reverse, very slowly near 0 (a pass in about
+  two minutes) and faster further out (about half a second at the ends); 0 holds POS still.
+- **The filter** is the VA's: **CUT**, **RES**, **FTYPE** (low-pass, band-pass, high-pass and notch, with the blends
+  in between), **DRIVE** before it, and **KTRK**, how far the cutoff follows the note.
+- **The LFOs** have the VA's waves; **FADE** brings an LFO in after the note starts. With **SYNC** on, RATE steps
+  through the VA's tempo divisions.
+- **The matrix.** Each slot sends a **SRC** (ENV1, ENV2, LFO1, LFO2, VEL, KEY, RAND, MODW: the mod wheel, CC 1 over
+  MIDI) to a **DST** (MORPH, POS, SIZE, DENS, SPRD, RAND, PITCH, SCAN, CUT, RES, FTYPE, DRIVE, RATE1, RATE2, DEP1,
+  DEP2, AMP) by **AMT**, -64 to +63, which moves in tenths below 6 either way and in whole steps from 6, as the VA's.
+  Quick modulation works as on the VA: hold ENV or LFO and turn a knob.
+- **The wave band.** On the SRC screen it draws the active lane's source, and redraws when a turn of its knobs has
+  made it anew. On the GRAIN screen it draws the mix the grains read, its colour going from A's blue to B's orange as
+  MORPH (as the last note plays it, modulation included) goes from A to B; POS is a white line (SCAN moves it), SPRD a
+  green span round it, and every sounding grain a bright white line, travelling as it reads.
+- **Chord and bass share the sources.** The FM-1 holds one pair: the chord sound's when it is on GRAIN (else the bass
+  sound's). With both on GRAIN the bass plays the chord sound's A and B through its own grain knobs, MORPH, filter
+  and envelopes.
+- Notes are pitched from the material up to C6; above C6 they stop rising. The material is pitched at C4, a PLUCK
+  6 cents above it; the grains read at source A's pitch, so a PLUCK as B plays 6 cents sharp of A (and a PLUCK as A
+  leaves B 6 cents flat).
+
+The factory presets: CLOUD PAD, SHIMMER, BREATH PAD, FROZEN, STRUM, SWARM, ACID DUST, GLITCH. More:
+[GRAIN.md](GRAIN.md).
+
 The whole editor: [EDITOR.md](EDITOR.md).
 
 ## 13. Views
@@ -1530,6 +1675,10 @@ Tap **OPT** (printed GLO). One setting fills the screen:
 | **Play Style** | Simple, Advanced, Free | Simple | what chord keys do while a root is held ([Play styles](#play-styles)) |
 | **Extension Addition** | Add Note, Play Chord | Add Note | in Advanced and Free: an extension adds its note, or replays the chord |
 | **Secret Chords** | Off, Simple, All | Off | two chord types together make a third chord ([Secret chords](#secret-chords)) |
+| **Chord Keys** | FM-1, Classic | FM-1 (since 0.25.1; an updated unit is moved to it once) | which keys are the chord keys: FM-1 (SUS = G#3 + A#3, the 9 on B3, C4 and C#4 roots, LOCK on LFO; [The FM-1 chord keys](#the-fm-1-chord-keys)) or Classic, the Orchid's (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, the 9 on C4, LOCK on B3; [The Classic chord keys](#the-classic-chord-keys)). Not on the SMK-37 |
+| **SUS Window** | 30 to 80 ms, 5 ms a step | 30 ms | listed with the FM-1 chord keys only: how long a root waits for the second key of G#3 + A#3 ([The FM-1 chord keys](#the-fm-1-chord-keys)) |
+| **Full K Shorts** | Off, On | Off | on the Full keyboard, F#5 brings the chord keys back and G5 plays a chord on every key ([Key Mode](#key-mode)) |
+| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
 | **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
 | **Bass Behaviour** | Chords Only, Unison Bass, Bass Single Notes, Solo | Chords Only | what the bass plays ([Bass](#6-bass)) |
@@ -1697,6 +1846,12 @@ playing and a stop when it stops. PANIC sends all notes off (CC 123).
 
 A part whose channel is Off ignores MIDI in.
 
+**MIDI Keys** (Options > MIDI Keys, Off by default; new in 0.24): on that channel the notes 53 to 79 press the FM-1's
+own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you chose, the roots, LOCK, the SUS
+Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
+other notes and messages on that channel do nothing. It cannot be the MIDI Perform or MIDI Bass channel (those are
+skipped, and setting one of them to it switches MIDI Keys off).
+
 ### USB audio recording
 
 **ChoralRoot In** is a class-compliant audio input: no driver is needed. It has six channels, 16 bit, at 44.1 kHz;
@@ -1855,7 +2010,8 @@ in SAFE MODE: a yellow `SAFE MODE` screen, and `Safe mode` in red on the top lin
 - The installer and Back up still work, so you can save a backup.
 - Switching off and on tries the stored data again.
 - Options opens on two extra entries. **Safe Mode** is information. **Flash Data**, OCT+ twice, erases the stored
-  settings, sounds and loops (not the firmware) and restarts.
+  settings, the saved sounds (all 128 user slots), the favourites and the loops (not the firmware) and restarts.
+  (0.22 to 0.24-beta2 left the saved sounds in place.)
 - If SAFE MODE itself crashes twice in a row, the FM-1 falls back to the chip's USB boot (the `WL82 UBOOT1.00`
   disk); switch off and on.
 
@@ -1886,10 +2042,11 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | Chords come out in the wrong key | Transpose is set (Geek Out shows `Trans`) | KEY layer, KNOB 3 back to 0 |
 | Low single notes jump down an octave | Single Notes is Split Oct | KEY layer, KNOB 4: Full |
 | Some roots play a bass note instead of a chord | Single Notes is Split Bass | KEY layer, KNOB 4: Full |
-| The chord keys play notes, B3 does not lock | Keyboard is Full | KEY layer, SELECT to page 2, KNOB 2: Chords |
+| The chord keys play notes | Keyboard is Full | KEY layer, SELECT to page 2, KNOB 2: Chords |
 | Some keys do nothing | Key Mode is on with Key plays = Notes: they are outside the scale | tap KEY, or KEY layer page 2 (Key plays, or Snap) |
-| Chord keys stay on | LOCK is on (B3 lit) | tap B3 |
-| Notes keep sounding | LATCH is on, or Strum's Hold | tap LATCH; PANIC stops everything |
+| Chord keys stay on | LOCK is on (LFO lit; Classic chord keys: B3 lit) | tap LFO (Classic: B3) |
+| Notes keep sounding | LATCH is on (LFO pulsing), or Strum's Hold | GLO held + LFO (Classic: tap LFO); PANIC stops everything |
+| SUS will not come, or C4 / C#4 play roots | the FM-1 chord keys (the default since 0.25.1): SUS is G#3 + A#3, the 9 is B3 | press G#3 and A#3 together, or Options > Chord Keys: Classic |
 | The chord sound is silent, the bass plays | Bass Behaviour is Solo (`Bass Solo`) | BASS layer, another behaviour, or tap BASS |
 | No bass | the bass is off (a new unit, a reset, or you switched it off) | tap BASS |
 | The bass layer's keys make no sound | in that layer the white keys pick the behaviour | close the layer to play |
@@ -1940,7 +2097,7 @@ A held layer button opens its layer and it stays; holding the same button again 
 | FX | FX | effects on / off (in its layer too) | FX layer: SELECT the page (Sends · Reverb 1 · Reverb 2 · Chorus · Delay 1 · Delay 2 · Drive) · KNOB 1-4 its cells (Sends: the chord part's drive, chorus, delay and reverb sends; KNOB 4 on an effect's first page: its Send) |
 | SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale · KNOB 1 Tonic · 2 Scale · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
 | ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level. Held + EDIT: edit the bass sound. Held + SAVE: save it |
-| LFO | LATCH | latch on / off | |
+| LFO | LOCK (Classic chord keys: LATCH) | LOCK on / off; GLO held + LFO: LATCH (Classic: latch on / off) | the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed (Classic: nothing) |
 | EDIT | EDIT | the sound editor; in it: leave | the engine picker: SELECT engine · KNOB 1 presets · KNOB 2 init · the keys play · OCT+ keep · OCT- cancel |
 | GLO | OPT | Options (SELECT setting · KNOB 1 value). In the PLAY menu: its keys play / loops. In the KEY layer: its keys pick / play. In the editor: SHIFT latch | + **SAVE, both held 1 s: revert to the last save** · + PRESETS: engine · + ALGORITHM: bass engine (both wherever the knob alone is the sound: the main screen, the Options, the layers but PLAY; ALGORITHM in the sound editor too) · + KNOB 1: split point · + SELECT: click level · + SEQ: metronome on / off · + REC: the next record mode. In the editor: snap (held or latched); + EDIT: chord / bass sound. Held + a value knob anywhere: the value snaps |
 | HOME | HOME | back; on the view: next view | 0.6 s: the view menu (SELECT view · KNOB 1 lock) |
@@ -1989,11 +2146,11 @@ SELECT: the next lane. KNOB 1 to KNOB 4: the lane's values. PRESETS: the engine 
 
 | Key | Job |
 | --- | --- |
-| F#3 G#3 A#3 C#4 | DIM MIN MAJ SUS |
-| F3 G3 A3 C4 | 6 m7 M7 9 |
-| B3 | LOCK (tap: on / off; held: the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed). With LOCK on, the only latched type pressed again alone: off (single notes, the extensions kept) |
-| F3 to G5, Keyboard = Full | 27 single notes (no chord keys, no LOCK); the split at F4. Key Mode on with Key plays Chords: the key's chords |
-| D4 to G5 | roots |
+| F#3 G#3 A#3 | DIM MIN MAJ; G#3 + A#3 together: SUS (Classic chord keys: SUS on C#4) |
+| F3 G3 A3 B3 | 6 m7 M7 9 (Classic: the 9 on C4, B3 is LOCK: tap on / off, held the LOCK layer) |
+| LFO (a button) | LOCK (above). With LOCK on, the only latched type pressed again alone: off (single notes, the extensions kept) |
+| F3 to G5, Keyboard = Full | 27 single notes (no chord keys; LOCK on LFO, none in Classic); the split at F4. Key Mode on with Key plays Chords: the key's chords. Full K Shorts On: F3 to F5 notes, F#5 the chord keys, G5 chords on every key |
+| C4 to G5 | roots (Classic: D4 to G5) |
 | white roots D4 to F5, PLAY menu with its keys on loops (GLO) | loop slots 1 to 10 |
 | D#4, F#4, PLAY menu with its keys on loops | clear the loop (hold 1 s), undo |
 | white roots, naming a sound | letters and digits; D#4 a space; F#4 delete |
@@ -2013,7 +2170,7 @@ SELECT: the next lane. KNOB 1 to KNOB 4: the lane's values. PRESETS: the engine 
 | Subject | Document |
 | --- | --- |
 | The sound editor in full | [EDITOR.md](EDITOR.md) |
-| The engines | [VA.md](VA.md), [FM6.md](FM6.md), [QUAD.md](QUAD.md) (FM TONE), [CZ1.md](CZ1.md) |
+| The engines | [VA.md](VA.md), [FM6.md](FM6.md), [QUAD.md](QUAD.md) (FM TONE), [CZ1.md](CZ1.md), [PROPHET.md](PROPHET.md) (P5), [GRAIN.md](GRAIN.md) |
 | Presets and saved sounds | [PRESETS.md](PRESETS.md), [SOUNDS.md](SOUNDS.md) |
 | The looper | [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md) |
 | What is stored, and how | [SETTINGS.md](SETTINGS.md) |

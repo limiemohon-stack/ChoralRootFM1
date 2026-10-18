@@ -3,6 +3,7 @@
 # LATCH on, a chord played and released), a mark while it plays (SAVE, Favorite, KNOB 4 +1, SAVE): 30 s of it, a backup LIST (65) and
 # the debug reads (73, 78, 79) in the middle: nothing written (dumps 1..3: the mark pending, the erases unchanged);
 # PANIC, 3 s of quiet: the favourites' poll writes it (dump 4).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn ARP down
 wait 500

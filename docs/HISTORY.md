@@ -4556,3 +4556,1333 @@ context). Tests: `input_test.c`'s probe block (the phase every third frame, the 
 input and PA6 driven on the tick and both back at the take, the pressed state passed, the analog rows every third
 frame), `cr_sense_test.c`'s probe case (a touch reads ~20, a firm press 127, let go 0), `cr_settings_test` (mode 3
 kept). Not flashed; XIP 96.4 %.
+
+3y124. **The velocity's wait with the probe on (2026-10-16; the designer-handoff session's release agent, reading
+3y123 before v0.24-beta1: "the probe's third frame phase moves the lower keys' analog-row sampling from 2.2 ms to
+3.3 ms, so F3..C5's velocity arrives ~13 ms after the touch instead of ~8.8 ms, but cu_scan_keys still waits only
+12 ms").** Real: four samples at 3.3 ms are 13.2 ms after the touch sample, up to 16.5 after the contact, 15.4 after
+the earliest debounce; past the wait a press played at the recent velocity, so a soft and a hard F3 .. C5 would have
+read alike on the unit. `CU_VEL_WAIT_MS` 12 -> 18. The emulator feeds the analog rows every 3 ms while the probe is
+on (it fed every 2), so `cr_touch.txt`'s "30 sensed" / "120 sensed" now stand for the probe's cadence. The better
+answer, not built: the probe's phase only while a top key is down (its baseline kept from a slower cycle), which would
+give the lower keys their 2.2 ms back.
+
+3y125. **0.24-beta1's release tree (2026-10-16; branch rel-24b1 from 646abb5, then origin/main 4fd569b merged in; not
+pushed, not tagged, not flashed).** The owner: "tag latest Velocity improvements as v0.24-beta1". What is new since
+v0.23 (`git log v0.23..`: 3y123 and 3y124 for the player; 3y122's tail is the release's record): the top seven keys
+sensing velocity through the PA10 probe, Key Touch's fourth value Vel + Poly AT, GEEK OUT 2's `VEL / AT` line, and
+the probe's price, the lower keys read every 3.3 ms, so with Key Touch on an F3 .. C5 note waits ~13 ms after the
+touch sample for its velocity instead of 8.8 (3y124's `CU_VEL_WAIT_MS` 18 covers it) and a top key a few ms for its
+two probe readings (it played at the debounce before). The Velocity Curve is 0.23's (3y112), not new. `cu_key_vel`'s
+fallback to the context velocity for a sensed key without a reading (3y123) is left out of the notes: with the 18 ms
+wait no ordinary press reaches it. This release agent's reading of 3y123 found the 12 ms wait too short (4 samples
+at 3.3 ms against a wait from the debounce); the velocity session fixed it on main as 3y124 (4fd569b), merged here
+(HISTORY's one conflict: theirs kept as 3y124, this entry renumbered from 3y124; the first commit of this branch,
+ba915e6, still names it 3y124 in its message). `FELUCCA_VERSION` "ChoralRoot 0.24" (the dev build reads as the next
+stable version, as the 0.22 betas' trees read 0.22; HANDOFF's state line says so). `docs/releases/0.24-beta1.md`: the
+opening (a first beta of 0.24, opt-in, may have bugs, 0.24 replaces it; updating from 0.23 keeps everything; with Key
+Touch Fixed nothing changes); Playing (the top seven: velocity, coarser than F3 .. C5, no aftertouch, the Velocity
+Curve not theirs, Velocity Sens is; Vel + Poly AT; Geek Out 2's line; notes a few ms later with Key Touch on);
+Installing (the opt-in, from 0.22 or older, the single-core package and its shortened version line); Going back to
+0.23 (0.23's `crs_sanitize` reads Key Touch 3 as "not a mode" and clears bits 2..3 alone: Fixed there, the
+sensitivities, the Curve and Numerals kept; once 0.23 saves its settings, Fixed on return; 0.22 the same, plus 0.23's
+own notes). `docs/releases/0.24.md` started as the pointer to it (no 0.24.md existed, so no "merged after 0.23"
+lines to fold in). `web/releases.json`: 0.24-beta1 first, `"beta": true`, 6 bullets, 3 notes (the beta disclaimer
+first); 0.23 stays the newest stable, without a going-back note. Nothing in make_site.py, the installer or the tests
+assumes a beta is of the stable version: `front()`, `news_html()` and `emu_line()` take the first entry without
+`"beta"`, the page's `newest` the same, and site_test's `beta_site` (9.9-beta1 over 9.8) and test_installer's
+9.0-beta1 already are betas of a newer version; no change. **Built** from the merged tree: `./build.sh --release
+0.24-beta1` twice (the first folder moved aside), the same SHA256SUMS: `choralroot-0.24-beta1.fwsc`
+409cfc6fcbc9a00a..., `choralroot-0.24-beta1-1core.fwsc` 570a73bf0d78c4e8... (before the merge: efaebdf1... /
+bab98b02..., replaced); the apps carry `ChoralRoot 0.24-beta1` and `ChoralRoot 0.24-beta1 1-core` (Options > Version:
+`0.24-beta1 1-core`, `cu_version_text`); the stub version 3, baee55ed142fe1cc. Size: XIP 552 876 B of 573 440
+(96.4 %), RAM 78 752 (80.1 %), POOL 239 180 (69.5 %), RAMTEXT 7 072 of 24 576; the single-core package XIP 550 364
+(96.0 %), RAM 75 616 (76.9 %), POOL 239 052 (69.5 %). Python 3.11.6, Pillow 11.1.0, fontTools 4.66.1: release.yml's
+pins. **Checked** (on the merged tree, after the notes, releases.json and HANDOFF were final): `CR_VERSION=0.24 sh
+tests/run_all.sh` ALL SUITES PASSED (22 suites, 81 s; test_cr 1056 ok, test_persist 113, test_retired 18, test_pool
+7; 313 goldens unchanged; 0 lint); releases_test ALL OK with `CR_PACKAGES_DIR=build/release-0.24-beta1` (both sha256
+match) and with all 20 listed packages (copied from earlier worktrees' build folders, each only with its listed
+sha256; nothing downloaded); site_test ALL OK alone, and with the beta package as `build/choralroot.fwsc` and every
+package (`--require-all` builds the site for 0.24-beta1: "New in 0.23", a download link for every stable version and
+none for a beta); test_installer; the browser emulator built as 0.24-beta1, test_web_emu PASS. **The Pages job,
+simulated** (its steps from local files into build/scratch, no layout viewer as the job builds none): SHA256SUMS
+against the package, the first entry 0.24-beta1, all 13 versions' packages and the 7 single-core ones with their
+sha256, `make_site.py --require-all`; the landing page "Version 0.23", "Install 0.23 directly", "New in 0.23", its
+Download and command line 0.23's, no beta's line or link; under Try it first "It runs ChoralRoot 0.24-beta1, a beta
+(the installer's default is 0.23)."; the installer's own version 0.23; its list 0.24-beta1 (beta), 0.23, 0.22,
+0.22-beta4 .. beta1 (beta), 0.21 .. 0.16; firmware/SHA256SUMS 20 lines, all match; the notes links
+`blob/main/docs/releases/<version>.md`. In headless Chromium (`?demo=idle`): Install reads "Install ChoralRoot 0.23"
+and the chips have no beta; with the opt-in stored, 0.24-beta1 first with its badge, then 0.22 and its four betas, the
+beta note shown, Install still 0.23. Still for the unit: the 18 ms wait and the top row's velocity are not yet played
+on an FM-1.
+
+3y126. **The flash diet, 1: FM TONE's HARM tables halved in flash (2026-10-16; the owner: "Lets roll with the diet":
+GRAIN fills the slot to 99.3 % when merged, and the slot stays as it is).** The 27 HARM waves (`quad_tables.h
+QUAD_HARM`, 27 x 513 int16, 27.1 KB of XIP) are each a sum of sines, so every wave is exactly odd about half a cycle:
+f(512 - i) = -f(i) at every point, which `tests/quad_ref.py` now asserts and stores the first half of (27 x 257,
+13.5 KB). The whole cycles are built at power-on into POOL (`eng_quad.c quad_init`, `quad_harm` 27.7 KB; called from
+`eng_fm6.c fm6_init` beside `cz_init`, the power-on point the unit, the emulator and the layout tool share;
+`hostsim.c host_tracks_init`, `cr_quad_test.c` and `tools/digitone/quad_render.c` call it themselves), and the
+render reads them there: `quad_render` is byte for byte what it was (16 510 B in the listing) and reads SRAM where it
+read flash through the cache. **Bit-exact**: `cr_quad_test` 31 466 checks (a new one: every point of every whole cycle
+is its stored half mirrored), the 313 golden renders unchanged, 0 CPU entries over budget. **Rejected on the way**: a
+mirror in the read (`quad_hw` reading the second half reversed and negated a sample at a time, branchless, bit for
+bit the same values): XIP -12.1 KB without touching POOL, but `quad_render` grew 1.7 KB and the host count of the two
+HARM presets rose 26 % (GLASS PAD 1209 -> 1520, DRONE 1183 -> 1503 instructions a sample over the idle mix), a cost
+FM TONE's 8-note chords on the unit (70 .. 80 % of the half dry) have no room for while recording. Size: `XIP 552 860
+-> 539 132 B` (96.4 -> 94.0 %), `RAM 78 752` unchanged, `POOL 239 180 -> 266 884 B` (69.5 -> 77.6 %). `docs/QUAD.md`
+"HARM" and "CPU" say so. The budget tool's `quad_render` line (`tests/target_budget.txt` 67 230) reads 3 453 for
+main's build and this one alike: the file's figure is stale, not touched here.
+
+3y127. **The flash diet, 2: FM6's RAM tables no longer stored in flash (same day).** Three of Dexed's five RAM tables
+(`.data`: copied from the image at power-on, so each cost its bytes twice) are now made at power-on by
+`fm6_tables_init` (generated into `build/gen/felucca_tables.h` by `tools/gen_tables.py`, called first thing in
+`eng_fm6.c fm6_init`, `hostsim.c host_tracks_init` and `tests/sound_templates.c`): `FM6_SIN` (4100 B) by sin.cc's
+rotation, which is integer arithmetic (the Q30 vector turned 512 times, each product within 2^61: the generator asserts
+it), so the table is bit for bit the one the generator computed and `FM6_SIN_CHECK` is its checksum; `FM6_MKI_LOG`
+(4096) and `FM6_OPL_LOG` (1024) were each stored twice over (a quarter cycle and its mirror), so the stored quarters
+`FM6_MKI_LOG_H` / `FM6_OPL_LOG_H` (2048 / 512 B, flash) are mirrored into the whole. `FM6_MKI_EXP` and `FM6_OPL_EXP`
+(the exponent ROMs, float-derived or the chip's) stay as they were; `FM6_EXP2` / `FM6_FREQ` (flash, control-rate
+reads) stay. **Bit-exact**: `fm6_test` all checks ok (a new one: the checksum, the odd symmetry, the mirrors),
+`cr_fm6_test` 44, the 313 golden renders unchanged, 0 CPU entries over budget. `fm6_render`'s listing: the per-sample
+loops the same length to an instruction (1146 -> 1151 instructions in all, the register allocation moved; the
+budget tool's nesting heuristic now reads its outer structure differently, see 3y132). Size: `XIP 539 132 -> 532 620
+B` (94.0 -> 92.9 %), `.data 11 900 -> 2 668`, `.bss 66 852 -> 76 084`, `RAM 78 752` unchanged, POOL unchanged.
+`docs/FM6.md` "Memory" and `docs/FX.md`'s table say so.
+
+3y128. **The flash diet, 3: CZ-1's factory tones packed (same day).** Casio's 64 native tones (`CZ_FACTORY`, 64 x 144 B =
+9216 B of XIP) are now four LZ4 blocks, a bank of 16 tones each (`tools/gen_cz1_factory.py` packs them with
+`tools/lz4blk.py`, the loader's block format: `CZ_FACTORY_LZ4` 4660 B, `CZ_FACTORY_OFF`), unpacked where they are read:
+`cz_bank_default` unpacks a bank straight into the bank cache's 16 tones (`eng_cz.c cz_factory_bank`; `cz_patch_t` is
+its raw bytes, so they are contiguous), `cz_factory_tone` unpacks the tone's bank into 2.3 KB of the main loop's stack
+and copies the tone out (the load paths of `cz_track_loaded`: the main loop, never the ISR). The decoder is
+`cz_patch.h cz_lz4_block` (252 B with the bank function); a malformed block stops where it is. The tests that compare
+against the tones as they are compile with `-DCZ_FACTORY_RAW`, which keeps the plain table in the header for them
+(`run_cr_tests.sh`: `cr_cz_test`, `cr_backup_test`). **Bit-exact**: `cr_cz_test` 48 checks (a new one: all 128 reads,
+each bank's 16 tones and each tone alone, are Casio's bytes), `cr_backup_test` 230, the 313 golden renders unchanged.
+Size: `XIP 532 620 -> 528 332 B` (92.9 -> 92.1 %); RAM and POOL unchanged. **Rejected on the way** (built, measured,
+reverted): `CZ_RECIP` as two halves (x >= 1024 fits 16 bits less 32 768): XIP -1 632 B, but the ramped loops of
+`cz_native_line_mv` grew 4 .. 6 instructions a sample (7 340 -> 7 690 B; `cz_native_noise` 554 -> 612): about 50 us
+a half for 8 voices with their DCW moving, a cost in the ISR for 1.6 KB (docs/FLASH.md has the table).
+
+3y129. **The flash diet, 4: the fonts' unused extra glyphs (same day).** The S, M and CRB faces carried Felucca's
+Latin-1 extras beyond ASCII: (c) and the umlauts Ä Ö Ü ä ö ü (`tools/gen_aa_font.py EXTRAS`), for Felucca's about
+screen (`ui_menu.c`, not in ChoralRoot's unit). No string of the unit prints them (grep: the one non-ASCII literal is
+`cr_ui.c`'s "Solfège", CRB's own extra), a sound's name cannot hold them (`cr_name.c CN_SET`; the stores keep ASCII
+32..126), and the glyph audit (every glyph the 335 draw renders and the emulator's three script suites fetched, logged
+from `gfx.c glyph` and `cr_gfx.c cr_glyph_of` in a throwaway build: docs/FLASH.md) never saw one. They leave the three
+faces; the degree sign, the middle dot (both drawn), the ellipsis (`gfx.c text_fit`) and CRB's e grave stay. S 16 552
+-> 14 638 B, M 19 438 -> 17 197, CRB 16 348 -> 14 512 (their data, glyph tables and the kerning pairs that named a
+dropped glyph). **Pixel-exact**: the 335 pictures `tests/run_cr_draw.sh` renders compared byte for byte with the same
+tree's renders before the change (0 differ); `text_ref_test` 2754 strings, 0 pixels differ; `text_spacing_test` ok;
+`ui_test` all passed; `cr_draw_test`'s Solfège check no longer counts CRB's extras by hand (it asks `glyph_at`). Size:
+`XIP 528 332 -> 522 332 B` (92.1 -> 91.1 %); RAM and POOL unchanged.
+
+3y130. **The flash diet, 5: the kerning pairs by rows (same day).** Each face kept its kerning as sorted 16-bit keys
+(a << 8 | b) and a byte delta, 3 B a pair. Now the pairs are grouped by their first glyph's table index: `AF_<N>_KROW`
+(a 16-bit start a glyph, the last entry the count), `AF_<N>_KB` (the second character, each row by code), `AF_<N>_KD`
+(the delta): 2 B a pair and 2 B a glyph. `gfx.c kern` finds the first glyph with `glyph_at` and searches its row;
+`aafont_t` has `krow` and `kb` where it had `kkey`; `tools/gen_aa_font.py` writes the rows (the same pairs: the
+ellipsis' were never kept), `tests/text_spacing_test.py` reads them back into its (a << 8 | b) map and
+`tests/text_ref_test.c`'s reference kern reads the rows plainly. S's kerning 2283 -> 1720 B, M 2433 -> 1820, CRB
+2781 -> 2054, CRX 303 -> 278. **Pixel-exact**: the 335 draw renders byte for byte the same; `text_ref_test` 2754
+strings, 0 end pens and 0 pixels differ; `text_spacing_test` ok; `ui_test` all passed. Size: `XIP 522 332 -> 520 460
+B` (91.1 -> 90.8 %); RAM and POOL unchanged.
+
+3y131. **The flash diet, 6: more of the main loop built for size (same day).** `tools/size_fns.py` marks the
+main-loop functions minsize (about -Oz) and leaves the rest at -Os (3y25). The list grows by the files that run in
+the main loop only (the backup, the compiled layouts, the pool, the FM6 and CZ-1 stores and banks, the legacy CZ
+format, the FM TONE / VA / P5 patch stores, the FM4 conversion: `SIZE_FILES`) and by named functions of the engines'
+files, whose other functions render or tick in the ISR (`SIZE_FUNCS`: a sound load, a blob's pack / unpack, the deep
+pages' get / set, which the engine picks up in its block; and `fm1_main` itself, the main loop). 676 -> 824 functions
+built for size. The audio side is untouched: of 295 render, block, tick, ISR, mix and effects functions in the
+listing, none changed its instruction count across this change (checked listing against listing; `fm6_render`'s
++5 is 3y127's). `fm1_main` 16 154 -> 14 728 B, `ed_service` 6 994 -> 6 200, `cr_ui_input` 8 162 -> 7 396, `cu_pool_load`
+3 664 -> 3 410 (their inlined callees, now minsize), `fm6_track_loaded` 1 210 -> 1 156, `quad_unpack` 686 -> 606. The UI frame's cost on the
+unit is not read here (the emulator compiles the same sources at -O2 on the host: `perf.sh`'s UI column cannot see
+this); the owner's `pk_*` readout would. Size: `XIP 520 460 -> 517 644 B` (90.8 -> 90.3 %); RAM and POOL unchanged.
+
+3y132. **The flash diet's account (same day; docs/FLASH.md).** Six commits (3y126 .. 3y131) took main's image from
+`XIP 552 860 B (96.4 %)` to `517 644 B (90.3 %)`: -35 216 B, RAM unchanged, POOL 239 180 -> 266 884 B (69.5 -> 77.6 %:
+FM TONE's HARM cycles). A throwaway merge of GRAIN's branch (80465ac, "merges whole, no cuts") onto the diet, built and
+not committed: `XIP 537 068 B (93.7 %)`, 36 372 B of margin where GRAIN's own build had 3.8 KB; `RAM 80 176 (81.6 %)`;
+`POOL 333 900 (97.0 %)`, 10.2 KB left: POOL is the next wall, and FLASH.md puts the owner's two ways out beside it (the
+HARM mirror in the read, bit-exact, +26 % on the HARM presets' render; or HARM whole in flash again, XIP margin 22.6
+KB with GRAIN, POOL 89 %). Rejected after building and measuring: the HARM mirror, `CZ_RECIP` in two halves (+4 .. 6
+instructions a ramped CZ sample for 1.6 KB); not attempted, with the reasons in the table: the value-name lists
+formatted at run time, the page descriptors packed, fewer font phases, `cr_ring` / `CZ_CARRIER` into POOL.
+`tests/target_budget.txt` is rewritten from the final listing (`BUDGET_UPDATE=1`): the tool weighs an instruction x4 a
+loop level and finds the levels by backward branches, and `fm6_render` (4 364 -> 42 969) and `quad_render` (67 230 ->
+3 453) changed their outer branch structure between builds while their per-sample loops kept their length to an
+instruction (the listing compared span by span; `va_render`, `xd_run`, `xr_run`, the ISR's lines moved 1 .. 3 % and
+read as main's build reads, not as the file had them). `tests/run_cr_tests.sh`: `sound_templates` compiles with
+`-DCZ_FACTORY_RAW` too (it reads a factory tone's name; missed in 3y128). `tools/emu/test_pool.sh` generates
+377264f's headers with 377264f's own generators (it copied this tree's `build/gen`, whose font and CZ-1 shapes the old
+sources no longer read), with the Homebrew library path set in the script (`/bin/sh` drops `DYLD_*`). `docs/HANDOFF.md` "POOL was the tight
+resource" says where the figures stand. Suites on the final tree: `run_cr_tests.sh`, `run_cr_draw.sh` (335 pictures
+byte for byte main's), `tools/emu/test_cr.sh` 1056 ok, `run_all.sh` (below). Nothing flashed, nothing pushed. Then main moved to 54467ac (v0.24-beta1, 3y124 .. 3y125):
+merged in (c8522a6; the seven entries renumbered 3y126 .. 3y132), the same size lines to the byte, `run_all` ALL SUITES
+PASSED (22 suites).
+
+3y133. **GRAIN's design and sketches: a granular engine over material it renders itself from four knobs (the owner,
+2026-10-15: "Could the grain synth have a way to generate its own samples from a couple knobs to quickly get a variety
+of interesting samples to work with?"; branch claude/grain-engine-f724f9 from da1f8e2 = v0.22-beta3). No firmware
+code; nothing flashed; the owner decides after hearing the sketches.** `docs/GRAIN.md` (new): the source generator
+(TYPE TONE MOTION SEED render a 743 ms buffer at 22.05 kHz, 32 KB of POOL a part, deterministic, from dsp.c's blocks:
+eight families PLUCK DRONE BELL BREATH CHIRP SWEEP VOWEL METAL; the render in 1024-sample slices in main.c's idle loop,
+the grains on the old buffer until the swap, the other part's buffer the scratch), the player (Felucca's eng_grain.c
+pool, window, SIZE DENS POS SPRD RAND over RAM: no decoder, no index; 16 grains, 8 voices; RAND split into RAND and REV;
+SCAN; the SVF as CUT RES), the pages (SOURCE, GRAIN, GRAIN+, FILTER under the title rules; a wave band drawing the
+buffer, POS, SPRD and the live grains), the pool, slot 8, the 16-byte blob, the old records' mapping, the budgets
+(flash ~11 .. 12 KB: the core 7420 B measured on the device compiler, XIP to ~97.5 %; POOL +64 KB to 88.5 %; CPU ~600 /
+900 us a half for a full part at 205 instructions a microsecond, the lightest chord engine; the render burst 4 .. 40
+ms), seven risks, seven questions, seven steps with their tests. `tools/grain_sketch.c` (new): the generator (gs_*) and
+the player (gp_*) as the firmware would have them (int32, no float, dsp.c and felucca_tables.h), rendering
+`build/grain-sketch/`: 24 source WAVs (eight families x mid / dark-slow / bright-fast), 8 seed tours (SEED 0 .. 7 in a
+row), 72 granulated scenes (a C3 G3 C4 E4 chord, pad / glitch / frozen grains) and INDEX.md with the listening order.
+`tools/grain_cost.py` (new): the core compiled alone for pi32v2 at the firmware's -Os (Docker, as build.py), the
+functions' sizes and every loop's body from the listing (a grain's loop 26 instructions a sample plus 9 a fetch; the
+families 49 .. 327 a source sample).
+**Checked**: `./build.sh` on da1f8e2 for the baseline (XIP 547 020 B 95.4 %, RAM 78 652 80.0 %, POOL 238 936 69.4 %);
+the sketch compiles with `cc -O2` and renders the 104 files in 0.2 s; a numpy pass over the sources (DC under 1 % after
+the finish pass's high-pass, the fundamental at C4, the centroid and level moving with TONE and MOTION as the families
+say) and over the scenes (every one sounding through the hold and silent at the end); `python3 tools/grain_cost.py`
+(.text 7420 B, .rodata 4192 with the shared tables). Not run: the suites (no firmware changed). No device access.
+
+3y134. **GRAIN: two sources and MORPH (the owner, 2026-10-15, on the first sketches: "I like these test wavs, What
+would be really cool is if you could generate two waves, each with their own settings, and then there's a parameter
+to morph between them"; branch claude/grain-engine-f724f9).** docs/GRAIN.md: a sound has sources A and B (TYPE TONE
+MOTION SEED each, two 32 KB buffers: the same 64 KB of POOL as before, now one part's; a bass part on GRAIN shares
+them) and MORPH 0 .. 127, a granular blend: each grain reads A or B, the share spread evenly over a voice's grains
+(64: A B A B), pure at the ends, each grain pitched against its own root, no cost a sample (28 B of code in
+gp_spawn, a pointer a grain); MORPH is the SHP modulation destination (ENV -> MORPH: B's attack into A's body); the
+pages are SRC 1 / SRC 2 (a stack of two lanes), GRAIN, GRAIN+ (MORPH RAND PITCH SCAN: REV folded back into RAND),
+FILTER; the blob 20 B; the P_E macros TYPE TONE MOTION SEED | MORPH SIZE DENS POS; the wave band shows both buffers
+on the GRAIN screen with the grains' ticks in A's or B's half; a re-render goes in place with a fade of that
+source's grains (no scratch buffer); the questions and steps follow. tools/grain_sketch.c: gp_part_t holds two
+sources, gp_spawn chooses by MORPH (gp_voice_t.macc), a crossfade comparison (gp_par_t.xfade, GP_XFADE: the sketches
+only, out of the device compile); 26 morph scenes (eight pairs x half / sweep / env, two -sweep-xfade) and their
+INDEX.md section. **Checked**: the 130 files render in 0.3 s; a numpy pass over the morph scenes: the sweeps' spectral
+centre moves from A's to B's over the hold (SWEEP bright -> PLUCK bright 715 -> 2017 Hz, DRONE -> BELL 667 -> 335),
+the env scenes start on B and settle on A, the half scenes sit between; `python3 tools/grain_cost.py`: .text 7456 B
+(+36: MORPH's choice), gp_run's loops unchanged (26 + 9). No firmware code; nothing flashed.
+**Decided** (the owner, later the same evening, after hearing the morph files): "Keep the granular morph (each grain
+reads A or B by MORPH's share) as designed." The crossfade stays a comparison in the sketches only; GRAIN.md says so.
+
+3y135. **GRAIN step 1: the source generator in the firmware's tree with its test (the owner, 2026-10-15: "Go ahead
+with step 1 of docs/GRAIN.md"; branch claude/grain-engine-f724f9).** `firmware/src/grain_src.c` (new): the eight
+families' `gs_begin` / `gs_step` / `gs_finish` moved out of `tools/grain_sketch.c`, which includes it (the sketches
+heard are the firmware's generator byte for byte; the sketch keeps the player and `pow2_q16`); `GS_API` / `GS_FAM`
+default to static. Not compiled into the image yet (nothing includes it: the size line is da1f8e2's).
+`tests/cr_grain_test.c` (new, in `run_cr_tests.sh` after cr_quad_test, `-std=c99 -Wall -Wextra -Werror -pedantic
+-fsanitize=signed-integer-overflow,shift`): 800 renders of a TONE x MOTION x SEED grid a family (peak 28 000 within
+the Q12 gain's rounding or below it when the gain capped at 8, the mean under 1 % of full scale, RMS over 1 %, the
+same bytes twice, slices of 512 as one call), slices of one sample, each family's root, the knobs' masking, eight
+seeds a family all different, the 24 sketch settings against `tests/cr_grain_golden.txt` (new; GOLDEN_UPDATE=1
+rewrites it) and against `build/grain-sketch/src-*.wav` where present, the host time a render. **Found by the test and
+fixed**: `gs_finish`'s high-pass floored its shift and settled at -88 raw (an 8x gain made that -700, 2 % of full scale,
+in every quiet buffer); PLUCK's loop floored two shifts the same way, and its low-passed noise burst carried a mean the
+string's loop held (TONE 0: -766 after normalizing): the shifts round to nearest now and the burst has a 70 Hz blocker
+(a slow DC tracker inside the loop was tried and not needed). PLUCK's loop is 58 instructions a sample (49), the core
+7500 B (7456); GRAIN.md's tables follow. **Checked**: `cr_grain_test` 4330 checks ok; the sketches re-rendered (130
+files; the sources' mean now under 0.03 %); `python3 tools/grain_cost.py`; `sh tests/run_cr_tests.sh` (below).
+`sh tests/run_cr_tests.sh` exit 0 (every suite as before, cr_grain_test 4330 checks ok). Not run: `./build.sh`'s
+size line cannot change (no file includes grain_src.c); no device access.
+
+3y136. **GRAIN steps 2 to 4: the engine in the firmware (the owner, 2026-10-15: "Ok, continue and do steps 2 to 4";
+branch claude/grain-engine-f724f9; docs/GRAIN.md section 6).** `firmware/src/eng_grain.c` replaced: Felucca's GRAIN
+player (the pool of grains shared by a part's voices, the Hann window, the 1 / sqrt(overlap) level, SIZE DENS POS SPRD
+RAND, the block-wise window ramp) over two RAM buffers rendered by `grain_src.c` (sources A and B, 2 x 32 KB of POOL,
+`grain_buf`), no ADPCM decoder, no seek index, no SAMPLE: a grain reads A or B by MORPH (the share spread evenly over a
+voice's grains, `s[1]`), its rate the note against its source's root, PITCH and RAND's detune, at most two source
+samples an output sample; SCAN moves POS as a slow triangle; the SVF a voice (CUT RES, `s[2..3]`); the platform's ADSR
+through `voice_amp`; GP_NG 16, GP_POLY 8, `sampled`. The patch: 18 values (`GQ_*`: the two sources' TYPE TONE MOTION
+SEED, SIZE DENS POS SPRD, MORPH RAND PITCH SCAN, CUT RES), the P_E macros TYPE TONE MOTION SEED | MORPH SIZE DENS POS
+both ways as the VA's, the 20-byte blob ('G', 1, the values), seven deep pages (SRC 1, SRC 2, GRAIN, GRAIN+, FILTER,
+and ENV / LFO over the track's P_ATK .. P_REL and P_LRATE P_LWAVE P_LD_PIT P_LD_FLT: cr_edit.c's ce_deep wants the
+sections OSC FILTER ENV LFO; MOD the platform's routes), eight presets after INIT (CLOUD PAD, SHIMMER, BREATH PAD,
+FROZEN, STRUM, SWARM, ACID DUST, GLITCH), `grain_track_loaded` on every load path (a slot's blob; a Felucca GRAIN
+record's SIZE DENS POS SPRD PITCH RAND TONE mapped onto INIT's sources; a preset's patch; INIT + the macros). The
+scheduler: `grain_tick` once a block on core 0 (fx.c mix_block, after events_block: the first part on GRAIN owns the
+buffers, its source knobs against what they hold, a request a source; a locked source's grains `kill`ed, ramped to 0
+over the block by gp_run, no grain starts on it), `grain_poll` from main.c's idle loop and the emulator's emu_fw_idle
+(GRAIN_ASYNC 1: lock, the fade's block out, 1024 samples a turn, the knobs swapped in, unlock; a change mid-render
+restarts), the whole render inside the tick where no main loop runs (GRAIN_ASYNC 0: hostsim, regress, the host
+units). The platform: `FELUCCA_GRAIN 1` and `GRAIN_ASYNC 1` in choralroot.c and the emulator, `ENGI_GRAIN 8u`
+(core.h), `eng_state`'s `grain` member and `grain_part` (engines.c; the SAMPLE `#error` now SLICE's alone), the pool's
+kind `grain` (upool.c: `up_patch_len`, `up_read_grain`, `grain_store_read`, `grain_user_pending`), eng_fm6.c's
+track_loaded chain, the tools (web/fm1sounds.js and tools/fm1_install.py: the kind, 20 bytes, the pool only;
+docs/SOUNDS.md's table), the editor mock (web/editor.html: GRAIN's new knobs and presets). Tests: `tests/cr_grain_test.c`
+sections 5 .. 7 (the blob, the pages, the macros, the presets, `track_loaded`; the engine on static buffers: extreme
+knobs never read outside a buffer, the shares, MORPH 0 / 127 / 64 and SHP, the rate's cap, the window's continuity
+over a block boundary, 1.4 s of a 6-note chord on every preset at 27 .. 69 % FS; the scheduler: the lock, the fade,
+the other source untouched, the slices, latest wins, ten changes at most two renders, the shared bass part, the owner
+moving), `tests/golden.txt` and `cpu_baseline.txt` (the old GRAIN's four lines replaced by the eight presets'; the
+other lines untouched), `tests/cr_fm6_test.c` (seven engines shown: GRAIN after WHEEL), Felucca's `tests/ui_test.c`
+(GRAIN's first knob is no longer SAMPLE's set list), `tools/emu/test_retired.sh` (its pre-cut 0.17 build with
+-DFELUCCA_GRAIN=0: 0.17 had none, and the settings' eleven engine slots do not hold a twelfth). Found on the way: the
+device compiler refuses an initializer that reads another const array (the presets' macros come from the same list
+as their patches, by a variadic macro); `fm1_irq_off` / `_on` are defined after engines.c in the emulator (declared in
+eng_grain.c). Not done: a settings slot for GRAIN's remembered pool place (CRS_SLOT_ENG has none for GRAIN, as for P5);
+the wave band (step 5); the unit (step 6).
+**Checked**: `./build.sh` XIP 559 652 B of 573 440 (97.6 %, +12 632 over da1f8e2), RAM 79 028 (80.4 %), POOL 304 472
+(88.5 %: the two buffers); `cr_grain_test` 283 901 checks ok; `sh tests/run_cr_tests.sh` exit 0; `sh
+tests/run_tests.sh`: every suite but `releases` (the tag v0.22-beta4, pushed by the release session meanwhile, is not
+in this branch's web/releases.json: not GRAIN's), regress 317 renders 0 changed, 0 health failures, 0 over budget, web
+tests passed (the mock equals the firmware); `node web/test_sounds.mjs`, `test_backup.mjs`, `python3
+tests/install_test.py` pass; `sh tools/emu/build.sh && sh tools/emu/test_cr.sh` every check ok (test_retired.sh PASS
+after its pre-cut flag), `sh tools/emu/test_persist.sh` PASS. Not run: the browser emulator's test, the layout tool's;
+no device access (the unit holds the beta4 release work).
+**Then** (the release session, 2026-10-15: "renumber yours to 3y114 onwards before any merge, and base the merge on
+5e1e8a7"): the GRAIN entries 3y102 .. 3y105 became 3y114 .. 3y117 (docs/GRAIN.md's references too), origin/main
+5e1e8a7 (v0.22-beta4) merged into the branch (HISTORY.md the one conflict: main's 3y103 .. 3y105 before these). On the
+merged tree: `grain_tick` out of line (`noinline`: its own line in the target-cost test, not the audio ISR's, which it
+had grown past the +10 %: `tests/target_budget.py`'s defaults grain_render 843, grain_block 28, grain_tick 99);
+`tests/cr_prophet_test.c` (seven engines shown; the engine-state union's host padding for the pool's pointers);
+the clients' factory preset table (`web/fm1sounds.js`, `tools/fm1_install.py`: GRAIN's eight, from
+`sound_templates`) and their tests (`web/test_sounds.mjs`, `tests/install_test.py`: engine 8 has a pool). `./build.sh`
+XIP 561 540 B (97.9 %), RAM 79 028 (80.4 %), POOL 304 712 (88.6 %); `sh tests/run_cr_tests.sh`, `sh
+tests/run_tests.sh`, `sh tools/emu/test_cr.sh`, `test_persist.sh`, `node web/test_sounds.mjs`, `test_backup.mjs`,
+`python3 tests/install_test.py`: all pass (the host suites' last run below).
+**Then again** (the release session, 2026-10-15, after v0.22 stable: "renumber to 3y114 onwards and rebase or merge
+onto a11e0ca"): 3y106 .. 3y109 became 3y114 .. 3y117 (GRAIN.md's references too), origin/main a11e0ca (v0.22) merged
+in (HISTORY.md the one conflict: main's 3y106, 3y110, 3y111 before these). `./build.sh` XIP 562 196 B (98.0 %), RAM
+79 028 (80.4 %), POOL 304 716 (88.6 %); the clients' tests pass (`node web/test_sounds.mjs`, `test_backup.mjs`,
+`python3 tests/install_test.py`); the host and emulator suites below.
+`sh tests/run_cr_tests.sh` exit 0, `sh tests/run_tests.sh` exit 0, `sh tools/emu/build.sh && test_cr.sh && test_persist.sh` PASS.
+**And** (the designer-handoff session, on its rebuild of 70bb639: byte-identical package, 21 of 22 suites, the layout
+test short of a catalog): `design/layouts/grain.json` (new, `node tools/layout/dump_catalogs.mjs` after
+`tools/layout/build_layout.sh`): GRAIN's built-in layout as the designer sees it, OSC a stack of SRC 1 / SRC 2 and
+the GRAIN / GRAIN+ edit8, FILT with the filter band, ENV with the AHDSR band over the track's envelope, LFO, the
+platform's MOD routes; `--check`: 7 layout files are the firmware's.
+`CR_VERSION=0.22 sh tests/run_all.sh`: ALL SUITES PASSED (22 suites, 75 s; test_cr 1044 ok, test_persist 111,
+test_retired 18, test_pool 7, the layout test with the seven catalogs).
+**On the unit** (the owner, 2026-10-15: "Lets flash and try it"; the designer-handoff session flashed, by the rule): the
+unit runs this branch's 70bb639 (the package 520cd81c..., byte-identical to that session's rebuild) over the released
+0.22, `--unit 5BD75BE3`, a full backup first (`fm1-backups/fm1-backup-2026-10-15-before-grain.json`); after boot 128
+sounds present, `--debug` c1_state 1, c1_faults 0, c1_fallback 0. Not yet played by the owner.
+**And again** (the designer-handoff session, 2026-10-15: main 1ebaaf2 took 3y112 and 3y113): 3y112 .. 3y115 became
+3y114 .. 3y117, origin/main 1ebaaf2 (Options > Velocity Curve, the emulator's velocity) merged in (HISTORY.md the one
+conflict). `CR_VERSION=0.22 sh tests/run_all.sh`: ALL SUITES PASSED (22 suites, 86 s; test_cr 1049); XIP 562 772 B
+(98.1 %), RAM 79 044 (80.4 %), POOL 304 716 (88.6 %). The unit still runs 70bb639's image (the same firmware but for
+main's changes since).
+
+3y137. **GRAIN's second phase: its own matrix, two synced LFOs, ENV 2, the VA's filter, a bipolar SCAN and the wave
+band (the owner, 2026-10-16, after the first build on the unit: "Grain engine has been tested, good start, what I would
+like: Mod matrix needs to be able to select between envelope or LFO in each row; Need to be able to target more
+parameters, right now they are hard locked and not changable; Modulation amount should be the same as it is in the VA
+engine in that the amounts can be adjusted as decimals; The LFO needs to be able to be switched to sync with rates
+matching the VA engine; Need to be able to change scan between forward and reverse and be able to make it scan very
+slowly. I'd like the UI to be able to show: The generated A/B waveforms and also the combined morphed one; I'd also
+like to see animated grains moving across the waveform; Filter should use the same filter from VA engine"; branch
+claude/grain-engine-f724f9; docs/GRAIN.md "The second phase").** `eng_grain.c`: the patch version 2 (`GQ_NP` 61, the
+blob 64 bytes, `GRAIN_BLOB_V1` 20 loads with the new values at their defaults and SCAN halved): FTYPE DRIVE KTRK,
+ENV 2 (ATK DEC SUS REL, a voice: `s[4..5]`), two LFOs (RATE WAVE DEPTH FADE SYNC each; the VA's waves, free rates and
+sync list, `grain_lfo_inc`; FADE a voice from its note, `s[6]`), eight matrix slots (SRC `OFF ENV1 ENV2 LFO1 LFO2
+VEL KEY RAND MODW`, DST `OFF MORPH POS SIZE DENS SPRD RAND PITCH SCAN CUT RES FTYPE DRIVE RATE1 RATE2 DEP1 DEP2 AMP`,
+AMT whole or in tenths with the fine flags `GQ_MFINE0 / 1`, the VA's `va_amt_q` and `VA_AMX`), evaluated once a block
+a voice into the grain knobs the next grain reads (`gp_eff_t`), the filter's and AMP (ramped, `s[7]`); SCAN -64 ..
+63 (a ramp over the buffer, the sign its direction, a round in ~110 s at 1 .. 0.47 s at 64, `grain_scan_inc`); the
+filter the VA's (`va_fweights`, `va_svf`, DRIVE's tanh, KTRK round C4); the pages `SRC 1 SRC 2 GRAIN GRAIN+ FILTER
+FILTER+ ENV 1 ENV 2 LFO 1 LFO 2 LFO SYN MOD 1 .. 8` (sections 0 4 6 8 11), `grain_desc` (a synced RATE: the VA's
+list descriptor), `grain_mod_dst` (the quick mapping), a plan of four screens (SRC and GRAIN under the wave band,
+ENV 1 "amp" and ENV 2 "mod" under the AHDSR), the presets with a slot each (CLOUD PAD LFO 1 -> POS, SHIMMER LFO 1 ->
+MORPH, BREATH PAD LFO 1 -> CUT, STRUM ENV 2 -> MORPH, SWARM VEL -> DENS, ACID DUST ENV 1 -> CUT and DRIVE, GLITCH a
+high-pass at ~300 Hz and RAND -> PITCH), the Hann window as sin² from the sine table (the 514-byte table gone),
+GRAIN's pool state its own POOL array; `engines.c` includes it after `eng_va.c` (`FELUCCA_VA` required), `eng_fm6.c`
+declares its load hook ahead. **The wave band**: core.h `ENG_B_WAVE` and `cr_wave_t`, cr_screen.h `CR_W_WAVE` and
+the hook `cr_wave_src`, cr_edit.c's plan band (the active lane, the part, a count a frame so the band redraws while
+the grains move) and `cr_draw.c cr_wave_band` (the envelopes of the two buffers, 224 columns of min / max cached a
+render in `grain_wave`, A blue and B orange as bright as MORPH gives them, or the SRC lane's alone in white; SPRD a
+dim green span, POS a white line that SCAN moves; every grain a bright line of its source's colour at its place, as
+strong as its window is open). eng_va.c: `va_fweights`'s `<< 10` of a weight that may be -1 is `* 1024` (the same
+values; a shift of a negative is undefined, and cr_grain_test's sanitizer said so). `firmware/src/va_common.c` (new,
+guarded, included by engines.c after dsp.c and by both engines): what GRAIN shares with the VA, moved out of eng_va.c
+as it was (the filter's type weights and SVF step, the sync list and its increments, the amount rule, the names of the
+filter positions and LFO waves, va_xs), so a build without the VA (Felucca's host programs: ui_test, descdump) keeps
+GRAIN; `FELUCCA_GRAIN` stays 1 by default. `web/fm1layout.js`, `tools/layout/layout_web.c`, `tools/gen_layout.py`: the
+band "wave" (CR_W_WAVE, ENG_B_WAVE) by name. Tests: `tests/cr_grain_test.c`
+(the version-2 blob and a version-1 one, every page's range, the AMT rule in tenths and whole, SYNC's rescale both
+ways and the list descriptor, the mapping's destinations, the presets' slots, SCAN forward / reverse / held and its
+rates, LFO 1 -> SIZE spreading the grain lengths, LFO 1 synced to 1/4 at 120 BPM, ENV 2's attack and decay, the
+plan's four screens; 285 036 checks), `tools/emu/scripts/cr_grain.txt` and its `test_cr.sh` section (the picker, the
+pool, a chord, eleven screenshots: `build/emu/test/cr_grain_*.png`), regress's GRAIN goldens and budgets
+re-recorded (the presets' slots and the window), `tests/target_budget.py`'s grain defaults (grain_render 1159,
+grain_block 139: the matrix and the LFOs), the clients' `grain` kind 64 bytes (web/fm1sounds.js, tools/fm1_install.py,
+docs/SOUNDS.md), `design/layouts/grain.json` regenerated.
+**Checked**: `./build.sh` XIP 569 620 B of 573 440 (99.3 %: the second phase +7.4 KB; 3.8 KB left), RAM 80 132
+(81.5 %), POOL 306 196 (89.0 %); `CR_VERSION=0.22 sh tests/run_all.sh`: every suite (cr_tests with cr_grain_test
+285 036 checks and cr_va_test 231 895; run_tests with regress 317 renders, 0 changed, the target budget, the web
+tests' mock against the firmware; test_cr 1054 ok with the GRAIN section's eleven screenshots, test_persist 111,
+test_retired 18; the layout tool's test and its generator's). The size pass over the whole of GRAIN measured: 80 B
+(not taken). Not on the unit: the unit runs 70bb639 (the first build); the owner's word flashes this one.
+**On the unit** (the owner, 2026-10-16: "Lets flash the latest Grain engine so I can test"; the designer-handoff
+session flashed, by the rule): the unit runs this branch's 8c92b51 (the package b17ff708..., byte-identical to that
+session's rebuild, its run_all green too) over 70bb639, `--unit 5BD75BE3`, a full backup first
+(`fm1-backups/fm1-backup-2026-10-16-before-grain2.json`); after boot 128 sounds, c1_faults 0, c1_fallback 0. Not yet
+played by the owner.
+
+3y138. **GRAIN's renders no longer wait for a page change (the owner, 2026-10-16, on the second-phase build: "I've tried
+this out and it's great! Few issues: When adjust the A/B waveforms the waveforms don't actually generate until I've
+switched to a different page and back. They should regenerate as I change parameters so I can hear the changes").**
+The cause: the renders ran only from main.c's idle loop, and on the unit the wave band's redraw every frame (about 100
+lines over the LCD's SPI: most of a 15 ms frame) left the loop no turn while the SRC or GRAIN screen was open, so a
+knob's render waited until the screen changed and the frames got cheap (the emulator polls every millisecond of its
+own, so it never showed it). `main.c`: `grain_poll()` once right after every frame's draw as well, whatever the frame
+cost (a slice is at most ~2.4 ms); `cr_edit.c`: the band's frame count moves every third frame (the grains at 20 a
+second) and not at all while a source renders (`cr_wave_t.lock`), so the render gets the frames and the band shows the
+new buffer when it lands. docs/GRAIN.md's render paragraph and the band's row.
+**Checked**: `./build.sh` XIP 569 216 B (99.3 %), RAM 80 112, POOL 306 196; `CR_VERSION=0.22 sh tests/run_all.sh`:
+every suite but `releases` (a tag v0.23 on the remote that this branch's web/releases.json does not list yet: not
+GRAIN's; the next merge with main brings it), test_cr 1054 ok. Not on the unit: the owner's word flashes it.
+**On the unit** (the owner, 2026-10-16: "Yes, flash the fix build 359d59a on the unit with a backup first"; the
+designer-handoff session flashed): the unit runs 359d59a (the package 5f356e0d..., byte-identical to that session's
+rebuild), `--unit 5BD75BE3`, a full backup first (`fm1-backups/fm1-backup-2026-10-16-before-grain-fix.json`); after
+boot 128 sounds, c1_faults 0, c1_fallback 0. main is f54850e (v0.23) meanwhile: the branch merges it before any merge
+to main (the releases test's tag), after the flash diet lands (the owner's choice over a larger slot).
+**The owner** (2026-10-16, on 359d59a): "This Grain engine is fantastic! I'd like to get it merged in, but we'll decide
+post flash diet." So: the branch waits for the flash diet (the session "Flash diet: room for GRAIN in the 573 KB slot",
+from main f54850e = v0.23), then merges main and goes in on the owner's word.
+**And** (the owner, 2026-10-16, on the cuts offered: "Naw, lets keep GRAIN as is, not cuts"): GRAIN merges whole, its
+eight families, two LFOs and ENV 2; the room comes from the flash diet.
+**Merged on main (the owner, 2026-10-16, after the flash diet landed as d75523e: "Yes: push the flash diet to main, then
+have the grain session rebase and merge GRAIN on top of it").** origin/main d75523e (v0.24-beta1 54467ac with the
+diet's 3y126 .. 3y132) merged into the branch as a merge commit over its 24 commits (a replay of each would have met
+HISTORY.md's conflict at every one), main then moved to the branch's tip: a fast-forward. The GRAIN entries 3y114 ..
+3y119 became 3y133 .. 3y138 (main took 3y114 .. 3y125 meanwhile; the "became" sentences above keep their numbers of
+the time; docs/GRAIN.md's and the code's references renumbered too). The conflicts: HISTORY.md (main's entries before
+these) and tests/run_cr_tests.sh (cr_grain_test's three lines after cr_quad_test's, main's quad_pops and
+`-DCZ_FACTORY_RAW` kept). tests/target_budget.txt rewritten from the merged listing (BUDGET_UPDATE=1: `quad_render`
+and `fm6_render` read by the tool's nesting heuristic as 3y132 says; the mix loops +1 .. 5; GRAIN's three functions at
+their defaults, 1159 / 139 / 99). tests/cr_backup_test.c: 3y121's scenario "a sound of an engine with no patch here"
+used engine 8 (GRAIN, retired on main then); with GRAIN built it keeps a 64-byte patch, so the scenario sends PHYS (9)
+when FELUCCA_GRAIN is on and engine 8 otherwise (the check reads the same). **Size**: `./build.sh` XIP 537 068 B of
+573 440 (93.7 %, 36 372 B left; +19 424 B on the diet's 517 644), RAM 80 176 B (81.6 %), POOL 333 900 B of
+344 064 (97.0 %, 10 164 B left: GRAIN's two 32 KB buffers beside the diet's 27.7 KB of HARM cycles; docs/FLASH.md has
+the two ways out if POOL must give), the byte the diet session measured on its throwaway merge; the package
+build/choralroot.fwsc sha256 9048db3c960e2bd4... (610 313 B). `sh tests/run_all.sh`: ALL SUITES PASSED (22 suites, 71 s; cr_tests
+with cr_grain_test 285 036 checks and cr_backup_test 230; 317 golden renders unchanged; test_cr 1061 ok, test_persist
+113, test_retired 18, test_pool 7; the browser emulator built and timed). Not flashed: the unit runs 0.24-beta1.
+
+3y139. **A GRAIN sound saved on the first GRAIN build loads again: the pool reads its 20-byte version-1 record (the
+owner, 2026-10-16, after main 9fc83fa on the unit: U033 DARK HAZE listed "no patch" by `fm1_install.py --sounds`; "Yes:
+have the grain session make the version-1 GRAIN record fix (pool reader, installer, web page, a pool test)").** The
+cause: GRAIN's first build (3y136, 70bb639 on the unit) saved 20-byte version-1 patch records; the second phase
+(3y137) made the patch 64 bytes (version 2) and `eng_grain.c grain_unpack` converts a version 1 it is handed, but
+`upool.c up_patch_get` hands over a slot's record only when its stored length is the engine's blob size (the one
+exception FM TONE's older 80), so a 20-byte GRAIN record never reached the engine: the slot loaded as an old Felucca
+record, INIT's sources with the record's eight macro bytes in Felucca's places (TYPE TONE MOTION SEED MORPH SIZE DENS
+POS landing on POS SIZE DENS PITCH SPRD RAND CUT), a scrambled INIT, and `--sounds` said "no patch" by the same rule;
+a re-save would have written that scrambled sound over the record. **Now**: `core.h GRAIN_BLOB_V1 20` (from eng_grain.c);
+`upool.c up_patch_get` takes a GRAIN slot of that length as it takes FM TONE's 80 (the 64-byte buffer zeroed first, the
+20 read into it; `grain_unpack` sees version 1: the 18 values, SCAN halved and forward, the rest INIT's);
+`cr_backup.c`'s check of a restored bank takes it too (so the backup taken before the flash, with U033's record,
+restores onto this build); `tools/fm1_install.py` lists such a slot with its patch (`GRAIN_V1`), exports it as it is and
+zero-pads a 20-byte version-1 sound file to 64 on import (the FM-1 converts it); `web/fm1sounds.js` the same (`sndBlob`,
+the sound file's import). **Test**: `tests/cr_pool_test.c`: GRAIN in the every-engine round trip (a 64-byte version 2
+saved into U128, read back byte for byte after a power cycle, loaded through PRESETS) and a slot made of the first
+build (`'G', 1`, 18 values some past their ranges, SCAN 100, the header's length 20): after a power cycle the pool reads
+the record with zeros after it, and loading it gives the sound the first build saved (every value `grain_unpack`'s,
+SCAN 50, the eight macros on the track), 50 checks. The installer's listing exercised on the host over the backup
+`fm1-backups/fm1-backup-2026-10-16-before-grain-fix.json` through tests/install_test.py's fake FM-1 (a scratch
+script, not kept): `U033  DARK HAZE  GRAIN  patch  +` (before: "no patch"), the record `'G', 1` of length 20.
+**Size**: `./build.sh` XIP 537 068 B (93.7 %), RAM 80 176, POOL 333 900: the same bytes as 9fc83fa (the two compares fit the
+slot). `sh tests/run_all.sh`: ALL SUITES PASSED (22 suites, 85 s; cr_pool_test 50 checks, test_cr 1061 ok, 317 golden renders unchanged, the browser emulator built and timed); the package build/choralroot.fwsc sha256 f093f9bccee29fc8... (610 313 B). Not flashed: the owner wants it built and flashed (the designer-handoff session,
+a backup first); the unit runs 9fc83fa. docs/GRAIN.md's status line and size table.
+
+## 2026-10-16 (main eb223df on the unit; 0.24-beta2's release tree)
+
+3y140. **Main eb223df on the unit (2026-10-16, evening).** The designer-handoff session flashed main eb223df (3y139's
+version-1 GRAIN record fix on top of the GRAIN merge) on the owner's word, `--unit 5BD75BE3`, a full backup first:
+`fm1-backups/fm1-backup-2026-10-16-before-main-eb223df.json` (in
+`/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/fm1-backups/`). U033 DARK HAZE, the sound saved on the first GRAIN
+build (a 20-byte version-1 record), loads again there. The owner on GRAIN: "This Grain engine is fantastic!"; then
+"I'd like to get the grain engine into v0.24-beta2" (3y141).
+
+3y141. **0.24-beta2's release tree (2026-10-16; branch claude/rel-24b2-bde7c3 from origin/main eb223df; not pushed, not
+tagged, not flashed).** The owner: "I'd like to get the grain engine into v0.24-beta2". What is new since v0.24-beta1
+(`git log v0.24-beta1..eb223df`): the flash diet (3y126 .. 3y132: no audible or visual change, one sentence in the
+notes) and GRAIN (3y133 .. 3y139), the headline; 3y139's version-1 record concerns the owner's test builds only and
+is left out of the notes. `docs/releases/0.24-beta2.md`: the opening (the second beta of 0.24, opt-in, may have bugs,
+0.24 replaces it, updating from 0.24-beta1 or 0.23 keeps everything); "New since 0.24-beta1: GRAIN" (what it is, the
+two sources' TYPE TONE MOTION SEED and the eight families, MORPH as a granular blend, the grain knobs and SCAN, the
+filter, ENV 1 / ENV 2, the LFOs, the matrix and quick modulation, the pages group by group, the wave band, the eight
+presets, the chord and bass parts sharing one pair of sources, notes above C6 not rising, the clients carrying GRAIN
+sounds; the diet's sentence); 0.24-beta1's Playing section as it was; Installing (the opt-in, from 0.24-beta1 / 0.23,
+from 0.22 or older, the single-core package's version line); "Going back to 0.24-beta1 or 0.23" (below).
+`docs/releases/0.24.md` points at 0.24-beta2.md. `docs/MANUAL.md`: a GRAIN section after WHEEL (the groups' screens,
+the knobs, the matrix, the wave band, the shared sources, the presets: from GRAIN.md and `eng_grain.c GRAIN_PAGES` /
+`GRAIN_SCREENS`), GRAIN in the engine table, the OPT + PRESETS list, the picker's SELECT row, the engines' count
+(seven; the introduction still said five), quick modulation "the VA, and GRAIN" (`grain_mod_dst`), the references
+row. README's engine list (seven), `docs/PRESETS.md`'s pool list, `docs/EDITOR.md` (a GRAIN section in "Groups per
+engine class", the knob list, the picker's "not in" list without GRAIN), `docs/INTEGRATION.md` (a paragraph after
+PHYS's: GRAIN shown again, `NENG_SHOWN` 7, how an older build treats its records; the all-synth flags' note).
+`docs/HANDOFF.md`: the state (v0.24-beta1 tagged, the diet, GRAIN, this tree, tagged = not yet), the size paragraph
+at main's figures (POOL 97.0 %: laid out by the linker, so it cannot fail in use, but its 10 KB are now the limit for
+an added buffer), an Open-items line for GRAIN at the unit (GRAIN.md step 6). `web/releases.json`: 0.24-beta2 first,
+`"beta": true`, 7 bullets, 3 notes (the beta disclaimer first, then updating, then going back); 0.23 stays the newest
+stable, 0.24-beta1 below the new entry unchanged.
+**Going back, how it was established.** The code of v0.24-beta1 (v0.23's `upool.c`, `cr_bank.c`, `upreset.c`,
+`cr_backup.c`, `engines.c` are the same bytes; `cr_ui.c`'s load path the same): `FELUCCA_GRAIN 0` puts engine 8 in
+`ENG_RETIRED`; `cr_bank.c cb_pool_of` places such a record in the VA's pool as an added preset; `cr_ui.c cu_load_user`
+loads the VA's init sound for it with `engine retired: init sound` (no ATK / REL carried: that is for the six of 0.18);
+`upool.c up_patch_len(8)` is 0, so the 64-byte patch is never read, and nothing writes the slot on a load; the slot
+is rewritten only by a save over it (`up_store`: then the stand-in's VA sound), a delete, or a rename (`up_rename`'s
+`up_va_keep`: the stored patch copied as it is). A backup's bank with a GRAIN slot restores there since 3y121's
+`crb_bank_ok` (in v0.23, not in v0.22: 90d0b8f is not an ancestor of v0.22, so 0.22 refuses such a bank with rc 2).
+Then on the emulator, in scratch (not committed): v0.24-beta1 `git archive`d with its own generated headers and
+emulator; eb223df's emulator on a fresh flash saved GRAIN CLOUD PAD as U001 "ADG", put the bass on GRAIN SHIMMER and
+did the global save (`pool_image.py`: `U001 8 ADG rec 8464ed28 patch - 64 658a6222`); beta1's emulator on that flash
+started on FM6 TINE EP / VA DEEP SUB (Bass still on), VA 26 was "ADG" (`load: slot 1 engine 8 retired -> INIT on VA`,
+the message, the chords sounding) and the slot's record and patch CRCs were unchanged; eb223df's emulator again: the
+session applied with both parts on GRAIN (U001 ADG, SHIMMER), GRAIN 09 "ADG" loaded its stored patch (`grain: load slot 1
+patch crc 6222`). The notes say exactly that: GRAIN sounds stay untouched at the end of the VA's list, play its init
+sound with the message, are GRAIN again on 0.24-beta2 unless saved over or deleted there (a rename keeps them); a part
+left on GRAIN starts on TINE EP / DEEP SUB; a backup restores onto 0.24-beta1 / 0.23, not onto 0.22. Not checked: a
+favourite mark on a GRAIN factory preset across 0.24-beta1 (the user slots' marks are by slot).
+**Built**: `./build.sh --release 0.24-beta2` twice (the first folder moved aside to `build/release-0.24-beta2.first`),
+the same SHA256SUMS: `choralroot-0.24-beta2.fwsc` 3aebea9608cde7f6..., `choralroot-0.24-beta2-1core.fwsc`
+17788180f245c586...; the apps carry `ChoralRoot 0.24-beta2` and `ChoralRoot 0.24-beta2 1-core`; the stub version 3,
+baee55ed142fe1cc. Size: XIP 537 084 B of 573 440 (93.7 %), RAM 80 176 (81.6 %), POOL 333 900 of 344 064 (97.0 %),
+RAMTEXT 7 072 of 24 576; the single-core package XIP 534 280 (93.2 %), RAM 77 052 (78.4 %), POOL 333 772 (97.0 %).
+**Checked** (on this tree, after the notes, releases.json and HANDOFF were final): `CR_VERSION=0.24 sh tests/run_all.sh`
+ALL SUITES PASSED (22 suites, 85 s; test_cr 1061 ok, test_persist 113, test_retired 18, test_pool 7; 317 golden
+renders, 0 changed; 0 lint; the plain build's size line main's to the byte); `CR_PACKAGES_DIR=build/release-0.24-beta2
+python3 tests/releases_test.py` ALL OK (both sha256 match), and with all 22 listed packages (copied from earlier
+worktrees' build folders, each only with its listed sha256; nothing downloaded); the browser emulator built as
+0.24-beta2 (`emu/version.txt` "ChoralRoot 0.24-beta2"), `node tools/emu/web/test_web_emu.mjs` PASS (bit-exact against
+the native emulator); `tests/site_test.py` site ALL OK with the beta package as `build/choralroot.fwsc` and every
+package (`--require-all` builds the site for 0.24-beta2: the landing page "Version 0.23", "Install 0.23", "New in
+0.23", under Try it first "It runs ChoralRoot 0.24-beta2, a beta (the installer's default is 0.23)."; `firmware/`
+with both betas' packages); `node web/test_installer.mjs` passed. Not pushed, not tagged, not flashed: the tag is the
+owner's "tag it".
+
+## 2026-10-16 (the SMK-37 port onto 0.24-beta2)
+
+3y142. **genkigenki's SMK-37 target on main (2026-10-16; branch claude/smk37-port-5704f3 from origin/main 52889ba,
+v0.24-beta2; not pushed).** The owner: "We port it: start a session that brings genkigenki's SMK-37 commits onto main
+52889ba, keeps the FM-1 build byte-identical, redoes the SMK flash map for the pool and favourites, and builds SMK
+packages for a community test." genkigenki (M. Geisler, genkigenki / makkuro) opened PR #14 on 2026-10-13: an M-Vave
+SMK-37 build target (`BOARD=smk37`, `MODEL=elite` / `mke`), nine commits on aa5875a (0.22's dev tree, before the sound
+pool and the favourites), with its board layer (`hal/smk_input.h`, the SMK half of `hal/fm1_flash_map.h`, the LCD and
+pad LEDs in `hal/fm1_lcd_hw.h` / `lcd.c`), the SMK flash map with its protected ranges, the boot stub's SMK variant and
+locks, the installers' SMK rules (`tools/fm1_install.py`, `web/fm1ota.js`, `web/fm1pkg.js`: the model rule on every
+path, the resume too, long identities, other SMK firmwares refused) and its tests (`smk_flash_test`, `smk_owner_test`,
+`smk_pkg_test.py`, the hooks in `run_tests.sh`). Main was 204 commits further on (dual core, the pool, the favourites,
+the PA10 velocity probe, the P5 rows editor, the flash diet, GRAIN). The nine commits are kept as they are, genkigenki
+the author, by a merge (fb09dea) that resolves eleven files where main had moved: main's key-sensing hooks go with
+`fm1_input.h` in the FM-1 branch; Options keep main's Key Touch rows; the LEDs keep main's Snap glow under the PR's
+`CU_LK(k)` ids; `build.py` keeps main's single-core package under the PR's per-board stem; `fm1ota.js` keeps main's
+several-FM-1s `candidates()` with the PR's `PORT_RE`; `install_test.py`'s phases both. `./build.sh --release
+0.24-beta2` on the merge: the released bytes (3aebea96..505f, 17788180..c2e).
+
+3y143. **The SMK storage for 0.24 (c50f229).** The SMK needs 76 data sectors (20 objects x 2, the pool's 16, the ten
+loop slots' 20) and the owner tag; FL_DATA (30) and FL_SMP (40) hold 70. What 0.22 stored keeps genkigenki's places,
+so a unit that ran the PR's build keeps its data and its legacy objects migrate into the pool; new: OBJ_FAVS at
+0xB4000 / 0xB5000, the pool as two runs, 0xB6000..0xBAFFF (5) and 0xE6000..0xF0FFF (11: FL_SMP's last 4, then 7 of
+the free tail the PR names, `FL_TAIL` 0xEA000..0xF0FFF in `FL_STORE_OK` with its own `_Static_assert`; 0xF1000..0xF3FFF
+stay free). `storage.c`: `sp_addr`'s two runs, an assert per run, `ST_SMK_REGIONS` with the favourites and both runs
+(the owner change and Options > Flash Data). `smk_flash_test`: every OBJ_* id's A and B copy and every pool sector in
+`FL_STORE_OK` / `FL_GUARD`, outside `FL_PROTECTED` and FL_OTA, no two sharing a sector, 76 in all, nothing from
+0xF1000; `smk_owner_test`: the new regions, the tail's rest, USR and key_mac untouched. The table is SMK37.md's
+"Storage". Not changed, seen on the way: the FM-1's Options > Flash Data (cr_ui.c cu_flash_erase) does not list the
+sound pool (0xB8000..0xC7FFF), so a Flash Data erase in SAFE MODE leaves the pool's sounds on an FM-1 (a follow-up:
+the fix changes the FM-1's bytes).
+
+3y144. **The SMK board on 0.24's features (d594b74, c52ad71).** Velocity: main's Options > Key Touch on the SMK too,
+Dynamic its default (the keys' two contacts through the unit's factory curve, `smk_input.h key_vel`, for the 27
+middle keys and the ten outer ones), Fixed Options > Velocity (1..127); the PR's Velocity 0 "keys" goes, and a block
+with it is read as Dynamic. Key Touch stops at Dynamic (no key pressure); Velocity Curve and Aftertouch Sens read "FM-1
+only". The FM-1's analog key sensing (`cr_sense.c`, `fm1_an`, the PA7 / PA8 rows and the PA10 probe) is not in the SMK
+build: PA8 / PA10 are the SMK's mux inputs. MASTER and the battery come from `smk_input.h` as in the PR. The SAVE menu's
+and the naming help's knob names: K5..K8 on the SMK. INFO's version up to 40 characters on the SMK. Dual core builds
+with the FM-1's rails (VDC14 5; the guide gives the same chip, clock tree and boot config, and says nothing about the
+SMK's rails); GRAIN and every engine are in. `tools/build.py`: an SMK release names the board in its version
+(`BOARD=smk37 ./build.sh --release 0.24-beta2-smk37`: "ChoralRoot 0.24-beta2-smk37", "... 1-core"), refused without
+it (and an FM-1 release with it), the three models together in `build/release-smk37/`. SMK37.md for 0.24-beta2
+(community-tested, not tested by the maintainer; the controls, install, M-UPGRADE, storage, safety, what to test,
+genkigenki's credit); README's SMK line.
+
+3y145. **The SMK test packages and the checks (this tree).** Built twice, the same SHA256SUMS
+(`build/release-smk37/`): Pro `choralroot-0.24-beta2-smk37.fwsc` 043c56f0..0a12, `-1core` 000bc5ce..78d3; Elite
+`-elite` ac2ff66a..0ce6, `-elite-1core` e218593e..4ebb0; MKE-P37 `-mke` 830981c3..d342, `-mke-1core` 994be9f4..d707.
+Size: Pro and Elite XIP 537 064 B of 573 440 (93.7 %), MKE-P37 537 048; RAM 80 940 (82.3 %), POOL 333 900 of 344 064
+(97.0 %) for all three; the 1-core packages XIP 533 396 (93.0 %), RAM 77 800, POOL 333 772. The FM-1:
+`./build.sh --release 0.24-beta2` gives 0.24-beta2's sha256s on the final tree. `CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES PASSED (22 suites, 103 s; test_cr 1061 ok, test_persist 113, test_retired 18, test_pool 7; 317 golden renders unchanged; 0 lint), with the SMK hooks of `run_tests.sh` green: `smk_flash_test`, `smk_owner_test`, `smk_pkg_test.py` on the made package and on the three models' `BOARD=smk37 [MODEL=...] ./build.sh` packages, the SMK M-UPGRADE entry for the three models, the SMK update loader. Not flashed: there is no
+SMK-37 here; SMK37.md's "What to test" is the list for the testers.
+**Publishing** (proposed, nothing pushed): a tag `v0.24-beta2-smk37` fails `release.yml`'s version check (one suffix
+only) and publishes nothing; a one-suffix `v...smk...` tag now fails at `build.py` (an FM-1 release never names the
+SMK), before a release exists. The smallest safe way: a pre-release made by hand with a tag that does not start with
+`v` (`smk37-0.24-beta2`), the files of `build/release-smk37/` (LICENSES zipped): `release.yml` does not run (tags
+`v*`), `pages.yml`'s `redispatch` exits at "not a vX.Y ... tag: the site stays as it is", a pre-release never becomes
+the latest release, and `web/releases.json` (FM-1 only) is not touched.
+
+3y146. **The SMK-37 test installer and the SMK tags (2026-10-16; the owner: "Can we create a separate installer page
+for the website that is for the SMK firmware, it won't be linked from the main ChoralRoot page. Then from this we can
+release the firmware with our build tags and can send the install link to SMK testers who are fine with the risk.").**
+This replaces 3y145's publishing proposal (a pre-release by hand under a non-`v` tag). **The page**: `web/smk37.html`,
+written by `web/make_site.py` to `webapp/smk37/index.html` (fm1pkg.js, fm1ota.js, fm1backup.js and its META inlined;
+noindex, linked from no page): the risk box to tick first (a test build the maintainer has not run, M-UPGRADE and
+the stock package at hand, the first start's clearing, the cable, own risk), the version, Standard / Single core,
+Install. Install finds one keyboard (two: refused), refuses an FM-1, ChanceTheMaker's SMK firmware, a firmware the
+installers' SMK table refuses and another firmware's update mode, picks the model's package (a Starrykey 37 Play or
+another SMK-37 name: the Pro's, with the same-keyboard rule), checks its sha256 against the list and its identity
+before anything is sent, backs up a keyboard running ChoralRoot to a file first, and finishes an interrupted install
+with its loader's model's package. **The list**: `web/releases-smk37.json` (0.24-beta2-smk37 on 0.24-beta2, the six
+sha256s of 3y145's build), checked by `tests/releases_test.py` (the shape, the base in web/releases.json, the tag,
+each package's own sha256, the files in build/release-smk37; the FM-1's list names no SMK build; the SMK tags left
+out of the FM-1's tag check). **The site**: `make_site.py --smk-packages DIR` (default build/release-smk37) checks every
+listed package (sha256, the model's `_9xx` identity, Felucca's loader) before anything is written and writes
+`firmware/smk37/` (the packages, SHA256SUMS, index.html); a local build without them makes no SMK page.
+**CI**: release.yml takes `vX.Y[-suffix]-smk37` (and refuses any other version naming the SMK): the three models built,
+their sha256s checked against web/releases-smk37.json, a pre-release with the twelve files, SHA256SUMS, the licences
+and SMK37.md, then pages.yml started for web/releases.json's first entry (the FM-1 site unchanged) from the SMK tag;
+pages.yml fetches each listed SMK version's packages from its release, passes them to make_site.py and fails when a
+page links the SMK page. pages.yml runs from main, so the branch is merged before the first SMK tag. **Tests**:
+`web/test_smk_installer.mjs` (in run_tests.sh: the page against simulated SMK-37s, 32 checks), `tests/site_test.py`'s
+SMK part (9 checks: the page and its META, firmware/smk37/, no other page linking it, the refusals before any write).
+BUILDING.md "An SMK-37 test release", SMK37.md's install section. Not pushed, not tagged.
+
+3y150. **FM TONE reads its HARM waves from the halves in flash with a mirror; the POOL copy is gone (2026-10-16; branch
+claude/harm-mirror-f62c8b from origin/main 52889ba).** The owner, having played 8-note FM TONE chords with every effect
+on (Geek Out 2 about 65 % on the average, peaks of 80 to 90 %), chose the read 3y126 had rejected: "I am fine with that
+trade and think the mirror read is pretty reasonable. I'd like to keep things open for potentially more engines or FX."
+POOL stood at 97.0 % (2 KB addable under tools/build.py's 8 KB floor), flash at 93.7 % with 36 KB spare. The rejected
+build was not kept (not on claude/flash-diet-18ea3f, its reflog, its worktree or the repository's unreachable commits:
+only its description), so the read was written again, leaner: `eng_quad.c quad_hw` reads `QUAD_HARM` (the stored
+first halves, 27 x 257) directly. In the second half of a cycle (s = the phase's sign, -1) the two points around the
+phase are the first half's pair at u = 511 - i and u + 1, swapped and negated; `u = (ph ^ s) >> 23` gives i or 511 - i
+with one xor, so both halves read the same pair (l, h) at the same offsets, the slope h - l is the same, and only the
+start flips: `l - ((l + h) & s)` (branchless; the fraction from the phase as before). The values are bit for bit the
+whole cycle's. Removed: `quad_harm` (27 702 B of POOL), `quad_init` (its build, inlined into `eng_fm6.c fm6_init`:
+`fm6_init` 408 -> 316 B) and its calls in `eng_fm6.c`, `tests/hostsim.c`, `tests/cr_quad_test.c` and
+`tools/digitone/quad_render.c` (nothing else needed it). **Bit-exact**: `cr_quad_test` 31 466 checks, 0 failed; its
+mirror check now goes through the read: every point of every wave, at ten fractions across the step (0, 1, 2, 255, 256,
+8191, 16384, 24575, 32766, 32767, with noise in the phase's unused low byte) and six shares of the next wave (0 .. 32767),
+829 440 reads, each equal to the old whole cycle's interpolation (a +1 in the second half's rounding makes 83 of them differ:
+the check bites); the golden renders of `tests/regress.c` (317 now) 0 changed; the draw goldens unchanged (run_all below).
+**Cost.** `quad_render` 16 732 -> 17 552 B in `build/choralroot.dis` (+820; the rejected read +1.7 KB). Its per-sample
+loops, one per algorithm and HARM case, in instructions (the static span, both crossfade paths): HARM + (A and B1 read
+the tables) 112 .. 130 -> 133 .. 155, GLASS PAD's algorithm 7 120 -> 133, DRONE's algorithm 6 127 -> 144; HARM - (C)
+97 .. 115 -> 109 .. 129, algorithm 6 109 -> 124; no HARM 83 .. 98 -> 81 .. 103, the eight together 749 -> 748, but
+not each the same: the loops' source is unchanged and the compiler spills differently across the one function, so
+algorithm 5's (METAL) grew 96 -> 103 (six more stack accesses) and the others moved -3 .. +2. Host count
+(`tests/regress.c`, instructions a 44.1 kHz sample, the same day, three runs each, within 0.2 %): GLASS PAD 1593 ->
+1742 (+9.4 %), DRONE 1575 -> 1718 (+9.1 %) (the rejected read added 311 and 320 to its day's 1209 and 1183: +26 %);
+HOLLOW +3.9 %, CLAV +2.9 %, STRINGS +2.0 %, SQUARE LEAD +0.5 % (HARM -: one table, and their whole steps skip the
+second); the presets without HARM -3.8 .. 0 % (EP and BELL the same, FEEDBACK the most). `tests/cpu_baseline.txt`: the
+six HARM presets' lines from a `BUDGET_UPDATE=1` run (GLASS PAD 1498 -> 1744, DRONE 1472 -> 1718, HOLLOW 1300 -> 1481,
+SQUARE LEAD 1354 -> 1503, CLAV 1629 -> 1834, STRINGS 1630 -> 1837); the other lines as they were (as 3y118 did for
+GRAIN): the stored figures are 6 .. 9 % below this Mac's today for unchanged code (GLASS PAD read 1593 on main), so the
+jump in those six lines is part machine, part mirror. `tests/target_budget.txt` `quad_render` 7172 -> 6458 (BUDGET_UPDATE
+=1; only that line moved): the instructions in its loops rose 3865 -> 4066, but the tool's nesting heuristic (a backward
+branch spanning a whole HARM group counted as an outer loop) weighs a different span now, as 3y132 noted. On the unit
+the HARM presets' 8-note chords cost the render about 9 % more than on main; the owner's 65 % (peaks 80 .. 90) was read
+on main. Size: `XIP 537 068 -> 537 788 B` (93.7 -> 93.8 %), `RAM 80 176` unchanged, `POOL 333 900 -> 306 196 B`
+(97.0 -> 89.0 %: 37.0 KB left, ~29 KB addable). docs/FLASH.md (the account: taken, the owner's words, the reason; the
+POOL line), docs/QUAD.md "HARM" and "CPU", HANDOFF's size paragraph. **Checked**: `CR_VERSION=0.24 sh tests/run_all.sh`
+20 of 22 suites passed (cr_draw 160 ok, its goldens unchanged; test_cr 1061 ok, test_persist 113, test_retired 18,
+test_pool 7; 317 golden renders, 0 changed; 0 lint); `releases` failed, and `run_tests` with it, on a local tag
+another session made (`v0.24-beta2-smk37`, 898fa5c: `releases_test.py`'s `num` cannot read it), not on this change:
+with that one tag skipped (a throwaway copy of the test) releases is ALL OK. **Merged with origin/main 898fa5c** (the
+SMK-37 port, 3y142 .. 3y146, its list and tag): `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED (22 suites,
+86 s; test_cr 1061 ok, test_persist 113, test_retired 18, test_pool 7; 317 golden renders, 0 changed; 0 lint), with
+the SMK session's six 0.24-beta2-smk37 packages in build/release-smk37 for the site check (copied from its build
+folder, each at its listed sha256). `BOARD=smk37 ./build.sh`: XIP 537 736 B (93.8 %), RAM 80 940 (82.3 %), POOL
+306 196 (89.0 %); the FM-1's as above. Not flashed, not pushed.
+
+## 2026-10-16 (the SMK-37 in the browser)
+
+3y151. **The SMK-37 browser emulator's module (2026-10-16; the owner: "Can we get a web emulator for the SMK? Here's
+one that works https://genkigenki.github.io/smk37/vector37-sim/"; genkigenki's GPL-3.0 Vector37 simulator as the
+reference for the panel).** `sh tools/emu/web/build_web.sh` builds a second module beside the FM-1's:
+`build/emu-web-smk37/choralroot-smk37.wasm`, `tools/emu/web/emu_web.c` with `EMU_SMK37=1 BOARD_SMK37=1` (the version
+"... -smk37"). The seam is the SMK's own input layer: `tools/emu/emu_smk_hal.h` (included by `emu_hal_fw.h` instead
+of its FM-1 keys and LEDs) includes `firmware/hal/smk_input.h` with `SMK_INPUT_HOST` (no fm1_time.h, the emulator's
+lock: the only change to the header, preprocessor only) and runs its frame and analog logic unchanged on a modelled
+panel: every 1.6 ms the matrix the scan would read (a key's contact 1 at once, contact 2 after the time the factory
+curve reads as the velocity asked; the buttons, held at least 8 ms; the knobs as quadrature states held two frames
+each), every 100 us one of the 24 analog slots (a pad's reading for its velocity, the faders, the wheels, the pedal
+unplugged, the battery full); `padled_set` keeps the pads' colours. `emu_firmware.h` leaves out cr_sense.c and
+`fm1_an` for the SMK and renames hostsim.c's two-field `fm1_in` there; `emu_fw.c`'s tick runs the model, its frame
+calls `cr_smk_frame`, its idle `cr_smk_wheels` (as main.c), its init the factory curves' defaults. `web_smk_*`
+exports take the panel and give the button LEDs, the pads' colours, K1's volume and the screen's state. Unchanged:
+the FM-1 browser module (choralroot.wasm e8172f98..., before and after) and the native emulator (build/host/emu
+ca31b1df...), `EMU_SMK37` unset there; the SMK packages (the six sha256s of v0.24-beta2-smk37 rebuilt on this tree).
+
+3y152. **The SMK-37 emulator's page and its place on the site.** `tools/emu/web/smk/` (index.html, smk.js,
+worklet.js): the FM-1 emulator page's look, the SMK-37 Pro's arrangement after Vector37 (credited on the page): the
+wheels (pitch springs back), the screen at 240 x 240, its six buttons, K1..K8 over the 16 pads (each lit in the
+firmware's colour, brighter than sent), the faders over the 2 x 6 buttons, the 37 keys; every button by its SMK name
+and its ChoralRoot role, every key, pad and button down while a pointer, a computer key or a latch (right-click)
+holds it, the velocity from where a key or pad is struck (low loud, high soft; Shift soft); the FM-1 emulator's
+computer keys on the SMK's parts (F1..F4, 2..5, Tab the chord pads; A .. ] and W .. P the keys C4..G5; F5..F10,
+7..= the buttons; , . < >, ` KNOB BANK, / FADER BANK; PgUp / PgDn, the arrows the knobs; Z X OCTAVE, End panic); Web
+MIDI, the flash in IndexedDB ("choralroot-smk37"), Start, the load meter, ?demo. `web/make_site.py` copies it to
+`webapp/smk37/emu/` beside the SMK-37 test installer (noindex), whose page links it (`<!--EMU-->`); no FM-1 page does.
+pages.yml builds it with the FM-1's, runs its test and fails when an FM-1 page (the emulator's too) links the SMK.
+SMK37.md "Try it in the browser", BUILDING.md, tools/emu/README.md.
+
+3y153. **Its test and the checks.** `node tools/emu/web/test_web_emu_smk.mjs` (run_all's new suite `web_emu_smk`, after
+web_emu_build; it measures no real time): boots and draws; MAJ's pad and C4: C major sounds (notes 60 64 67), the
+screen's chord name "C M", the note-ons out over MIDI, MAJ's pad lit bright; G4 soft 20 < hard 127 out (the two
+contacts, Key Touch Dynamic); K1 turns the volume down; SCALE (KEY) lights; the same input twice gives the same
+samples; a headless Chromium screenshot of ?demo (build/emu-web-smk37-test/page.png; its processes stopped by their
+PID), 16 checks. tests/site_test.py: webapp/smk37/emu/ with its wasm, noindex, linked from the SMK page and from no FM-1
+page; the link walk over every page, the emulator's included. `CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES PASSED
+(23 suites, 98 s: the 22 and web_emu_smk; test_cr 1061 ok; 317 golden renders unchanged; 0 lint; test_web_emu PASS,
+bit-exact with the native emulator); `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.24-beta2-smk37`: the six
+packages' sha256s those of web/releases-smk37.json; `./build.sh` last: XIP 537 068, the package f093f9bc... (main's).
+Not pushed.
+
+## 2026-10-16 (Flash Data and the sound pool)
+
+3y154. **SAFE MODE's Flash Data erases the sound pool (2026-10-16; from main 52889ba, the 0.24-beta2 release tree; not
+pushed, not flashed; a new build, not 0.24-beta2).** Found by the SMK-37 port session while it placed the SMK's
+storage: the SMK build's Flash Data and owner change erase `ST_SMK_REGIONS`, which include the favourites and both of
+the pool's runs, but the FM-1's list in `cr_ui.c cu_flash_erase` stopped at the favourites (0xB2000, 6 sectors) and
+left out the sound pool 0xB8000..0xC7FFF (`storage.c` `SP_BASE`, `SP_NSEC` 16; `upool.c`: the 128 user slots since
+0.22). So on 0.22 .. 0.24-beta2 a Flash Data erased the legacy sound objects (0x97000.., 0xDC000..) and the favourites
+but kept every user sound, while MANUAL said it erases the stored sounds and PRESETS.md that it erases the marks "with
+the sounds". Flash Data's job is to erase the data objects (a unit that crashes on its data gets a clean start), the
+pool is one of them, and its marks were already being erased for the reason that marks on sounds that are gone would
+name the wrong slots; the boot after it now finds neither a pool bank nor a legacy object, so `upool_boot`'s migration
+has nothing to import. `cu_flash_erase`: `{SP_BASE, SP_NSEC}` under `UP_POOL && FELUCCA_FLASH`; two asserts tie the
+list to `storage.c`: `OBJ_COUNT == 20` with `OBJ_FAVS` last (a new object needs a place in the list) and the pool lying
+between the favourites' end and `CRL_FL_BASE`. On the full build the list is now all of 0x97000..0xDFFFF and
+0xFC000..0xFEFFF: 76 sectors (60 before); the head comment's "not the free sample sectors 0xB6000..0xC7FFF" (wrong
+since the favourites) is gone. `tools/emu/test_cr.sh`'s SAFE MODE block: a sound saved into the pool first
+(`scripts/cr_safe_sound.txt`: SAVE, OCT+, OCT+ on TINE EP, U001; `pool_image.py pool` lists it), the erase's line
+"76 sectors", the region check 0xA0000 + 40 sectors (through the pool), and `pool_image.py pool` empty after it.
+Docs: MANUAL's SAFE MODE line (the saved sounds, all 128 slots, the favourites; "0.22 to 0.24-beta2 left the saved
+sounds in place"), PRESETS.md (76 sectors), SETTINGS.md's pool section (Flash Data erases it; what 0.22 .. 0.24-beta2
+did), HANDOFF and SETTINGS.md's session line (76 sectors), `docs/releases/0.24.md` "Merged after 0.24-beta2" (a player's sentence for the next
+notes). The SMK-37 build keeps its own list (`ST_SMK_REGIONS`, 3y142 .. 3y145), which already has both of the pool's runs.
+Merged with origin/main 4ecd5be (the SMK-37 port, its installer and emulator, the HARM mirror read; the SMK's
+`ST_SMK_REGIONS` side of `cu_flash_erase` untouched, this list and its asserts in the FM-1's `#else`; this entry was
+3y142 on its branch). **Built and checked** on the merge: `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED
+(23 suites, 84 s; test_cr 1063 ok, 2 more than main's 1061: the sound in the pool before, none after; test_persist
+113, test_retired 18, test_pool 7; 317 golden renders, 0 changed; 0 lint; with `build/release-smk37` copied from the
+smk37-port worktree, every package at its listed sha256: without it `site_test.py`'s two `--require-all` checks fail,
+on an untouched origin/main checkout too). `BOARD=smk37 ./build.sh`: the package's bytes main's (sha256
+ddf87622f1aed69a..., 651 496 B). `./build.sh` last: XIP 537 804 B of 573 440 (93.8 %; main 537 788, +16), RAM 80 176
+(81.6 %), POOL 306 196 of 344 064 (89.0 %), RAMTEXT 7 072 of 24 576; the package sha256 5f1102a1b82c7174... (610 313 B),
+the stub baee55ed142fe1cc. Not pushed, not flashed.
+
+## 2026-10-16 (0.24-beta3's release tree; the FM-1 and the SMK-37)
+
+3y156. **0.24-beta3's release tree (2026-10-16; branch rel-24b3 from origin/main 8a2f1a3, in the main checkout; not
+pushed, not tagged).** The owner: "Merge in the safe mode flash data fix, then flash it, then tag v0.24-beta3 and get
+the emulator out", then "SMK testers get beta3 build too. Flash is ok to do". What is new since v0.24-beta2
+(`git log v0.24-beta2..8a2f1a3`): SAFE MODE's Flash Data erasing the sound pool (3y154), FM TONE's HARM read from flash
+with a mirror (3y150), the SMK-37 port, its test installer and browser emulator (3y142 .. 3y146, 3y151 .. 3y153; the
+FM-1's bytes unchanged by them: every other firmware change since v0.24-beta2 is under `BOARD_SMK37` or host-only).
+`docs/releases/0.24-beta3.md`: the opening (the third beta of 0.24, opt-in, may have bugs, 0.24 replaces it, updating
+from 0.24-beta2 / beta1 / 0.23 keeps everything); "New since 0.24-beta2": Flash Data clears the saved sounds (all 128
+slots, a backup first), FM TONE's memory (about 27 KB of working memory, every sound the same; a dense chord on a HARM
+preset, GLASS PAD DRONE HOLLOW CLAV STRINGS SQUARE LEAD, up to about 9 % more of FM TONE's render), the SMK-37 builds
+(a link to SMK37.md, nothing more); then 0.24-beta2's GRAIN and 0.24-beta1's Playing as they were; Installing; "Going
+back to 0.24-beta2, 0.24-beta1 or 0.23". **Going back, checked**: 3y150 changes a read path only (no stored format, the
+values bit for bit); 3y154 changes which sectors Flash Data erases, nothing that is written or read; the firmware diff
+`v0.24-beta2..8a2f1a3 -- firmware/` touches no stored format on the FM-1 (cr_settings.c and cr_backup.c only under
+`BOARD_SMK37`). So going back to 0.24-beta2 changes nothing for saved data (its Flash Data keeps the sounds), and going
+back to 0.24-beta1 / 0.23 is 0.24-beta2's section (GRAIN sounds, a part on GRAIN, backups, Key Touch) unchanged.
+`docs/releases/0.24.md` points at 0.24-beta3.md; its "Merged after 0.24-beta2" (3y154's sentence) is in the notes now.
+`web/releases.json`: 0.24-beta3 first, `"beta": true`, 5 bullets, 3 notes (the beta disclaimer first); 0.23 stays the
+newest stable, 0.24-beta2 and beta1 below unchanged. The FM-1 bullets name SMK37.md as text (no link: no FM-1 page
+links the SMK page; lowercase `smk37` appears on none, pages.yml's check). **The SMK-37 build**: `web/releases-smk37.json`
+0.24-beta3-smk37 first (base 0.24-beta3, tag v0.24-beta3-smk37, 4 bullets, 3 notes, the six sha256s below);
+0.24-beta2-smk37 stays below it. SMK37.md: the status line (a community test build of 0.24-beta3) and every package
+name / version line at 0.24-beta3-smk37. Updating from 0.24-beta2-smk37 keeps everything: `898fa5c..8a2f1a3 --
+firmware/` is eng_quad.c / eng_fm6.c (3y150), cr_ui.c (3y154's FM-1 list and asserts, in the FM-1's `#else`) and
+smk_input.h's `SMK_INPUT_HOST` (preprocessor, the emulator's). HANDOFF: the state (v0.24-beta2 and v0.24-beta2-smk37
+tagged, what main gained since, this tree), the size paragraph (main's XIP 537 804, this release's 537 820), the
+repos table's tags.
+**Built**: `./build.sh --release 0.24-beta3` twice (the first folder moved aside to `build/release-0.24-beta3.first`),
+the same SHA256SUMS: `choralroot-0.24-beta3.fwsc` cdb6a2b53894800284872f44979ad1549903643bd558e69c61dd2675d9722cf6,
+`choralroot-0.24-beta3-1core.fwsc` 7e17f335d61ee1e8d8ca05c4fed15dd5d625ad19dfb0e3a62bcf75a00f917eb9 (610 313 B each);
+the apps carry `ChoralRoot 0.24-beta3` and `ChoralRoot 0.24-beta3 1-core`; the stub version 3, baee55ed142fe1cc. Size:
+XIP 537 820 B of 573 440 (93.8 %), RAM 80 176 (81.6 %), POOL 306 196 of 344 064 (89.0 %), RAMTEXT 7 072 of 24 576; the
+single-core package XIP 535 016 (93.3 %), RAM 77 052 (78.4 %), POOL 306 068 (89.0 %). `BOARD=smk37 [MODEL=elite|mke]
+./build.sh --release 0.24-beta3-smk37` twice (the first `build/release-smk37` moved aside to `build/release-smk37.first`),
+the same SHA256SUMS: Pro `choralroot-0.24-beta3-smk37.fwsc` dd6d7cff..cb0, `-1core` 0cd17c86..2c8; Elite `-elite`
+f2ee166d..2d3, `-elite-1core` 2c027cea..3a2; MKE-P37 `-mke` 66af1d7f..0c0, `-mke-1core` 4c1704b2..107 (651 496 /
+651 500 / 651 492 B); the apps `ChoralRoot 0.24-beta3-smk37` (`... 1-core`). Size: Pro and Elite XIP 537 784 (93.8 %),
+MKE-P37 537 768, RAM 80 940 (82.3 %), POOL 306 196 (89.0 %); the 1-core packages XIP 534 116 (93.1 %), RAM 77 800, POOL
+306 068. `./build.sh` last: XIP 537 804, the package 5f1102a1b82c7174... (3y154's).
+**Checked** (on this tree): `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 120 s; test_cr 1063 ok,
+test_persist 113, test_retired 18, test_pool 7; 317 golden renders, 0 changed; 0 lint; web_emu_test and web_emu_smk
+PASS), with `CR_PACKAGES_DIR` the 24 listed FM-1 packages (rel-24b2's 22, copied from its worktree's
+build/scratch/packages, and this build's two) and `CR_SMK_PACKAGES_DIR` the twelve listed SMK packages (the smk37-port
+worktree's six 0.24-beta2-smk37, checked against its SHA256SUMS, and this build's six); `CR_PACKAGES_DIR=
+build/release-0.24-beta3 python3 tests/releases_test.py` ALL OK (both sha256s, the SMK list's six against
+build/release-smk37), and with all 36 packages ALL OK, none skipped. The browser emulator built as 0.24-beta3
+(`emu/version.txt` "ChoralRoot 0.24-beta3", the SMK's "ChoralRoot 0.24-beta3-smk37"): `node tools/emu/web/test_web_emu.mjs`
+PASS (bit-exact against the native emulator), `node tools/emu/web/test_web_emu_smk.mjs` PASS. `tests/site_test.py` site ALL
+OK (67 checks) with the beta package as `build/choralroot.fwsc` and every package: `--require-all` builds the site for
+0.24-beta3 (the landing page on 0.23, under Try it first "It runs ChoralRoot 0.24-beta3, a beta (the installer's default
+is 0.23)."; `firmware/` 15 versions + 9 single-core); in that site `webapp/smk37/` offers 0.24-beta3-smk37 and
+0.24-beta2-smk37 and links `emu/`, `webapp/smk37/emu/` holds the SMK emulator (0.24-beta3-smk37), `firmware/smk37/` the
+twelve packages; no other page links either. **CI**: release.yml takes `v0.24-beta3-smk37` (the `-smk37` pattern),
+builds the three models (`MODEL=pro|elite|mke`), checks their sha256s against web/releases-smk37.json at the tag (listed
+here) and starts pages.yml for web/releases.json's first entry, 0.24-beta3. pages.yml downloads every listed version's
+packages from its release (the FM-1's and the SMK's), so a pages run fails while either v0.24-beta3 or
+v0.24-beta3-smk37 has no release yet: push both tags; the run started by the later release succeeds, or run pages.yml
+by hand (version 0.24-beta3, ref main) once both releases exist.
+
+3y157. **0.24-beta3 on the unit (2026-10-16, evening; the rel-24b3 session).** The owner: "Merge in the safe mode flash
+data fix, then flash it, then tag v0.24-beta3 and get the emulator out" and "Flash is ok to do". Before: no other
+session on the unit (the linked sessions idle, no `fm1_install.py`, `uac_check.py` or `perf_unit.py` running; Ableton
+Live was open, not driving the unit), the Mac on AC power and kept awake (`caffeinate -dimsu`), the FM-1 on the Mac's
+USB (the tool cannot read its battery). `python3 tools/fm1_install.py --info`: one FM-1, `FM-1_920 [running] port:
+ChoralRoot FM-1 version: ChoralRoot 0.24`, unit ID 5BD75BE3 (main eb223df, 3y140). A full backup first:
+`fm1-backups/fm1-backup-2026-10-16-before-0.24-beta3.json` (in
+`/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/fm1-backups/`, 69 561 B): settings, the legacy banks, user sounds
+001..128 in 13 groups, the favourites, the ten loop slots' objects (slot 1 recorded): the same 34 objects as 3y140's
+backup. Flashed the release package itself, `caffeinate -dimsu python3 tools/fm1_install.py
+build/release-0.24-beta3/choralroot-0.24-beta3.fwsc --unit 5BD75BE3 --yes` (sha256 cdb6a2b5...): "done: the FM-1 runs
+FM-1_920", "unit ID 5BD75BE3: the same FM-1 after the restart". After: `--info` `FM-1_920 [running] port: ChoralRoot FM-1
+version: ChoralRoot 0.24-beta3`, unit ID 5BD75BE3; `--sounds` all 128 slots read on ChoralRoot 0.24-beta3 (83 hold a
+sound), U033 DARK HAZE a GRAIN patch; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, stale_halves 0. Not tagged, not
+pushed: the orchestrator pushes main and the tags v0.24-beta3 and v0.24-beta3-smk37.
+
+3y158. **The SMK-37 emulator laid out as the keyboard (2026-10-16; the owner, with a screenshot of the page and a photo of
+the SMK-37 Pro: "Our emulator looks like that, The SMK looks like the second image. I'd like our emulator layout to
+match. The emulated version should also use the whole width of the page.").** `tools/emu/web/smk/index.html`: the
+panel is one band as on the unit, a grid of three columns: the PITCH and MOD wheels beside the screen with its six
+buttons in a 2 x 3 block under it; K1..K8 in one row over the 16 pads in two rows of eight, a pad column under each
+knob, the block taking the width that is left (the pads keep their shape: aspect ratio 1.45); the four faders over the
+2 x 6 buttons (24 vw, 300 .. 470 px); the 37 keys full width under the whole band (11 vw high, 130 .. 240 px). No
+max-width: the page uses the window's width. The screen at whole pixels: 240 px, 480 from 2400 px wide (until now 360
+from 1700, a 1.5 scale). Under 900 px the band wraps into wheels and screen, knobs and pads, faders and buttons, the
+keybed staying full width. The pads' labels scale with the window and stay inside their pad; Arpeggiate's pad reads
+Arp beside Arp 2 Oct. Colours, labels with the ChoralRoot roles, key hints, the computer keys and every behaviour as
+they were. Checked headless (Chromium --headless=new, stopped by its PID) at 1920, 1280 and 800 px:
+build/emu-web-smk37-test/page-1920.png, page-1280.png, page-800.png. `node tools/emu/web/test_web_emu_smk.mjs` PASS (its
+screenshot reads no positions). tests/site_test.py, found on the way: its FM-1 checks took in the SMK list of the tree (web/releases-smk37.json, now
+with 0.24-beta3-smk37 too): a worktree without every listed SMK package failed the "skipped:" count (an SMK line among
+the FM-1's) and the beta site's --require-all; the count leaves the SMK lines out, and the FM-1's --require-all builds
+(the beta, the single core, the Pages build) run on an empty SMK list (no_smk_env), smk_site() keeping its own.
+`CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES PASSED (23 suites, 86 s; test_cr 1063 ok, 317 golden renders
+unchanged); `./build.sh` last: XIP 537 804, the package 5f1102a1... (main's).
+
+3y159. **The SMK-37 emulator in the keyboard's colours (2026-10-16; the owner on 18b0100: "Layout is better, can you make
+the color scheme match the real one with orange knobs and keys").** `tools/emu/web/smk/index.html`, the panel alone (the
+header, Start, the help strip keep the site's look), after the photo of the SMK-37 Pro: the body mid grey (#7B7F85, a
+lighter top face) with dark grey print for every label (the ChoralRoot roles too); the wheels as orange ridged
+rollers in dark wells, the faders' caps orange in dark slots, the knobs orange caps with a dark pointer (the knob the
+computer keys turn: a white ring); the six buttons under the screen and the 2 x 6 block orange with dark print; the
+pads cream (#F1EDE6) with a soft shadow; white naturals and orange sharps; the screen black in a thin dark bezel. The
+lit states on the new colours: a lit button a near-white fill with a white glow (SEQ PLAY green / red as before); a
+pad the firmware's colour through the cream (`smk.js`: the colour as a tint, faint .. glow levels a light one, lit
+nearly the colour itself with a glow of it and light print on a dark one); a held key, pad or button outlined in the
+dark print, a key down a light orange (a sharp a darker one). `?demo` now shows its held C4 and MAJ pad on the page
+too (the pressed look in screenshots). Checked headless at 1920 and 1280 px (build/emu-web-smk37-test/page-1920.png,
+page-1280.png); `node tools/emu/web/test_web_emu_smk.mjs` PASS; `CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES
+PASSED (23 suites, 88 s); `./build.sh` last (the package 5f1102a1..., main's).
+Then (the owner: "The layout of the 6 keys below the screen don't match real SMK which is 2 columns, 3 rows"): the six
+buttons under the screen are a block of two columns and three rows, as wide as the screen: KNOB BANK | FADER BANK,
+< | >, OCTAVE- | OCTAVE+. The photo settles the shape and the middle row (its two one-character labels); its top and
+bottom labels are too blurred to read and the guide (01-hardware.md 5.3) lists the buttons' ids, not their places, so
+those two rows follow the hardware ids' order (0 1, 2 3, 4 5). PNGs again at 1920 and 1280 px; test_web_emu_smk PASS;
+run_all ALL SUITES PASSED (23 suites); `./build.sh` last.
+Then the screen's size (the owner: "the screen is big and doesn't match with aspect of real device. Maybe the
+emulator has checkbox to enable big screen"). The facts: the SMK-37 Pro's LCD is an ST7789V at 240 x 240, square, no
+window offset (genkigenki's docs/01-hardware.md section 3, verified on a unit; its physical size is not given there);
+`hal/fm1_lcd_hw.h` and the SMK part of `src/lcd.c` drive it as 240 x 240, and the emulator's framebuffer is 240 x 240:
+no mismatch in the firmware. The photo's screen looks landscape because its black glass is a little wider than the
+square picture under it and the photo is taken from above at an angle (the pads and keys are as shortened). The page
+showed it at 240 CSS px, far larger than its share of the panel. Now: by default the square at the unit's share, 6.6 %
+of the panel's width (120 CSS px at least), the glass about as wide as the 2 x 3 buttons under it, at whole device
+pixels where that size allows (a retina display: 120 CSS px is the firmware's pixels 1:1), else scaled smoothly;
+"Big screen" beside Reset flash: 240 CSS px (480 from 2400 px wide), whole pixels, as before; the choice kept in
+localStorage (try / catch); `?big` ticks it for screenshots; the six buttons' print a size smaller to fit the narrower
+block. PNGs at 1920 and 1280 px (device scale 2), 1920 with Big screen and 1920 at scale 1:
+build/emu-web-smk37-test/page-1920.png, page-1280.png, page-1920-big.png, page-1920-dpr1.png. test_web_emu_smk PASS;
+run_all ALL SUITES PASSED (23 suites); `./build.sh` last.
+## 2026-10-16 (the SMK-37's stock mapping)
+
+3y160. **The SMK-37: the stock mapping kept, its marker released before the first write; FL_TAIL one sector up
+(genkigenki's follow-up PR; branch smk37-stock-mapping on origin/main 268d3d6, 0.24-beta3).** The stock firmware keeps its key,
+knob and fader mapping in USRFLASH (settings at 0xC2000, magic A3 3A; 8 presets from 0xC3000, every 0x5000) and trusts
+it while its end marker `usrdata` at 0xEAFF8 is there. 0.24-beta2-smk37 and beta3-smk37 clear the CZ-1 bank and loop sectors there
+at the owner change and leave the marker, so after a return to stock every key sends one note; and their FL_TAIL
+begins at 0xEA000, the marker's sector (v0.24-beta3-smk37 is 268d3d6: FL_TAIL unchanged). Seven commits: `FL_TAIL` 0xEB000..0xF1FFF (an assert keeps it after the marker's sector),
+the pool as three runs in `sp_addr` (0xB6000 x5, 0xE6000 x4, 0xEB000 x7), `ST_SMK_REGIONS` with the third; genkigenki's
+78ed3ab and b533d87 from the SMK branch (`cherry-pick -x`, adapted): an owner change keeps an intact stock mapping
+(the pool's FL_DATA and FL_TAIL runs cleared as before), the marker's sector erased once before the first erase in
+USRFLASH (`storage_hw.c st_erase`) and at boot when it stands over anything but the intact layout (the magic, each
+preset's head written and its last two sectors erased); `FL_STOCKTAG` allows exactly 0xEA000, as a whole-sector erase,
+outside `FL_STORE_OK`; `st_prog` in USRFLASH releases it too (the stock layout's erased preset tails are written
+without an erase). b533d87's user-sample refusals (`eng_sample.c`, `editor.c`) are left out: ChoralRoot builds neither
+SAMPLE nor SLICE; `choralroot.c` makes an SMK build with either an `#error` (their place 0xA0000.. is the SMK's
+store). A unit that ran 0.24-beta2-smk37 or beta3-smk37: its pool sectors 10..15 are this build's 9..14 (a pool sector carries no
+number); `sp_old_move` (once a power-on, before `sp_scan`) copies a valid pool record at 0xEA000 to 0xF1000 when that
+is blank (the record's page last), reads it back and then erases 0xEA000; a cut before the erase finishes at the next
+power-on. SMK37.md: the first start, going back, Storage, Safety, What to test. **Checked** (WSL, Ubuntu x86-64; the
+host compiler emsdk's clang): `smk_flash_test` (the marker sector, the tail, the three runs, 0xEA000 and 0xF2000.. in
+no window or region) and `smk_owner_test` (the intact mapping kept at the owner change and the next boot, the release
+once, the layout check, the release at boot over other data, the old pool sector's move, once, cut, onto a written
+sector 15, the stock marker's sector left alone; nothing else written) pass. `CR_VERSION=0.24 sh tests/run_all.sh`
+gives the same verdicts on this branch and on 268d3d6 in the same environment: 14 suites pass (build, install,
+layout_gen, the web suites, web_emu_build, layout_build/test, web_emu_smk, web_emu_test); run_tests passes all but
+FX layer effects, releases (`releases_test.py` cannot read the local SMK tags, as 3y150) and site, the same on both, with the SMK hooks
+green (the three models' packages too) and 317 golden renders unchanged; cr_tests, cr_draw and the native emulator's
+suites do not build or match there (no ASan runtime, no SDL / CoreMIDI, the draw goldens). The FM-1 build is
+byte-identical to 268d3d6's (choralroot.fwsc 0654f106.., choralroot.bin 3d5d0805.., ota.bin ab3242c8.., stub.bin
+4e33bfbb.., the ELFs too). `BOARD=smk37 [MODEL=elite|mke] ./build.sh`: Pro 34821d76..ca05, Elite 467ae6da..6a44,
+MKE-P37 70c5e472..b2b0; XIP 538 564 B (Elite 538 580), RAM 80 940, POOL 306 196. Installed on an SMK-37 Pro over
+another firmware: it starts.
+
+3y161. **PR #22 reviewed as flash code, on main 355fd58 (branch claude/smk37-stock-mapping; merge 0978653).** Checked:
+no path reaches 0x0-0x3FFF, 0xC0000-0xC1FFF, 0xF4000-0xFDFFF or 0xFF000.. (the windows and `FL_PROTECTED` unchanged;
+`FL_STOCKTAG_OK` admits exactly 0xEA000 as a whole 4 KiB erase, outside `FL_STORE_OK`, so `st_prog` and the RAM
+driver refuse any program there: smk_flash_test); every write into USRFLASH goes through storage_hw.c's `st_erase` /
+`st_prog` (the CZ-1 banks, the loop slots in cr_ui.c, the pool, Options > Flash Data's `ST_SMK_REGIONS`, a restore
+through st_save / the pool; nothing else calls the RAM driver), so the marker's release precedes each of them. Found
+and changed: (1) a cut DURING `sp_old_move`'s copy left sector 15 written without its commit record, and every later
+power-on gave up ("not blank, not the copy"), so the bank copy at 0xEA000 was never read again: now a sector 15 with no
+valid pool record is erased and the copy made again (one with a valid record of its own is still left, and 0xEA000
+with it); (2) `st_stock_release` ignored a failed erase, and the USRFLASH write went on with the marker standing (the
+one-note state again): it now answers -10 when the marker is still there and `st_erase` / `st_prog` refuse the
+USRFLASH write. smk_owner_test: the cut during the copy, a valid record in sector 15, the failed and the repeated
+release. Not changed, noted: the intact-mapping check (the settings' magic A3 3A at 0xC2000, each preset's head
+written and its last two sectors erased) is genkigenki's reading of the stock firmware; the porting guide does not
+describe the stock USRFLASH layout or the marker, so it is checked against the PR alone (it is consistent with the
+stock region table: USRFLASH 0xC2000 + 0x29000, the marker in its last 8 bytes, eight presets of 0x5000 from
+0xC3000). A false "intact" keeps another firmware's data unparsed (our records' magic and CRC refuse it) and the first
+write releases the marker anyway; a false "not intact" costs a custom stock mapping, the factory one coming back.
+**The PR's premise, corrected:** 0.24-beta2-smk37 and beta3-smk37 erase 0xEA000 at an owner change (their pool run
+0xE6000 x 11 covers it): a unit that went from the stock firmware (or another port) straight to them had its marker
+released at the first start. The marker survives on units that ran genkigenki's earlier 0.22 build first (its clearing
+stopped at 0xE5FFF; the later beta, the same family, cleared nothing): those return to stock with one-note keys.
+SMK37.md "If every key sends the same note after going back": who, and the recovery (install the fixed build, start it
+once: the boot's check releases the marker over non-stock data; then M-UPGRADE back: the stock firmware rebuilds its
+factory mapping). **The respin's name:** release.yml's SMK version had to end in -smk37 and releases_test.py wants it
+to start with its FM-1 base and a dash, so on 0.24-beta3 only 0.24-beta3-smk37 (taken) was valid; now an optional .N
+(`-smk37.1`: release.yml's version check, releases_test.py's version and tag patterns; tools/build.py took it already,
+and its SMK release folder now drops another version's files by the exact name, a .1 beside its base no longer
+counted as the base's). Checked: `./build.sh --release 0.24-beta3` gives v0.24-beta3's cdb6a2b5... / 7e17f335...;
+`BOARD=smk37 [MODEL=elite|mke] ./build.sh`: XIP 538 484 / 538 500 / 538 484 B of 573 440, RAM 80 940, POOL 306 196;
+smk_flash_test (21 checks) and smk_owner_test (22) pass; `CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES PASSED (23
+suites); `./build.sh` last (5f1102a1..., main's). Not pushed, not tagged; no release packages built.
+
+3y162. **0.24-beta3-smk37.1, the respin with the stock mapping's fix (2026-10-16; the owner: "Yes: build the three SMK
+models as 0.24-beta3-smk37.1 (twice, matching sums), add its releases-smk37.json entry, then tag v0.24-beta3-smk37.1
+and publish"; branch claude/smk37-beta3-1 on origin/main cd8358b; the tag and the push are the orchestrator's).**
+`BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.24-beta3-smk37.1` twice, the same SHA256SUMS
+(build/release-smk37/): Pro `choralroot-0.24-beta3-smk37.1.fwsc` 7e294c28..6ed1, `-1core` 1cf0c16f..e7b; Elite `-elite`
+e2903f29..1a5b, `-elite-1core` 03863a71..9863; MKE-P37 `-mke` 7873dac3..3817, `-mke-1core` deed7529..8c13. The apps
+carry "ChoralRoot 0.24-beta3-smk37.1" ("... 1-core": 36 characters, INFO's 40 hold it, Options > Version cuts its
+end). Size: Pro and MKE-P37 XIP 538 516 B of 573 440 (93.9 %), Elite 538 532; RAM 80 940, POOL 306 196; the 1-core
+packages XIP 535 088. web/releases-smk37.json: 0.24-beta3-smk37.1 first (base 0.24-beta3, tag v0.24-beta3-smk37.1, the
+fix in four bullets, three notes: community-tested; updating keeps everything, a pool sector may move; going back).
+SMK37.md: the packages, the version a player sees, the install command, the release commands and What to test name
+0.24-beta3-smk37.1. BUILDING.md: the .N respin. Checked: `python3 tests/releases_test.py` ALL OK (the entry, its
+six packages' sha256s against build/release-smk37); run_tests' SMK hooks (smk_flash_test, smk_owner_test, the package
+tests) green; `CR_VERSION=0.24 sh tests/run_all.sh`: ALL SUITES PASSED (23 suites, 90 s); `./build.sh` last (the FM-1
+package 5f1102a1..., main's). Not tagged, not pushed (the orchestrator tags v0.24-beta3-smk37.1 and pushes main).
+
+## 2026-10-16 (the chord layouts: Classic and FM-1, the design)
+
+3y155. **Options > Chord Layout: Classic / FM-1, designed (docs/CHORD-LAYOUT.md; no firmware).** The owner wants a
+second layout for the FM-1's keybed and settled it with the orchestrator; their decisions, recorded as decided: Classic
+(today's, the Orchid's) stays the default. FM-1: F#3 G#3 A#3 = DIM MIN MAJ, F3 G3 A3 B3 = 6 m7 M7 9, C4 .. G5 roots (20:
+C4 and C#4 become roots), **SUS = G# + A# held together, always** (one finger on both), whatever Secret Chords says;
+with Secret Chords on each secret chord keeps its Classic key (F# + G# + A# the power chord, F# + G# m add4, F# + A#
+augmented), off: only the pair combines, the other pairs last pressed wins. **The combine window** (the owner: "maybe
+even 50ms or more"): a chord starts at once, and a partner landing within the window makes it SUS in place, the third
+moving to the fourth, no restrike; a G# or A# held from earlier never waits; an Option, 30 .. 80 ms, default 50.
+**LOCK on LFO** (tap on / off, held the LOCK layer), **GLO + LFO = LATCH**; a latched SUS is two lit keys and the same
+pair again alone switches it off; the LFO light steady for LOCK, pulsing while LATCH is on; `Latch` stays on the
+screen; no LOCK inside the sound editor (LFO is the editor's there: fine). The picking keys in layers stay on D4 ..
+G5 in both layouts (the default, a question the owner may revisit). MIDI in that plays the keys follows the layout.
+**The Full keyboard, both layouts**: KNOB 1 is the voicing (the octave stays on OCT- / OCT+); a new Option, Full
+keyboard shortcuts (Off): F#5 the layout's chord keys on the low keys, G5 a chord on every key (the latch's, else Key
+Mode's), both toggling on a quick press and switching while held on a long one, the roots ending at F5 while the chord
+keys show, F3 .. F5 notes. Unchanged: loops (chords, not keys), the looper, chord names, the voicing rules, Key Mode's
+scale picks on G#3 / A#3. **Found in the code**: no MIDI message plays the keys today (`cr_out.c cr_midi_in` sends the
+Perform channel's notes to the sound directly, `trk_note_on`; the emulators' MIDI goes the same way), so decision 7 is
+a rule for any later path (enter at `cu_key_press`); the calibration names no key (buttons and knobs by their print:
+nothing to change); `web/editor.html` has no keybed (its CHRD / VOIC are Felucca's). The doc works out the window
+(the gesture from the key's scan stamp, the amend as Add Note's diff with Play Chord ignored, the looper amending its
+event by serial, the root-and-pair orders, Advanced / Free, LOCK's pre-gesture latch, Key Mode), the combo table, the
+UI-to-engine resolver (and a held-not-pressed `CRE_MOD` down so a pair let go one key at a time does not re-strike),
+the settings (six spare bits of the block's `sticky`: layout bit 1, shortcuts bit 2, window bits 3 .. 6 as (ms - 50) /
+5; zero the defaults, no version; an older firmware's `CRS_FIX(sticky, 0, 1)` reads such a byte as LATCH off and stays
+Classic; hidden on the SMK-37), every place that reads the chord block's keys with what it needs, the cost (estimated
+XIP +2.5 .. 4 KB of ~36 KB, RAM ~24 B, settings and session 0 bytes), the tests the build needs and 15 open questions.
+The pictures: `design/chord-layout-mockups.html` (the LCD at 240 x 240 in the MOD palette and Inter Tight; the
+keybeds with their LED levels) rendered with headless Chromium to `design/chord-layout-mockups.png`: the two layouts,
+the three Options, the LOCK layer from LFO, the LFO light blinking / pulsing, SUS latched, the window's timeline, a
+secret chord, the Full keyboard with the shortcuts and the chord keys showing (both layouts). Not built, not pushed.
+**The owner's answers, the same day (the second round; folded into this entry, which had not left its branch).**
+"Mockups are good." Decided: Classic stays exactly as it is (LFO is LATCH, no GLO combo); FM-1's LATCH is GLO held,
+then LFO, and only that order (LFO held, then GLO is the LOCK layer), and holding GLO must never open the Options, only
+a quick click (today's code already: `cu_scan` marks GLO past the hold time opened, its release is no tap); the pulse
+as designed; the secret combos use the window ("Probably"); the KEY layer on pick needs no combo (the pair's second
+key within the window is ignored); **wait the window before changing what already sounds** ("I don't want to hear it
+quickly play a MIN then a SUS when I am intending to do a SUS chord"): rule B, a sounding chord (Advanced / Free over
+a held root, LOCK's latch with roots held) changes once, at the pair or the window's close, while a new chord still
+starts at once (rule A); the names Chord Keys, SUS Window, Full K Shorts; the window 5 ms a detent and hidden in
+Classic; **MIDI Keys**, with the FM-1's own key map (Options > MIDI Keys, Off / ch 1 .. 16 skipping the parts'
+channels: notes 53 .. 79 press F3 .. G5 through `cu_key_press`, a 64-entry ISR-to-UI queue that never drops a
+note-off, `raw_sound` bits 1 .. 5 in the block, an older firmware reading Raw Chord Sound off); a layout change
+releases the keys held. Still open, explained in the doc: 1 (picking keys on D4), 6 (a type key just after the root
+in Simple), 9 (G5 with the shortcuts on and nothing to play: the answer given is the shortcuts-off case), 10 (G5's
+starting state), 14 (the panel pictures). The mock-ups: the four Options under their new names, MIDI Keys, the LATCH
+gesture's text, rule B's timeline.
+**The third round, the same evening.** Picking keys stay on D4 .. G5 (the recommendation). **A root waits for an open
+window** (the owner: "if root detected and no top row chord keys are pushed, only root plays. If root detected and
+there are top key chord keys being pushed, then ask, has the window passed? If the window has passed, play the chord,
+if the window is still in progress, nothing plays until window is complete, adding a delay"): decision 4's "start at
+once, amend in place" is gone, every gesture is decided at the window's close and its chord starts (or re-types) once,
+so the engine amend and the looper's amendment are dropped from the design (the estimate falls to +2.5 .. 4.5 KB XIP;
+the UI holds the waiting roots, `cu.kwait`). G5 plays nothing while the shortcuts are on; with G5 on and nothing to
+play the keys play single notes as normal (no message). G5's starting state as proposed. **A second panel picture for
+FM-1**: `web/site/img/panel-main-fm1.png` (1757 x 1072, the Classic picture's crop at (76, 121)), the designer's own
+plate export (ChoralRootFM1Designer `index.html ?design=..&export=plate`, run from a scratch server, the designer repo
+untouched) of `design/site-plate-main-fm1.json` (its `site-plate-main-seq.json` with FM-1's labels, MIN and MAJ lit as
+the SUS pair, m7, LOCK on LFO, `Dsus` `m7`, no battery); not linked from the site until the firmware has the layout.
+One new open question (16): play at the pair when nothing more can change it, or always at the window's close. The
+mock-ups: the window's timeline redrawn (the root waits, Dsus at the close), rule B's re-strike at the close, the FM-1
+panel picture in place of the G5 message.
+**Question 16, the same evening: "Play at the pair. Then we're good to build it."** A root waiting in an open window
+plays as soon as nothing more can change the chord: at the pair (G# and A# both held) with Secret Chords not applying,
+when all three type keys are held with them applying, otherwise at the window's close; rule B's sounding chord and
+LOCK's latch change at the same moment. Every question of docs/CHORD-LAYOUT.md is answered: the design is ready to
+build. The mock-ups' two timelines redrawn (Dsus at the pair, 30 ms).
+
+## 2026-10-16 (the chord layouts built: Classic and FM-1)
+
+3y163. **Options > Chord Keys: Classic / FM-1, SUS Window, Full K Shorts, MIDI Keys (docs/CHORD-LAYOUT.md, the design of
+3y155 with every question answered; the owner: "Do this task here").** Classic is untouched in every gesture. FM-1
+(`cr_ui.c`): F#3 G#3 A#3 DIM MIN MAJ, G#3 + A#3 SUS always, F3 G3 A3 B3 the extensions, roots C4 .. G5 (`cu_root0`),
+the pick maps on D4 as before (`CU_PICK0`). The type keys are resolved into the `cr_mod_t` set Classic's keys would
+give (`cu_tk_resolve`; the secret chords when Secret Chords applies, else last pressed wins) and posted as a
+difference: the new types `CR_MOD_HELD`, the old ones up, one `CR_MOD_PRESS` (`cr_engine.c cr_mod_ex`: two new forms;
+a key of the pair let go leaves the other HELD, nothing re-strikes). **The SUS Window** (`cu_tk_press` / `cu_tk_poll` /
+`cu_tk_decide`): a combinable type key with none held opens a gesture; nothing is posted until it is decided, at the
+pair (all three keys with Secret Chords applying) or at the window's close; a root pressed meanwhile waits
+(`cu.kwait`) and starts then, with its velocity (a root let go meanwhile: a short chord); what already sounds changes
+once (rule B); a root with no type key, or type keys held from before, at once. LOCK latches the gesture as one type
+key (the same set again alone: off at the release). **LOCK on LFO** (tap; held: the LOCK layer as a layer button,
+`cu_lbtn`; LFO + a key: LOCK's tap at once), **LATCH on GLO held + LFO** (`cu_latch_toggle`; LFO held + GLO: the LOCK
+layer; GLO held alone never opens the Options, as before); the LFO light steady for LOCK, pulsing lit / middle / glow
+/ middle for LATCH (lit / middle with LOCK on). The KEY layer's pick ignores the pair's second key within the window.
+**The Full keyboard**: KNOB 1 the voicing in both layouts; Full K Shorts: F#5 the chord keys (the Chords keyboard, the
+roots to F5), G5 chords on every key (`cr_set_full_chords` 1: the latch, else Key Mode's, else single notes; 2: notes
+only), quick press toggles, long press momentary, G5 starting from Key plays. **MIDI Keys**: `cr_midi.c crm_key`
+(notes 53 .. 79 on its channel, CC 120 / 123 all up), `cr_out.c` a 64-entry queue that never loses a note-off
+(`cr_mkq`), `cu_mkeys_poll` presses the keys (`cu.kmidi` beside the keybed's `cu.kpanel`). **Settings**: `sticky` bits
+1 .. 6, `raw_sound` bits 1 .. 5, no version; the engine reads bit 0 alone; automatic. The Options: the four after
+Output (not mid-list as the design proposed: every entry before keeps its place). Emulators: the web page's stickers
+and LFO's role follow the layout (`web_layout`); the dumps' `chord keys:` and `screen foot:` lines. Docs: MANUAL ("The
+FM-1 chord keys", the keybed, buttons, knobs, Full keyboard, Options, MIDI in, quick reference), SETTINGS, FLASH (the
+account), CHORD-LAYOUT ("The build"). Tests: `cr_engine_test` s_fm1 (HELD, PRESS, the pair, the secret pair, the Full
+keyboard's 0 / 1 / 2), `cr_settings_test` t_layout (+ t_auto's shared bytes 3 -> 4), `cr_midi_test` t_keys; emulator
+`cr_fm1_keys` (28 dumps: the pair, the waiting root, no partner, a held G#, C4 C#4, B3 = 9, Simple's root first, LOCK on
+LFO, the LOCK layer's footer, LATCH and the pulse, GLO held alone, the KEY layer's pick, back to Classic) and
+`cr_fm1_midi_full` (MIDI Keys and the Full keyboard's switches); the Options' positions moved in `cr_opt_keys`,
+`cr_calib`, `cr_version`, `reset_do`, `quad_drive_check`, `persist_1core_opt` and their checks (33 entries in
+Classic), `cr_fullkbd`'s KNOB 1 (the voicing). Size: XIP 537 804 -> 541 948 B (+4 144, 94.5 %), RAM 80 176 -> 80 368
+(+192), POOL unchanged; `BOARD=smk37 ./build.sh` builds (XIP 541 060 on main cd8358b). **Checked**: `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED on main cd8358b (23 suites, 109 s; test_cr 1085 ok, test_persist 113, test_retired 18, test_pool 7; `cr_engine_test` 2800, `cr_settings_test` 282, `cr_midi_test` 34; 317 golden renders, 0 changed; 0 lint; the web emulators built, `test_web_emu` and `test_web_emu_smk` PASS). **On the unit** (the owner: "Flash it"): no other session on it, the Mac kept awake; `--info`: one FM-1, FM-1_920
+running ChoralRoot 0.24-beta3, unit ID 5BD75BE3. A full backup first:
+`fm1-backups/fm1-backup-2026-10-16-before-chord-layout.json` (69 566 B: settings, user sounds 001..128, the
+favourites, loop slot 1). Flashed this build's package, `caffeinate -dimsu python3 tools/fm1_install.py
+build/choralroot.fwsc --unit 5BD75BE3 --yes` (sha256 20d0bb6a...): "done: the FM-1 runs FM-1_920", the same unit after
+the restart. After: `--info` ChoralRoot 0.24 (this tree's version string), `--sounds` all 128 slots read (83 hold a
+sound, as before), `--debug` c1_state 1, c1_faults 0, c1_fallback 0, stale_halves 0. Not played yet; not pushed.
+
+3y164. **The chord layouts after playing them (2026-10-16; the owner on 3y163's build: "This works quite well, I would
+move these new options in menu right after the secret chords, not at the end. Default to 30ms window, worked fine for
+me. With lock on, the top row of shortcuts though is not always reseting when I push them, I'd like that fixed").**
+The four entries (Chord Keys, SUS Window, Full K Shorts, MIDI Keys) moved to right after Secret Chords (`O_*`,
+`O_NAME`, `O_MAX`); every Options script that counts SELECT steps past Secret Chords remapped by a simulation of the
+cursor (entries 3 .. 26 move by +3: `cr_arp_view`, `cr_chord_names(_set)`, `cr_dualcore_on` / `_opt`, `cr_key_leds`,
+`cr_key_scale`, `cr_layers`, `cr_loop_glow`, `cr_midi_in`, `cr_midi_transport`, `cr_output(_classic)`, `cr_perf_arp`,
+`cr_sixth(_set)`, `cr_touch`, `cr_usb_rate`, `gsave_save`, `persist_1core_opt`, `persist_hold_check` / `_set`,
+`reset_set`, `cr_opt_keys`, the two FM-1 scripts) and the checks' entry numbers with them; Version, Calibrate and Reset
+Settings keep 3y163's places. **The SUS Window's default is 30 ms**: `sticky` bits 3 .. 6 now (ms - 30) / 5, 0 .. 10
+(zero the default; a code above 10 reads 30), `cs.suswin` 30 before a record is read. **LOCK and the type keys**:
+reproduced in the emulator (LOCK on, MIN latched, F#3 pushed: MIN + DIM latched; SUS latched, F#3: SUS + DIM). F#3
+cannot combine while Secret Chords does not apply (Off, the default), so it opened no gesture and took the path for a
+key joining held ones, which skips LOCK's reset. A lone type key that cannot combine is now a gesture of one key,
+decided at once (`cu_tk_press` -> `cu_tk_decide`): G#3, F#3, A#3, the pair, F#3, G#3, A#3, F#3 now latch MIN, DIM,
+MAJ, SUS, DIM, MIN, MAJ, DIM, each replacing the last (`tools/emu/scripts/cr_fm1_lock.txt`, a check in test_cr), and
+F#3 again alone switches it off. G#3 and A#3 were right (they always open a gesture). The labels: the chord layouts
+ship in 0.24 (the owner: "a full v0.24 release"), so the "0.25" of 3y163's comments and docs reads 0.24.
+
+3y165. **0.24, the release (2026-10-16; the owner: "Once that's done, this is good to merge and tag for the next release
+which can be a full v0.24 release, not beta").** The tree: main c5884a9 + the chord layouts (3y155, 3y163, 3y164).
+`docs/releases/0.24.md` the release's notes (the FM-1 chord keys first, then MIDI Keys, Full K Shorts, KNOB 1 on the
+Full keyboard, Flash Data, FM TONE's memory, the SMK-37 builds, GRAIN and Playing in short with links to the betas'
+notes, Installing, Going back to 0.24-beta3 / beta2 / beta1 / 0.23 with what the new Options mean to an older version:
+LATCH read as off and the Classic layout, Raw Chord Sound Off with MIDI Keys on). `web/releases.json`: 0.24 first,
+stable, 8 bullets, 2 notes; 0.23 gets its going-back note (the newest stable before it had none). The site's Playing
+section: "The FM-1 chord keys" and `img/panel-main-fm1.png` (3y155's picture) linked. HANDOFF's state.
+**Built**: `./build.sh --release 0.24` twice (the first folder moved to `build/release-0.24.first`), the same
+SHA256SUMS: `choralroot-0.24.fwsc` c7c26624026d912d827764b19fb91f12af91b69a2e623d7900ae65bcb447b25b,
+`choralroot-0.24-1core.fwsc` cc9b905943c3ce27d2210d6f47d5541eebd8a957e08a10c4d51d75d43b0f45c4 (610 313 B each); the apps
+`ChoralRoot 0.24` and `ChoralRoot 0.24 1-core`. Size: XIP 541 948 B of 573 440 (94.5 %), RAM 80 368, POOL 306 196; the
+single-core package XIP 538 904, RAM 77 276. **Checked**: `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED on
+3y164's tree (23 suites, 110 s; test_cr 1086 ok, test_persist 113); `CR_PACKAGES_DIR=build/scratch/packages python3
+tests/releases_test.py` ALL OK with all 26 listed packages (`tools/fetch_packages.py`, curl; 0.24's two from this build);
+`tests/site_test.py` site ALL OK ("make_site.py --require-all builds the site for 0.24"). Merged into main
+(fast-forward) and tagged v0.24 here; release.yml builds the packages and pages.yml publishes the site. No SMK-37
+build of 0.24 (the owner did not ask for one).
+
+3y166. **0.24 on the unit (2026-10-16, evening; the flash-024 session).** The owner: "v0.24 should be up and tagged,
+please flash to my FM-1". The package from the GitHub release v0.24 itself (curl into a new folder
+`build/flash-0.24/`): `choralroot-0.24.fwsc` 610 313 B, sha256
+c7c26624026d912d827764b19fb91f12af91b69a2e623d7900ae65bcb447b25b, the same as 3y165's build and `web/releases.json`.
+Before: no other session on the unit (the linked sessions idle, no `fm1_install.py`, `uac_check.py` or `perf_unit.py`
+running; Ableton Live was open, not driving the unit), the Mac on AC power and kept awake (`caffeinate -dimsu`), the
+FM-1 on the Mac's USB (the tool cannot read its battery). `python3 tools/fm1_install.py --info`: one FM-1, `FM-1_920
+[running] port: ChoralRoot FM-1 version: ChoralRoot 0.24`, unit ID 5BD75BE3 (no "-beta3": by 3y164 the chord
+layouts' development build the owner played, not 3y157's 0.24-beta3). A full backup first:
+`fm1-backups/fm1-backup-2026-10-17-before-0.24.json` (in
+`/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/fm1-backups/`, 69 561 B): settings, the legacy banks, user sounds
+001..128 in 13 groups, the favourites, the ten loop slots' objects (slot 1 recorded): the same 34 objects as 3y157's
+backup, and every sound group, the favourites and loop slot 1 with 3y157's CRCs (only the settings differ). Flashed:
+`caffeinate -dimsu python3 tools/fm1_install.py build/flash-0.24/choralroot-0.24.fwsc --unit 5BD75BE3 --yes`: "done:
+the FM-1 runs FM-1_920", "unit ID 5BD75BE3: the same FM-1 after the restart". After: `--info` `FM-1_920 [running]
+port: ChoralRoot FM-1 version: ChoralRoot 0.24`, unit ID 5BD75BE3; `--sounds` all 128 slots read on ChoralRoot 0.24
+(86 hold a sound), U033 DARK HAZE a GRAIN patch; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, stale_halves 0,
+boot stub v3 "booted the app after 64.0 ms; marker ok". Not pushed.
+
+3y167. **GRAIN: MORPH mixes the sources (2026-10-16; the grain-mix session, from main 034f2cc).** The owner, after
+playing GRAIN on the unit: "For morph, it morphs the grains not the waveforms, I think it should basically mix and
+blend the waveforms, so they are mixed together and the grains are scanning the mixed waveform. Mix should be
+realtime." "Mixing the A and B buffer should be free cost-wise." **Built** (`eng_grain.c`): the grain-share morph is
+gone; a grain has one read head over both buffers and a fetch reads A and B at the same place and mixes them,
+`A + (B - A) x MORPH` (Q15, 32768 = B alone), the voice's effective MORPH (the knob, SHP, the matrix: ENV 1, ENV 2,
+the LFOs, VEL, KEY, RAND, MODW) taken a block and ramped a fetch from the last block's (`voice_t.s[1]`; the step from
+`GP_RCP`, 32768 / the block's fetches rounded down: no divide, never past the target). The read head's root is source
+A's (MORPH 0 is A as before; a PLUCK as B plays 6 cents sharp of A, a PLUCK as A leaves B 6 cents flat). The wave
+band's GRAIN screen draws the mix (A's and B's cached envelopes weighted by MORPH as the latest note plays it, in a
+colour from A's blue to B's orange), the grains one colour; `cr_wave_t` loses `gsrc` and `lock` (`busy`, `gen`).
+**The loop** (`build/choralroot.dis`, a forward grain): before 20 instructions a sample + 9 a fetch, after 18 + 14
+(a second read, the multiply-add, MORPH's step); reverse 20 + 9 -> 16 + 11; at C4 (half a fetch a sample) 24.5 -> 25,
+an octave up 29 -> 32, two 38 -> 46. A first version indexing both buffers was 22 + 18 (the second buffer's address
+rebuilt every fetch: the load's offset does not reach 32 KB; the step spilled): two read pointers and the step a
+fetch. The regress tool's host CPU (8 notes held): GRAIN +2.5 .. 9 % (SHIMMER 1546 -> 1685, STRUM 1355 -> 1389);
+`tests/target_budget.py`'s `grain_render` 1162 -> 1394 with the next entry's softeners (its budget line, and
+`grain_tick` 99 -> 35, moved). **The goldens:** 7 of GRAIN's 8 renders changed (FROZEN, at MORPH 0 with nothing on
+it, did not: the mix is A alone, the grains where they were), no other engine's: `tests/golden.txt` and GRAIN's lines
+of `tests/cpu_baseline.txt` re-recorded (GOLDEN_UPDATE / BUDGET_UPDATE into copies, GRAIN's lines taken). A linear mix
+of two unrelated materials sits ~3 dB under their average at MORPH 64 (CLOUD PAD's sweep: 7 % RMS, 3 .. 4 %, 5 %); an
+equal-power law is a second multiply a fetch, for the owner's ear to ask for. docs/GRAIN.md "The third phase",
+MANUAL's GRAIN, EDITOR's wave band.
+
+3y168. **GRAIN: the render in place, over frames (2026-10-16; the grain-mix session).** The owner: "For the wave
+generation, I'd like this to maybe be spaced across frames so you can change the wave generation params in realtime
+without slowdown, instead of having it pause and regenerate the whole thing in one frame." "I'd go with the render
+in place, if that is not great we can try third buffer." **Built:** no lock, no fade; the grains play on while the
+new material is written over the old a slice a poll. The finish (the 20 Hz high-pass and the normalization over the
+whole buffer) cannot run on a partial write, so the render is two passes of the deterministic generator
+(`grain_src.c`: `gs_step_to` into a scratch, `gs_measure`, `gs_gain`, `gs_apply`; `gs_finish` is the two over a
+buffer): a measuring pass that writes nothing, then the writing pass with the measured gain and the same high-pass
+applied as it goes. **The finished buffer is byte for byte the whole render's** (`tests/cr_grain_golden.txt` holds;
+the test compares every family in place with `gs_finish`'s). PLUCK's string reads its own last 85 samples: the scratch
+(`grain_sc`, 2.3 KB of POOL) keeps the last slice's raw tail ahead of the next. Slices by TYPE (`GRAIN_SLICE_N`: 256
+for DRONE SWEEP VOWEL, 512 for BELL BREATH CHIRP METAL, 1024 for PLUCK): a poll 0.30 .. 0.52 ms at the listing's 205
+instructions a us (x 1.5 the unit's factor: under 0.8 ms; before, a 1024-sample DRONE slice was 2.4 ms); a render
+twice the CPU (DRONE 28 -> 55 ms, PLUCK 6.6 -> 11.9), never silent. **Latest wins at the end of a render:** a change
+during one lets it finish on its knobs, then the next starts on the knobs as they are then (restarting on every
+change never finishes while a knob turns: the sound would move only when the hand stops); both asked, the source not
+rendered last first. The core-0 tick and the main-loop poll keep their split; `GRAIN_ASYNC 0` (hostsim, regress)
+renders whole in the tick as before. `tools/grain_listen.c` (new: the engine under a model of the unit's main loop,
+the polls at half the time): TONE then SEED turned over 18 s on a DRONE under a held chord, 97 renders landed and
+0.00 s under 1 % of the chord's level; origin/main's engine: 60 renders, **13.1 s silent**. The band redraws while a
+source renders as each render lands (3y138's rule otherwise). Size: XIP 541 948 -> 542 764 B (94.7 %), RAM 80 368 ->
+80 544, POOL 306 196 -> 308 508 (89.7 %).
+
+3y169. **GRAIN: what a grain hears as the material changes under it (2026-10-16; the grain-mix session).** A grain
+reading where the head writes sees the old material become the new: overtaken by the head between two blocks (85 ..
+90 % of the cases) or reading across it inside one. Measured (`tools/grain_listen.c`, the turn of 3y168 with each TYPE
+as A): 1 400 .. 2 200 splices in 18 s; the raw step at the grain's place a median 0.5 % of the grain's level, the
+99th percentile 11 .. 32 %, at most 38 .. 109 %. Two softeners (`GRAIN_DECLICK`): **the write head's crossfade**
+(each slice's last 64 samples fade from the new material into the old ahead; the next slice writes them whole; not
+on the last slice, so the buffer stays exact) and **a grain's step ramped out** (the tick takes the samples rewritten
+since the last block; a grain whose two held samples are among them takes the new ones and carries the difference as
+an offset ramped to zero over 4 blocks, 2.9 ms, in a loop of its own where needed). Each grain's peak second
+difference a block, the spliced blocks above the clean blocks' 99.9th percentile, softened (off): PLUCK 0.25 %
+(0.90), DRONE 0.09 (1.17), BELL 1.33 (4.05), BREATH 0 (0), CHIRP 5.34 (26.7), SWEEP 1.55 (6.17), VOWEL 2.52 (8.34),
+METAL 2.70 (18.2): three to ten times fewer; what is left is a change of slope where the material changes (CHIRP's
+SEED reverses its sweep). A third buffer would have no splice at all for 32 KB of POOL (89.7 -> 99.2 %): the owner's
+fallback. **Tests** (`tests/cr_grain_test.c`, 285 200 checks): the mix (MORPH 0 = A alone with B zeroed, 127 = B alone,
+64 = the two outputs mixed sample for sample; SHP the knob's path; LFO 1 -> MORPH swings it and ramps without a jump
+at the block), the render in place (the measuring pass writes nothing; new below the head, old above; the grains
+never stop, no silent block; the buffer the whole render's for every family; the steps softened), latest wins (the
+render under way finishes, then the latest; ten changes: two renders; a knob turned on and on: renders land as the
+polls go, B's one change next). **Listening:** `build/grain-mix/` (INDEX.md): MORPH swept old and new, TONE and SEED
+turned old, new and new without the softeners, STRUM and SHIMMER old and new.
+**Checked:** `CR_VERSION=0.24 sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 112 s; test_cr 1086 ok, test_persist
+113, regress 317 renders with the new goldens); `BOARD=smk37 ./build.sh` XIP 541 588 B (94.4 %), RAM 81 340, POOL
+308 508; `./build.sh` last: XIP 542 764 B of 573 440 (94.7 %), RAM 80 544 (81.9 %), POOL 308 508 (89.7 %) (main
+034f2cc: 541 948, 80 368, 306 196). Not on a unit, not pushed.
+
+3y170. **0.25, the release, and 0.25-smk37 (2026-10-16; the owner, after playing 3y167 .. 3y169 on the unit: "Holy
+smooleys Batman, this is so much better! Lets get this all merged in and released!", then "Release it as v0.25
+(stable), with an SMK-37 build v0.25-smk37 too").** The tree: main 7dff15b (0.24 + the flash record 3y166 + the GRAIN
+mix 3y167 .. 3y169). `FELUCCA_VERSION` "ChoralRoot 0.25". `docs/releases/0.25.md` the release's notes (GRAIN: MORPH a
+blend of A and B, smooth under ENV 2 / the LFOs / the matrix / SHP, the source knobs changing the sound as they turn,
+the wave band's blend, a few percent more CPU; what sounds different: every GRAIN sound with MORPH between the ends or
+modulated, seven of the eight presets: MORPH is 40 or 64 on CLOUD PAD, BREATH PAD, SWARM, ACID DUST and GLITCH, LFO 1
+on SHIMMER's, ENV 2 on STRUM's, and only FROZEN is at 0 with nothing on it, the goldens' 7 of 8; B at A's root;
+Installing; Going back to 0.24). **Going back, checked**: 3y167 .. 3y169 touch `eng_grain.c`, `grain_src.c`,
+`cr_draw.c`, `cr_edit.c` and the wave band's `cr_wave_t` in `core.h` (screen data), no stored format: the GRAIN
+patch's values, ranges, defaults and the presets' lists are the same bytes, upool / cr_bank / cr_backup untouched; so a
+sound saved on 0.25 loads on 0.24 with the same knobs and plays 0.24's MORPH (the grain share) there.
+`web/releases.json`: 0.25 first, stable, 5 bullets, 2 notes; 0.24 gets its going-back note. `web/releases-smk37.json`:
+0.25-smk37 first (base 0.25, tag v0.25-smk37, 6 bullets, 3 notes). SMK37.md at 0.25-smk37 (the status, the packages,
+the version a player sees, the install command, the release commands, What to test: the first start's splash and
+GRAIN's knobs turned under a chord); the "Options > Version cuts its end off" note goes (28 characters for
+`ChoralRoot 0.25-smk37 1-core`). README: "New in 0.25" and the missing "New in 0.24", its SMK-37 line at 0.25; the
+manual's first line at 0.25. HANDOFF's state, the tags, the size paragraph.
+**Built**: `./build.sh --release 0.25` twice (the first folder moved to `build/release-0.25.first`), the same
+SHA256SUMS: `choralroot-0.25.fwsc` 98857bf74fdf65eb680d3737e5346747b06b6df7e2e446acd04577f209f02d4e,
+`choralroot-0.25-1core.fwsc` 28e54b32969700e80f9628d2ebf2eba943b42794538d6696bc975c494e618b78 (610 313 B each); size
+XIP 542 764 B of 573 440 (94.7 %), RAM 80 544 (81.9 %), POOL 308 508 (89.7 %); the single-core XIP 539 688, RAM 77 420,
+POOL 308 380. The dev build of this tree is the release package byte for byte (98857bf7...).
+`BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.25-smk37` twice (the first folder `build/release-smk37.first`),
+the same SHA256SUMS: Pro `choralroot-0.25-smk37.fwsc` 730dd7beac70f6ec829ae79c06dcc32ca49c8e395516539a4efb37560d0f5c5e,
+`-1core` 3983ed45dc6046c31fe40f926a6fc7dd4433f9581ed6d385f566c6fd7e8e338c; Elite `-elite`
+981ba44916e9fc04208ae439264406e1f62cc6805d8f22715c9de874483e6eaa, `-elite-1core`
+5affd337ab02bec98c25ad092deb0edb9b4491ca94665b3d993f9bc1c971f8a0; MKE-P37 `-mke`
+0fae0a345b368499d963a38afdae6f40d0ddc18c1287e1cb71947912616dd2c5, `-mke-1core`
+295b7ae9bc71198b7c316062fcdc2cd93dc055fd3da27a01c3ff13c2bb16a724 (651 496 / 651 500 / 651 492 B); XIP 541 588 B
+(94.4 %), RAM 81 340, POOL 308 508; the single-core XIP 538 960. **Checked**: `CR_VERSION=0.25 sh tests/run_all.sh`
+ALL SUITES PASSED (23 suites, 117 s; test_cr 1086 ok, test_persist 113, test_retired 18, test_pool 7; 317 golden
+renders, 0 changed; 0 lint; the browser emulators as `ChoralRoot 0.25` and `ChoralRoot 0.25-smk37`, `test_web_emu`
+bit-exact and `test_web_emu_smk` PASS); `CR_PACKAGES_DIR=build/release-0.25 python3 tests/releases_test.py` ALL OK
+(0.25's two packages and the six SMK ones at their listed sha256s); site_test (in run_tests) site ALL OK with all 28
+listed FM-1 packages in `build/scratch/packages` ("make_site.py --require-all builds the site for 0.25", "New in 0.25"
+with its bullets); `web/make_site.py build/choralroot.fwsc 0.25 build/scratch/site-full --smk-packages
+build/scratch/smk-packages --require-all` with the 24 real SMK packages: `webapp/smk37/` offers 0.25-smk37 first, then
+0.24-beta3-smk37.1, 0.24-beta3-smk37 and 0.24-beta2-smk37; no FM-1 page links it. Not pushed, not tagged (the
+orchestrator pushes main and tags v0.25, then v0.25-smk37: pages.yml fails while web/releases-smk37.json lists a
+release that does not exist yet). No device.
+
+## 2026-10-16 (FM-1 the default chord keys)
+
+3y172. **FM-1 is the default Chord Keys, and every unit is moved to it once (the owner, 2026-10-16: "It's been decided,
+the new FM-1 chord key layout is significantly better on this device than the classic, let's make it the default",
+then "Units from old should get put on the new chord key layout").** `cr_settings_defaults` sets `sticky` bit 1
+(`CRS_LAYOUT_FM1`): a unit with no record, Flash Data, SAFE MODE's defaults and Reset Settings start in FM-1.
+`cr_settings_import` moves every record no 0.25.1 firmware wrote (0.23 and older, 0.24 / 0.25 with Classic or FM-1) to
+FM-1, once, and marks it in **bit 1 of `leds`** (`CRS_KEYS_MOVED`; the defaults have it too); a marked record keeps
+its layout, so Classic chosen after the move stays, across power cycles and later updates. The move touches
+`sticky` bit 1 and the mark only (LATCH, Full K Shorts, the SUS Window, LEDs Stock kept) and leaves the import's
+result as it was (a 0.25 record is still current). **No version**, and why (docs/SETTINGS.md "0.25.1: FM-1 the
+default"): a v16 would make 0.25.1's first start, and 0.25 / 0.24 after a downgrade, read the block as migrated, and the
+session is then applied only when the settings object is byte for byte the one it was saved beside (`bind`): every
+unit with an Option changed after its last SAVE would lose its session (sounds, Bass, LOCK and its latch) at the
+update. The mark costs one bit; `leds` because an older firmware's `CRS_FIX(leds, 0, 1)` then reads LEDs Glow and
+nothing else (`sticky`'s bit 7 would cost LATCH and the three layout Options there). The byte is automatic: the
+mark goes with every save (`crs_capture` keeps the record's mark beside the UI's LEDs bit; `cs.leds` reads bit 0,
+`CRS_LEDS`). **Downgrade**: 0.25 / 0.24 show the layout the record holds (FM-1 after the move, Classic if chosen
+since), LEDs Glow; 0.23 and older read `sticky` out of their 0 .. 1 range: LATCH off, their Classic keys; nothing
+breaks, the session is applied as before. An older firmware's save drops the mark, so coming back moves that record
+again (an update from an older firmware). **Backups**: the restore goes through the import: an older backup lands
+on FM-1, a 0.25.1 one restores what it holds. **LOCK across the move**: the latch is the session's set of `cr_mod_t`,
+not of keys, so it is kept and shown on the FM-1 keys (a latched SUS on G#3 + A#3, the 9 on B3, LOCK's light on
+LFO); nothing is held at power-on, so nothing is released. **The SMK-37** (Chord Keys hidden): `BOARD_SMK37` neither
+sets the bit nor moves a record. **Tests**: `tests/cr_settings_test.c t_keys_default` (the defaults, no record,
+Reset Settings, 0.25 with Classic / with FM-1, 0.23, v1 .. v14, Classic after the move over two starts, idempotence,
+the mark automatic, out of range, the older firmwares' reading modelled from their ranges); `tests/cr_backup_test.c`
+(a fresh unit FM-1; a 0.25 backup with Classic, LATCH, 60 ms, Stock restores onto FM-1 with the rest kept; a 0.25.1
+backup with Classic restores Classic, still Classic after a power cycle); `tools/emu/test_persist.sh`, a new section:
+a fresh unit FM-1; `keys_old_set.txt` (Classic, LOCK on, SUS + 9 latched, SAVE held), the block rewritten as 0.25
+Classic, 0.25 FM-1 and 0.23 wrote it (`tools/emu/seed_keys.py`): each powers on FM-1, current, the session applied,
+LOCK on LFO with SUS + 9 lit on G#3 + A#3 and B3, D4 Dsus 9 (62 67 69 76), 0 writes; Classic chosen
+(`keys_classic_pick.txt`) is written by itself with the mark and the relaunch (`keys_classic_check.txt`) is Classic,
+LOCK on B3. The emulator's dump: `keys-record: fm1 N moved N saved-fm1 N saved-moved N`; the settings line prints
+LEDs' bit alone. **The scripts written for Classic**: a script line `keys classic` (`tools/emu/emu.c`, read at
+power-on by `emu_fw.c`: a unit with no settings record starts Classic, as one whose player chose it; a flash with a
+record keeps its own) at the top of the 53 scripts whose expectations are Classic's keys (B3 LOCK, C4 the 9, C#4
+SUS, LFO LATCH, the roots from D4) or Classic's Options list (SUS Window is listed in FM-1 only, so every entry after
+Chord Keys is one further down there): cr_arp_hold, cr_arp_view, cr_calib, cr_chord_names, cr_chord_names_check,
+cr_chord_names_set, cr_cz_brass, cr_dualcore, cr_dualcore_on, cr_dualcore_opt, cr_favs_arp_list, cr_fullkbd,
+cr_geek2, cr_glo_knobs, cr_key_leds, cr_key_scale, cr_lock, cr_lock_menu, cr_lock_type, cr_loop_edplay,
+cr_loop_free, cr_loop_glow, cr_loop_row, cr_loop_stepfaults, cr_midi_in, cr_midi_transport, cr_note_leds,
+cr_opt_keys, cr_output, cr_output_classic, cr_pa2, cr_perf_arp, cr_prophet, cr_prophet_crackle, cr_screen_off,
+cr_sixth, cr_sixth_check, cr_sixth_set, cr_strum_hold, cr_touch, cr_usb_rate, perf_a, persist_check, gsave_none,
+gsave_save, persist_hold_check, persist_hold_set, persist_lock_check, persist_lock_set, reset_do, reset_set,
+session_check, session_set, and test_cr.sh's generated LOCK scripts (`lp_run`). Moved to FM-1 instead: cr_version
+(Version is entry 31 of the FM-1 list), persist_1core_opt (Dual Core 29, Version 31), cr_arp_unit (its seeded record
+is an old one and is moved: LATCH is GLO held + LFO there), and reset_check stays FM-1 (Reset Settings gives what a
+fresh unit has: FM-1). No draw golden changed (317, 0 changed). The browser emulator starts on the FM-1 labels
+until the firmware's first frame, and its key legend leads with FM-1. Size: XIP 542 764 -> 542 828 B (+64), RAM
+80 544; `BOARD=smk37`: XIP 541 588 -> 541 620. **Checked**: `CR_VERSION=0.25 sh tests/run_all.sh` ALL SUITES
+PASSED (23 suites; test_cr 1086 ok, test_persist 119, cr_settings 296, cr_backup 235; 317 golden renders, 0 changed;
+0 lint), `BOARD=smk37 ./build.sh`, `./build.sh`. No device.
+
+3y173. **The manual, the site and the notes lead with the FM-1 chord keys (2026-10-16, with 3y172).** docs/MANUAL.md:
+the first five minutes (the roots from C4, the chord block's seven keys, LOCK on LFO, the 9 on B3), the keybed's table
+and drawing, the button table (LFO is LOCK; LATCH GLO held + LFO), the lights, Types and extensions (SUS = G#3 + A#3,
+the 9 on B3), LOCK (on LFO; its layer; the latch kept across a layout change or the update's move), Secret chords
+(the FM-1 keys beside the Classic ones), "The FM-1 chord keys" (now the default, the update's move) and a compact
+"The Classic chord keys" (a table of what moves), Key Mode's notes, LATCH, the Options table (Chord Keys: FM-1 the
+default), the troubleshooting and the quick reference. docs/CHORD-LAYOUT.md's status and its Options table.
+docs/SETTINGS.md: "0.25.1: FM-1 the default" (the mark, why no version, why `leds`, once, downgrade, backups, LOCK, the
+SMK-37), the table's rows. README's Chords line. The site (web/site/index.html): the Playing section's intro, its
+panel picture is `img/panel-main-fm1.png` (Classic's `panel-main.png` moves to a short "The Classic chord keys"),
+the keybed figure redrawn for FM-1 (roots C4 .. G5, a SUS pill over G#3 + A#3; wide and phone), the types and roots
+text, LOCK, the secret chords, the LFO row of the button table. docs/releases/0.25.1.md started with the player-facing
+note ("FM-1 is now the chord key layout: your FM-1 switches to it once when you update; Classic is in Options > Chord
+Keys"), what the switch keeps, LOCK, Classic, going back. Not released, not pushed. No device.
+
+3y174. **0.25 on the unit (2026-10-16, late evening; the flash-025 session).** The owner: "I am done filming flash
+away as you please". Before, unit 5BD75BE3 ran the GRAIN mix build of 7dff15b (package sha256
+220e49d983ebe20497b1ee02d8321ced91d21a6dc3f74fc7ad4645465f876430, the code of 0.25 under the label "ChoralRoot 0.24").
+The package from the GitHub release v0.25 itself (curl into a new folder `build/flash-0.25/`): `choralroot-0.25.fwsc`
+610 313 B, sha256 98857bf74fdf65eb680d3737e5346747b06b6df7e2e446acd04577f209f02d4e, the same as 3y170's build and
+`web/releases.json`. Before: no other session on the unit (no `fm1_install.py`, `uac_check.py` or `perf_unit.py`
+running), the Mac kept awake (`caffeinate -dimsu`), the FM-1 on the Mac's USB (it answers `--info`, so it counts as
+powered). `python3 tools/fm1_install.py --info`: one FM-1, `FM-1_920 [running] port: ChoralRoot FM-1 version:
+ChoralRoot 0.24`, unit ID 5BD75BE3. A full backup first: `fm1-backups/fm1-backup-2026-10-17-before-0.25.json` (in
+`/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/fm1-backups/`, 69 591 B): settings, the legacy banks, user sounds
+001..128 in 13 groups (objects 50..62), the favourites (23), the ten loop slots' objects (40..49, slot 1 recorded):
+the same 34 objects as the backup before the GRAIN mix flash, every sound group and the favourites with its CRCs; the
+settings and loop slot 1 (52 -> 80 B, recorded since, the filming) differ. Flashed: `caffeinate -dimsu python3
+tools/fm1_install.py build/flash-0.25/choralroot-0.25.fwsc --unit 5BD75BE3 --yes`: "done: the FM-1 runs FM-1_920",
+"unit ID 5BD75BE3: the same FM-1 after the restart". After: `--info` `FM-1_920 [running] port: ChoralRoot FM-1
+version: ChoralRoot 0.25`, unit ID 5BD75BE3; `--sounds` all 128 slots read on ChoralRoot 0.25 (83 hold a sound), U033
+DARK HAZE a GRAIN patch; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, stale_halves 0, boot stub v3 "booted the app
+after 64.0 ms; marker ok". Not pushed.
+
+## 2026-10-16 (0.25.1, the release tree)
+
+3y175. **0.25.1, the release tree: 0.25 with the FM-1 chord keys the default (the owner: "Yes: merge the FM-1 default
+and the flash record onto main and release it as v0.25.1 (stable). No SMK build needed").** A published tag is never
+moved, so the rebuild of 0.25 with 3y172's defaults gets its own number. docs/releases/0.26.md, begun with 3y173, is
+`docs/releases/0.25.1.md` for players: the summary paragraph first (the FM-1 chord keys every FM-1 plays, the switch
+once at the first start, LOCK and the latched chord kept, Classic in Options > Chord Keys, the sound 0.25's), the
+layout, the switch, LOCK, Classic, the SMK-37 (no build of 0.25.1: Chord Keys and the move are compiled out there,
+`BOARD_SMK37`, so 0.25-smk37 stays its current build), Installing, and "Going back to 0.25" (from docs/SETTINGS.md's
+section). Every "0.26" that named this change says 0.25.1 now: SETTINGS.md's "0.25.1: FM-1 the default" (and
+CHORD-LAYOUT.md's link to it, `#0251-fm-1-the-default`), 3y172 .. 3y173 above, the manual, README, CHORD-LAYOUT.md, the
+site's Playing section, `cr_settings.c` / `.h`'s comments, the tests' and the emulator's messages and the 53 scripts'
+`keys classic` comments (comments, check names and the note at the end of the emulator's `keys-record` dump line: no
+code changed); the "0.26" left in the tree are numbers (FM TONE's offsets, measured times and gains). `FELUCCA_VERSION`
+"ChoralRoot 0.25.1"; README's "New in 0.25.1"; the manual's first line. `web/releases.json`: 0.25.1 first, stable,
+sha256 ef57eaccf6e7452317a1603b8de09662a0a74b77828ecd3f20b896ffe22504d5, 1-core
+1dcac28c65d88888fc690f887971d419cd63014131476bdb73aca4f746bf0902 (610 313 B each), five bullets; 0.25's going-back note
+(the layout the settings hold, LEDs Glow, coming back moves the record again, backups). `web/releases-smk37.json`
+unchanged: 0.25-smk37 first on base 0.25, a version of the FM-1 list; the workflows' version checks (release.yml
+`^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$`, pages.yml's tag and input checks, `tools/build.py --release`,
+releases_test) all take X.Y.Z, and the installer compares versions as strings. `./build.sh --release 0.25.1` twice, the
+first folder moved aside: the same SHA256SUMS. Size: XIP 542 828 B of 573 440 (94.7 %), RAM 80 544, POOL 308 508 of 344
+064 (the version string fits the same words: the dev build of 3y172 is the same size). **Checked**: `CR_VERSION=0.25.1
+sh tests/run_all.sh` ALL SUITES PASSED (23 suites; test_cr 1086 ok, test_persist 119; 317 golden renders, 0 changed; 0
+lint; the browser emulator built as 0.25.1, `test_web_emu.mjs` and `test_web_emu_smk.mjs` PASS); the dev build of the
+tree is the release package's bytes (ef57eacc...). `CR_PACKAGES_DIR=build/release-0.25.1 python3 tests/releases_test.py`
+releases ALL OK (both packages at their listed sha256s); with all 30 listed FM-1 packages and the 24 SMK ones, ALL OK,
+54 sha256s compared. site_test (in run_tests) site ALL OK with the 30 packages in `build/scratch/packages`
+("make_site.py --require-all builds the site for 0.25.1", "New in 0.25.1" with its bullets); `web/make_site.py
+build/choralroot.fwsc 0.25.1 build/scratch/site-full --smk-packages build/scratch/smk-packages --require-all`: the
+landing page says New in 0.25.1 and shows `img/panel-main-fm1.png`, `webapp/smk37/` offers 0.25-smk37 first, then
+0.24-beta3-smk37.1, 0.24-beta3-smk37 and 0.24-beta2-smk37; no FM-1 page links it. Not pushed, not tagged (the
+orchestrator pushes main and tags v0.25.1; no SMK tag). No device.

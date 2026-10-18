@@ -23,21 +23,22 @@ export const isPool = (objs) => POOL_IDS.some((id) => (objs instanceof Map ? obj
 // stand-in). 15: FM TONE (engine 15, eng_quad.c, code name QUAD; its patch kind stays "quad")
 export const ENGINE_NAMES = ["ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO", "WHEEL", "GRAIN", "PHYS",
   "DRUM", "NOISE", "FM6", "VA", "CZ-1", "FM TONE", "P5"];
-export const PATCH_SIZE = { va: 110, fm6: 128, cz: 144, quad: 96, p5: 138 };
+export const PATCH_SIZE = { va: 110, fm6: 128, cz: 144, quad: 96, p5: 138, grain: 64 };
+const GRAIN_V1 = 20;                     // GRAIN's first build's record (version 1): the FM-1 converts it on load
 // a kind's record in the legacy stores (before the pool): FM TONE's 80 (versions 1..3; version 4 since 2026-10-14: 96)
 const STORE_PATCH = { ...PATCH_SIZE, quad: 80 };
-const KIND_ENGINE = { va: 13, fm6: 12, cz: 14, quad: 15, p5: 16 };
+const KIND_ENGINE = { va: 13, fm6: 12, cz: 14, quad: 15, p5: 16, grain: 8 };
 export const SOUND_FORMAT = "choralroot-sound";
 export const patchKindOf = (engine) =>
-  (engine === 13 ? "va" : engine === 12 ? "fm6" : engine === 14 ? "cz" : engine === 15 ? "quad" : engine === 16 ? "p5" : null);
+  (engine === 13 ? "va" : engine === 12 ? "fm6" : engine === 14 ? "cz" : engine === 15 ? "quad" : engine === 16 ? "p5" : engine === 8 ? "grain" : null);
 
 // the factory presets of each engine (ENGINES[e]->presets[k].name) and the first of them in the engine's pool (the
 // CZ-1's preset 0, INIT TONE, and P5's, INIT P5, are the pools' INIT); FACTORY_IDS: a preset's favourites id where it
 // is not its index (P5: its Sequential program number, cr_ui.c cu_fav_key; P5's presets are the shipped list,
 // assets/prophet5-factory/shipped.txt): tests/sound_templates.c prints the three from the firmware built as the unit
 // is, and its --check fails until the three lines below hold its strings verbatim (docs/SOUNDS.md "The binding")
-export const FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"],"16":["INIT P5","ITS PROPHET5","AFTER RINGER","FOREVER KEYS","STABBY BRASS","NO WHINING","FANTASTIC 5","PDG ORGAN","CLAVICLE","BLOW BY BLOW","TAARICHOIR","REEDY STRPAD","CANNED HAPPY","SYNCHROTRILL","BORN IN 80S","STICKY PLUCK","WATERY PLUCK","BASS FACE","WHINY OPENER","SYNCTINK","TREMBL ORGAN","SCI-FI ECHO","UNICORN DRMS","COCKTAIL HR","NICE SMOOTH","TUMESC BASS","INTERNALIZED","BLINKR BELLS","UWATER TRILL","POLY MCFAT","REED EP","PIPE ORGANIS","FAT POLYBASS","CHORAL VOICE","HUM-ALONG","AFTRBLW HORN","MIDNIGHT PWM","RIPPLES","RADIO TOWERS","HARPSI-VIBE","INSTABIL PAD","VINTAGE WRLY","PRESSURE PTS","80S HORROR","NURSERYCOMP","HOUSE MOVER","VOCAL PAD","SQUARECLIFF","UNDER ICE","MARIMBA","UNISAWYER","RECORDER","GHOSTLY GLOW","UPTIGHT BASS","RAVECAVE","CELTIC MOON","MOUSE BLASTR","KYOTO","ORGAN PERC","DRM ORGONON","PLUCK HOLLOW","VELO RES LD2","REGAL MOVMNT","LOOSE SQUARE","RUBBR BUMPER","GALV BUCKET","SOFT SWELL","REVERB STRGS","LAGOON BASS","PLUCKTY DUCK","BELL TREE","RISER CHORD","TIMPANALLY","TUNED PERC","FUNKY BELLS","FEDBACK","NYLON FINGRS","FAINT MEMORY","FULL HEXAGON","ICONIC BRASS","SYNC SWELLPD","PRETTY PLUCK","FEATURE BASS","CHORUSLAYER","BETTER WAYS","BASSMENT","DENOUEMENT","SYNCWAVE","ORGANIZER","BULL BY HORN","NAIVE MELODY","POLY MORGUE","SWITCHBACK","PLUCKYNESS","CYBERIAN WND","METAL DRONE","LOW STRINGS","PERC E PIANO","FLUTES","PERC ORGAN","UNISON GLIDE","ORGAN W RES","TOY PIANO","TRUMPT FLUTE","ELEC PIANO I","OCTAVE SAWS","DELAYED HARM","ECHO REPEAT","PULSE W MOD","4THS W RES","SWEEP HARMS","SLOW SYNC","NOISE SWEEP","RES BELLS","HOLLOW SOUND","CAT"]};
-export const FACTORY_FIRST = {"7":0,"12":0,"13":0,"14":1,"15":0,"16":1};
+export const FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"8":["CLOUD PAD","SHIMMER","BREATH PAD","FROZEN","STRUM","SWARM","ACID DUST","GLITCH"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"],"16":["INIT P5","ITS PROPHET5","AFTER RINGER","FOREVER KEYS","STABBY BRASS","NO WHINING","FANTASTIC 5","PDG ORGAN","CLAVICLE","BLOW BY BLOW","TAARICHOIR","REEDY STRPAD","CANNED HAPPY","SYNCHROTRILL","BORN IN 80S","STICKY PLUCK","WATERY PLUCK","BASS FACE","WHINY OPENER","SYNCTINK","TREMBL ORGAN","SCI-FI ECHO","UNICORN DRMS","COCKTAIL HR","NICE SMOOTH","TUMESC BASS","INTERNALIZED","BLINKR BELLS","UWATER TRILL","POLY MCFAT","REED EP","PIPE ORGANIS","FAT POLYBASS","CHORAL VOICE","HUM-ALONG","AFTRBLW HORN","MIDNIGHT PWM","RIPPLES","RADIO TOWERS","HARPSI-VIBE","INSTABIL PAD","VINTAGE WRLY","PRESSURE PTS","80S HORROR","NURSERYCOMP","HOUSE MOVER","VOCAL PAD","SQUARECLIFF","UNDER ICE","MARIMBA","UNISAWYER","RECORDER","GHOSTLY GLOW","UPTIGHT BASS","RAVECAVE","CELTIC MOON","MOUSE BLASTR","KYOTO","ORGAN PERC","DRM ORGONON","PLUCK HOLLOW","VELO RES LD2","REGAL MOVMNT","LOOSE SQUARE","RUBBR BUMPER","GALV BUCKET","SOFT SWELL","REVERB STRGS","LAGOON BASS","PLUCKTY DUCK","BELL TREE","RISER CHORD","TIMPANALLY","TUNED PERC","FUNKY BELLS","FEDBACK","NYLON FINGRS","FAINT MEMORY","FULL HEXAGON","ICONIC BRASS","SYNC SWELLPD","PRETTY PLUCK","FEATURE BASS","CHORUSLAYER","BETTER WAYS","BASSMENT","DENOUEMENT","SYNCWAVE","ORGANIZER","BULL BY HORN","NAIVE MELODY","POLY MORGUE","SWITCHBACK","PLUCKYNESS","CYBERIAN WND","METAL DRONE","LOW STRINGS","PERC E PIANO","FLUTES","PERC ORGAN","UNISON GLIDE","ORGAN W RES","TOY PIANO","TRUMPT FLUTE","ELEC PIANO I","OCTAVE SAWS","DELAYED HARM","ECHO REPEAT","PULSE W MOD","4THS W RES","SWEEP HARMS","SLOW SYNC","NOISE SWEEP","RES BELLS","HOLLOW SOUND","CAT"]};
+export const FACTORY_FIRST = {"7":0,"8":0,"12":0,"13":0,"14":1,"15":0,"16":1};
 export const FACTORY_IDS = {"16":[0,1,2,3,6,7,8,10,11,12,13,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,41,43,45,46,47,51,53,54,56,59,60,61,62,65,66,67,68,70,72,77,79,82,83,85,86,87,89,92,93,95,97,100,101,103,104,107,108,109,110,111,112,113,114,115,117,120,122,123,127,128,131,132,133,135,136,137,139,140,142,143,146,147,148,150,152,156,159,162,164,165,168,169,171,172,173,179,181,183,184,185,187,188,189,194,198,199,200]};
 const SND_BIND_MARK = 0xA6, SND_BIND_NOTE = 160 + 15, SND_BIND_FLAGS = 176 + 15;
 // the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another retired one
@@ -85,7 +86,7 @@ const SND_STORE = {   // per kind: the object ids (VA, FM TONE: one store of 32,
   cz: { ids: [12, 13], magic: 0x55315A43, ver: 1, nslot: 16, size: 16 + 16 * 144 },
   quad: { ids: [22], magic: 0x53445551, ver: 1, nslot: 32, size: 16 + 32 * 80 },
 };
-const SND_KINDS = ["va", "fm6", "cz", "quad", "p5"];
+const SND_KINDS = ["va", "fm6", "cz", "quad", "p5", "grain"];
 const sndWhole = (kind) => kind === "va" || kind === "quad";   // one store of 32: the used mask at 8, the blob size at 12
 const sndView = (b) => new DataView(b.buffer, b.byteOffset, b.byteLength);
 const sndSlotOk = (slot, n = SOUND_SLOTS) => Number.isInteger(slot) && slot >= 1 && slot <= n;
@@ -149,11 +150,11 @@ function sndBlob(m, kind, slot) {        // the slot's blob in the store of that
     const p = poolAt(slot), b = m.get(p.id);
     const n = b.length === POOL_BANK ? b[p.off + POOL_HDR + 1] : 0;   // (FM TONE: an older slot's 80-byte patch)
     if (b.length !== POOL_BANK || b[p.off + POOL_HDR] !== KIND_ENGINE[kind] + 1 ||
-        (n !== PATCH_SIZE[kind] && !(kind === "quad" && n === STORE_PATCH.quad))) return null;
+        (n !== PATCH_SIZE[kind] && !(kind === "quad" && n === STORE_PATCH.quad) && !(kind === "grain" && n === GRAIN_V1))) return null;
     const d = b.subarray(p.off + POOL_DATA, p.off + POOL_DATA + n);
     return kind === "quad" ? quadToV4(d) : d;
   }
-  if (kind === "p5") return null;        // (no P5 store before the pool)
+  if (kind === "p5" || kind === "grain") return null;        // (no P5 or GRAIN store before the pool)
   const p = sndPlace(kind, slot), b = m.get(p.id);
   if (!sndStoreOk(kind, b, p.half) || !(sndView(b).getUint32(sndUsedOff(kind), true) >>> p.bit & 1)) return null;
   const d = b.subarray(p.off, p.off + STORE_PATCH[kind]);
@@ -233,6 +234,9 @@ export function readSoundFile(file) {
       patch = quadToV4(patch);              // (an FM TONE sound file of before 2026-10-14: converted, best effort)
     if (kind === "quad" && patch.length === PATCH_SIZE.quad && patch[0] === 0x51 && patch[1] === 4)
       patch = quadToV4(patch);              // (version 4, 3y61's: as version 5, the owner's corrections)
+    if (kind === "grain" && patch.length === GRAIN_V1 && patch[0] === 0x47 && patch[1] === 1) {
+      const v2 = new Uint8Array(PATCH_SIZE.grain); v2.set(patch); patch = v2;   // (a GRAIN sound file of the first build: zero-padded, the FM-1 converts it)
+    }
     if (patch.length !== PATCH_SIZE[kind]) throw new Error(`The sound file's ${kind} patch is ${patch.length} bytes, not ${PATCH_SIZE[kind]}`);
     if (kind === "va" && (patch[0] !== 0x56 || patch[1] < 1 || patch[1] > 5)) throw new Error("The sound file's VA patch is not a VA patch (magic or version)");
     if (kind === "fm6" && (patch[112] !== 0x46 || patch[113] !== 1)) throw new Error("The sound file's FM6 patch is not an FM6 patch (magic)");
@@ -323,6 +327,7 @@ function sndPutBlob(m, kind, slot, blob, notes = []) {
     m.set(p.id, b); return;
   }
   if (kind === "p5") { if (blob) throw new Error("This FM-1 keeps no P5 programs (ChoralRoot 0.22 or later needed)"); return; }
+  if (kind === "grain") { if (blob) throw new Error("This FM-1 keeps no GRAIN sounds (a ChoralRoot with the GRAIN engine needed)"); return; }
   if (kind === "quad" && blob) blob = quadToV3(blob, notes);   // (a firmware before the pool: its store holds versions 1..3, 80 bytes)
   if (kind === "va" && blob) blob = vaToV3(blob, notes);       // (.. and VA versions 1..3: a version 4 or 5 would play INIT there)
   const p = sndPlace(kind, slot), old = m.get(p.id), ok = sndStoreOk(kind, old, p.half), uo = sndUsedOff(kind);
@@ -380,6 +385,7 @@ export function importSound(objs, slot, sound) {
   // (0.21 has no P5: a record of engine 16 is no record there, up_valid, so the slot would read as empty and the next
   // save would take it: refused, with or without its program)
   if (!m.pool && kind === "p5") throw new Error("This FM-1 keeps no P5 programs (ChoralRoot 0.22 or later needed)");
+  if (!m.pool && kind === "grain") throw new Error("This FM-1 keeps no GRAIN sounds (a ChoralRoot with the GRAIN engine needed)");
   const notes = [];
   sndClearSlot(m, slot);
   for (const k of SND_KINDS) sndPutBlob(m, k, slot, k === kind && sound.patch ? sound.patch : null, notes);

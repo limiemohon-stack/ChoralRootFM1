@@ -11,6 +11,8 @@ and M-VAVE.
 **The manual:** [docs/MANUAL.md](docs/MANUAL.md) (the first five minutes, every button, knob and Options entry, the
 looper, the sound editor, MIDI and USB, updating and recovery, a quick-reference table).
 
+**M-Vave SMK-37:** a community test build of 0.25 (genkigenki's port; community-tested, not tested by the maintainer): see [SMK-37 instructions](SMK37.md).
+
 ## Install
 
 Try it in the browser first: <https://quixotic7.github.io/ChoralRootFM1/emu/> (the same firmware, with sound, no
@@ -105,9 +107,10 @@ version, betas included; [Releases](https://github.com/Quixotic7/ChoralRootFM1/r
 newest version, so it may be ahead of the stable release. What is in it; the [manual](docs/MANUAL.md) says how to play
 each part:
 
-- **Chords**: the chord block on the keybed (DIM MIN MAJ SUS on the black keys F#3 G#3 A#3 C#4, 6 m7 M7 9 on the
-  white keys F3 G3 A3 C4, B3 = LOCK), roots on D4..G5, voicing on KNOB 1, Key Mode, the Simple / Advanced / Free play
-  styles, secret chords, LATCH.
+- **Chords**: the chord block on the keybed (DIM MIN MAJ on the black keys F#3 G#3 A#3, SUS = G#3 + A#3 together,
+  6 m7 M7 9 on the white keys F3 G3 A3 B3, LOCK on the LFO button), roots on C4..G5, voicing on KNOB 1, Key Mode, the
+  Simple / Advanced / Free play styles, secret chords, LATCH (GLO + LFO). That is the FM-1 layout, the default since
+  0.25.1; Options > Chord Keys: Classic is the Orchid's (SUS on C#4, the 9 on C4, B3 = LOCK, roots D4..G5).
 - **Layers** that lock open on a hold (KEY, PERF, FX, BASS, SEQ for the metronome, LOOP), each a picker over a row of four knob
   cells; OCT- or HOME closes them.
 - **Bass** (four behaviours), **performance modes** (strum, slop, arpeggio, twelve patterns, harp), **FX** (reverb,
@@ -115,11 +118,12 @@ each part:
 - **The looper**: it records chords, ten slots, five record modes (Overwrite, Advance, Overdub, Replace, Step), the
   PLAY menu; from 0.18 on saving is manual: a loop is written by the global save (SAVE held) or when its slot is
   left with unsaved changes (up to 0.17: at every stop) ([docs/LOOPER.md](docs/LOOPER.md)).
-- **Six engines**, in the picker's order: FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx
+- **Seven engines**, in the picker's order: FM6 (Melodee's: DX7 voices rendered as Dexed renders them, DX7 SysEx
   import, [docs/FM6.md](docs/FM6.md)), FM TONE (engine 15, `eng_quad.c`, code name QUAD: four-operator FM in the style
   of the Digitone, aligned with the Digitone manual's algorithms, carrier levels and controls,
   [docs/QUAD.md](docs/QUAD.md)), VA ([docs/VA.md](docs/VA.md)), CZ-1 (Melodee's, [docs/CZ1.md](docs/CZ1.md)), P5
-  (Melodee's Prophet-5 model with 115 of Sequential's factory programs, 0.22, [docs/PROPHET.md](docs/PROPHET.md)), WHEEL.
+  (Melodee's Prophet-5 model with 115 of Sequential's factory programs, 0.22, [docs/PROPHET.md](docs/PROPHET.md)), WHEEL,
+  GRAIN (a granular synth over two sources it makes itself, MORPH between them; 0.24-beta2, [docs/GRAIN.md](docs/GRAIN.md)).
   (PHASE, LOFI, VOICE, TRIO, NOISE and PHYS, Felucca's, are retired since 0.18: a sound saved on one stays in its
   slot and plays as a stand-in on the VA.) (Felucca's ANALOG is retired since 0.14: the VA replaces it; an ANALOG sound
   saved before loads on the VA.) One preset pool per engine (INIT, the factory presets, yours), 128 saved sounds shared
@@ -133,6 +137,16 @@ each part:
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.25.1** ([docs/releases/0.25.1.md](docs/releases/0.25.1.md)): the FM-1 chord keys are the default
+  (SUS = G#3 + A#3, the 9 on B3, roots from C4, LOCK on LFO); every FM-1 switches to them once at the update, LOCK
+  and the latched chord carried over; Classic is in Options > Chord Keys.
+- **New in 0.25** ([docs/releases/0.25.md](docs/releases/0.25.md)): GRAIN's MORPH blends sources A and B into one
+  sound the grains play, smoothly under ENV 2, the LFOs and the matrix; TONE, MOTION, SEED and TYPE change a source as
+  they turn, the grains playing on.
+- **New in 0.24** ([docs/releases/0.24.md](docs/releases/0.24.md)): Options > Chord Keys FM-1, a chord layout for the
+  FM-1's keybed (SUS from G#3 + A#3, LOCK on LFO) with the SUS Window; MIDI Keys; shortcuts and the voicing on the
+  Full keyboard; GRAIN, a seventh engine; velocity on all 27 keys and Vel + Poly AT; SAFE MODE's Flash Data clears the
+  saved sounds.
 - **New in 0.23** ([docs/releases/0.23.md](docs/releases/0.23.md)): FM TONE at the other engines' level and without
   pops on its voices; Options > Velocity Curve; Solfège numerals in Key Mode; the device manager places sounds next to
   one saved on another build.

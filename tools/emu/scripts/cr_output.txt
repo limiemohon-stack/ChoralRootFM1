@@ -3,6 +3,7 @@
 # the screen, and the WAV: no jump, no hole, no click at either change (tools/emu/wavclicks.py).
 # A 4-note chord on TINE EP held throughout; OPT tap, SELECT to Output (entry 21, after Dual Core); KNOB 1 -1: Classic;
 # 1 s later +1: Clean; OPT closes; the chord let go.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 key F3 down
 key 2 down
@@ -14,7 +15,7 @@ wait 1500
 dump
 btn GLO 80
 wait 300
-knob SELECT +26
+knob SELECT +29
 wait 300
 shot build/emu/test/cr_output_clean.ppm
 knob KNOB1 -1

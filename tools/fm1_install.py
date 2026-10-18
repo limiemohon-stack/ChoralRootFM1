@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 Leo Kuroshita (@kurogedelic), Hügelton Instruments
-"""Install a Felucca package (.fwsc) on an FM-1 over USB-MIDI.
+"""Install a Felucca package (.fwsc) on an FM-1 (or an M-Vave SMK-37: SMK37.md) over USB-MIDI.
 
 The same update as the web installer (web/fm1ota.js): step 1, the
 running firmware reads parts of the package and starts the update loader;
@@ -66,9 +66,13 @@ file keeps the record's binding (its "binding" field says what it overwrites; th
 If the FM-1 is still in update mode (an earlier install was cut off), the
 install finishes the write. Needs python-rtmidi (pip install python-rtmidi; mido is no longer used).
 
+The SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play) are one keyboard under several names: a package
+for one of them installs on any of them, never an FM-1 package on an SMK or back, and an update loader is written
+only when it is of the package's keyboard (the same rule on every path: the install and the resume of an update).
+
 Exit codes: 0 done, 1 cancelled or other error, 2 bad arguments or package,
 3 FM-1 not found, 4 connection lost or the device stopped, 5 timeout (no
-loader / no restart), 6 wrong model, or another identity after the install,
+loader / no restart), 6 wrong model (or a loader of another keyboard), or another identity after the install,
 7 the backup, restore or sound write failed (or the firmware has no backup protocol, or is not ChoralRoot for the
 sounds), 8 the running firmware is one ChoralRoot
 is not installed over (Sloop, the Felucca 0.x betas, unknown ones: docs/INSTALL-COMPAT.md; --force overrides), 9 several
@@ -96,12 +100,15 @@ HS_QUERY = bytes([0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7])
 UPGRADE = bytes([0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7])
 FINISH_CHECK, FINISH_WRITE = 0xE0000000, 0xF0000000
 MAXDATA = 512
-BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
+BLOCKS, BLK, KEEP = 20, 0x30, 0x2F         # BLOCKS: the identity blocks (more may follow, see block_count)
+MAX_BLOCKS = 64
 LOADER_MARK = b"FELUCCA-LOADER-1"
 # the unmodified official FM-1 V15 (FM-1.fwsc from M-VAVE): returning to it is allowed without --force,
 # as the web installer's "Return to official V15" (web/fm1pkg.js validateStockPackage)
 STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a"
-PORT_RE = re.compile(r"fm-1|felucca|ota|composite|sinco|usb-midi", re.I)   # never probe other gear
+# the MIDI ports probed: the FM-1 / SMK-37 models' and the firmwares' names; other gear is never sent anything
+PORT_RE = re.compile(r"fm-1|smk|elite|mke-p37|starry|felucca|sloop|clipper|melodee|fomni|x0x|makkuro|maku|rainbow|amb-1|"
+                     r"choral|orbit|snoop|vector|vox|ota|composite|sinco|usb-midi", re.I)
 
 # seconds; the tests shorten them
 DELAY = {"open": 0.3, "start": 2.0, "reply": 0.01, "loader": 3.0, "reboot": 3.0, "retry": 1.0,
@@ -186,30 +193,134 @@ def parse_identity(pkt):
     d = unpack7(pkt[1:-1])
     if len(d) != 34 or d[:3] != b"\x00\x59\x11":
         return None
-    txt = d[6:33].rstrip(b"\0").decode("latin-1")
+    txt = d[6:33].split(b"\0")[0].decode("latin-1")    # (some firmwares end the text early)
     m = re.fullmatch(r"([^_]+)_(\d+)", txt)
     return Identity(txt, m[1], int(m[2])) if m else None
 
 
 # --------------------------------------------------------------- package ---
 
+def _id_char(m, i):
+    c = (m - i - 1) & 0xFF
+    return 0x20 <= c < 0x7F
+
+
+def identity_blocks(raw):
+    """the identity blocks: 20, or more when the identity is longer (the Starrykey 37 Play V016's
+    "STARRYKEY-37 PLAY_016" takes 21): further identity markers count only when unused 0x7D markers follow
+    them (the 36-block layout of the stock SMK-37 packages)"""
+    def marker(k):
+        return raw[k * BLK + KEEP] if (k + 1) * BLK <= len(raw) else None
+    n = BLOCKS
+    while n < MAX_BLOCKS and (m := marker(n)) is not None and m != 0x7D and _id_char(m, n):
+        n += 1
+    return n if n > BLOCKS and marker(n) == 0x7D else BLOCKS
+
+
 def product_of(raw):
-    """the package identity ("FM-1_906"): one marker byte after each of the first 20 blocks"""
+    """the package identity ("FM-1_906", "SMK-37 Pro_016"): one marker byte after each identity block (0x7D: none);
+    past the first 20 only when the package really has those blocks (the layout's count)"""
     if len(raw) < BLOCKS * BLK:
         raise InstallError("badpkg", "not an FM-1 package (too short)")
-    return "".join(chr((m - i - 1) & 0xFF) for i in range(BLOCKS) if (m := raw[i * BLK + KEEP]) != 0x7D)
+    ib = identity_blocks(raw)
+    n = BLOCKS if ib == BLOCKS else min(ib, layout(raw)[1])
+    return "".join(chr((m - i - 1) & 0xFF) for i in range(n) if (m := raw[i * BLK + KEEP]) != 0x7D)
 
 
-def logical_image(raw):
-    """the image the device reads during an update: the package without the 20 marker bytes"""
+def block_count(raw):
+    """interleave blocks: the identity blocks, then more while the marker is the unused 0x7D (the stock SMK-37
+    packages: 36). A 20-block package can have 0x7D there by chance: layout() checks the CRCs and falls back."""
+    n = identity_blocks(raw)
+    while n < MAX_BLOCKS and (n + 1) * BLK <= len(raw) and raw[n * BLK + KEEP] == 0x7D:
+        n += 1
+    return n
+
+
+def logical_image(raw, blocks=BLOCKS):
+    """the image the device reads during an update: the package without the marker bytes"""
     out = bytearray()
-    for i in range(BLOCKS):
+    for i in range(blocks):
         out += raw[i * BLK:i * BLK + KEEP]
-    return bytes(out + raw[BLOCKS * BLK:])
+    return bytes(out + raw[blocks * BLK:])
+
+
+def _crc16(data, crc=0):
+    """CRC-16/XMODEM, as the package and the device use"""
+    for b in data:
+        crc ^= b << 8
+        for _ in range(8):
+            crc = ((crc << 1) ^ 0x1021) & 0xFFFF if crc & 0x8000 else (crc << 1) & 0xFFFF
+    return crc
+
+
+def _dec(b):
+    """JieLi ENC stream cipher (its own inverse)"""
+    out, key = bytearray(b), 0xFFFF
+    for i in range(len(out)):
+        out[i] ^= key & 0xFF
+        key = ((key << 1) ^ (0x1021 if key & 0x8000 else 0)) & 0xFFFF
+    return bytes(out)
+
+
+def files_ok(image):
+    """the logical image's header and file list are intact and flash.bin (0) / ota.bin (100) match their CRCs.
+    The stock packer's other entries store a CRC of something else: checked for their bounds only."""
+    if len(image) < 0x40:
+        return False
+    hdr = _dec(image[0:0x40])
+    if _crc16(hdr[2:0x40]) != int.from_bytes(hdr[0:2], "little"):
+        return False
+    count = int.from_bytes(hdr[8:10], "little")
+    if not 1 <= count <= 8 or len(image) < 0x40 + 0x50 * count:
+        return False
+    for i in range(count):
+        e = _dec(image[0x40 + i * 0x50:0x90 + i * 0x50])
+        typ = int.from_bytes(e[0:2], "little")
+        off, size = int.from_bytes(e[8:12], "little"), int.from_bytes(e[12:16], "little")
+        if off + size > len(image):
+            return False
+        if typ in (0, 100) and _crc16(image[off:off + size]) != int.from_bytes(e[4:6], "little"):
+            return False
+    return True
+
+
+def layout(raw):
+    """-> (logical image, block count): 20 blocks, or the detected count when the files' CRCs agree"""
+    n = block_count(raw)
+    if n != BLOCKS:
+        image = logical_image(raw, n)
+        if files_ok(image) or not files_ok(logical_image(raw, BLOCKS)):
+            return image, n
+    return logical_image(raw, BLOCKS), BLOCKS
+
+
+def deinterleave(raw):
+    """the logical image: 20 blocks, or the detected count when the files' CRCs agree"""
+    return layout(raw)[0]
 
 
 def model_of(text):
     return text.split("_")[0].removeprefix("ota-")
+
+
+# the SMK-37 Pro, SMK-37 Elite, MKE-P37, Starrykey 37 Play and the SMK-37+VA mod: one keyboard under several model
+# names, so a package for one runs on all of them (also "SMK-37", the name other firmwares report); an FM-1 is another
+# device
+SMK_FAMILY = re.compile(r"SMK-37([ +].*)?|MKE-P37|STARRYKEY-37.*", re.I)
+
+
+def our_loader(text):
+    """the update loader of SLOOP / Felucca packages (ours: "ota-FM-1_9XX", "ota-SMK-37 Pro_9XX" and the other SMK
+    models', Makkuro37 _7XX). The stock updater's loader ("ota-SMK-37 Pro_016") and ChanceTheMaker's ("ota-SMK-37_931")
+    may lay the image out differently: an SMK left in their update mode is never written (but for the official
+    package, the return to stock)"""
+    return bool(re.fullmatch(r"ota-(FM-1|SMK-37 Pro|SMK-37 Elite|MKE-P37)_[789]\d\d", text, re.I))
+
+
+def same_keyboard(a, b):
+    """the models of identities a and b are the same hardware (never an FM-1 and an SMK)"""
+    ma, mb = model_of(a), model_of(b)
+    return ma == mb or bool(SMK_FAMILY.fullmatch(ma) and SMK_FAMILY.fullmatch(mb))
 
 
 # which firmware runs: may ChoralRoot be installed over it? The same table as web/fm1ota.js classifyFirmware
@@ -229,6 +340,8 @@ def classify_firmware(identity, info):
     if m[1]:
         return "loader", "loader", identity
     num = int(m[3])
+    if SMK_FAMILY.fullmatch(m[2]):                # the M-Vave SMK-37 (SMK37.md): its own table
+        return classify_smk(identity, m[2], num, v)
     if m[2] != "FM-1":
         return "refuse", "unknown", identity
     if 1 <= num < 100:
@@ -252,6 +365,21 @@ def classify_firmware(identity, info):
     if v:
         return "refuse", "unknown", f"an unknown firmware ({identity}, {v})"
     return "refuse", "unknown", f"an unknown Felucca-based firmware ({identity})"
+
+
+def classify_smk(identity, model, num, v):
+    """an SMK-37 (any of its model names): the official firmware and the Felucca-family ports (SLOOP, Felucca and the
+    ports on their SMK board layer: its owner tag keeps each firmware's data apart) are installed over. The bare name
+    "SMK-37_9NN" is ChanceTheMaker's SMK firmwares': another package format and their own updater, so not ours"""
+    if model.upper() == "SMK-37" and 900 <= num < 1000:
+        return "refuse", "other", f"a firmware with its own updater ({identity})"
+    if 1 <= num < 100:
+        return "allow", "stock", f"the official M-VAVE firmware ({identity})"
+    if re.match(r"choralroot\b", v, re.I):
+        return "allow", "choralroot", v
+    if 700 <= num < 1000:
+        return "allow", "smk", f"an SMK-37 port ({identity}{', ' + v if v else ''})"
+    return "refuse", "unknown", f"an unknown firmware ({identity})"
 
 
 def refusal_text(name):
@@ -1142,11 +1270,16 @@ class Updater:
 
     def install(self, dev, image, product, step=lambda *a: None):
         """running firmware -> loader -> new firmware; dev from find(). A device already in
-        update mode only needs the write."""
-        if model_of(dev.id.text) != model_of(product):
+        update mode only needs the write. The keyboard rule (same_keyboard) on both: the device, and the loader
+        that answers after step 1"""
+        if not same_keyboard(dev.id.text, product):
             dev.link.close()
             raise InstallError("model", f"the device is {dev.id.text}, the package is for {product}")
         ota = dev if dev.id.loader else self.check(dev, image, step)
+        if not same_keyboard(ota.id.text, product):
+            ota.link.close()
+            raise InstallError("model", f"the device is in the update mode of {ota.id.text}, the package is for "
+                                        f"{product}: nothing was written")
         self.write(ota, image, step)
         return self.verify(product, step)
 
@@ -1644,13 +1777,15 @@ ENGINE_NAMES = ("ANALOG", "DIGITAL", "PHASE", "LOFI", "SAMPLE", "VOICE", "TRIO",
                 "NOISE", "FM6", "VA", "CZ-1", "FM TONE", "P5")   # ENGINES[] (append-only; 0, 1, 4, 8, 10 retired: ANALOG
                                                           # since 0.14; 2, 3, 5, 6, 11, 9 retired in 0.18: PHASE, LOFI,
                                                           # VOICE, TRIO, NOISE, PHYS). 15: FM TONE (eng_quad.c, code name QUAD)
-ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz", 15: "quad", 16: "p5"}  # engine -> its patch kind (P5: the pool only)
-PATCH_KINDS = ("va", "fm6", "cz", "quad", "p5")
-PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144, "quad": 96, "p5": 138}
+ENGINE_PATCH = {12: "fm6", 13: "va", 14: "cz", 15: "quad", 16: "p5", 8: "grain"}  # engine -> its patch kind (P5,
+                                                                                  # GRAIN: the pool only)
+PATCH_KINDS = ("va", "fm6", "cz", "quad", "p5", "grain")
+PATCH_SIZE = {"va": 110, "fm6": 128, "cz": 144, "quad": 96, "p5": 138, "grain": 64}
 # a kind's blob in the legacy stores (before the pool): FM TONE's 80 (versions 1..3; versions 4 and 5, 2026-10-14: 96
 # bytes, the hi-res values in hundredths; the FM-1 converts a version 4 on load). A version 1..3 blob is zero-padded to 96 (the firmware converts it on load)
 STORE_PATCH = dict(PATCH_SIZE, quad=80)
 QUAD_V3 = 80
+GRAIN_V1 = 20                                       # GRAIN's first build's record (version 1; the FM-1 converts it on load)
 
 
 def _quad96(b):
@@ -1679,8 +1814,8 @@ SOUND_FORMAT = "choralroot-sound"
 # Sequential program number, the device manager's marks): tests/sound_templates.c prints the three from the firmware
 # built as the unit is, and its --check fails until the three lines below hold its strings verbatim (docs/SOUNDS.md
 # "The binding")
-FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"],"16":["INIT P5","ITS PROPHET5","AFTER RINGER","FOREVER KEYS","STABBY BRASS","NO WHINING","FANTASTIC 5","PDG ORGAN","CLAVICLE","BLOW BY BLOW","TAARICHOIR","REEDY STRPAD","CANNED HAPPY","SYNCHROTRILL","BORN IN 80S","STICKY PLUCK","WATERY PLUCK","BASS FACE","WHINY OPENER","SYNCTINK","TREMBL ORGAN","SCI-FI ECHO","UNICORN DRMS","COCKTAIL HR","NICE SMOOTH","TUMESC BASS","INTERNALIZED","BLINKR BELLS","UWATER TRILL","POLY MCFAT","REED EP","PIPE ORGANIS","FAT POLYBASS","CHORAL VOICE","HUM-ALONG","AFTRBLW HORN","MIDNIGHT PWM","RIPPLES","RADIO TOWERS","HARPSI-VIBE","INSTABIL PAD","VINTAGE WRLY","PRESSURE PTS","80S HORROR","NURSERYCOMP","HOUSE MOVER","VOCAL PAD","SQUARECLIFF","UNDER ICE","MARIMBA","UNISAWYER","RECORDER","GHOSTLY GLOW","UPTIGHT BASS","RAVECAVE","CELTIC MOON","MOUSE BLASTR","KYOTO","ORGAN PERC","DRM ORGONON","PLUCK HOLLOW","VELO RES LD2","REGAL MOVMNT","LOOSE SQUARE","RUBBR BUMPER","GALV BUCKET","SOFT SWELL","REVERB STRGS","LAGOON BASS","PLUCKTY DUCK","BELL TREE","RISER CHORD","TIMPANALLY","TUNED PERC","FUNKY BELLS","FEDBACK","NYLON FINGRS","FAINT MEMORY","FULL HEXAGON","ICONIC BRASS","SYNC SWELLPD","PRETTY PLUCK","FEATURE BASS","CHORUSLAYER","BETTER WAYS","BASSMENT","DENOUEMENT","SYNCWAVE","ORGANIZER","BULL BY HORN","NAIVE MELODY","POLY MORGUE","SWITCHBACK","PLUCKYNESS","CYBERIAN WND","METAL DRONE","LOW STRINGS","PERC E PIANO","FLUTES","PERC ORGAN","UNISON GLIDE","ORGAN W RES","TOY PIANO","TRUMPT FLUTE","ELEC PIANO I","OCTAVE SAWS","DELAYED HARM","ECHO REPEAT","PULSE W MOD","4THS W RES","SWEEP HARMS","SLOW SYNC","NOISE SWEEP","RES BELLS","HOLLOW SOUND","CAT"]}
-FACTORY_FIRST = {"7":0,"12":0,"13":0,"14":1,"15":0,"16":1}
+FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLUTE","ROCK DRIVE"],"8":["CLOUD PAD","SHIMMER","BREATH PAD","FROZEN","STRUM","SWARM","ACID DUST","GLITCH"],"12":["TINE EP","FM BELL","FM BASS","BRASS","FM PAD","MARIMBA","FM ORGAN","FM PLUCK","DX TINE","BRASS SECT","SOLID BASS","BELLS","DX MARIMBA","CLAVINET","DRAWBARS","STRINGS","GLASS PAD","SYNC LEAD","HARP","KALIMBA","FLUTE","STEEL DRUM","SAW BASS","TUBULAR","PIANO"],"13":["LUSH PAD","WARM PAD","GLASS PAD","SLOW STRINGS","ENSEMBLE STR","SYNTH BRASS","SOFT BRASS","POLY KEYS","PWM KEYS","CLAV","SOFT LEAD","HOLLOW","BELLS","SWEEP PAD","SOFT AAH","ORGANISH","DEEP SUB","PUNCH BASS","RUBBER BASS","SYNC BASS","MORPH PAD","VINYL KEYS","WIDE STRINGS","CLOUD PAD","SHIMMER"],"14":["INIT TONE","BRASS 1","BRASS 2","BRASS 3","STRINGS 1","STRINGS 2","STRINGS 3","STRINGS 4","ORCHESTRA","ACO.GUITAR","JAZZ GUITAR","ELEC.GUITAR","SLAP BASS","SYNTH.BASS","ELEC.BASS 1","ELEC.BASS 2","HARP","BRASS 4","SAXOPHONE","CELLO","FLUTE","WHISTLE","HARMONICA","RECORDER","KOTO","PIANO 1","PIANO 2","PIANO 3","ELEC.PIANO","HONKY-TONK","FUNKY CLAV 1","FUNKY CLAV 2","HARPSICHORD","JAZZ ORGAN 1","JAZZ ORGAN 2","PIPE ORGAN 1","PIPE ORGAN 2","ACCORDION","VOICE 1","VOICE 2","VOICE 3","MUSIC BOX","VIBRAPHONE","XYLOPHONE","MARIMBA","MALLET LOG","AFRO PERC","BELLS","METALLIC","SYN STRINGS","FAT ENSEMBLE","SITAR","SYNTH.LEAD 1","SYNTH.LEAD 2","SYNTH.LEAD 3","SYNTH.LEAD 4","SWEEP 1","SYN DRUMS 1","SYN DRUMS 2","CONGA","STEEL DRUM","SWEEP 2","JET ROAR","MOTORCYCLE","TYPHOON"],"15":["EP","BELL","BASS","PLUCK","BRASS","GLASS PAD","HOLLOW","SQUARE LEAD","METAL","WOBBLE","CLAV","STRINGS","MARIMBA","DRONE","FEEDBACK","NOISE-ISH"],"16":["INIT P5","ITS PROPHET5","AFTER RINGER","FOREVER KEYS","STABBY BRASS","NO WHINING","FANTASTIC 5","PDG ORGAN","CLAVICLE","BLOW BY BLOW","TAARICHOIR","REEDY STRPAD","CANNED HAPPY","SYNCHROTRILL","BORN IN 80S","STICKY PLUCK","WATERY PLUCK","BASS FACE","WHINY OPENER","SYNCTINK","TREMBL ORGAN","SCI-FI ECHO","UNICORN DRMS","COCKTAIL HR","NICE SMOOTH","TUMESC BASS","INTERNALIZED","BLINKR BELLS","UWATER TRILL","POLY MCFAT","REED EP","PIPE ORGANIS","FAT POLYBASS","CHORAL VOICE","HUM-ALONG","AFTRBLW HORN","MIDNIGHT PWM","RIPPLES","RADIO TOWERS","HARPSI-VIBE","INSTABIL PAD","VINTAGE WRLY","PRESSURE PTS","80S HORROR","NURSERYCOMP","HOUSE MOVER","VOCAL PAD","SQUARECLIFF","UNDER ICE","MARIMBA","UNISAWYER","RECORDER","GHOSTLY GLOW","UPTIGHT BASS","RAVECAVE","CELTIC MOON","MOUSE BLASTR","KYOTO","ORGAN PERC","DRM ORGONON","PLUCK HOLLOW","VELO RES LD2","REGAL MOVMNT","LOOSE SQUARE","RUBBR BUMPER","GALV BUCKET","SOFT SWELL","REVERB STRGS","LAGOON BASS","PLUCKTY DUCK","BELL TREE","RISER CHORD","TIMPANALLY","TUNED PERC","FUNKY BELLS","FEDBACK","NYLON FINGRS","FAINT MEMORY","FULL HEXAGON","ICONIC BRASS","SYNC SWELLPD","PRETTY PLUCK","FEATURE BASS","CHORUSLAYER","BETTER WAYS","BASSMENT","DENOUEMENT","SYNCWAVE","ORGANIZER","BULL BY HORN","NAIVE MELODY","POLY MORGUE","SWITCHBACK","PLUCKYNESS","CYBERIAN WND","METAL DRONE","LOW STRINGS","PERC E PIANO","FLUTES","PERC ORGAN","UNISON GLIDE","ORGAN W RES","TOY PIANO","TRUMPT FLUTE","ELEC PIANO I","OCTAVE SAWS","DELAYED HARM","ECHO REPEAT","PULSE W MOD","4THS W RES","SWEEP HARMS","SLOW SYNC","NOISE SWEEP","RES BELLS","HOLLOW SOUND","CAT"]}
+FACTORY_FIRST = {"7":0,"8":0,"12":0,"13":0,"14":1,"15":0,"16":1}
 FACTORY_IDS = {"16":[0,1,2,3,6,7,8,10,11,12,13,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,41,43,45,46,47,51,53,54,56,59,60,61,62,65,66,67,68,70,72,77,79,82,83,85,86,87,89,92,93,95,97,100,101,103,104,107,108,109,110,111,112,113,114,115,117,120,122,123,127,128,131,132,133,135,136,137,139,140,142,143,146,147,148,150,152,156,159,162,164,165,168,169,171,172,173,179,181,183,184,185,187,188,189,194,198,199,200]}
 BIND_MARK, BIND_NOTE, BIND_FLAGS = 0xA6, 160 + 15, 176 + 15   # note[15] = the mark, flags[15] = factory index + 1
 
@@ -1753,11 +1888,12 @@ def _store_blob(objs, kind, slot):
         b = objs.get(i, b"")
         n = b[off + POOL_HDR + 1] if len(b) == POOL_BANK else 0
         if len(b) != POOL_BANK or b[off + POOL_HDR] != KIND_ENGINE[kind] + 1 or \
-                (n != PATCH_SIZE[kind] and not (kind == "quad" and n == QUAD_V3)):   # (an older FM TONE slot: 80)
+                (n != PATCH_SIZE[kind] and not (kind == "quad" and n == QUAD_V3)
+                 and not (kind == "grain" and n == GRAIN_V1)):   # (an older FM TONE slot: 80; a GRAIN slot of the first build: 20)
             return None
         d = bytes(b[off + POOL_DATA:off + POOL_DATA + n])
         return _quad96(d) if kind == "quad" else d
-    if kind == "p5":
+    if kind in ("p5", "grain"):                    # (the pool only: no store before it)
         return None
     i, k, off = _store_at(kind, slot)
     b = objs.get(i, b"")
@@ -1785,6 +1921,10 @@ def _set_blob(objs, kind, slot, blob):
     if kind == "p5":
         if blob is not None:
             raise InstallError("usage", "this FM-1 keeps no P5 programs (ChoralRoot 0.22 or later needed)")
+        return
+    if kind == "grain":
+        if blob is not None:
+            raise InstallError("usage", "this FM-1 keeps no GRAIN sounds (a ChoralRoot with the GRAIN engine needed)")
         return
     if kind == "quad" and blob is not None:        # (a firmware before the pool keeps versions 1..3, 80 bytes)
         if blob[1] > 3:
@@ -2010,6 +2150,8 @@ def read_sound_file(f):
         data = b64(patch.get("data"), "the patch data")
         if kind == "quad" and len(data) == QUAD_V3 and data[:1] == b"Q" and 1 <= data[1] <= 3:
             data = _quad96(data)                   # (an FM TONE sound file of before 2026-10-14: the FM-1 converts it)
+        if kind == "grain" and len(data) == GRAIN_V1 and data[:1] == b"G" and data[1] == 1:
+            data = bytes(data) + bytes(PATCH_SIZE["grain"] - GRAIN_V1)   # (a GRAIN sound file of the first build: zero-padded, the FM-1 converts it)
         if len(data) != PATCH_SIZE[kind]:
             raise bad(f"the {kind} patch is {len(data)} bytes, not {PATCH_SIZE[kind]}")
         if kind == "va" and (data[0] != 0x56 or not 1 <= data[1] <= 5):
@@ -2480,7 +2622,7 @@ def load_package(path, force):
         raise InstallError("badpkg", f"{path}: no Felucca update loader in this package; only Felucca's own "
                                      "packages and the unmodified official V15 (FM-1.fwsc) are installed "
                                      "(--force overrides)")
-    return product, logical_image(raw), official
+    return product, deinterleave(raw), official
 
 
 def not_found(up):
@@ -3011,13 +3153,22 @@ def run(a, backend, out, ask):
     if not dev:
         raise not_found(up)
     version = None
-    if not dev.id.loader and not official and model_of(dev.id.text) == model_of(product):
+    if not dev.id.loader and not official and same_keyboard(dev.id.text, product):
         info = device_info(BackupLink(dev.link))     # the version text tells the Felucca-based firmwares apart
         version = info and info[0]
+    if dev.id.loader and SMK_FAMILY.fullmatch(model_of(dev.id.text)) and not our_loader(dev.id.text) and not official:
+        dev.link.close()
+        raise InstallError("model", f"the keyboard is in the update mode of another firmware ({dev.id.text}): nothing "
+                                    "was written. Finish that update with its own updater")
     print(f"device:  {dev.id.text}  ({dev.name})" + (f"  {version}" if version else "") +
           ("  in update mode: the write will be finished" if dev.id.loader else ""), file=out)
-    if not dev.id.loader and not official and model_of(dev.id.text) == model_of(product):
-        verdict, _kind, name = classify_firmware(dev.id.text, version)   # (the return to V15 is always allowed)
+    if not dev.id.loader and not official and same_keyboard(dev.id.text, product):
+        verdict, kind, name = classify_firmware(dev.id.text, version)   # (the return to V15 is always allowed)
+        if kind == "other":                       # (its own updater and package format: never, not with --force)
+            dev.link.close()
+            raise InstallError("unsupported", f"the keyboard runs {name}: ChoralRoot is not installed over it from "
+                                              "here, nothing was written. Return to the official firmware with that "
+                                              "firmware's own updater first")
         if verdict == "refuse" and not a.force:
             dev.link.close()
             raise InstallError("unsupported", refusal_text(name) + "\n  (--force installs anyway, at your own risk)")

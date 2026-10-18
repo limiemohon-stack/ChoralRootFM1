@@ -300,6 +300,9 @@ static void p5_track_loaded(track_t *t);         /* eng_prophet_test.c: PROPHET'
 /* a sound load put a PTCH value in (a preset, a user preset, undo, an engine change): its patch. ChoralRoot: a user
  * slot's own patch and function settings (its blob), else the PTCH slot's with Dexed's function settings; a user slot
  * of before the blobs (Felucca's PTCH numbering, B1 = 8): its bank patch at today's B number (B1 = 24) */
+#if FELUCCA_GRAIN
+static void grain_track_loaded(const track_t *ct);   /* eng_grain.c (after eng_va.c) */
+#endif
 static void fm6_track_loaded(const track_t *ct)
 {
     track_t *t = (track_t *)ct;
@@ -317,6 +320,9 @@ static void fm6_track_loaded(const track_t *ct)
 #if FELUCCA_PROPHET
     p5_track_loaded(t);
 #endif
+#if FELUCCA_GRAIN
+    grain_track_loaded(t);                       /* (eng_grain.c, after the VA: declared below this function) */
+#endif
     fm6_user_pending = 0;
     if (tr >= NTRK || t->eng_req != ENGI_FM6)
         return;
@@ -330,12 +336,14 @@ static void fm6_track_loaded(const track_t *ct)
     fm6_load_slot(tr, (uint32_t)clamp(t->p[P_E7], 0, FM6_NSLOT - 1));
 }
 
-/* power-on: every track the init voice (what a project stores for the tracks that never played FM6), the
- * function settings Dexed's (a project or the template loaded then brings its own) */
+/* power-on (main.c felucca_init and cr_ui.c cr_ui_init: the unit, the emulator and the layout tool alike): every track
+ * the init voice (what a project stores for the tracks that never played FM6), the function settings Dexed's (a
+ * project or the template loaded then brings its own); the other engines' power-on work hangs here too */
 static void fm6_init(void)
 {
     uint8_t v[FP_SIZE + 1u];
     uint32_t tr;
+    fm6_tables_init();                           /* the RAM tables (build/gen/felucca_tables.h: FM6_SIN by Dexed's rotation) */
     fm6_fn_reset();
 #if FELUCCA_CZ
     cz_init();                                   /* (CZ-1: every part the init tone) */

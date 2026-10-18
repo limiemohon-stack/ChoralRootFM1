@@ -1,10 +1,11 @@
 # ChoralRoot 0.19: Options > Output set to Classic and left to be saved (an Option: written by itself once the unit
 # is quiet). tools/emu/test_cr.sh runs it on a flash file, then relaunches with persist_check.txt: the "master:" line
 # says Classic, chain 0, from the first block (no fade at power-on).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +26
+knob SELECT +29
 wait 300
 knob KNOB1 -1
 wait 400

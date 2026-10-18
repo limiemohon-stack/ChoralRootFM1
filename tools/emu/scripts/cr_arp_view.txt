@@ -4,6 +4,7 @@
 # chord released: it keeps hopping; PANIC: the chord view. The Keyboard view with the arp running: unchanged. Options >
 # Motion Off: the arp screen too (the hop is not an animation). Strum: the chord view. A playing loop with no key held: the arp screen; stopped:
 # the chord view. test_cr.sh reads the frames (EMU_UI_LOG=0) between the dumps.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn ARP down
 wait 500
@@ -80,7 +81,7 @@ btn HOME
 wait 300
 btn GLO 80
 wait 300
-knob SELECT +18               # Options > Motion
+knob SELECT +21               # Options > Motion
 wait 300
 knob KNOB1 +2                 # Full -> Calm -> Off
 wait 300

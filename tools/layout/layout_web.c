@@ -159,14 +159,14 @@ LAY_EXPORT uint32_t lay_snapshot_bytes(void) { lay_boot(); return lay_snap ? lay
 static const char *const LAY_FMT[] = {"int", "pct", "bipct", "time", "lfohz", "cutoff", "db", "semi", "enum", "bpm",
                                       "note", "onoff", "oct", "steps", "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti"};
 static const char *const LAY_STYPE[] = {"platform", "stack", "columns", "mixer", "edit", "page", "expr", "free"};   /* CE_S_* */
-static const char *const LAY_BAND[] = {"none", "env", "filter", "dx", "cz", "algo", "ade2"};         /* CR_W_* */
+static const char *const LAY_BAND[] = {"none", "env", "filter", "dx", "cz", "algo", "ade2", "wave"};   /* CR_W_* */
 static const char *const LAY_STYLE[] = {"rule", "big", "ratio", "harm", "detune", "num", "val", "text", "knob", "bar",
                                         "waveph", "p5knob", "p5led", "p5led-saw", "p5led-tri", "p5led-sqr", "p5led2",
                                         "p5switch"};                                                  /* ENG_C_* */
 _Static_assert(sizeof LAY_STYLE / sizeof LAY_STYLE[0] == ENG_C_P5SWITCH + 1, "LAY_STYLE: ENG_C_*");
 static const char *const LAY_GBTN[CE_NSEC] = {"FX", "SEL", "ENV", "LFO", "SEQ", "PLAY", "REC"};   /* cr_edit.c CE_SEC_BTN:
                                                     * the buttons as the emulator names them (the panel prints the groups) */
-static const char *const LAY_PBAND[] = {"none", "env", "filter", "window", "algo", "ade2"};          /* ENG_B_* */
+static const char *const LAY_PBAND[] = {"none", "env", "filter", "window", "algo", "ade2", "wave"};   /* ENG_B_* */
 
 /* a descriptor's value names: an F_ENUM's names[min .. max], another format's 0-terminated list (params.c) */
 static uint32_t lay_nnames(const param_desc_t *d)

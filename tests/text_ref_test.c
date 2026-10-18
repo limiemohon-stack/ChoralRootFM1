@@ -69,14 +69,13 @@ static uint32_t ref_gi(const aafont_t *f, uint32_t ch)      /* the glyph's numbe
     if (k < 0) k = ref_at(f, '?');
     return k < 0 ? 0u : (uint32_t)k;                        /* a sparse face (L) without '?': its first glyph */
 }
-static int32_t ref_kern(const aafont_t *f, uint32_t a, uint32_t b)
+static int32_t ref_kern(const aafont_t *f, uint32_t a, uint32_t b)   /* (the rows of gfx.c kern, read plainly) */
 {
-    uint32_t key = (a << 8) | b, lo = 0, hi = f->nk;
-    while (lo < hi) {
-        uint32_t m = (lo + hi) / 2u;
-        if (f->kkey[m] == key) return f->kd[m];
-        if (f->kkey[m] < key) lo = m + 1u; else hi = m;
-    }
+    int32_t ia = f->nk ? ref_at(f, a) : -1;
+    uint32_t j;
+    if (ia < 0) return 0;
+    for (j = f->krow[ia]; j < f->krow[ia + 1]; j++)
+        if (f->kb[j] == b) return f->kd[j];
     return 0;
 }
 /* a glyph's alpha values: 2 px per byte, or (f->hc) the Huffman bit stream of tools/gen_aa_font.py, decoded

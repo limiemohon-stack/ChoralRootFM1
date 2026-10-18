@@ -272,6 +272,18 @@ the enums title-cased ("On", "Free", "Harm"; "LP" stays). The ratios step one va
 next pair). The cells after a span cell move a place left (`CR_CF_SPAN2`: the hot cell is the cell's index). No matrix:
 the quick mapping says "not modulatable". Tests: `tools/emu/scripts/cr_quad.txt`.
 
+### GRAIN (docs/GRAIN.md; 0.24-beta2)
+
+A plan for OSC and ENV, the title rules for the rest (`eng_grain.c GRAIN_SCREENS`). OSC: `SRC` (lanes `SRC 1`, `SRC 2`:
+TYPE TONE MOTION SEED) and `GRAIN` (lanes `GRAIN`: SIZE DENS POS SPRD; `GRAIN+`: MORPH RAND PITCH SCAN), both under
+the **wave band** (`ENG_B_WAVE`, `cr_draw.c cr_wave_band`: the active source's envelope on SRC; on GRAIN the mix the
+grains read, A's and B's envelopes weighted by MORPH in a colour from A's blue to B's orange (3y167), POS, SPRD and
+the live grains in one colour). FILT: `FILTER` (CUT RES FTYPE DRIVE) and `FILTER+` (KTRK) under
+the VA's filter curve. ENV: `ENV 1 · amp` (the track's ATK DEC SUS REL) and `ENV 2 · mod`, each under the AHDSR. LFO:
+the stack `LFO 1`, `LFO 2` (RATE WAVE DEPTH FADE) and `LFO SYN` (SYNC1 SYNC2; a synced RATE reads the VA's list). MOD:
+the matrix's stack of eight (SRC DST AMT, the VA's fine amounts), then EXPR. The quick mapping works (`grain_mod_dst`).
+Tests: `tools/emu/scripts/cr_grain.txt` (eleven screenshots), `tests/cr_grain_test.c`.
+
 ENGINE, the factory presets and INIT are **not groups**: they are the engine picker (§7).
 
 ## 5. Memory
@@ -309,7 +321,7 @@ when turned slowly, so SHIFT is the snap now.
 
 The owner (2026-10-14): "a small turn does fine increments, a quick turn moves the parameter faster", and hold OPT
 to "do the same thing the real Digitone does when holding Func, and snap to common values". One implementation for
-every knob that edits a **value**: the sound editor of every engine (FM6, FM TONE, VA, CZ-1, P5, WHEEL and the
+every knob that edits a **value**: the sound editor of every engine (FM6, FM TONE, VA, CZ-1, P5, WHEEL, GRAIN and the
 platform pages), its FX group (the sends), the FX layer, the BASS layer's level and BASS + ALGORITHM, the KEY layer's
 Transpose, the PERF row and the main view's KNOB 3 / KNOB 4, Options > Velocity (`cr_pages.c` `kn_*`, `cr_ui.c`
 `cu_kval`). **Not** values, one item a detent whatever the speed: PRESETS, ALGORITHM, SELECT, the pickers and lists,
@@ -387,7 +399,7 @@ On opening, the picker **snapshots** the part's sound: every parameter, the engi
 the VA's), the `edited` flag and the pool entry it came from (its place in the pool). Then, as before:
 
 - the white root keys are the engines in the firmware's order (FM6, FM TONE, VA, CZ-1, WHEEL: D4..A4, five
-  engines since 0.18, a root each; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS (retired in 0.18), ANALOG (retired in 0.14), SAMPLE, GRAIN and DRUM are not in
+  engines since 0.18, a root each; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS (retired in 0.18), ANALOG (retired in 0.14), SAMPLE and DRUM are not in
   the all-synth firmware). A root switches the sound's engine, keeping its envelope and sends;
 - KNOB 1 (and PRESETS) steps the engine's **pool**, the same list PRESETS turns outside the editor (docs/PRESETS.md: 00
   INIT, the factory presets, each replaced by the user's record bound to it, the user's added presets), loaded for

@@ -205,6 +205,27 @@ static double centroid(const double *y, uint32_t a)       /* the spectral centro
     return den > 0 ? num / den : 0;
 }
 
+/* the RAM tables (HISTORY 3y127): FM6_SIN, built at power-on by Dexed's integer rotation (fm6_tables_init), is the
+ * table tools/gen_tables.py computes (FM6_SIN_CHECK: the sum of (i + 1) x FM6_SIN[i] in 32 bits), odd about half a
+ * cycle and 0 at 0, 512 and 1024; FM6_MKI_LOG and FM6_OPL_LOG are their stored quarters mirrored */
+static void tables(void)
+{
+    uint32_t i, sum = 0;
+    int ok = 1;
+    fm6_tables_init();
+    for (i = 0; i < 1025u; i++)
+        sum += (i + 1u) * (uint32_t)FM6_SIN[i];
+    for (i = 0; i < 512u; i++)
+        ok &= FM6_SIN[i + 512u] == -FM6_SIN[i];
+    for (i = 0; i < 1024u; i++)
+        ok &= FM6_MKI_LOG[i] == FM6_MKI_LOG[2047u - i] && FM6_MKI_LOG[i] == FM6_MKI_LOG_H[i];
+    for (i = 0; i < 256u; i++)
+        ok &= FM6_OPL_LOG[i] == FM6_OPL_LOG[511u - i] && FM6_OPL_LOG[i] == FM6_OPL_LOG_H[i];
+    check("tables: FM6_SIN built at power-on is the generator's (checksum), odd, 0 at 0 / 512 / 1024; the log-sine "
+          "halves mirror their stored quarters",
+          ok && sum == FM6_SIN_CHECK && FM6_SIN[0] == 0 && FM6_SIN[512] == 0 && FM6_SIN[1024] == 0);
+}
+
 /* -------------------------------------------------------------- SysEx --- */
 static void sysex_pending(void)
 {
@@ -928,6 +949,7 @@ static void demo(const char *dir, uint32_t pi)
 int main(int argc, char **argv)
 {
     uint32_t pi;
+    tables();
     sysex_pending();
     algorithms();
     patches();

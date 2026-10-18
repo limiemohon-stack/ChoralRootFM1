@@ -5,7 +5,7 @@
 #   run 1 (the pre-cut build, a fresh flash file): the chord part to PHASE (EDIT held + A4), saved as U01 "ADG", then
 #         parked on NOISE (OPT + PRESETS); the settings saved. The pre-cut build is this tree with the five switched
 #         back on and PHYS with them (-DFELUCCA_PHASE=1 .. -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1: the engine set 0.17
-#         had), build/host/emu_precut
+#         had; -DFELUCCA_GRAIN=0: 0.17 had no GRAIN, which came back over its own material in 0.22), build/host/emu_precut
 #   run 2 (today's build, the same file): the unit starts and plays FM6's default (TINE EP), as a fresh unit; the PHASE
 #         sound is an added preset of the VA's pool under its name, the VA's init sound when picked, with the message
 #         "PHASE retired: stand-in": build/emu/test/retired_standin.ppm
@@ -40,7 +40,7 @@ fi
 # emulator's own objects as build.sh left them
 if [ ! -x "$PRE" ] || [ "$EMU" -nt "$PRE" ] || [ "$0" -nt "$PRE" ]; then
     SDL_LIBS=$(/opt/homebrew/bin/sdl2-config --libs 2>/dev/null || echo "-L/opt/homebrew/lib -lSDL2")
-    ${CC:-clang} -O2 -w -Ibuild/gen -Ifirmware/src '-DFELUCCA_VERSION="ChoralRoot 0.17"' -DFELUCCA_PHASE=1 -DFELUCCA_LOFI=1 \
+    ${CC:-clang} -O2 -w -Ibuild/gen -Ifirmware/src '-DFELUCCA_VERSION="ChoralRoot 0.17"' -DFELUCCA_GRAIN=0 -DFELUCCA_PHASE=1 -DFELUCCA_LOFI=1 \
         -DFELUCCA_VOICE=1 -DFELUCCA_TRIO=1 -DFELUCCA_NOISE=1 -DFELUCCA_PHYS=1 -DFELUCCA_PROPHET=0 -c tools/emu/emu_fw.c -o "$OBJ/emu_fw_precut.o" &&
     ${CC:-clang} -o "$PRE" "$OBJ/emu.o" "$OBJ/keymap.o" "$OBJ/emu_img.o" "$OBJ/emu_midi.o" "$OBJ/emu_fw_precut.o" \
         $SDL_LIBS -lz -lm -framework CoreMIDI -framework CoreFoundation || { echo "pre-cut build failed"; exit 1; }

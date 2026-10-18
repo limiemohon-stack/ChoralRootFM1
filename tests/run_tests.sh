@@ -211,6 +211,41 @@ run "update loader: no stub -> this build; the interruption model" "$OUT/ldr_tes
 run "update loader: this build -> a package without the marker (address order)" "$OUT/ldr_test" build/choralroot.fwsc \
     "$OUT/stub-test-no-stub.fwsc"
 
+# the M-Vave SMK-37 (BOARD_SMK37, SMK37.md): the flash map, the store's owner tag, the package layout, the OTA staging
+# and the loader with its interruption model on SMK-layout packages (made here from the FM-1 binaries: only the layout
+# and the protocol are under test)
+par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_flash_test" tests/smk_flash_test.c
+run "SMK-37 flash map: allow-lists never reach the head, BTIF/USRTRIM, USR, key_mac; every object's place" \
+    "$OUT/smk_flash_test"
+par_build $CC -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/smk_owner_test" tests/smk_owner_test.c
+run "SMK-37 store owner tag: another firmware's store cleared, ours kept, nothing else written" "$OUT/smk_owner_test"
+PAR_MAKES="$OUT/smk-new.fwsc"
+par_prep quiet python3 tools/fm1pkg_make.py --board smk37 --product "SMK-37 Pro_920" build/choralroot.bin \
+    build/loader/ota.bin "$OUT/smk-new.fwsc"
+run "SMK-37 package layout (fm1pkg_make --board smk37): PRCT 0x9D000, stock region table, the stub's places" \
+    python3 tests/smk_pkg_test.py "$OUT/smk-new.fwsc"
+par_build $CC -DBOARD_SMK37=1 -DOWN_PKG=1 -o "$OUT/ota_test_smk" tests/ota_test.c
+run "M-UPGRADE entry, SMK-37 build (staging 0xBB000, parm ota-SMK-37 Pro_016)" "$OUT/ota_test_smk" "$OUT/smk-new.fwsc"
+for m in 1 2; do                                     # the MODEL=elite / mke builds of ota.c and the stub's record
+    par_build $CC -DBOARD_SMK37=1 -DT_MODEL=$m -DOWN_PKG=1 -o "$OUT/ota_test_smk_m$m" tests/ota_test.c
+    run "M-UPGRADE entry, SMK model $m build (MODEL=elite / mke: its own parm identity, the stub's the same)" \
+        "$OUT/ota_test_smk_m$m" "$OUT/smk-new.fwsc"
+done
+for m in no-stub other-body no-stub-other old-stub; do
+    PAR_MAKES="$OUT/smk-stub-test-$m.fwsc"
+    par_prep quiet python3 tools/make_stub_test_pkg.py "$m" --board smk37 -o "$OUT/smk-stub-test-$m.fwsc"
+done
+par_build $CC -O2 -DBOARD_SMK37=1 -Ifirmware/hal -o "$OUT/ldr_test_smk" tests/ldr_test.c
+run "update loader, SMK-37: app area 0x4000-0x9CFFF, the interruption model, the protected ranges untouched" \
+    "$OUT/ldr_test_smk" "$OUT/smk-stub-test-no-stub.fwsc" "$OUT/smk-new.fwsc" "$OUT/smk-stub-test-other-body.fwsc" \
+    "$OUT/smk-stub-test-no-stub-other.fwsc" "$OUT/smk-stub-test-old-stub.fwsc"
+for m in pro elite mke; do                           # the packages BOARD=smk37 MODEL=... ./build.sh made, when present
+    f=build/choralroot-smk37.fwsc; id="SMK-37 Pro_920"
+    [ $m = elite ] && f=build/choralroot-smk37-elite.fwsc && id="SMK-37 Elite_920"
+    [ $m = mke ] && f=build/choralroot-smk37-mke.fwsc && id="MKE-P37_920"
+    [ -f $f ] && run "SMK package $f: identity $id, stock region table" python3 tests/smk_pkg_test.py $f "$id"
+done
+
 if [ -f build/gen/felucca_tables.h ]; then
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/hostsim" tests/hostsim.c -lm
     par_build $CC -O2 -w -Ibuild/gen -Ifirmware/src -o "$OUT/scale_test" tests/scale_test.c -lm
@@ -347,10 +382,11 @@ if command -v node >/dev/null 2>&1; then
     run "web pages: editor protocol + samples, package builder, update protocol" node web/test_web.mjs
     run "web backup: capture, validation before writes, restore order" node web/test_backup.mjs
     run "web installer: the page against a simulated FM-1 (node, no browser)" node web/test_installer.mjs
+    run "web SMK-37 test installer: the page against simulated SMK-37s (node, no browser)" node web/test_smk_installer.mjs
     run "web sounds: slots as files, bindings, .syx" node web/test_sounds.mjs
     run "web device manager: pools, place / keep / swap / undo, loops, packs (simulated FM-1)" node web/test_manager.mjs
 else
-    skip "web tests: editor, backup, installer, sounds, device manager (no node)"
+    skip "web tests: editor, backup, installer, SMK-37 installer, sounds, device manager (no node)"
 fi
 
 run "releases: web/releases.json (the versions the installer offers) against docs/releases and the tags" \

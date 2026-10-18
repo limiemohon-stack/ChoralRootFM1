@@ -5,7 +5,11 @@
 #                                        offers them all; each is checked against the sha256 in releases.json),
 #                                        and the single-core package (choralroot-X.Y-1core.fwsc) of every version
 #                                        whose entry lists sha256_1core (docs/DUALCORE.md "Two packages"),
-#                                        build the browser emulator (Emscripten, build/emu-web -> emu/),
+#                                        and the SMK-37 test builds of web/releases-smk37.json (each version's
+#                                        six packages from its own release vX.Y-smk37: the unlinked SMK-37 test
+#                                        installer, webapp/smk37/, SMK37.md),
+#                                        build the browser emulators (Emscripten, build/emu-web -> emu/, and the
+#                                        SMK-37's build/emu-web-smk37 -> webapp/smk37/emu/),
 #                                        web/make_site.py --require-all, deploy to Pages
 #   release published                 -> starts the dispatch above from the default branch (the github-pages
 #                                        environment only accepts deployments from it), the site built from the tag
@@ -156,6 +160,27 @@ jobs:
           fi
           ls -l build/packages
 
+      - name: Download the SMK-37 test packages (web/releases-smk37.json)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # the unlinked SMK-37 test installer (webapp/smk37/) offers every version of web/releases-smk37.json; its
+          # six packages come from that version's release (make_site.py checks each against the listed sha256)
+          mkdir -p build/smk-packages
+          if [ ! -f web/releases-smk37.json ]; then
+            echo "::notice::no web/releases-smk37.json on this ref: the site has no SMK-37 test installer"
+            exit 0
+          fi
+          python3 -c 'import json; [print(r["version"], r["tag"]) for r in json.load(open("web/releases-smk37.json"))["releases"]]' > build/smk-packages/list.txt
+          while read -r v tag; do
+            if ! gh release download "$tag" --repo "$GITHUB_REPOSITORY" --pattern "choralroot-$v*.fwsc" --dir build/smk-packages --clobber; then
+              echo "::error title=No packages for SMK version $v::web/releases-smk37.json lists $v, but the release $tag does not exist or has no choralroot-$v*.fwsc. Attach the six packages of build/release-smk37/ to it, or take $v out of web/releases-smk37.json, then run pages.yml again."
+              exit 1
+            fi
+          done < build/smk-packages/list.txt
+          ls -l build/smk-packages
+
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ env.PYTHON_VERSION }}
@@ -186,6 +211,7 @@ jobs:
           python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()'
           CR_VERSION="$VERSION" sh tools/emu/web/build_web.sh
           node tools/emu/web/test_web_emu.mjs
+          node tools/emu/web/test_web_emu_smk.mjs --no-page   # the SMK-37 emulator (webapp/smk37/emu/)
 
       - name: Make the site (web/make_site.py)
         run: |
@@ -193,9 +219,9 @@ jobs:
           # make_site.py refuses a package without the identity FM-1_9xx or without Felucca's loader, and one
           # whose sha256 is not the one web/releases.json lists; --require-all: every listed version must be in
           # build/packages and VERSION must be the newest listed. It copies build/emu-web/ to emu/
-          python3 tests/releases_test.py
+          CR_SMK_PACKAGES_DIR=build/smk-packages python3 tests/releases_test.py
           python3 web/make_site.py "build/choralroot-$VERSION.fwsc" "$VERSION" build/site \
-              --packages build/packages --require-all
+              --packages build/packages --smk-packages build/smk-packages --require-all
           for f in index.html webapp/installer/index.html "firmware/choralroot-$VERSION.fwsc" firmware/LICENSE \
                    firmware/index.html firmware/SHA256SUMS emu/index.html emu/choralroot.wasm; do
             if [ ! -s "build/site/$f" ]; then
@@ -214,6 +240,21 @@ jobs:
             fi
           done < build/packages/list.txt
           (cd build/site/firmware && sha256sum -c SHA256SUMS)
+          if [ -s build/smk-packages/list.txt ]; then   # the SMK-37 test installer and its packages
+            for f in webapp/smk37/index.html webapp/smk37/emu/index.html webapp/smk37/emu/choralroot-smk37.wasm \
+                     firmware/smk37/index.html firmware/smk37/SHA256SUMS; do
+              if [ ! -s "build/site/$f" ]; then
+                echo "::error::build/site/$f is missing"
+                exit 1
+              fi
+            done
+            (cd build/site/firmware/smk37 && sha256sum -c SHA256SUMS)
+            if grep -l "smk37" build/site/index.html build/site/webapp/installer/index.html build/site/firmware/index.html \
+                   build/site/emu/index.html; then
+              echo "::error::a page of the site links the SMK-37 test installer (it is for the testers' link only)"
+              exit 1
+            fi
+          fi
           find build/site -type f | sort
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

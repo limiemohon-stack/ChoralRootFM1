@@ -288,7 +288,7 @@ static void crx_snapshot_spec(const cr_t *c, uint8_t *sq, uint8_t *sx)
 static void crx_build_base(const cr_t *c, cr_voice_t *v)
 {
     int q = v->sq, root = v->note_pressed, pc = v->pc_pressed;
-    if (c->key_on && !c->key_notes && !(v->zone & CR_Z_BASS)) {   /* (Key plays Notes, a bass-side key: no chord. The
+    if (c->key_on && !c->key_notes && !(v->zone & CR_Z_BASS) && !((v->zone & CR_Z_FULL) && c->full_chords == 2)) {   /* (Key plays Notes, a bass-side key: no chord. The
                                                     * Full keyboard, Key plays Chords: the key's chord, as a lone root's
                                                     * on the Chords keyboard; until 0.22 every key there was a note) */
         int e = CR_KEYMAP[c->scale][crx_mod(v->pc_pressed - c->tonic, 12)], sh = e >> 3;
@@ -1029,8 +1029,10 @@ void cr_key_ex(cr_t *c, uint8_t note, uint8_t id, uint8_t vel, int down)
                 zone |= CR_Z_BASS;
             else if (c->full && c->single == CR_SINGLE_SPLIT && note < c->split_note) zone |= CR_Z_LOW;
             crx_snapshot_spec(c, &sq, &sx);   /* spec captured at note-on */
-            if (zone) sq = sx = 0;            /* the Full keyboard (no chord key: Key plays Chords gives the key's
-                                               * chord in crx_build_base), a bass-side key: a single note */
+            if (zone && !(c->full_chords == 1 && !(zone & CR_Z_BASS)))
+                sq = sx = 0;                  /* the Full keyboard (no chord key: Key plays Chords gives the key's
+                                               * chord in crx_build_base), a bass-side key: a single note. G5's chords
+                                               * on every key (cr_set_full_chords): the chord keys down, as a root */
             vi = crx_start_voice(c, note, id, vel, note % 12, note, sq, sx, 0, zone);
             if (vi < 0) return;
             c->lp.valid = 1; c->lp.attached = 1; c->lp.vi = (uint8_t)vi; c->lp.serial = c->v[vi].serial;
@@ -1141,11 +1143,14 @@ void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet)
     uint8_t bit;
     if (mi < 0 || mi >= CR_NMOD) return;
     bit = (uint8_t)(1u << mi);
-    if (down) {
+    if (down == CR_MOD_PRESS) {                    /* (a press of a mod held already: what its down would do) */
+        if (!(c->mods_down & bit)) return;
+        if (!c->lock) crx_modifier_press(c, mi);
+    } else if (down) {
         if (!(c->mods_down & bit)) {
             c->mods_down |= bit;
             if (mi <= CR_MOD_SUS && c->qn < CR_NMOD) c->qstack[c->qn++] = (uint8_t)(mi + 1);
-            if (!c->lock) crx_modifier_press(c, mi);
+            if (!c->lock && down != CR_MOD_HELD) crx_modifier_press(c, mi);
         }
     } else if (c->mods_down & bit) {
         c->mods_down &= (uint8_t)~bit;
@@ -1160,7 +1165,7 @@ void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet)
         else crx_modifier_release(c);
     }
     /* LOCK: the voices follow the set, once per change (a second down of a latched key too: the last of a batch) */
-    if (c->lock && !quiet) crx_lock_sync(c, down && mi <= CR_MOD_SUS);
+    if (c->lock && !quiet && down != CR_MOD_HELD) crx_lock_sync(c, down && mi <= CR_MOD_SUS);
 }
 void cr_mod(cr_t *c, cr_mod_t m, int down) { cr_mod_ex(c, m, down, 0); }
 
@@ -1309,6 +1314,7 @@ void cr_set_keyboard(cr_t *c, int full, int split_note)
     c->full = (uint8_t)(full != 0);
     c->split_note = (uint8_t)crx_clamp(split_note, 0, 127);
 }
+void cr_set_full_chords(cr_t *c, int mode) { c->full_chords = (uint8_t)(mode == 1 || mode == 2 ? mode : 0); }
 void cr_set_bass(cr_t *c, int enabled) { c->bass_on = (uint8_t)(enabled != 0); }
 void cr_set_bass_mode(cr_t *c, cr_bassmode_t m) { if ((int)m >= CR_BASS_CHORDS_ONLY && (int)m <= CR_BASS_SOLO) c->bass_mode = (uint8_t)m; }
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled) { if ((int)s >= 0 && (int)s < CR_NSTREAM) c->stream_on[s] = (uint8_t)(enabled != 0); }

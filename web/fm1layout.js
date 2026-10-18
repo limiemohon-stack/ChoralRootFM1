@@ -246,8 +246,8 @@ export const KNOB_COL = [COLOURS.blue, COLOURS.orange, COLOURS.white, COLOURS.gr
 export const GLYPHS = ["none", "knob", "bar", "wave", "saw", "square", "steps", "dots", "morph", "noise", "room", "moon",
   "echoes", "lfo", "clip", "mix", "gate", "range", "arrow", "shift", "harm", "detune", "lfowave", "ratio", "tail", "pre",
   "cut", "width", "spread", "sync", "ping"];
-export const BANDS = ["none", "env", "filter", "dx", "cz", "algo", "ade2"];             // CR_W_*
-const PLAN_BAND = { none: 0, env: 1, filter: 2, algo: 4, ade2: 5 };                     // ENG_B_*
+export const BANDS = ["none", "env", "filter", "dx", "cz", "algo", "ade2", "wave"];     // CR_W_* (wave: GRAIN's buffers)
+const PLAN_BAND = { none: 0, env: 1, filter: 2, algo: 4, ade2: 5, wave: 6 };            // ENG_B_*
 export const ELEMENT_TYPES = ["frame", "label", "knob", "switch", "led", "bar", "glyph", "band"];
 export const BINDABLE = new Set(["knob", "switch", "led", "bar", "glyph"]);
 // an led's small waveform: the glyph and (lfowave) its wave

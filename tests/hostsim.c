@@ -93,6 +93,7 @@ static uint64_t now_ns(void)
 static void host_tracks_init(void)                /* as felucca_init: defaults, empty patterns */
 {
     uint32_t i, k;
+    fm6_tables_init();                            /* FM6's RAM tables (eng_fm6.c fm6_init: FM6_SIN, the log-sine halves) */
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
     for (k = 0; k < NTRK; k++) {

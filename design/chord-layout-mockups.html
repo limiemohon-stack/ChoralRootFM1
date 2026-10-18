@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chord Layout mock-ups: Classic and FM-1</title>
+<!-- docs/CHORD-LAYOUT.md's pictures (HISTORY 3y155). The LCD tiles are 240 x 240, the FM-1's own pixels, drawn at 1x
+     in the MOD palette (firmware/src/cr_draw.c CR_NAMED, tools/gen_ui_palettes.py MOD) with the firmware's font (Inter
+     Tight, assets/fonts) and enlarged 2x with hard pixels. The keybeds are diagrams: 27 keys F3 .. G5, each key's LED at
+     its level (lit, middle, glow, faint, off: hal/fm1_input.h's four levels), and the top row of buttons. Served from
+     the repository's root (the font is ../assets/fonts); a file:// open falls back to the system font. -->
+<style>
+  @font-face { font-family: "Inter Tight"; src: url("../assets/fonts/InterTight%5Bwght%5D.ttf") format("truetype"); font-weight: 100 900; }
+  :root { --bg: #111; --fg: #eee; --dim: #8a8a92; --card: #000; }
+  body { margin: 0; padding: 16px 24px 40px; background: var(--bg); color: var(--fg); font: 14px/1.4 "Inter Tight", -apple-system, Helvetica, sans-serif; width: 1560px; }
+  h1 { font-size: 26px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 26px 0 6px; }
+  p { color: var(--dim); max-width: 1100px; margin: 4px 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; }
+  .v { background: var(--card); padding: 8px; border-radius: 4px; width: min-content; }
+  .v h3 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: #ddd; }
+  .v small { display: block; color: var(--dim); font-size: 11.5px; max-width: 480px; margin-top: 5px; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: block; }
+  .kb small { max-width: 700px; }
+  .legend { display: flex; gap: 18px; font-size: 12px; color: var(--dim); align-items: center; margin: 6px 0 2px; }
+  .legend i { display: inline-block; width: 8px; height: 18px; border-radius: 4px; vertical-align: middle; margin-right: 5px; background: #F6F0DC; }
+</style>
+</head>
+<body>
+<h1>Chord Layout (Chord Keys): Classic and FM-1</h1>
+<p>The design in docs/CHORD-LAYOUT.md, decided 2026-10-16. Screens at the FM-1's 240 x 240 pixels, enlarged 2x; the
+keybeds are diagrams of the 27 keys with each key's light at its level and the top row of buttons.</p>
+<div class="legend">Key lights:
+  <span><i style="opacity:1"></i>lit</span><span><i style="opacity:.6"></i>middle</span><span><i style="opacity:.34"></i>glow</span>
+  <span><i style="opacity:.17"></i>faint</span><span><i style="opacity:0;outline:1px solid #444"></i>off</span>
+  <span>Labels: <b style="color:#F6F3EA">types</b> · <b style="color:#F07A1A">extensions</b> · <b style="color:#5B8CFF">LOCK</b> · <span style="color:#9A999A">roots</span></span>
+</div>
+
+<h2>1. The two layouts</h2>
+<p>Classic is today's (the Orchid's). FM-1: the three small black keys are the types, SUS is G#3 + A#3 with one
+finger, B3 is the 9, LOCK moves to LFO, C4 and C#4 are roots (20 instead of 18).</p>
+<div class="row" id="layouts"></div>
+
+<h2>2. The Options</h2>
+<p>The owner's names (second round): Chord Keys after Secret Chords, SUS Window after it (listed only in FM-1), Full K
+Shorts after Split Point, MIDI Keys after MIDI Raw Chord. All four automatic; hidden on the SMK-37.</p>
+<div class="row" id="options"></div>
+
+<h2>3. FM-1: LOCK on LFO, LATCH on GLO held + LFO (Classic unchanged)</h2>
+<p>LFO tap: LOCK on / off (the LFO light lit, steady). LFO held: the LOCK layer (LFO blinks as an open layer's button).
+GLO held, then LFO: LATCH (LFO held, then GLO: the LOCK layer; GLO held alone never opens the Options, only a
+quick click does); while LATCH is on the LFO light pulses (lit, middle, glow, middle, 300 ms each); with LOCK on
+as well it pulses between lit and middle.</p>
+<div class="row" id="lock"></div>
+<div class="row" id="lock2" style="margin-top:16px"></div>
+<div class="row" id="lock3" style="margin-top:16px"></div>
+
+<h2>4. SUS latched, and the combine window</h2>
+<p>A latched SUS shows as two lit keys, G#3 and A#3; the same pair pressed again on its own switches it off at the
+release. The SUS Window: a root pressed while it is open waits for the decision (the pair, or the window's close), then the chord plays once.</p>
+<div class="row" id="sus"></div>
+<div class="row" id="sus2" style="margin-top:16px"></div>
+<div class="row" id="sus3" style="margin-top:16px"></div>
+
+<h2>5. The Full keyboard with the shortcuts on, and the FM-1 panel picture</h2>
+<p>F3 .. F5 are notes (25). F#5: the layout's chord keys on the low keys, the roots ending at F5; G5: a chord on every
+key (the latched chord, else Key Mode's). Both toggle on a quick press, switch only while held on a long one. KNOB 1
+is the voicing on the Full keyboard, in both layouts.</p>
+<div class="row" id="full"></div>
+<div class="row" id="full2" style="margin-top:16px"></div>
+<div class="row" id="full3" style="margin-top:16px"></div>
+
+<script>
+// ------------------------------------------------------------------ the LCD ---
+const S = 2;                                       // the enlargement
+const PAL = { bg: [10, 10, 12], surf: [28, 28, 32], text: [246, 243, 234], white: [246, 243, 234], red: [224, 58, 47],
+              blue: [43, 80, 200], yellow: [242, 183, 5], orange: [240, 122, 26], green: [47, 179, 122],
+              grey: [110, 110, 118], mid: [176, 174, 170], dim: [96, 96, 102], line: [52, 52, 58], key: [200, 196, 188] };
+const rgb = (c, a = 1) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+const FONT = '"Inter Tight", -apple-system, Helvetica, sans-serif';
+
+let SC = S;                                       // this tile's enlargement (the Options row: 1.5, to fit four)
+function lcd() {
+  const cv = document.createElement("canvas");
+  cv.width = 240; cv.height = 240; cv.style.width = 240 * SC + "px"; cv.style.height = 240 * SC + "px";
+  const g = cv.getContext("2d");
+  g.fillStyle = rgb(PAL.bg); g.fillRect(0, 0, 240, 240);
+  const T = (x, y, s, size, c, align = "center", w = 700) => {
+    g.font = `${w} ${size}px ${FONT}`; g.fillStyle = rgb(c); g.textAlign = align; g.textBaseline = "alphabetic"; g.fillText(s, x, y);
+    return g.measureText(s).width;
+  };
+  const W = (s, size, w = 700) => { g.font = `${w} ${size}px ${FONT}`; return g.measureText(s).width; };
+  const R = (x, y, w, h, c) => { g.fillStyle = rgb(c); g.fillRect(x, y, w, h); };
+  const RR = (x, y, w, h, r, c) => { g.fillStyle = rgb(c); g.beginPath(); g.roundRect(x, y, w, h, r); g.fill(); };
+  return { cv, g, T, W, R, RR };
+}
+function battery(L) { L.R(214, 7, 18, 9, PAL.grey); L.R(215, 8, 16, 7, PAL.bg); L.R(216, 9, 4, 5, PAL.red); L.R(232, 9, 2, 5, PAL.grey); }
+function footer(L, s) { L.T(120, 228, s, 12.5, PAL.mid, "center", 500); }
+
+// an Options page (docs/manual/options.png): the name, the value, the next entry grey, the hint, the dots, the footer
+function optionsPage(name, value, next, pos, opts = {}) {
+  const L = lcd();
+  battery(L);
+  let size = 34; while (L.W(name, size) > 224) size--;
+  L.T(120, 92, name, size, opts.grey ? PAL.grey : PAL.white);
+  L.T(120, 124, value, 22, opts.grey ? PAL.grey : PAL.white);
+  if (opts.under) L.T(120, 143, opts.under, 13, PAL.orange, "center", 600);
+  L.T(120, opts.under ? 162 : 148, next, 15, PAL.grey, "center", 500);
+  L.T(120, 182, "options · KNOB 1 sets", 15.5, PAL.text, "center", 500);
+  const n = 30;
+  for (let i = 0; i < n; i++) L.R(17 + i * 7, 192, i === pos ? 5 : 3, i === pos ? 5 : 3, i === pos ? PAL.white : PAL.dim);
+  footer(L, "SELECT: move · OCT-: back · HOME");
+  return L.cv;
+}
+
+// a layer with a knob row (the KEY layer's look, docs/manual/layer-key.png): title, label, cells, footer
+function lockLayer(on, keep, push, hot) {
+  const L = lcd();
+  L.T(8, 24, "Lock", 20, PAL.white, "left", 800);
+  L.T(8, 42, on ? "lock · on" : "lock · off", 12, PAL.grey, "left", 600);
+  const cells = [["Type key", keep ? "Keeps" : "Clears", PAL.blue], ["Ext keys", push ? "Pushed" : "Toggle", PAL.orange]];
+  const X = [33, 93, 153, 213];
+  for (let i = 0; i < 4; i++) L.R(X[i] - 26, 174, 52, 2, i < 2 ? cells[i][2] : PAL.line);
+  cells.forEach(([lab, val, col], i) => {
+    L.T(X[i], 132, lab, 12.5, col, "center", 800);
+    if (hot === i) { L.RR(X[i] - 27, 150, 54, 22, 3, PAL.orange); L.T(X[i], 166, val, 14, PAL.bg, "center", 800); }
+    else L.T(X[i], 166, val, 14, PAL.white, "center", 800);
+  });
+  footer(L, "LFO: on/off · OCT-: back · HOME: home");
+  return L.cv;
+}
+
+// the Chord view (docs/manual/chord.png): the name, its superscript, the notes line, the top right's word
+function chordView(root, qual, sup, notes, right, opts = {}) {
+  const L = lcd();
+  if (right) L.T(232, 18, right, 13, PAL.white, "right", 600);
+  if (opts.left) L.T(8, 18, opts.left[0], 13, opts.left[1], "left", 700);
+  let size = opts.size || 96;
+  const wr = () => L.W(root, size, 800) + (qual ? L.W(qual, size * 0.55, 800) + 2 : 0) + (sup ? L.W(sup, size * 0.36, 800) + 4 : 0);
+  while (wr() > 220) size -= 2;
+  let x = 120 - wr() / 2;
+  const y = 140;
+  if (!opts.msg) {                                 // (a message box covers the name)
+    x += L.T(x, y, root, size, PAL.white, "left", 800) + 1;
+    if (qual) x += L.T(x, y, qual, size * 0.55, PAL.white, "left", 800) + 3;
+    if (sup) L.T(x, y - size * 0.52, sup, size * 0.36, opts.supCol || PAL.orange, "left", 800);
+  }
+  // the notes line: extensions orange and underlined
+  const px = 16, gap = 12;
+  const ws = notes.map(([n]) => L.W(n, px, 800));
+  let nx = 120 - (ws.reduce((a, b) => a + b, 0) + gap * (notes.length - 1)) / 2;
+  notes.forEach(([n, ext], i) => {
+    L.T(nx, 216, n, px, ext ? PAL.orange : PAL.text, "left", 800);
+    if (ext) L.R(nx, 220, ws[i], 2, PAL.orange);
+    nx += ws[i] + gap;
+  });
+  if (opts.msg) {                                  // a message box over the screen
+    let ms = 17; while (L.W(opts.msg, ms, 700) > 196) ms--;
+    const w = Math.max(L.W(opts.msg, ms, 700) + 28, 160);
+    L.RR(120 - w / 2, 78, w, 64, 8, PAL.surf);
+    L.T(120, 116, opts.msg, ms, opts.msgCol || PAL.white, "center", 700);
+  }
+  return L.cv;
+}
+
+// ---------------------------------------------------------------- the keybed ---
+const NS = "http://www.w3.org/2000/svg";
+const NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const black = (k) => (0x54A >> ((k + 5) % 12)) & 1;
+const nname = (k) => NAMES[(53 + k) % 12] + (Math.floor((53 + k) / 12) - 1);
+const LV = { lit: 1, mid: 0.6, glow: 0.34, faint: 0.17, off: 0 };
+const LAB = { type: "#F6F3EA", ext: "#F07A1A", lock: "#5B8CFF", fn: "#29B37A", root: "#9A999A" };
+
+function el(tag, a, p) { const e = document.createElementNS(NS, tag); for (const k in a) e.setAttribute(k, a[k]); if (p) p.appendChild(e); return e; }
+function txt(p, x, y, s, size, fill, w = 800, anchor = "middle") { const t = el("text", { x, y, "font-size": size, fill, "font-weight": w, "text-anchor": anchor, "font-family": FONT }, p); t.textContent = s; return t; }
+
+// keybed({keys: {k: [label, kind]}, led: {k: level}, groups: [[k0, k1, text, colour]], pair: [k0, k1, text], btn: {...}})
+function keybed(o) {
+  const WK = 46, H = 150, BH = 92, BW = 28, x0 = 10, y0 = 84;
+  const nW = 16, width = x0 * 2 + nW * WK, height = y0 + H + 74;
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}` });
+  el("rect", { x: 0, y: 0, width, height, fill: "#0b0b0d" }, svg);
+  const pos = [];
+  let w = 0;
+  for (let k = 0; k < 27; k++) { if (black(k)) pos[k] = x0 + w * WK - BW / 2; else { pos[k] = x0 + w * WK; w++; } }
+  const cx = (k) => pos[k] + (black(k) ? BW / 2 : WK / 2);
+  // groups (brackets over the keys)
+  (o.groups || []).forEach(([a, b, s, col]) => {
+    const xa = pos[a] + 2, xb = pos[b] + (black(b) ? BW : WK) - 2;
+    el("rect", { x: xa, y: 30, width: xb - xa, height: 4, fill: col || "#6A696A" }, svg);
+    txt(svg, xa, 22, s, 12.5, col || "#9A999A", 800, "start");
+  });
+  const led = (k, x, y, h) => {
+    const lv = o.led?.[k] ?? "off";
+    el("rect", { x: x - 4, y, width: 8, height: h, rx: 4, fill: "#1a1a1d", stroke: "#3a3a40", "stroke-width": 1 }, svg);
+    if (lv === "blink") {
+      el("rect", { x: x - 4, y, width: 8, height: h / 2, rx: 4, fill: "#F6F0DC" }, svg);
+      txt(svg, x, y - 4, "blink", 9, "#F6F0DC", 700);
+    } else if (LV[lv] > 0) el("rect", { x: x - 4, y, width: 8, height: h, rx: 4, fill: "#FFE9A8", opacity: LV[lv] }, svg);
+    if (lv === "lit") el("rect", { x: x - 9, y: y - 5, width: 18, height: h + 10, rx: 9, fill: "#F6F0DC", opacity: 0.18 }, svg);
+  };
+  const label = (k, x, y) => {
+    const d = o.keys?.[k];
+    if (d) txt(svg, x, y, d[0], d[0].length > 3 ? 11 : 14, LAB[d[1]] || "#9A999A", 800);
+    else txt(svg, x, y, nname(k), 9.5, "#8A8A92", 600);
+  };
+  for (let k = 0; k < 27; k++) if (!black(k)) {
+    const held = o.held?.includes(k);
+    el("rect", { x: pos[k] + 1, y: y0, width: WK - 2, height: H, rx: 4, fill: held ? "#cfc8b8" : "#ECE7DC", stroke: "#0b0b0d" }, svg);
+    led(k, cx(k), y0 + BH + 8, 30);
+    label(k, cx(k), y0 + H - 10);
+    if (o.dead?.includes(k)) el("rect", { x: pos[k] + 1, y: y0, width: WK - 2, height: H, rx: 4, fill: "#000", opacity: 0.35 }, svg);
+  }
+  for (let k = 0; k < 27; k++) if (black(k)) {
+    const held = o.held?.includes(k);
+    el("rect", { x: pos[k], y: y0, width: BW, height: BH, rx: 3, fill: held ? "#3a3a40" : "#141416", stroke: "#000" }, svg);
+    led(k, cx(k), y0 + 8, 26);
+    const d = o.keys?.[k];
+    if (d) txt(svg, cx(k), y0 + BH - 10, d[0], d[0].length > 3 ? 9 : 10.5, LAB[d[1]] || "#9A999A", 800);
+    else txt(svg, cx(k), y0 + BH - 10, nname(k), 8, "#77767c", 600);
+  }
+  if (o.pair) {                                     // the SUS pair's bracket under the two black keys
+    const [a, b, s] = o.pair, xa = cx(a), xb = cx(b), y = y0 - 4;
+    el("path", { d: `M${xa} ${y} v-10 H${xb} v10`, stroke: "#F6F3EA", "stroke-width": 2, fill: "none" }, svg);
+    txt(svg, (xa + xb) / 2, y - 15, s, 12, "#F6F3EA", 900);
+  }
+  // the top row of buttons, and their lights
+  const bt = ["FX", "SEL", "ENV", "LFO", "EDIT", "GLO"], role = o.roles || ["FX", "KEY", "BASS", "LATCH", "EDIT", "OPT"];
+  const by = y0 + H + 18;
+  txt(svg, x0, by + 14, "buttons", 11, "#8A8A92", 700, "start");
+  bt.forEach((b, i) => {
+    const x = x0 + 70 + i * 100, st = o.btn?.[b];
+    el("rect", { x, y: by, width: 84, height: 40, rx: 5, fill: "#1c1c20", stroke: st === "held" ? "#F6F0DC" : "#333" }, svg);
+    txt(svg, x + 42, by + 15, role[i], 11.5, role[i] === "LOCK" ? LAB.lock : "#F6F3EA", 800);
+    txt(svg, x + 42, by + 33, b, 9, "#77767c", 700);
+    const lv = st?.lv ?? (o.btn ? "glow" : "glow");
+    const lx = x + 70, ly = by + 6;
+    if (Array.isArray(lv)) {                        // a pulse: its phases, small, left to right
+      lv.forEach((p, j) => { el("rect", { x: x + 4 + j * 9, y: by + 44, width: 7, height: 7, rx: 3.5, fill: "#F6F0DC", opacity: LV[p] || 0.05 }, svg); });
+      el("circle", { cx: lx + 4, cy: ly + 4, r: 4, fill: "#F6F0DC", opacity: LV[lv[0]] }, svg);
+      txt(svg, x + 4 + lv.length * 9 + 2, by + 51, "pulse", 9, "#F6F0DC", 700, "start");
+    } else if (lv === "blink") {
+      el("circle", { cx: lx + 4, cy: ly + 4, r: 4, fill: "#F6F0DC" }, svg);
+      txt(svg, x + 42, by + 54, "blinks", 9, "#F6F0DC", 700);
+    } else el("circle", { cx: lx + 4, cy: ly + 4, r: 4, fill: "#F6F0DC", opacity: LV[lv] }, svg);
+  });
+  if (o.note) txt(svg, width - 10, y0 - 14, o.note, 11.5, "#F07A1A", 700, "end");
+  return svg;
+}
+
+// the chord keys' labels
+const CLASSIC = { 0: ["6", "ext"], 1: ["DIM", "type"], 2: ["m7", "ext"], 3: ["MIN", "type"], 4: ["M7", "ext"], 5: ["MAJ", "type"], 6: ["LOCK", "lock"], 7: ["9", "ext"], 8: ["SUS", "type"] };
+const FM1 = { 0: ["6", "ext"], 1: ["DIM", "type"], 2: ["m7", "ext"], 3: ["MIN", "type"], 4: ["M7", "ext"], 5: ["MAJ", "type"], 6: ["9", "ext"] };
+const range = (a, b) => Array.from({ length: b - a + 1 }, (_, i) => a + i);
+const faint = (ks) => Object.fromEntries(ks.map((k) => [k, "faint"]));
+// every key of the names that sound (pcs: note names, C = 0) between keys a..b
+const litNames = (pcs, a, b) => Object.fromEntries(range(a, b).filter((k) => pcs.includes((53 + k) % 12)).map((k) => [k, "lit"]));
+
+function card(parent, title, node, cap, cls = "") {
+  const d = document.createElement("div"); d.className = "v " + cls;
+  const h = document.createElement("h3"); h.textContent = title; d.appendChild(h);
+  d.appendChild(node);
+  if (cap) { const s = document.createElement("small"); s.innerHTML = cap; d.appendChild(s); }
+  document.getElementById(parent).appendChild(d);
+}
+
+// the window (3rd round): a root pressed in an open window waits, and the decided chord plays once at its close
+function timeline() {
+  const width = 722, height = 236, x0 = 140, msx = 7.0;
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}` });
+  el("rect", { x: 0, y: 0, width, height, fill: "#0b0b0d" }, svg);
+  const X = (ms) => x0 + ms * msx;
+  el("rect", { x: X(0), y: 8, width: 50 * msx, height: height - 40, fill: "#F2B705", opacity: 0.10 }, svg);
+  txt(svg, X(25), 22, "the window: 50 ms from G#3's press", 11.5, "#F2B705", 800);
+  [["G#3 (MIN)", 0, "#F6F3EA"], ["D4 (root)", 10, "#9A999A"], ["A#3 (MAJ)", 30, "#F6F3EA"]].forEach(([s, a, col], i) => {
+    const y = 40 + i * 22;
+    txt(svg, x0 - 8, y + 9, s, 11, col, 700, "end");
+    el("rect", { x: X(a), y, width: X(80) - X(a), height: 12, rx: 3, fill: col, opacity: 0.85 }, svg);
+  });
+  txt(svg, X(10) + 4, 112, "D4 waits", 10.5, "#F6F3EA", 700, "start");
+  txt(svg, x0 - 8, 122, "sounds:", 11, "#8A8A92", 700, "end");
+  [["D", "#F6F3EA"], ["G", "#F07A1A"], ["A", "#F6F3EA"]].forEach(([n, col], i) => {
+    const y = 130 + i * 18;
+    txt(svg, x0 - 8, y + 9, n, 11, col, 700, "end");
+    el("rect", { x: X(30), y, width: X(80) - X(30), height: 10, rx: 3, fill: col, opacity: 0.8 }, svg);
+  });
+  txt(svg, X(30) + 4, 194, "Dsus, once, at the pair (with Secret Chords on: at 50 ms)", 10.5, "#F07A1A", 700, "start");
+  for (let ms = 0; ms <= 80; ms += 10) { el("rect", { x: X(ms), y: height - 30, width: 1, height: 5, fill: "#555" }, svg); txt(svg, X(ms), height - 14, ms + " ms", 10, "#77767c", 600); }
+  return svg;
+}
+
+// rule B (the owner's 2nd round): Advanced, D4 sounding from before; the pair changes it once, at its decision
+function timelineB() {
+  const width = 722, height = 236, x0 = 140, msx = 7.0;
+  const svg = el("svg", { width, height, viewBox: `0 0 ${width} ${height}` });
+  el("rect", { x: 0, y: 0, width, height, fill: "#0b0b0d" }, svg);
+  const X = (ms) => x0 + ms * msx;
+  el("rect", { x: X(0), y: 8, width: 50 * msx, height: height - 40, fill: "#F2B705", opacity: 0.10 }, svg);
+  txt(svg, X(25), 22, "the window: 50 ms from G#3's press", 11.5, "#F2B705", 800);
+  [["D4 (root)", -10, 80, "#9A999A"], ["G#3 (MIN)", 0, 80, "#F6F3EA"], ["A#3 (MAJ)", 31, 80, "#F6F3EA"]].forEach(([s, a, b, col], i) => {
+    const y = 40 + i * 22;
+    txt(svg, x0 - 8, y + 9, s, 11, col, 700, "end");
+    el("rect", { x: X(Math.max(a, -1)), y, width: X(b) - X(Math.max(a, -1)), height: 12, rx: 3, fill: col, opacity: 0.85 }, svg);
+  });
+  txt(svg, x0 - 8, 122, "sounds:", 11, "#8A8A92", 700, "end");
+  [["D", 31], ["F# / G", 31], ["A", 31]].forEach(([n, at, col, old], i) => {
+    const y = 130 + i * 18;
+    txt(svg, x0 - 8, y + 9, n, 11, "#F6F3EA", 700, "end");
+    el("rect", { x: X(-1), y, width: X(31) - X(-1), height: 10, rx: 3, fill: "#F6F3EA", opacity: 0.45 }, svg);
+  });
+  [["D", 130], ["G", 148], ["A", 166]].forEach(([n, y]) => {
+    el("rect", { x: X(31) + 2, y, width: X(80) - X(31) - 2, height: 10, rx: 3, fill: n === "G" ? "#F07A1A" : "#F6F3EA", opacity: 0.8 }, svg);
+  });
+  txt(svg, X(-1), 194, "D major from before", 10.5, "#9A999A", 700, "start");
+  txt(svg, X(31) + 4, 194, "one re-strike, as Dsus, at the pair", 10.5, "#F07A1A", 700, "start");
+  txt(svg, X(10), 112, "G#3: nothing changes yet", 10.5, "#F6F3EA", 700, "start");
+  for (let ms = 0; ms <= 80; ms += 10) { el("rect", { x: X(ms), y: height - 30, width: 1, height: 5, fill: "#555" }, svg); txt(svg, X(ms), height - 14, ms + " ms", 10, "#77767c", 600); }
+  return svg;
+}
+
+async function draw() {
+  try { await document.fonts.load('800 40px "Inter Tight"'); await document.fonts.load('500 14px "Inter Tight"'); } catch (e) {}
+
+  // 1. the layouts
+  card("layouts", "Classic (today, the default)", keybed({ keys: CLASSIC, led: { ...faint(range(0, 8)) },
+    groups: [[0, 8, "CHORD BLOCK  F3 … C4", "#F6F3EA"], [9, 26, "ROOTS  D4 … G5 (18)"]] }),
+    "Idle: the chord block faint, B3 (LOCK) faint, the roots dark (Key Mode off). LFO is LATCH; GLO + LFO does nothing.", "kb");
+  card("layouts", "FM-1", keybed({ keys: FM1, led: { ...faint(range(0, 6)) }, pair: [3, 5, "SUS"],
+    groups: [[0, 6, "CHORD KEYS  F3 … B3", "#F6F3EA"], [7, 26, "ROOTS  C4 … G5 (20)"]],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"] }),
+    "SUS = G#3 + A#3 held together, always. B3 = 9. C4 and C#4 are roots. LFO: LOCK (tap), the LOCK layer (held); GLO + LFO: LATCH.", "kb");
+
+  // 2. the Options (four in a row: 1.5x)
+  SC = 1.5;
+  card("options", "Chord Keys: FM-1 (the Chord Layout)", optionsPage("Chord Keys", "FM-1", "SUS Window", 3),
+       "Classic / FM-1, default Classic. After Secret Chords. Settings block: <code>sticky</code> bit 1.");
+  card("options", "SUS Window: 50 ms", optionsPage("SUS Window", "50 ms", "6th with 7th", 4),
+       "30 .. 80 ms, 5 ms a detent, default 50. Listed only while Chord Keys is FM-1. <code>sticky</code> bits 3..6.");
+  card("options", "Full K Shorts: On", optionsPage("Full K Shorts", "On", "MIDI Perform", 13),
+       "Full keyboard shortcuts, Off / On, default Off. After Split Point. <code>sticky</code> bit 2.");
+  card("options", "MIDI Keys: ch 5", optionsPage("MIDI Keys", "ch 5", "MIDI Clock", 17),
+       "Off, ch 1 .. 16 (the parts' channels skipped), default Off. Notes 53 .. 79 press F3 .. G5 through the layout. <code>raw_sound</code> bits 1..5.");
+
+  SC = S;
+  // 3. LOCK and LATCH
+  card("lock", "The LOCK layer, opened from LFO", lockLayer(true, false, false, -1),
+       "LFO held past Hold Time. The footer says LFO; OCT-, OCT+, HOME or LFO held again close it.");
+  card("lock", "FM-1: the LOCK layer open (LFO blinks)", keybed({ keys: FM1, led: { ...faint(range(0, 6)) }, pair: [3, 5, "SUS"],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"], btn: { LFO: { lv: "blink" } } }),
+    "The layer's button blinks (250 ms), as every open layer's. The keys play in the layer.", "kb");
+  card("lock2", "LATCH on (Am held), LOCK off", chordView("A", "m", "", [["A3"], ["C4"], ["E4"]], "Latch"),
+       "The screen's <code>Latch</code> stays.");
+  card("lock2", "FM-1: LATCH on (GLO + LFO): the LFO light pulses", keybed({ keys: FM1, led: { ...faint(range(0, 6)), ...litNames([9, 0, 4], 7, 26) },
+    pair: [3, 5, "SUS"], roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"], held: [],
+    btn: { LFO: { lv: ["lit", "mid", "glow", "mid", "lit", "mid", "glow", "mid"] }, GLO: { lv: "glow" } } }),
+    "LATCH alone: lit, middle, glow, middle, 300 ms each (1.2 s), never the layer's hard blink. The roots: the notes of Am that sound.", "kb");
+  card("lock3", "FM-1: LOCK and LATCH both on", keybed({ keys: FM1, led: { ...faint(range(0, 6)), 5: "lit", ...litNames([0, 4, 7], 7, 26) },
+    pair: [3, 5, "SUS"], roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"],
+    btn: { LFO: { lv: ["lit", "mid", "lit", "mid", "lit", "mid", "lit", "mid"] } } }),
+    "With LOCK on the pulse stays between lit and middle, so LOCK still reads as on. MAJ latched, C major sounding.", "kb");
+
+  // 4. SUS latched
+  card("sus", "SUS + m7 latched (D4)", chordView("D", "sus", "m7", [["D4"], ["G4"], ["A4"], ["C5", 1]], "lock"),
+       "Orchid naming: <code>Dsus</code> with a small <code>m7</code>; Standard: <code>D7sus4</code>. <code>lock</code> top right.");
+  card("sus", "FM-1: SUS + m7 latched, LOCK on (LFO lit, steady)", keybed({ keys: FM1,
+    led: { ...faint(range(0, 6)), 2: "lit", 3: "lit", 5: "lit", ...litNames([2, 7, 9, 0], 7, 26) }, pair: [3, 5, "SUS"],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"], btn: { LFO: { lv: "lit" } },
+    note: "G#3 + A#3 again, alone: SUS off at the release" }),
+    "The latched SUS is two lit keys. Root keys: every key of D, G, A, C (C4 is a root now, so it lights too).", "kb");
+  card("sus2", "The SUS Window: a root in an open window waits for the pair (3rd round, question 16)", timeline(),
+       "G#3, then D4 10 ms later: the gesture is not decided, so nothing sounds. A#3 lands at 30 ms: the pair, and with Secret Chords off nothing more can change it, so Dsus plays then, once, every play style alike: no Dm is ever heard. Without A#3, Dm plays at the window's close (50 ms); with Secret Chords on the pair waits for the close too (F# could still make the power chord). A root with no type key pushed, or with type keys held from before, plays at once.");
+  card("sus2", "FM-1, Secret Chords on: F#3 + G#3 = m add4", keybed({ keys: FM1,
+    led: { ...faint(range(0, 6)), 1: "lit", 3: "lit", ...litNames([2, 5, 7], 7, 26) }, held: [1, 3], pair: [3, 5, "SUS"],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"] }),
+    "Each secret chord keeps its Classic key: m add4 keeps MIN (G#), augmented keeps MAJ (A#), the power chord is DIM + the pair. Secret off: these pairs are last pressed wins.", "kb");
+
+  card("sus3", "Rule B: Advanced, a root already sounding (the owner, 2nd round)", timelineB(),
+       "D4 held, D major sounding. G#3 changes nothing yet; A#3 completes the pair at 31 ms and D4 re-strikes once, as Dsus: no Dm is ever heard. Without A#3 it would re-strike as Dm at the window's close (50 ms after G#3). LOCK's latch with roots held changes the same way, once.");
+
+  // 5. the Full keyboard
+  card("full", "Full, shortcuts on, chord keys hidden", keybed({ keys: { 25: ["CHRD", "fn"], 26: ["ALL", "fn"] },
+    led: { 25: "faint", 26: "faint", ...litNames([5, 9, 0], 0, 24) }, groups: [[0, 24, "NOTES  F3 … F5 (25)"], [25, 26, "F#5 G5", "#29B37A"]],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"] }),
+    "F#5 (CHRD): the chord keys; G5 (ALL): a chord on every key. Faint while off. Here F A C sound (an F major played as notes).", "kb");
+  card("full", "Full, FM-1, F#5 on: the chord keys showing, MAJ latched", keybed({ keys: { ...FM1, 25: ["CHRD", "fn"], 26: ["ALL", "fn"] },
+    led: { ...faint(range(0, 6)), 5: "lit", 25: "lit", 26: "faint", ...litNames([0, 4, 7], 7, 24) }, pair: [3, 5, "SUS"],
+    groups: [[0, 6, "CHORD KEYS", "#F6F3EA"], [7, 24, "ROOTS  C4 … F5 (18)"], [25, 26, "F#5 G5", "#29B37A"]],
+    roles: ["FX", "KEY", "BASS", "LOCK", "EDIT", "OPT"], btn: { LFO: { lv: "lit" } } }),
+    "The roots end at F5; F#5 and G5 stay the shortcuts. LOCK on LFO works on the Full keyboard. C4 played: C major.", "kb");
+  card("full2", "Full, Classic, F#5 on: the chord block showing", keybed({ keys: { ...CLASSIC, 25: ["CHRD", "fn"], 26: ["ALL", "fn"] },
+    led: { ...faint(range(0, 8)), 6: "lit", 5: "lit", 25: "lit", 26: "faint" },
+    groups: [[0, 8, "CHORD BLOCK", "#F6F3EA"], [9, 24, "ROOTS  D4 … F5 (16)"], [25, 26, "F#5 G5", "#29B37A"]] }),
+    "In Classic LOCK is B3, a note while the chord keys are hidden: it latches with F#5's chord keys showing (here LOCK on, MAJ latched).", "kb");
+  card("full2", "The message when F#5 switches", chordView("C", "M", "", [["C4"], ["E4"], ["G4"]], "lock", { msg: "chord keys", size: 90 }),
+       "A quick press toggles (the box: <code>chord keys</code> / <code>notes</code>); a long press switches only while held. G5: <code>chords</code> / <code>single notes</code>.");
+  { const im = document.createElement("img"); im.src = "../web/site/img/panel-main-fm1.png"; im.width = 1040; im.alt = "The FM-1 panel with the FM-1 chord keys";
+    card("full3", "The site's second panel picture: the FM-1 chord keys (web/site/img/panel-main-fm1.png)", im,
+         "The owner, 3rd round: a second picture for the FM-1 mode. The designer's plate export of design/site-plate-main-fm1.json: MIN and MAJ lit as the SUS pair, m7, LOCK on the LFO button, Dsus m7 on the screen. The site links it when the firmware has the layout."); }
+  document.body.dataset.ready = "1";
+}
+draw();
+</script>
+</body>
+</html>

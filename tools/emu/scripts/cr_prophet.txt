@@ -12,6 +12,7 @@
 # sound is edited; shot); SELECT -1 stays there; KNOB 4 +1 marks the program (shot: the star); OCT+: Overwrite, the
 # edited program saved into U001 over place 04 (shot: the message); OCT-. EDIT held: the engine picker in the editor
 # (shot: P5 among the six). OCT-, EDIT. The last dump's "favs:" line has the mark.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn GLO down
 wait 100

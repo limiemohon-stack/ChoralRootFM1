@@ -4,6 +4,7 @@
 # strummed chord keeps sounding and LATCH (LFO) is lit by the mode's Hold. A tap on LATCH turns Hold off (the trace
 # "latch: Strum hold off"), the LED goes to its idle glow and the notes go; a second tap latches as before (LED lit, Hold
 # still off: dump 4; the top line keeps the mode's name). PANIC clears.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn ARP down
 wait 700

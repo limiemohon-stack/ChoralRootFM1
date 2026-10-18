@@ -8,6 +8,147 @@
   },
   "releases": [
     {
+      "version": "0.25.1",
+      "date": "2026-10-16",
+      "tag": "v0.25.1",
+      "sha256": "ef57eaccf6e7452317a1603b8de09662a0a74b77828ecd3f20b896ffe22504d5",
+      "sha256_1core": "1dcac28c65d88888fc690f887971d419cd63014131476bdb73aca4f746bf0902",
+      "title": "The FM-1 chord keys are the default",
+      "bullets": [
+        "The FM-1 chord keys are now the layout every FM-1 plays: DIM MIN MAJ on F#3 G#3 A#3, SUS = G#3 + A#3 with one finger, 6 m7 M7 9 on F3 G3 A3 B3, roots from C4, LOCK on the LFO button.",
+        "Your FM-1 switches to them once, at the first start after the update, whatever it had before; LATCH, the SUS Window, your sounds, loops and favorites stay as they were.",
+        "With LOCK on, the chord you had latched stays latched: a latched SUS lights G#3 and A#3, a latched 9 lights B3.",
+        "Classic, the Orchid's layout, is one Option away: Options > Chord Keys. Choose it once and it stays, through power cycles and later updates.",
+        "Everything else is 0.25: the same sound, GRAIN's MORPH blend included."
+      ],
+      "notes": [
+        "Updating from 0.25, 0.24 or 0.23 keeps your settings, sounds, loops and favorites; only the chord keys change, to FM-1.",
+        "A new FM-1, Options > Reset Settings and Flash Data start on the FM-1 chord keys."
+      ]
+    },
+    {
+      "version": "0.25",
+      "date": "2026-10-16",
+      "tag": "v0.25",
+      "sha256": "98857bf74fdf65eb680d3737e5346747b06b6df7e2e446acd04577f209f02d4e",
+      "sha256_1core": "28e54b32969700e80f9628d2ebf2eba943b42794538d6696bc975c494e618b78",
+      "title": "GRAIN: MORPH blends the sources, knobs that change the sound as you turn",
+      "bullets": [
+        "GRAIN's MORPH now blends sources A and B into one sound the grains play: 0 is A, 127 is B, and in between the two mixed together.",
+        "MORPH moves smoothly when ENV 2, an LFO or the matrix modulates it: an LFO breathes between the two sources, ENV 2 turns one into the other during a note.",
+        "Turning TONE, MOTION, SEED or TYPE changes a source as you turn, while the grains keep playing: no more silence while a source is rebuilt.",
+        "The GRAIN screen's wave band draws the blend of A and B as MORPH weighs them.",
+        "GRAIN sounds that use MORPH sound different from 0.24: seven of the eight presets (STRUM and SHIMMER the most; FROZEN is unchanged) and your own sounds with MORPH between the ends or modulated."
+      ],
+      "notes": [
+        "Updating from 0.24 keeps your settings, sounds, loops and favorites; nothing outside GRAIN changes.",
+        "GRAIN takes a few percent more of the processor than in 0.24."
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops and favorites stay. 0.25 plays the chord keys your settings hold: FM-1 after the switch, Classic if you chose it since.",
+        "points": [
+          "Options > LEDs reads Glow on 0.25 (a Stock choice comes back when you set it again).",
+          "Coming back to 0.25.1 after 0.25 has saved a setting counts as an update again: the FM-1 switches to the FM-1 chord keys once more.",
+          "A backup made with 0.25 restores onto the FM-1 chord keys on 0.25.1; one made with 0.25.1 restores the layout it holds."
+        ]
+      }
+    },
+    {
+      "version": "0.24",
+      "date": "2026-10-16",
+      "tag": "v0.24",
+      "sha256": "c7c26624026d912d827764b19fb91f12af91b69a2e623d7900ae65bcb447b25b",
+      "sha256_1core": "cc9b905943c3ce27d2210d6f47d5541eebd8a957e08a10c4d51d75d43b0f45c4",
+      "title": "FM-1 chord keys, MIDI Keys, GRAIN, velocity on all 27 keys",
+      "bullets": [
+        "Options > Chord Keys: FM-1, a second layout for this keybed: DIM MIN MAJ on F#3 G#3 A#3, SUS = G#3 + A#3 with one finger, B3 the 9, C4 and C#4 roots, LOCK on LFO.",
+        "The SUS Window (30 ms by default): a root pressed while the pair lands waits and plays once, so a minor chord never turns into a sus chord under your fingers.",
+        "With the FM-1 chord keys LATCH is GLO held + LFO; the LFO light is steady for LOCK and pulses for LATCH. Classic, the Orchid's layout, stays the default, unchanged.",
+        "MIDI Keys: a channel whose notes 53 to 79 press the FM-1's own keys, chord keys and LOCK included, through the layout you chose.",
+        "On the Full keyboard KNOB 1 is the voicing, and Options > Full K Shorts makes F#5 bring the chord keys back and G5 play a chord on every key.",
+        "GRAIN, a granular engine that makes its own sound: two sources from eight families, MORPH, SCAN, the VA's filter, two LFOs, a modulation matrix and eight presets.",
+        "All 27 keys sense velocity with Key Touch on; Vel + Poly AT sends polyphonic aftertouch; Geek Out 2 shows the touch.",
+        "SAFE MODE's Flash Data clears the saved sounds too; FM TONE uses about 27 KB less memory with the same sound."
+      ],
+      "notes": [
+        "Updating from 0.24-beta3, beta2, beta1 or 0.23 keeps your settings, sounds, loops and favorites; the chord keys stay Classic until you choose FM-1.",
+        "With Key Touch on, notes sound a few milliseconds later than in 0.23 (the keys wait for their velocity); with Key Touch at Fixed, the default, nothing changes."
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops and favorites stay, and saved GRAIN sounds load with the same knobs. GRAIN's MORPH acts as it did in 0.24.",
+        "points": [
+          "0.25 stores sounds exactly as 0.24 does: every sound, GRAIN's included, loads on 0.24 as it was saved.",
+          "On 0.24 each grain reads source A or B and MORPH sets how many read B, so a GRAIN sound with MORPH between the ends plays the alternating grains again, and a source falls quiet while its knobs turn. Back on 0.25 it plays the blend again."
+        ]
+      }
+    },
+    {
+      "version": "0.24-beta3",
+      "beta": true,
+      "date": "2026-10-16",
+      "tag": "v0.24-beta3",
+      "sha256": "cdb6a2b53894800284872f44979ad1549903643bd558e69c61dd2675d9722cf6",
+      "sha256_1core": "7e17f335d61ee1e8d8ca05c4fed15dd5d625ad19dfb0e3a62bcf75a00f917eb9",
+      "title": "Beta: Flash Data clears the saved sounds, a lighter FM TONE",
+      "bullets": [
+        "SAFE MODE's Flash Data now erases your saved sounds too (all 128 user slots), as the manual always said: since 0.22 it erased the settings, favorites and loops but kept every saved sound. Back up first if you want them again.",
+        "FM TONE uses about 27 KB less working memory, room for more engines or effects later. Every sound plays exactly as before.",
+        "A full chord on an FM TONE preset that uses HARM (GLASS PAD, DRONE, HOLLOW, CLAV, STRINGS, SQUARE LEAD) takes slightly more of the processor, up to about 9 % more for FM TONE's part.",
+        "ChoralRoot now also comes as a community test build for the M-Vave SMK-37 (see SMK37.md in the repository).",
+        "Everything of 0.24-beta2 and 0.24-beta1 is in it: GRAIN, velocity on the top seven keys, Vel + Poly AT, the touch on Geek Out 2."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.24, replaces it. Please report problems on GitHub.",
+        "Updating from 0.24-beta2, 0.24-beta1 or 0.23 keeps your settings, sounds, loops and favorites.",
+        "Going back to 0.24-beta2 changes nothing for your data. Going back to 0.24-beta1 or 0.23: GRAIN sounds you saved stay in their slots untouched but play the VA's init sound there, and are GRAIN again when you come back. The full notes have the rest."
+      ]
+    },
+    {
+      "version": "0.24-beta2",
+      "beta": true,
+      "date": "2026-10-16",
+      "tag": "v0.24-beta2",
+      "sha256": "3aebea9608cde7f67813a274f0193c1c3e2bbdb4fcbacae6e073474cfc98505f",
+      "sha256_1core": "17788180f245c58646dba17dcd19bf564f641c6ec375f3ab8429dd0d40db6c2e",
+      "title": "Beta: GRAIN, a granular synth that makes its own sound",
+      "bullets": [
+        "A new engine, GRAIN: clouds of short grains read from two sources, A and B, that it makes itself. No samples to load: each source comes from four knobs (TYPE, one of eight families from PLUCK to METAL; TONE; MOTION; SEED).",
+        "MORPH goes from A to B grain by grain: each grain reads one source, so in between the two materials interleave instead of crossfading.",
+        "SIZE, DENS, POS, SPRD, RAND, PITCH and SCAN shape the grains; SCAN moves through the material by itself, forward or in reverse, from very slow to fast.",
+        "The VA's filter, an envelope for the volume and one for modulation, two LFOs that can sync to the tempo, and an eight-slot modulation matrix with the VA's fine amounts.",
+        "A wave band on the editor's SRC and GRAIN screens draws the two sources, POS and the spread, with every sounding grain moving across them.",
+        "Eight presets: CLOUD PAD, SHIMMER, BREATH PAD, FROZEN, STRUM, SWARM, ACID DUST and GLITCH.",
+        "Everything of 0.24-beta1 is in it: velocity on the top seven keys, Vel + Poly AT, the touch on Geek Out 2. The firmware also got smaller, with no change to any sound or screen."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.24, replaces it. Please report problems on GitHub.",
+        "Updating from 0.24-beta1 or 0.23 keeps your settings, sounds, loops and favorites.",
+        "Going back to 0.24-beta1 or 0.23: GRAIN sounds you saved stay in their slots untouched but play the VA's init sound there (at the end of the VA's list, under their names), and are GRAIN again when you come back, unless you save over them there. The full notes have the rest."
+      ]
+    },
+    {
+      "version": "0.24-beta1",
+      "beta": true,
+      "date": "2026-10-16",
+      "tag": "v0.24-beta1",
+      "sha256": "409cfc6fcbc9a00a09ec58150e1e855f87ea57d3bc1852129d8bfd8c900e7a79",
+      "sha256_1core": "570a73bf0d78c4e8a19af596789a4d0e51d648ebf7a2172c23676278f8c6633d",
+      "title": "Beta: velocity on the top seven keys, poly aftertouch out, the touch on Geek Out 2",
+      "bullets": [
+        "The top seven keys (C#5 to G5) sense velocity with Key Touch on, as F3 to C5 do; until now they followed the velocity you had been playing.",
+        "They are read another way (Charles Vestal's method, from MONK-1 and CTL-1): a touch plays softly, a firm press at or near the top. No aftertouch on them, and Velocity Curve does not change them.",
+        "Options > Key Touch has a fourth value, Vel + Poly AT: as Vel + Aftertouch, with the pressure sent over MIDI as polyphonic aftertouch to each sounding note instead of channel pressure.",
+        "Geek Out 2's title line shows the last key's velocity and the pressure now (VEL 73 AT 42) while Key Touch is on, in place of the cores' count.",
+        "With Key Touch on, notes sound a few milliseconds later than in 0.23: F3 to C5 are read less often while the top row is read (about 13 ms to a velocity instead of 9), and the top seven now wait for theirs.",
+        "With Key Touch at Fixed (the default) nothing changes: every key plays at Options > Velocity, as in 0.23."
+      ],
+      "notes": [
+        "A beta: it may have bugs, and the next stable release, 0.24, replaces it. Please report problems on GitHub.",
+        "Updating from 0.23 keeps your settings, sounds, loops and favorites.",
+        "Going back to 0.23 reads Vel + Poly AT as Key Touch Fixed; once 0.23 saves its settings (you hold SAVE or change an Option there), Key Touch is Fixed when you come back. The full notes have the rest."
+      ]
+    },
+    {
       "version": "0.23",
       "date": "2026-10-16",
       "tag": "v0.23",
@@ -25,7 +166,15 @@
       "notes": [
         "Updating from 0.22 keeps your settings, sounds, loops and favorites.",
         "FM TONE sounds at the Digitone's own levels (INIT, imported sounds and those made from them) play about 6 dB quieter, as loud as the other engines; BASS, SQUARE LEAD and WOBBLE are about 3.5 dB softer."
-      ]
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops and favorites stay. You lose the FM-1 chord keys, MIDI Keys, GRAIN and velocity on the top seven keys.",
+        "points": [
+          "0.23 plays the Classic chord keys; with Chord Keys on FM-1, Full K Shorts on or the SUS Window off 30 ms it reads LATCH as off, and with MIDI Keys on Raw Chord Sound as Off. Nothing else is touched.",
+          "GRAIN sounds stay in their slots and play the VA's init sound on 0.23; they are GRAIN again when you come back. A part left on GRAIN starts on TINE EP or DEEP SUB there.",
+          "Key Touch Vel + Poly AT reads as Fixed on 0.23, and the top seven keys follow your playing again; KNOB 1 is the octave on the Full keyboard there."
+        ]
+      }
     },
     {
       "version": "0.22",

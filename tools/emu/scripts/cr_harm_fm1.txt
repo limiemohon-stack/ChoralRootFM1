@@ -1,0 +1,59 @@
+# Harmony mode in the FM-1 chord-key layout (the default since 0.25.1; docs/CHORD-LAYOUT.md): LFO held opens the mode
+# (this fork, both layouts), LFO tapped in the mode is LATCH (LOCK has nothing to hold there), G#3 + A#3 held together
+# is SUS's button (Upper), B3 is the 9 (an approach / an added note). SEQ held: LOCK's settings on KNOB 2 / 3.
+#  A. C major (MAJ + C5), LFO held: the mode (dump 1); LFO tapped: LATCH on (Sticky) (dump 2)
+#  B. D4 tapped: Cmaj9 latched (dump 3); G#3 + A#3 down together: Upper (dump 4); up
+#  C. B3 held + A4: the tritone sub's lead-in (dump 5); up
+#  D. LFO tapped: LATCH off; OCT-: out; SEQ held, KNOB 2 +1, KNOB 3 +1: LOCK keeps / pushed (dump 6); OCT-, PANIC
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+dump
+btn LFO 80
+wait 200
+dump
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn G#3 down
+btn A#3 down
+wait 300
+dump
+btn G#3 up
+btn A#3 up
+wait 300
+btn B3 down
+wait 50
+btn A4 down
+wait 300
+dump
+btn A4 up
+btn B3 up
+wait 300
+btn LFO 80
+wait 200
+btn OCT-
+wait 300
+btn SEQ down
+wait 700
+knob KNOB2 +1
+wait 100
+knob KNOB3 +1
+wait 100
+btn SEQ up
+wait 300
+dump
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump

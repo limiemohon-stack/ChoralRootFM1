@@ -4,7 +4,7 @@
 // The device runs in worklet.js; before Start a copy boots here, without sound, to show its screen.
 "use strict";
 (() => {
-  const { KEYMAP, BTN_ROLE, ENC_ROLE, CHORD, noteName } = globalThis.FM1;
+  const { KEYMAP, BTN_ROLE, ENC_ROLE, CHORD, CHORD_FM1, noteName } = globalThis.FM1;
   const $ = (id) => document.getElementById(id);
   const NS = "http://www.w3.org/2000/svg";
   const C = { cream: "#F6F2EE", red: "#E63829", orange: "#F67918", yellow: "#F6B600", blue: "#2950CD", green: "#29B27B",
@@ -52,11 +52,26 @@
     const glow = rect([cx - 9, r[1] + 9, 18, 40], 9, C.cream, g, { opacity: 0 });
     const led = rect([cx - 4, r[1] + 14, 8, 30], 4, C.led, g);
     const lab = CHORD[k];
-    text(cx, r[1] + 58, lab || noteName(k), lab ? (lab.length > 3 ? 9 : 11) : 8.5, lab ? CHORD_COL[lab] : "#9A999A", g);
+    const t = text(cx, r[1] + 58, lab || noteName(k), lab ? (lab.length > 3 ? 9 : 11) : 8.5, lab ? CHORD_COL[lab] : "#9A999A", g);
     const h = hint("key", k);
     if (h) text(cx, r[1] + 69, h, 8, C.hint, g, 700);
-    keyEl.push({ cap, glow, led });
+    keyEl.push({ cap, glow, led, t });
   }
+  // the chord keys' labels follow the firmware's Options > Chord Keys (the frame's layout: 1 FM-1, 0 Classic)
+  let layout = 0;
+  const setLayout = (fm1) => {
+    layout = fm1 ? 1 : 0;
+    for (let k = 0; k < 9; k++) {
+      const lab = (layout ? CHORD_FM1 : CHORD)[k], t = keyEl[k].t;
+      t.textContent = lab || noteName(k);
+      t.setAttribute("font-size", lab ? (lab.length > 3 ? 9 : 11) : 8.5);
+      t.setAttribute("fill", lab ? CHORD_COL[lab] : "#9A999A");
+    }
+    if (btnEl[3]) {
+      btnEl[3].t.textContent = layout ? "LOCK" : BTN_ROLE[3];
+      btnEl[3].tcol = layout ? C.blue : C.cream;
+    }
+  };
   for (let i = 0; i < 14; i++) {
     const r = BTNR[i], oct = i >= 12, g = el("g", { "data-c": "b" + i });
     const role = BTN_ROLE[i];
@@ -78,6 +93,7 @@
     text(cx, cy + 35, hint("sel", i) || "", 8, C.hint, g, 700);
     encEl.push({ sel, ptr, a: 0 });
   }
+  setLayout(1);   // FM-1, the firmware's default Chord Keys since 0.25.1, until the first frame says otherwise
 
   // the panel's own little screen: a second canvas over SCREEN_A
   const mini = $("mini");
@@ -304,6 +320,7 @@
       if (/demo/.test(location.search)) { ex.web_keys((1 << 5) | (1 << 9)); ex.web_step(700); }
       if (node) return;
       drawFb(new Uint16Array(mem.buffer, ex.web_fb(), 57600));
+      if (ex.web_layout) setLayout(ex.web_layout());
       drawLeds(new Uint8Array(mem.buffer, ex.web_leds(), 42));
       status("Ready. Press Start for sound.");
     } catch (err) {
@@ -332,6 +349,7 @@
   const onWorklet = (m) => {
     if (m.type === "frame") {
       if (m.fb) drawFb(m.fb);
+      if ((m.layout | 0) !== layout) setLayout(m.layout);
       drawLeds(m.leds);
       if (m.master !== master) { master = m.master; drawKnobs(); }
       if (m.load != null) {

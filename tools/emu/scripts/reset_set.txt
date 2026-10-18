@@ -3,6 +3,7 @@
 # Core Off (0.22: On is the default), Hold Time, Key Mode on). Run 2 (reset_do.txt, the same file): the reset. Run 3 (reset_check.txt): still
 # default after a relaunch, U01 still there.
 #   Options: 0 Play Style .. 3 6th with 7th .. 14 Motion, 15 Chord Names, 17 Hold Time, 20 USB Rate, 21 Dual Core, 22 Output, 23 Version, 24 Calibrate, 25 Reset Settings
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn SAVE                      # U01 "ADG" from TINE EP
 wait 300
@@ -22,7 +23,7 @@ btn GLO                       # Options: Play Style Advanced
 wait 200
 knob KNOB1 +1
 wait 200
-knob SELECT +18               # Motion: Off
+knob SELECT +21               # Motion: Off
 wait 200
 knob KNOB1 +2
 wait 200

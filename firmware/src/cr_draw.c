@@ -1769,6 +1769,54 @@ static void cr_ade2_band(const cr_screen_t *s, uint16_t segcol)
     cr_frect(1912, y0 + 4 * 16, 16, yB - y0 - 4 * 16, T_LINE);
 }
 
+/* GRAIN's wave band (CR_W_WAVE, core.h cr_wave_t through cr_wave_src): the buffers' envelopes column by column (a
+ * source alone in white on its SRC screen; on the GRAIN screen the mix the grains read: the two envelopes weighted
+ * by MORPH, in a colour from A's blue to B's orange), SPRD a dim green span round POS, POS a white line, and the
+ * grains sounding as bars of one colour, as tall as their window is open, at their place in the buffer: they move as
+ * they read */
+static void cr_wave_band(const cr_screen_t *s)
+{
+    const int32_t L = 8 * 16, W = 224 * 16, y0 = 24 * 16, yc = y0 + 48 * 16, H = 40 * 16;
+    const cr_wave_t *w = cr_wave_src ? cr_wave_src(s->wv[1]) : 0;
+    uint32_t which = s->wv[0], k = which == 1u ? 1u : 0u, i, cw;
+    uint16_t col;
+    int32_t pm, x;
+    if (!w || !w->cols)
+        return;
+    cw = W / (int32_t)w->cols;                                   /* a column's width (16: 224 columns) */
+    pm = w->morph * 100 / 127;
+    col = which == 2u ? ux_mix(T_BG, ux_mix(CR_NAMED[CR_COL_BLUE], CR_NAMED[CR_COL_ORANGE], pm), 55)
+                      : ux_mix(T_BG, CR_NAMED[CR_COL_WHITE], 45);
+    if (w->sprd) {                                               /* SPRD: the spread round POS */
+        int32_t sw = W * w->sprd / 127, sx = L + W * w->pos / 127 - sw / 2;
+        if (sx < L) sx = L;
+        if (sx + sw > L + W) sw = L + W - sx;
+        if (sw > 0) cr_frect(sx, y0 + 6 * 16, sw, 84 * 16, ux_mix(T_BG, CR_NAMED[CR_COL_GREEN], 14));
+    }
+    for (i = 0; i < w->cols; i++) {                              /* the envelope: a source's, or the mix's (the two
+                                                                  * weighted by MORPH: near enough) */
+        int32_t lo = w->env[k][2 * i], hi = w->env[k][2 * i + 1], ya, yb;
+        if (which == 2u) {
+            lo = (lo * (127 - w->morph) + w->env[1][2 * i] * w->morph) / 127;
+            hi = (hi * (127 - w->morph) + w->env[1][2 * i + 1] * w->morph) / 127;
+        }
+        ya = yc - hi * H / 127;
+        yb = yc - lo * H / 127;
+        if (yb - ya < 16) { ya = yc - 8; yb = yc + 8; }
+        cr_frect(L + (int32_t)(i * cw), ya, (int32_t)cw, yb - ya, col);
+    }
+    for (i = 0; i < w->n; i++) {                                 /* the grains: a bright line each, one colour (each
+                                                                  * reads the mix), as strong as its window is open, the
+                                                                  * height of the band: they move as they read */
+        int32_t gx = L + W * w->gpos[i] / 255 - 16, lv = 35 + (int32_t)w->glev[i] * 65 / 255;
+        if (gx < L) gx = L;
+        if (gx > L + W - 32) gx = L + W - 32;
+        cr_frect(gx, y0 + 6 * 16, 32, 84 * 16, ux_mix(T_BG, CR_NAMED[CR_COL_WHITE], lv));
+    }
+    x = L + W * w->pos / 127;                                    /* POS: a white line, 1 px */
+    cr_frect(x - 8, y0 + 4 * 16, 16, 88 * 16, CR_NAMED[CR_COL_WHITE]);
+}
+
 /* the wide band: the AHDSR with its lit segment, or the filter's response over a dashed 0 dB line */
 static void cr_wide(const cr_screen_t *s, uint16_t segcol)
 {
@@ -1778,6 +1826,8 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
 #define CR_PT(px16, py16) (p[2 * np] = (int16_t)(px16), p[2 * np + 1] = (int16_t)(py16), np++)
     if (s->wide == CR_W_ALGO) {
         cr_algo_band(s);
+    } else if (s->wide == CR_W_WAVE) {
+        cr_wave_band(s);
     } else if (s->wide == CR_W_ADE2) {
         cr_ade2_band(s, segcol);
     } else if (s->wide == CR_W_ENV) {

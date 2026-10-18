@@ -99,6 +99,28 @@ static int crm_map(uint32_t status, uint32_t d1, uint32_t d2, const uint8_t en[2
     return n;
 }
 
+/* --------------------------------------------------------- MIDI Keys --- */
+/* Options > MIDI Keys (docs/CHORD-LAYOUT.md "MIDI in"): on that channel (keys_ch 1 .. 16, 0 Off) a note n 53 .. 79
+ * presses the FM-1's key n - 53 (F3 .. G5) as the keybed does, through the active layout. A message on the channel
+ * -> *ev = key | vel << 5 | down << 12 (CRM_KEY_ALLUP as the key: every key MIDI holds up: CC 120, CC 123). Returns
+ * 1 with an event, 0 for a message on the channel that does nothing (a note out of range, another message), -1: not
+ * the keys' channel */
+#define CRM_KEY_ALLUP 31u
+static int crm_key(uint32_t status, uint32_t d1, uint32_t d2, uint32_t keys_ch, uint32_t *ev)
+{
+    uint32_t st = status & 0xF0u;
+    if (!keys_ch || (status & 0x0Fu) != keys_ch - 1u)
+        return -1;
+    if (st == 0xB0u && (d1 == 120u || d1 == 123u)) {
+        *ev = CRM_KEY_ALLUP;
+        return 1;
+    }
+    if ((st != 0x90u && st != 0x80u) || d1 < 53u || d1 > 79u)
+        return 0;
+    *ev = (d1 - 53u) | (d2 & 0x7Fu) << 5 | (st == 0x90u && d2 ? 1u : 0u) << 12;
+    return 1;
+}
+
 /* ----------------------------------------------- start / stop (Clock In) --- */
 /* 0xFA start / 0xFB continue / 0xFC stop against the loop: playing (1/0), stopped with a loop (1/0), a take in
  * progress (1/0). Returns how many LOOP taps (cr_loop_play toggles) to apply: 0, 1, or 2 (FA while playing: stop and

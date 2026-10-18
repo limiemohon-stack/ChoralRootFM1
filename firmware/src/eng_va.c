@@ -20,6 +20,7 @@
  * State: the patch and the LFOs per part (VA_NPART: the two ChoralRoot parts; a VA sound on a part above them is
  * silent), per voice voice_t (ph[0..2] OSC 1..3, s[0..1] the filter, s[2] the noise, s[3..6] the oscillators' last
  * phase increments, s[7] the last amplitude) plus a va_voice_t (OSC 4's phase, the envelopes, the ramps' ends). */
+#include "va_common.c"          /* (what GRAIN shares: the filter's weights, the sync list, the amount rule; guarded) */
 #ifndef ENGI_VA
 #define ENGI_VA (13u + FELUCCA_SLICE)   /* engines.c ENGINES[] (append-only): 13 on ChoralRoot */
 #endif
@@ -73,20 +74,9 @@ enum { VD_OFF, VD_PITCH, VD_PIT1, VD_LVL1 = VD_PIT1 + 4, VD_SHP1 = VD_LVL1 + 4, 
        VD_N = VD_DEP1 + 4 };     /* (append only: the blobs store them) */
 #define VA_FRSV VA_FENVF          /* (its name before version 4) */
 #define VA_NDIV3 14u             /* version 3's LFO SYNC divisions (a synced RATE x 14 / 128) */
-#define VA_NSYNC 42u             /* LFO SYNC since version 4: a synced RATE is an index into N_VA_SYNC (va_lfo_inc) */
 
 static const char *const N_VA_WAVE[] = {"SAW", "SQR", "TRI", "SIN", "PWM", "NOIS"};
 /* name lists of 128 values (a 0-terminated list on an F_INT 0..127 column: params.c names value v names[v]) */
-#define VA_R3(x) x, x, x
-#define VA_R4(x) x, x, x, x
-#define VA_R7(x) VA_R4(x), VA_R3(x)
-#define VA_R16(x) VA_R4(x), VA_R4(x), VA_R4(x), VA_R4(x)
-#define VA_R17(x) VA_R16(x), x
-#define VA_R24(x) VA_R16(x), VA_R4(x), VA_R4(x)
-#define VA_R31(x) VA_R24(x), VA_R7(x)
-/* FTYPE: the four types at 0 32 64 96, "A>B" between them (127 runs back toward LP) */
-static const char *const N_VA_FTYPE128[129] = {"LP", VA_R31("LP>BP"), "BP", VA_R31("BP>HP"), "HP", VA_R31("HP>NT"),
-                                               "NOTCH", VA_R31("NT>LP"), 0};
 /* MORPH's position (an oscillator's SHAPE): the waves at 0 24 48 72 96 127, "A>B" between them */
 static const char *const N_VA_MPOS[129] = {VA_R4("SIN"), VA_R17("SIN>TRI"), VA_R7("TRI"), VA_R17("TRI>SAW"),
     VA_R7("SAW"), VA_R17("SAW>RMP"), VA_R7("RAMP"), VA_R17("RMP>SQR"), VA_R7("SQR"), VA_R24("SQR>PLS"),
@@ -94,20 +84,12 @@ static const char *const N_VA_MPOS[129] = {VA_R4("SIN"), VA_R17("SIN>TRI"), VA_R
 static const char *const N_VA_OMODE[] = {"BASIC", "MORPH", "NOISE"};
 static const char *const N_VA_NTYPE[VW_N] = {"WHITE", "BROWN", "VINYL", "WHITE", "WHITE", "WHITE"};   /* NOISE's WAVE
                                                                          * (a stored value above VINYL plays WHITE) */
-static const char *const N_VA_LWAVE[] = {"SIN", "TRI", "SAW", "SQR", "S&H"};
 static const char *const N_VA_SRC[] = {"OFF", "ENV1", "ENV2", "ENV3", "ENV4", "LFO1", "LFO2", "LFO3", "LFO4",
                                        "VEL", "KEY", "RAND", "MODW"};
 static const char *const N_VA_DST[] = {"OFF", "PITCH", "PIT1", "PIT2", "PIT3", "PIT4", "LVL1", "LVL2", "LVL3",
                                        "LVL4", "SHP1", "SHP2", "SHP3", "SHP4", "CUT", "RES", "AMP", "PAN",
                                        "RATE1", "RATE2", "RATE3", "RATE4", "FTYPE", "DRIVE", "SPRD", "FENV",
                                        "DEP1", "DEP2", "DEP3", "DEP4"};
-/* a synced LFO's RATE (version 4, the owner 2026-10-14): slowest first, so turning the knob up is faster, as the free
- * rate: 8 4 3 2 1 bars, 1/2 .. 1/256, each dotted (D, 3/2), straight, triplet (T, 2/3); past 256T free periods in
- * ms. At most 5 characters (params.c F_ENUM): 1/128's and 1/256's T and D drop the "1/" */
-static const char *const N_VA_SYNC[VA_NSYNC + 1u] = {"8BARD", "8BAR", "8BART", "4BARD", "4BAR", "4BART", "3BARD",
-    "3BAR", "3BART", "2BARD", "2BAR", "2BART", "1BARD", "1BAR", "1BART", "1/2D", "1/2", "1/2T", "1/4D", "1/4", "1/4T",
-    "1/8D", "1/8", "1/8T", "1/16D", "1/16", "1/16T", "1/32D", "1/32", "1/32T", "1/64D", "1/64", "1/64T", "128D",
-    "1/128", "128T", "256D", "1/256", "256T", "4ms", "3ms", "2ms", 0};
 /* version 3's divisions (8BAR 4BAR 2BAR 1BAR 1/2 1/4. 1/4 1/4T 1/8. 1/8 1/8T 1/16 16T 1/32) -> their N_VA_SYNC index */
 static const uint8_t VA_DIV3_TO_SYNC[VA_NDIV3] = {1, 4, 10, 13, 16, 18, 19, 20, 21, 22, 23, 25, 26, 28};
 _Static_assert(NELEM(N_VA_SRC) == VS_N && NELEM(N_VA_DST) == VD_N && NELEM(N_VA_WAVE) == VW_N &&
@@ -541,25 +523,6 @@ static void va_mfine_put(int8_t *p, uint32_t k, uint32_t on)
     uint32_t b = k < 7u ? 1u << k : 1u;
     *f = (int8_t)(on ? (uint32_t)*f | b : (uint32_t)*f & ~b);
 }
-/* the AMT column's values (hundredths) at or below v, at or above v: tenths between -6 and 6, whole numbers outside */
-static int32_t va_amt_floor(int32_t v)
-{
-    int32_t g = v > -600 && v < 600 ? 10 : 100;
-    return v >= 0 ? v / g * g : -((-v + g - 1) / g * g);
-}
-static int32_t va_amt_ceil(int32_t v) { return -va_amt_floor(-v); }
-/* a turn of the AMT column from old to v: a value between two moves on from old to the next one its way (a slow
- * detent's 0.01: a tenth below 6, a whole above), a larger one stops at the last it passed (a quick detent's 6.35: 6,
- * the whole amounts' step of before) */
-static int32_t va_amt_q(int32_t v, int32_t old)
-{
-    int32_t r = v = clamp(v, -6400, 6300);
-    if (v > old && (r = va_amt_floor(v)) <= old)
-        r = va_amt_ceil(old + 1);
-    else if (v < old && (r = va_amt_ceil(v)) >= old)
-        r = va_amt_floor(old - 1);
-    return clamp(r, -6400, 6300);
-}
 
 /* the patch value of page column (page, col) for part tr, VA_X = none. OSC n's WAVE column follows MODE: BASIC the
  * wave, MORPH the morph position (an alias of SHAPE: KNOB 1 morphs the wave), NOISE the noise type (WAVE's value) */
@@ -603,8 +566,6 @@ static const param_desc_t VA_D_WAVE[VOM_N] = {
 };
 static const param_desc_t VA_D_SHAPE[4] = {{"MORPH", F_PCT, 0, 127, 0, 0, 0}, {"COLOR", F_PCT, 0, 127, 0, 0, 0},
                                            {"DENS", F_PCT, 0, 127, 0, 0, 0}, VC_SHAPE};
-/* LFO n's RATE with its SYNC on: the list (one item a detent: cr_pages.c kn_list; OPT snaps to the straight ones) */
-static const param_desc_t VA_D_SRATE = {"RATE", F_ENUM, 0, VA_NSYNC - 1, 19, N_VA_SYNC, 0};
 static const param_desc_t *va_desc(const track_t *t, uint32_t page, uint32_t col)
 {
     uint32_t tr = va_tr(t), k = page >> 1, mode, w;
@@ -737,19 +698,6 @@ static void va_track_loaded(const track_t *ct)
 }
 
 /* ------------------------------------------------------------ the ISR --- */
-/* LFO SYNC: N_VA_SYNC's phase increments per control tick (CTL = 32 samples at 44.1 kHz). A division of n / d beats:
- * per BPM, Q8 (2^32 x 32 / (44100 x 60) / beats x 256 = 2^45 d / (2646000 n); the largest, 256T at 1/96 beat, 1.28e9;
- * the smallest, 8BARD at 48 beats, 277k: 1/277k at 1 BPM, exact to 4e-6); x BPM >> 8 in 64 bits (256T at 300 BPM:
- * 1.5e9, 480 Hz). Past 256T a free period of m ms (VA_MS: the increment itself, 2^32 x 32000 / (44100 m); 2 ms is
- * 1.56e9, 500 Hz: under the control rate's half, 689 Hz) */
-#define VA_SQ8(n, d) (uint32_t)((35184372088832ull * (d) + 1323000ull * (n)) / (2646000ull * (n)))
-#define VA_MS(m) (uint32_t)((137438953472000ull + 22050ull * (m)) / (44100ull * (m)))
-#define VA_SB(b) VA_SQ8(6 * (b), 1), VA_SQ8(4 * (b), 1), VA_SQ8(8 * (b), 3)   /* b bars: dotted, straight, triplet */
-#define VA_SN(n, d) VA_SQ8(3 * (n), 2 * (d)), VA_SQ8(n, d), VA_SQ8(2 * (n), 3 * (d))   /* a note of n / d beats */
-static const uint32_t VA_SYNC_Q8[VA_NSYNC] = {VA_SB(8), VA_SB(4), VA_SB(3), VA_SB(2), VA_SB(1), VA_SN(2, 1),
-    VA_SN(1, 1), VA_SN(1, 2), VA_SN(1, 4), VA_SN(1, 8), VA_SN(1, 16), VA_SN(1, 32), VA_SN(1, 64), VA_MS(4), VA_MS(3),
-    VA_MS(2)};
-#define VA_SYNC_MS0 39u          /* N_VA_SYNC's first free period */
 
 /* LFO l's increment from its RATE and the matrix's RATEn (off: +-127, a full turn of the 128 values; synced: of the
  * list, so the same share of it) */
@@ -761,15 +709,6 @@ static uint32_t va_lfo_inc(const int8_t *p, uint32_t l, int32_t rate, int32_t of
         return i >= VA_SYNC_MS0 ? VA_SYNC_Q8[i] : (uint32_t)(((uint64_t)VA_SYNC_Q8[i] * bpm) >> 8);
     }
     return LFO_INC[clamp(rate + off, 0, 127)];
-}
-
-static uint32_t va_xs(uint32_t s)                /* xorshift32 (S&H; its own: the shared rng is not touched) */
-{
-    s = s ? s : 0x6C8E9CF5u;
-    s ^= s << 13;
-    s ^= s >> 17;
-    s ^= s << 5;
-    return s;
 }
 
 /* once a block and part: the macros into the patch, the LFOs */
@@ -974,30 +913,6 @@ static inline int32_t va_vinyl(int32_t *nst, int32_t *c, int32_t *h, uint32_t th
     return clamp(*c + (*h >> 3), -32767, 32767);
 }
 
-/* the filter's output as weights (Q10) of the input, the band-pass (kd v1) and the low-pass (v2): LP (0, 0, 1),
- * BP (0, 1, 0), HP (1, -1, -1), NOTCH (1, -1, 0) (exactly va_render's switch at 1024); FTYPE crossfades the weights
- * towards the next type of the cycle LP -> BP -> HP -> NOTCH -> LP (ff, Q10) */
-typedef struct { int32_t x, b, l; } va_fw_t;
-static const int8_t VA_FW[4][3] = {{0, 0, 1}, {0, 1, 0}, {1, -1, -1}, {1, -1, 0}};
-static va_fw_t va_fweights(uint32_t ty, int32_t ff)
-{
-    const int8_t *a = VA_FW[ty & 3u], *b = VA_FW[(ty + 1u) & 3u];
-    va_fw_t w;
-    w.x = (a[0] << 10) + (b[0] - a[0]) * ff;
-    w.b = (a[1] << 10) + (b[1] - a[1]) * ff;
-    w.l = (a[2] << 10) + (b[2] - a[2]) * ff;
-    return w;
-}
-/* one sample of the SVF c (state ic1, ic2) with the output weights w; the soft knee after it */
-static inline int32_t va_svf(const tsvf_t *c, int32_t x, int32_t *ic1, int32_t *ic2, int32_t kd, va_fw_t w)
-{
-    int32_t v3 = x - *ic2, v1 = (c->a1 * *ic1 + c->a2 * v3) >> 13, v2 = *ic2 + ((c->a2 * *ic1 + c->a3 * v3) >> 13), y;
-    *ic1 = clamp(2 * v1 - *ic1, -150000, 150000);
-    *ic2 = clamp(2 * v2 - *ic2, -150000, 150000);
-    y = (w.x * x + w.b * ((kd * v1) >> 12) + w.l * v2) >> 10;
-    return soft_knee(clamp(y, -200000, 200000), 16000);
-}
-
 /* the oscillator loop for one wave: x(ph, inc, sh) the sample; adds level-ramped into acc */
 #define VA_OSC_LOOP_FULL(X)                                                \
     for (i = 0; i < n; i++) {                                              \
@@ -1035,7 +950,6 @@ static inline int32_t va_svf(const tsvf_t *c, int32_t x, int32_t *ic1, int32_t *
 
 /* a matrix term x (a source x a slot's AMT, +-2^21) of slot k with the fine flags mf: a slot in tenths takes a tenth
  * (x 205 / 2048, 0.1 % over; +-4.3e8), a whole one x itself, bit for bit as before version 5 */
-#define VA_AMX(x, mf, k) ((((mf) >> (k)) & 1u) ? ((x) * 205) >> 11 : (x))
 
 /* a voice's block: out gets the mono (the mid), side (0: none) the stereo side of SPREAD / USPREAD; 1 = side got
  * something */

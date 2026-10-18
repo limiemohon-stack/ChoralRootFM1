@@ -573,10 +573,10 @@ static void ce_view(const track_t *t, uint32_t p, ce_view_t *v)
             for (c = 0; c < 4u; c++)
                 v->ref[i][c] = d->pages[sc.pg[i]].col[c].label ? ce_r(CE_R_DEEP, sc.pg[i], c) : ce_r(CE_R_NONE, 0, 0);
         if (ce_plan(d, sc.hs)) {                  /* the engine's plan: its band and title ("SYN 1 \267 A") */
-            static const uint8_t W[6] = {CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_FILTER, CR_W_ALGO, CR_W_ADE2};
+            static const uint8_t W[7] = {CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_FILTER, CR_W_ALGO, CR_W_ADE2, CR_W_WAVE};
             const eng_screen_t *h = ce_plan(d, sc.hs);
             v->hs = sc.hs;
-            v->wide = h->band < 6u ? W[h->band] : (uint8_t)CR_W_NONE;
+            v->wide = h->band < 7u ? W[h->band] : (uint8_t)CR_W_NONE;
             v->dp0 = sc.pg[0];
             v->np = sc.n;
             cu_cpy(v->right, h->title ? h->title : d->pages[sc.pg[0]].title, sizeof v->right);
@@ -1545,6 +1545,23 @@ static uint32_t ce_band_plan(const track_t *t, const ce_view_t *vw, uint8_t *o)
             o[i] = c && c->label ? ce_pct(c, d->get(t, pg, i & 3u)) : 0u;
         }
         return 9;
+    }
+    if (h->band == ENG_B_WAVE) {                  /* GRAIN: the SRC screen shows the active lane's buffer (A or B), the
+                                                   * GRAIN screen both, morphed; the part; a count that moves every
+                                                   * frame, so the band (the grains over the buffers) redraws each one */
+        static uint8_t tick;
+        const cr_wave_t *w;
+#if FELUCCA_GRAIN
+        cr_wave_src = grain_wave;
+#endif
+        o[0] = (uint8_t)(vw->hs == 1u ? (vw->active ? 1u : 0u) : 2u);
+        o[1] = (uint8_t)(ce.part ? CR_PART_BASS : CR_PART_CHORD);
+        w = cr_wave_src ? cr_wave_src(o[1]) : 0;
+        /* the grains move at a third of the frame rate (a band redraw is ~100 lines over the LCD, most of a frame:
+         * every frame would leave the renders no idle time), and while a source renders only when a render lands:
+         * the render gets the frames, the band shows each new buffer (3y138; in place, 3y168) */
+        o[2] = w && w->busy ? (uint8_t)(0x80u | (w->gen & 0x7Fu)) : (uint8_t)((tick++ / 3u) & 0x7Fu);
+        return 3;
     }
     if (h->band == ENG_B_FILTER || h->band == ENG_B_WINDOW) {
         ce_range(d, CE_FILT, &a, &b);

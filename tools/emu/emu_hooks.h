@@ -69,6 +69,10 @@ typedef struct {
      * firmware's knob acceleration, firmware/src/cr_pages.c kn_turn: the range / 20 a detent, the step of before
      * 0.22), for the scripts written against that step; real: the speed from the detents' times, as the unit */
     volatile uint8_t knob_quick;
+    /* the script's "keys classic" (emu.c load_script, read once at power-on by emu_fw.c): a unit with no settings record
+     * starts with Options > Chord Keys Classic, as one whose player chose it (0.25.1: FM-1 is the default; the scripts
+     * written for the Classic keys say so) */
+    uint8_t keys_classic;
 } emu_hal_t;
 extern emu_hal_t emu_hal;
 
@@ -97,4 +101,5 @@ void emu_fw_stages(char *buf, uint32_t n);  /* the audio ISR's stage profile (EM
  * v[3] the longest to the audio block that applied it; v[4] the key scans done inside redraws. Returns the strips
  * the redraw in progress (or the last one) has composed */
 uint32_t emu_fw_keys(uint32_t v[5]);
+uint32_t emu_fw_layout(void);              /* Options > Chord Keys: 1 FM-1, 0 Classic (the panel's labels) */
 void emu_fw_ui_info(char *buf, uint32_t n);  /* the last UI frame's screen: kind, text, strips (EMU_UI_LOG) */

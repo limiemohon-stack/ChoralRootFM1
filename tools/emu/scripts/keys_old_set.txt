@@ -1,0 +1,18 @@
+# test_persist.sh, the move to the FM-1 chord keys (0.25.1), run 1 (a fresh flash file): a unit on the Classic chord
+# keys with LOCK on and SUS + 9 latched (B3 tap; C#4 + C4 held together and let go), SAVE held: the settings and the
+# session written (dump 1), quit. test_persist.sh then rewrites the settings block as 0.25 (Classic or FM-1) and 0.23
+# wrote it (tools/emu/seed_keys.py), the session left as it is
+keys classic                  # (the Classic chord keys: as a 0.25 unit left on them)
+wait 500
+btn B3                        # LOCK on
+wait 300
+btn C#4 down                  # SUS + 9 held, let go: latched
+btn C4 down
+wait 300
+btn C4 up
+btn C#4 up
+wait 400
+btn SAVE 900                  # the global save: the settings and the session
+wait 400
+dump                          # 1: Classic, lock on, SUS + 9 latched, saved
+quit

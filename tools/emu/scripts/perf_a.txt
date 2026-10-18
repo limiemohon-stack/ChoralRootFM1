@@ -1,5 +1,6 @@
 # tools/emu/perf.sh (a): MAJ + 6 + M7 + 9 held, D4: a 6-note chord (D6/9maj7) held 6 s on the power-on sound
 # (TINE EP, FM6), then released
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 key F3 down
 key 2 down

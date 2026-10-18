@@ -882,6 +882,9 @@ static int probe_frames;                         /* script `probe N`: the next N
  *                           inside the redraw does), let go MS later (default 100); prints the strips that frame's
  *                           redraw composed. With EMU_STRIP_US (README)
  *   dump | rec | window NAME | quit       End's print, F12's LCD recording, a window shot, stop here
+ *   keys classic|fm1        (anywhere; read at power-on) a unit with no settings record starts with Options > Chord
+ *                           Keys Classic (as one whose player chose it) or FM-1 (the default since 0.25.1); a flash
+ *                           that holds a record keeps its own. The scripts written for the Classic keys say classic
  * Also accepted (older scripts): press KEY [MS], tap, hold / down, release / up, turn KNOB N, and a leading
  * "<ms>" for an absolute time ("1200 down A"). Names: a computer key wins for key/press/hold, a panel control
  * for btn; "note:F3" names the note F3. */
@@ -1018,6 +1021,13 @@ static void load_script(const char *path)
         arg3 = w[t + 3];
 #define BAD(...) do { printf("script line %d: ", ln); printf(__VA_ARGS__); printf("\n"); script_errors++; } while (0)
         if (!strcmp(cmd, "wait")) { cur += parse_dur(arg, 0); continue; }
+        if (!strcmp(cmd, "keys")) {               /* keys classic | fm1: the Chord Keys of a unit with no settings record */
+            if (!strcmp(arg, "classic") || !strcmp(arg, "fm1"))
+                emu_hal.keys_classic = !strcmp(arg, "classic");
+            else
+                BAD("keys: classic or fm1, not '%s'", arg);
+            continue;
+        }
         if (!strcmp(cmd, "frames")) { cur += 15u * (uint32_t)atoi(arg); continue; }
         if (!strcmp(cmd, "shot")) { sev_add(cur, OP_SHOT, NULL, 0, 0, 0, arg); continue; }
         if (!strcmp(cmd, "window")) { sev_add(cur, OP_WINDOW, NULL, 0, 0, 0, arg[0] ? arg : "window"); continue; }

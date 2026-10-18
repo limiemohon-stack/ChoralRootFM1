@@ -26,6 +26,16 @@
 
 #define FELUCCA_ID "ota-FM-1_900"
 #define FELUCCA_OTA_DRYRUN 0
+/* the board's places (-DBOARD_SMK37=1: the SMK-37's, on SMK-layout packages: PRCT 0x9D000, the staging at 0xBB000) */
+#if BOARD_SMK37
+#define T_APP_HI 0x9D000u                /* the end of the app area the loader writes (ldr_core.c LDR_APP_HI) */
+#define T_REC_HI 0xC0000u                /* .. and of its record window (LDR_REC_HI) */
+#define T_OTA 0xBB000u                   /* the staging area (ota.c OTA_AREA) */
+#else
+#define T_APP_HI 0x93000u
+#define T_REC_HI 0xFC000u
+#define T_OTA 0xE0000u
+#endif
 
 static uint8_t nor[0x100000], *logical;
 static size_t logical_len;
@@ -97,7 +107,7 @@ static void ota_idle(void) { now_ms++; }
 static int ota_erase(uint32_t off) { (void)off; return -1; }
 static int ota_prog(uint32_t off, const void *p, uint32_t n)      /* the staging area only (the fixture below) */
 {
-    if (off < 0xE0000u || off + n > 0xE5000u) return -1;
+    if (off < T_OTA || off + n > T_OTA + 0x5000u) return -1;
     memcpy(nor + off, p, n);
     return 0;
 }
@@ -109,7 +119,7 @@ static void ota_commit(const uint8_t *parm) { (void)parm; }
 static int ldr_fread(uint32_t off, void *p, uint32_t n) { memcpy(p, nor + off, n); return 0; }
 static int ldr_erase(uint32_t off)
 {
-    if (off < 0x4000u || off >= 0xFC000u || (off & 0xFFFu)) bad_range++;
+    if (off < 0x4000u || off >= T_REC_HI || (off & 0xFFFu)) bad_range++;
     if (off < 0x4000u) { printf("ERASE IN THE HEAD %#x\n", off); exit(1); }
     erases++;
     memset(nor + off, 0xFF, 0x1000);
@@ -120,7 +130,7 @@ static int ldr_prog(uint32_t off, const void *p, uint32_t n)
 {
     const uint8_t *s = p;
     uint32_t i;
-    if (off < 0x4000u || off + n > 0x93000u || ((off & 0xFFu) + n) > 256u) bad_range++;
+    if (off < 0x4000u || off + n > T_APP_HI || ((off & 0xFFu) + n) > 256u) bad_range++;
     for (i = 0; i < n; i++) nor[off + i] &= s[i];
     op_done(off);
     return 0;
@@ -284,21 +294,21 @@ int main(int argc, char **argv)
     nfo = flash_off(logical);
     /* device: OLD installed, plus a valid update record at 0xE4F00 */
     memset(nor, 0xFF, sizeof nor);
-    memcpy(nor, old + ofo, 0x93000);
+    memcpy(nor, old + ofo, T_APP_HI);
     memcpy(head, nor, sizeof head);
     {
         uint8_t r[112] = {0};
         r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
         ota_wr16(r, ota_crc16(r + 2, 78, 0));
-        memcpy(nor + 0xE4F00, r, sizeof r);
+        memcpy(nor + T_OTA + 0x4F00u, r, sizeof r);
     }
     rc = ldr_session();
     printf("  rc %d, %u requests, %u sector erases\n", rc, requests, erases);
     bad += check("install completes", rc == 0);
-    bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, 0x93000 - 0x4000));
+    bad += check("app area == the new package's flash.bin", !memcmp(nor + 0x4000, logical + nfo + 0x4000, T_APP_HI - 0x4000));
     bad += check("flash head [0, 0x4000) untouched", !memcmp(nor, head, sizeof head));
     bad += check("finish asked (0xF0000000)", f0_asked >= 1);
-    bad += check("update record cleared (RAM + flash)", record_cleared && nor[0xE4F06] == 0xFF);
+    bad += check("update record cleared (RAM + flash)", record_cleared && nor[T_OTA + 0x4F06u] == 0xFF);
     bad += check("no write outside the allowed windows", bad_range == 0);
     /* same package again: nothing to erase */
     erases = 0; requests = 0;
@@ -308,25 +318,25 @@ int main(int argc, char **argv)
     {
         uint8_t save = logical[nfo + 0x4000 + 5];
         logical[nfo + 0x4000 + 5] ^= 0x5A;           /* app area head no longer decrypts */
-        memcpy(nor, old + ofo, 0x93000);
+        memcpy(nor, old + ofo, T_APP_HI);
         erases = 0;
         rc = ldr_session();
         bad += check("foreign key / damaged app head refused, nothing erased", rc == -6 && erases == 0);
         logical[nfo + 0x4000 + 5] = save;
     }
     /* the interruption model (see the top) */
-    memcpy(nor, old + ofo, 0x93000);
+    memcpy(nor, old + ofo, T_APP_HI);
     new_fl = logical + nfo;
     if (ldr_chip_key(&chip_key) || !has_marker(new_fl)) {
         printf("  (the new package has no boot stub marker: written in address order, no interruption model)\n");
     } else {
         uint32_t ota_off = 0, ota_len = 0, fo, fl, u_first;
-        static uint8_t hdr[0x400], dark[0x93000];
+        static uint8_t hdr[0x400], dark[T_APP_HI];
         size_t slen, xlen;
-        memset(nor + 0x93000, 0xFF, sizeof nor - 0x93000);
+        memset(nor + T_APP_HI, 0xFF, sizeof nor - T_APP_HI);
         rx_full = 0;
         ota_ufw(hdr, &fo, &fl, &ota_off, &ota_len);                   /* the staged loader, as ota.c's step 1 leaves it */
-        memcpy(nor + 0xE0020, logical + ota_off + 0x20, ota_len - 0x20);
+        memcpy(nor + T_OTA + 0x20u, logical + ota_off + 0x20, ota_len - 0x20);
         ota_stage_head(ota_len - 0x20);
         bad += check("stub: the staged loader passes its check", stub_loader_check(nor + STUB_LDR_OFF) == STUB_LD_OK);
         {   /* the staged loader's life over an install: step 1's record beside it, the loader's write, its finish
@@ -335,11 +345,11 @@ int main(int argc, char **argv)
             stub_result_t sr;
             r[2] = 0x0D; r[3] = 0x5A; r[4] = 0x01; r[5] = 0x5A; r[6] = 0x41; r[7] = 0x54;
             ota_wr16(r, ota_crc16(r + 2, 78, 0));
-            memcpy(nor + 0xE4F00, r, sizeof r);
+            memcpy(nor + T_OTA + 0x4F00u, r, sizeof r);
             cut_at = 0;
             rc = ldr_session();
             bad += check("install -> boot: the record gone, the staged loader kept and whole",
-                         rc == 0 && nor[0xE4F06] == 0xFF && ota_boot_cleanup() == 0 && ota_staged() &&
+                         rc == 0 && nor[T_OTA + 0x4F06u] == 0xFF && ota_boot_cleanup() == 0 && ota_staged() &&
                          stub_loader_check(nor + STUB_LDR_OFF) == STUB_LD_OK);
             bad += check(".. the stub boots the app", stub_says(&sr) == STUB_BOOT);
             {
@@ -355,7 +365,7 @@ int main(int argc, char **argv)
                 stub_decide(&v, &k, 1, sr.word, &sr);
                 bad += check(".. a second arrival with the key and no boot between: UBOOT", sr.decision == STUB_UBOOT);
             }
-            memcpy(nor, old + ofo, 0x93000);
+            memcpy(nor, old + ofo, T_APP_HI);
         }
         printf("interruption model: a power cut after every erase and every programmed page\n");
         /* 16 = the stub sector's erase and its first 15 pages; the marker's erase before them leaves a 0.16 app

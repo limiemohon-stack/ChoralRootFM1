@@ -13,6 +13,7 @@
 #    D. Slot 4: LOCK on (B3), MAJ latched, four roots tapped: four steps, 96 ticks (before: one step). In Step mode
 #       KNOB 3 says "Step: always 1/16" and leaves Quantize as it is.
 # E. Slot 5, Length 8 bars: REC: "Step: 4 bars (64 steps)": the pattern is the Length's first four bars.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn PLAY down
 wait 500

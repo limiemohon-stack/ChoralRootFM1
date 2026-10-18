@@ -16,7 +16,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import vm from "node:vm";
 import { logicalImage, productOf } from "./fm1pkg.js";
-import { Updater, pack7, unpack7, classifyFirmware, refusalText, RECOVERY_URL } from "./fm1ota.js";
+import { Updater, pack7, unpack7, classifyFirmware, refusalText, RECOVERY_URL, sameKeyboard } from "./fm1ota.js";
 
 let failed = 0;
 const ok = (cond, what) => { console.log(`${what.padEnd(64)} ${cond ? "ok" : "FAIL"}`); if (!cond) failed++; };
@@ -1155,10 +1155,14 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 
 /* an FM-1 on WebMIDI: identity, then "device asks, host answers" reads of the image */
 class FakeFM1 {
-  constructor(image, { unplugAfter = Infinity } = {}) {
-    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0;
+  // identity / loader / afterWrite: what it runs, the loader step 1 starts, what runs after the write (an SMK-37:
+  // "SMK-37 Pro_900", "ota-SMK-37 Pro_900"); upgrades: the UPGRADE commands it took
+  constructor(image, { unplugAfter = Infinity, identity = "FM-1_015", name = "FM-1", loader = "ota-FM-1_900",
+    afterWrite = "FM-1_900" } = {}) {
+    this.image = image; this.unplugAfter = unplugAfter; this.served = 0; this.bad = 0; this.upgrades = 0;
+    this.loader = loader; this.afterWrite = afterWrite;
     this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot("FM-1_015", "FM-1");
+    this.boot(identity, name);
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
@@ -1179,6 +1183,7 @@ class FakeFM1 {
       const body = [0, 0x59, 0x11, 0, 0, 0, ...t, ...new Array(28 - t.length).fill(0)];
       this.tx([0xF0, ...pack7(body), 0xF7]);
     } else if (eq(d, UPGRADE)) {
+      this.upgrades++;
       this.queue = this.identity.startsWith("ota-")
         ? [...Array.from({ length: 6 }, (_, k) => [k * 512, 512]), [0xF0000000, 8]]
         : [[0, 64], [0x40, 160], [0x1000, 512], [0xE0000000, 8]];
@@ -1192,8 +1197,8 @@ class FakeFM1 {
       this.waiting = null;
       this.served++;
       if (this.served >= this.unplugAfter) { this.input.state = this.output.state = "disconnected"; return; }
-      if (addr === 0xE0000000) setTimeout(() => this.boot("ota-FM-1_900", "Felucca Update"), 300);
-      else if (addr === 0xF0000000) setTimeout(() => this.boot("FM-1_900", "Felucca"), 300);
+      if (addr === 0xE0000000) setTimeout(() => this.boot(this.loader, "Felucca Update"), 300);
+      else if (addr === 0xF0000000) setTimeout(() => this.boot(this.afterWrite, "Felucca"), 300);
       else this.next();
     }
   }
@@ -1221,8 +1226,52 @@ async function updater() {
   const dev2 = new FakeFM1(image, { unplugAfter: 3 });
   dev2.boot("ota-FM-1_900", "Felucca Update");
   const t0 = Date.now();
-  const done = await new Updater(dev2.access).resume(image);
+  const done = await new Updater(dev2.access).resume(image, null, { package: "FM-1_900" });
   ok(done === false && Date.now() - t0 < 6000, "fm1ota.js: unplugged during the write -> stops at once");
+
+  // the keyboard rule on every path (SMK37.md): the device, and a device already in update mode
+  const dev4 = new FakeFM1(image);
+  dev4.boot("ota-FM-1_900", "Felucca Update");
+  const e4 = await new Updater(dev4.access).resume(image).then(() => null, (x) => x);
+  ok(e4 && e4.code === "model" && dev4.upgrades === 0, "fm1ota.js: resume without the package's identity -> 'model', nothing written");
+  const dev5 = new FakeFM1(image);
+  dev5.boot("ota-SMK-37 Pro_900", "Felucca Update");
+  const e5 = await new Updater(dev5.access).resume(image, null, { package: "FM-1_920" }).then(() => null, (x) => x);
+  ok(e5 && e5.code === "model" && dev5.upgrades === 0, "fm1ota.js: an SMK's loader never gets an FM-1 package (resume)");
+  const dev6 = new FakeFM1(image);
+  dev6.boot("ota-FM-1_900", "Felucca Update");
+  const e6 = await new Updater(dev6.access).resume(image, null, { package: "SMK-37 Pro_920", anyModel: true }).then(() => null, (x) => x);
+  ok(e6 && e6.code === "model" && dev6.upgrades === 0, "fm1ota.js: nor an FM-1's loader an SMK package, not with anyModel");
+  const dev7 = new FakeFM1(image, { identity: "SMK-37 Elite_016", name: "SMK-37 Elite", loader: "ota-SMK-37 Pro_900", afterWrite: "SMK-37 Pro_920" });
+  const e7 = await new Updater(dev7.access).install(image, "SMK-37 Pro_920").then(() => null, (x) => x);
+  ok(e7 && e7.code === "model" && dev7.upgrades === 0, "fm1ota.js: another SMK model's package without anyModel -> 'model', nothing sent");
+  const got8 = await new Updater(dev7.access).install(image, "SMK-37 Pro_920", null, true);
+  ok(got8 === "SMK-37 Pro_920" && dev7.bad === 0, "fm1ota.js: ... with anyModel (the same keyboard): installed");
+  const dev9 = new FakeFM1(image, { identity: "SMK-37 Pro_920", name: "ChoralRoot FM-1", loader: "ota-SMK-37 Pro_900", afterWrite: "SMK-37 Pro_920" });
+  dev9.boot("ota-SMK-37 Elite_900", "Felucca Update");
+  const got9 = await new Updater(dev9.access).resume(image, null, { package: "SMK-37 Pro_920", anyModel: true });
+  ok(got9 === true && dev9.bad === 0, "fm1ota.js: resume an SMK write on another model's loader with anyModel");
+  // other SMK firmwares and other loaders (SMK37.md): ChanceTheMaker's (SMK-37_9NN) refused before UPGRADE; a
+  // firmware that restarts into a loader at once goes on only with our loader of the same keyboard; a device left in
+  // another firmware's update mode is never written (but for the return to stock: opts.product)
+  const dev10 = new FakeFM1(image, { identity: "SMK-37_931", name: "SMK-37" });
+  const e10 = await new Updater(dev10.access).install(image, "SMK-37 Pro_920", null, true).then(() => null, (x) => x);
+  ok(e10 && e10.code === "other" && dev10.upgrades === 0, "fm1ota.js: over SMK-37_9NN (its own updater) -> 'other', nothing sent");
+  const dev11 = new FakeFM1(image, { identity: "SMK-37 Pro_900", name: "Felucca", loader: "ota-SMK-37 Pro_900", afterWrite: "SMK-37 Pro_920", unplugAfter: 0 });
+  const jump = dev11.rx.bind(dev11);
+  dev11.rx = (d) => { if (eq(d, UPGRADE) && !dev11.identity.startsWith("ota-")) { dev11.upgrades++; dev11.input.state = dev11.output.state = "disconnected"; setTimeout(() => { dev11.unplugAfter = Infinity; dev11.boot("ota-SMK-37 Pro_900", "Felucca Update"); }, 300); return; } jump(d); };
+  const got11 = await new Updater(dev11.access).install(image, "SMK-37 Pro_920", null, true);
+  ok(got11 === "SMK-37 Pro_920" && dev11.bad === 0, "fm1ota.js: a firmware that restarts into our loader at once: installed");
+  const dev12 = new FakeFM1(image, { identity: "SMK-37 Pro_900", name: "Felucca", unplugAfter: 0 });
+  dev12.rx = (d) => { if (eq(d, UPGRADE)) { dev12.upgrades++; dev12.input.state = dev12.output.state = "disconnected"; setTimeout(() => { dev12.unplugAfter = Infinity; dev12.boot("ota-SMK-37 Pro_016", "SMK-37 Pro"); }, 300); return; } FakeFM1.prototype.rx.call(dev12, d); };
+  const e12 = await new Updater(dev12.access).install(image, "SMK-37 Pro_920", null, true).then(() => null, (x) => x);
+  ok(e12 && e12.code === "foreign" && e12.detail === "ota-SMK-37 Pro_016" && dev12.upgrades === 1, "fm1ota.js: ... into another firmware's loader -> 'foreign', nothing written");
+  const dev13 = new FakeFM1(image);
+  dev13.boot("ota-SMK-37 Pro_016", "SMK-37 Pro");
+  const e13 = await new Updater(dev13.access).resume(image, null, { package: "SMK-37 Pro_920", anyModel: true }).then(() => null, (x) => x);
+  ok(e13 && e13.code === "foreign" && dev13.upgrades === 0, "fm1ota.js: resume on another firmware's loader -> 'foreign', nothing written");
+  ok(sameKeyboard("SMK-37 Pro", "MKE-P37") && sameKeyboard("SMK-37 Elite", "STARRYKEY-37 PLAY") && !sameKeyboard("FM-1", "SMK-37 Pro") &&
+     !sameKeyboard("SMK-37 Pro", "FM-1"), "fm1ota.js sameKeyboard: the SMK models one keyboard, never the FM-1");
 
   const dev3 = new FakeFM1(image, { unplugAfter: 2 });
   const e = await new Updater(dev3.access).install(image, "FM-1_900").then(() => null, (x) => x);
@@ -1244,6 +1293,13 @@ function firmwareGuard() {
     ["FM-1_920", "FELUCCA 2.0 BETA", "refuse", "felucca-beta"], ["FM-1_000", null, "refuse", "sloop"],
     ["FM-1_900", null, "refuse", "unknown"], ["FM-1_920", null, "refuse", "unknown"], ["FM-1_500", null, "refuse", "unknown"],
     ["FM-1_910", "SOMETHING 3.0", "refuse", "unknown"], ["ota-FM-1_920", null, "loader", "loader"],
+    // the M-Vave SMK-37 (SMK37.md): the official firmware, ChoralRoot and the other ports on the SMK board layer;
+    // ChanceTheMaker's SMK firmwares (SMK-37_9NN) have their own updater
+    ["SMK-37 Pro_016", null, "allow", "stock"], ["MKE-P37_016", null, "allow", "stock"],
+    ["SMK-37 Pro_920", "ChoralRoot 0.22", "allow", "choralroot"], ["SMK-37 Pro_900", "FELUCCA v1.6", "allow", "smk"],
+    ["SMK-37 Elite_920", null, "allow", "smk"], ["SMK-37 Pro_710", null, "allow", "smk"],
+    ["SMK-37_931", null, "refuse", "other"], ["SMK-37 Pro_500", null, "refuse", "unknown"],
+    ["ota-SMK-37 Pro_900", null, "loader", "loader"],
   ];
   const wrong = cases.filter(([i, v, verdict, kind]) => { const r = classifyFirmware(i, v); return r.verdict !== verdict || r.kind !== kind; });
   ok(!wrong.length, `fm1ota.js classifyFirmware: ${cases.length} identity / version cases${wrong.length ? " wrong: " + JSON.stringify(wrong) : ""}`);

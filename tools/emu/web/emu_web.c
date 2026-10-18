@@ -11,7 +11,10 @@
  * the saved image into web_flash_stage() before web_boot (emu_flash_open "reads" it from there), and saves
  * web_flash() back when web_flash_dirty() moves.
  *
- *   sh tools/emu/web/build_web.sh  ->  build/emu-web/choralroot.wasm (+ the page) */
+ *   sh tools/emu/web/build_web.sh  ->  build/emu-web/choralroot.wasm (+ the page)
+ * EMU_SMK37 (build_web.sh's second module, build/emu-web-smk37/choralroot-smk37.wasm): the BOARD_SMK37 firmware on
+ * ../emu_smk_hal.h's modelled SMK-37 panel; its panel comes in through the web_smk_* exports below instead of the
+ * FM-1's web_keys / web_buttons / web_enc, its lights go out through web_smk_leds / web_smk_pads */
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -143,6 +146,24 @@ WEB_EXPORT void web_boot(void)
 }
 
 /* ---------------------------------------------------------------------- input --- */
+#if EMU_SMK37
+/* the SMK-37's panel (hardware ids, hal/smk_input.h): key 0..36 = C3..C6 at velocity vel (0: let go), button 0..17,
+ * knob 0..7 (K1..K8) n detents (+ clockwise), pad 0..15 (0..7 the top row) at velocity vel (0: let go), fader 0..3
+ * 0..127, wheel 0 pitch / 1 mod as a raw reading (pitch 445..640, at rest 535; mod 474 top .. 629 bottom) */
+WEB_EXPORT void web_smk_key(uint32_t k, uint32_t vel) { emu_smk_key(k, vel); }
+WEB_EXPORT void web_smk_button(uint32_t b, int down) { emu_smk_button(b, down); }
+WEB_EXPORT void web_smk_enc(uint32_t e, int32_t n) { if (e < FM1_NENC) emu_smk.enc_want[e] += n * 4; }
+WEB_EXPORT void web_smk_pad(uint32_t p, uint32_t vel) { emu_smk_pad(p, vel); }
+WEB_EXPORT void web_smk_fader(uint32_t i, uint32_t v) { if (i < 4u) emu_smk.fader_raw[i] = (uint16_t)((v > 127u ? 127u : v) * 8u + 4u); }
+WEB_EXPORT void web_smk_wheel(uint32_t i, uint32_t raw) { if (i < 2u) emu_smk.wheel_raw[i] = (uint16_t)(raw > 1023u ? 1023u : raw); }
+/* the lights: the 19 button LEDs (0 / 1, hal/smk_input.h's ids: SEQ PLAY's red half is 18), the 16 pads' colours
+ * (0xRRGGBB as the firmware set them: dim, as the LEDs are), K1's volume (0..1023), the screen's state (a line) */
+WEB_EXPORT uint8_t *web_smk_leds(void) { return fm1_led; }
+WEB_EXPORT uint32_t *web_smk_pads(void) { return emu_smk.pad_rgb; }
+WEB_EXPORT int32_t web_smk_master(void) { return smk_master; }
+static char web_ui_buf[1024];
+WEB_EXPORT const char *web_ui_info(void) { emu_fw_ui_info(web_ui_buf, sizeof web_ui_buf); return web_ui_buf; }
+#else
 /* keys: bit n = note key n (0 = F3 .. 26 = G5); a key newly down also taps (a press shorter than 1 ms counts) */
 WEB_EXPORT void web_keys(uint32_t m)
 {
@@ -179,10 +200,12 @@ WEB_EXPORT void web_enc(int role, int32_t n)
 }
 WEB_EXPORT void web_master(int32_t v) { emu_hal.master = v < 0 ? 0 : v > 1023 ? 1023 : v; }
 WEB_EXPORT int32_t web_master_get(void) { return emu_hal.master; }
+#endif
 
 /* --------------------------------------------------------------------- output --- */
 WEB_EXPORT uint16_t *web_fb(void) { return emu_hal.lcd; }          /* 240 x 240 RGB565, big-endian */
 WEB_EXPORT uint32_t web_lcd_writes(void) { return emu_hal.lcd_writes; }
+#if !EMU_SMK37
 WEB_EXPORT uint32_t web_led(uint32_t col) { return col < EMU_NCOL ? emu_hal.led[col] : 0; }
 WEB_EXPORT uint32_t web_led_dim(uint32_t col) { return col < EMU_NCOL ? emu_hal.led_dim[col] : 0; }
 WEB_EXPORT const int8_t *web_keymap(void) { return &emu_keymap[0][0]; }   /* [6][EMU_NCOL]: id at (row, col) */
@@ -190,6 +213,7 @@ WEB_EXPORT const uint8_t *web_btn_id(void) { return emu_hal.btn_id; }
 WEB_EXPORT const uint8_t *web_enc_id(void) { return emu_hal.enc_id; }
 WEB_EXPORT const int8_t *web_enc_dir(void) { return emu_hal.enc_dir; }
 WEB_EXPORT uint32_t web_play_green(void) { return emu_hal.led_play_green; }   /* (col << 3) | row */
+WEB_EXPORT uint32_t web_layout(void) { return emu_fw_layout(); }   /* the chord keys' labels: 1 FM-1, 0 Classic */
 
 /* every LED at once: [0..26] note keys, [27..40] buttons in label order, [41] PLAY's green; 0 off 1 dim 2 lit
  * 3 mid (fm1_led_dim2: the middle level, Key Mode's tonic) 4 faint (fm1_led_faint: the idle chord keys) */
@@ -214,6 +238,7 @@ WEB_EXPORT uint8_t *web_leds(void)
     leds[41] = (uint8_t)(((emu_hal.led[q >> 3] >> (q & 7u)) & 1u) * 2u);
     return leds;
 }
+#endif
 
 /* MIDI: USB-MIDI event packets (byte 0 = cable << 4 | CIN in bits 0..7, then status, data1, data2) */
 WEB_EXPORT uint32_t web_midi_out_take(void)

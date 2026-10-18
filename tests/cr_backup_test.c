@@ -821,24 +821,29 @@ int main(void)
                   "rc 2, nothing written");
             /* (3y121: the owner's unit, after a GRAIN build: "Place DIGIT-ONE: The FM-1 refused the user sounds 031-040
              * (rc 2)": U33 a GRAIN sound with the GRAIN build's 20-byte patch.) A used slot whose patch is of an engine
-             * this build keeps none for (engine 8, GRAIN here a retired one): accepted, its bytes as sent, the slot used,
-             * no patch read for it; a length past the slot's room still refused */
+             * this build keeps none for (engine 8 while GRAIN was retired; with GRAIN built, 3y133 .., PHYS (9), retired):
+             * accepted, its bytes as sent, the slot used, no patch read for it; a length past the slot's room still refused */
+#if FELUCCA_GRAIN
+#define UPE_NONE ENGI_PHYS
+#else
+#define UPE_NONE 8u
+#endif
             memcpy(bad3, pb, sizeof pb);
             memset(bad3 + 2 * SP_SLOT, 0, SP_SLOT);
             memcpy(bad3 + 2 * SP_SLOT, pb + 4 * SP_SLOT, UPP_HDR);      /* U03: U05's record .. */
-            bad3[2 * SP_SLOT + 2] = 8u;                                 /* .. of engine 8 */
-            bad3[2 * SP_SLOT + UPP_HDR] = 8u + 1u;
+            bad3[2 * SP_SLOT + 2] = UPE_NONE;                           /* .. of the engine without a patch here */
+            bad3[2 * SP_SLOT + UPP_HDR] = UPE_NONE + 1u;
             bad3[2 * SP_SLOT + UPP_HDR + 1] = 20u;
             for (i = 0; i < 20u; i++)
                 bad3[2 * SP_SLOT + UPP_DATA + i] = (uint8_t)(0x30u + i);
-            ok = up_patch_len(8u) == 0 && t_put(50, bad3, sizeof bad3) == 0 && up_used(2) && up_used(6) && t_list() == 0;
+            ok = up_patch_len(UPE_NONE) == 0 && t_put(50, bad3, sizeof bad3) == 0 && up_used(2) && up_used(6) && t_list() == 0;
             for (off = 0; ok && off < sizeof got; off += 256u)
                 ok &= t_get(50, off, 256u, got + off) == 0;
             ok &= !memcmp(got + 2 * SP_SLOT, bad3 + 2 * SP_SLOT, SP_SLOT) && !memcmp(got + 6 * SP_SLOT, pb + 6 * SP_SLOT, SP_SLOT);
             memset(lb, 0x77, sizeof lb);
-            ok &= up_read_engine(2, lb, 8u) == 1 && up_read_engine(2, lb, ENGI_QUAD) == 1;
-            CHECK(ok, "sounds: d3: U03 a sound of an engine with no patch here (GRAIN's 20 bytes): accepted (rc 0), read back "
-                      "as sent, no patch read for it");
+            ok &= up_read_engine(2, lb, UPE_NONE) == 1 && up_read_engine(2, lb, ENGI_QUAD) == 1;
+            CHECK(ok, "sounds: d3: U03 a sound of an engine with no patch here (a 20-byte patch of a retired engine, as "
+                      "GRAIN's on a build without it, 3y121): accepted (rc 0), read back as sent, no patch read for it");
             bad3[2 * SP_SLOT + UPP_HDR + 1] = (uint8_t)(UPP_MAX + 1u);
             CHECK(t_put(50, bad3, sizeof bad3) == 2, "sounds: d3: .. its length past the slot's room: rc 2");
             CHECK(t_put(50, pb, sizeof pb) == 0 && !up_used(2), "sounds: d3: the bank as before (U03 empty again)");
@@ -1104,6 +1109,44 @@ int main(void)
             CHECK(css_part_put(0, &sp) == 1, "session: a part on FM6 is taken as before");
         }
 #undef NRET
+    }
+
+    /* ---- 0.25.1: FM-1 is the default Chord Keys, and a restored older settings object moves to it once (cr_settings.h
+     * CRS_KEYS_MOVED). A 0.25 backup with Classic, LATCH, the SUS Window at 60 ms and LEDs Stock (leds 1: no mark):
+     * after the restart FM-1, the rest as the backup had it. A 0.25.1 backup with Classic chosen (the mark): Classic, and
+     * Classic again after a power cycle ---- */
+    {
+        static persist_t pv;
+        int rc;
+        memset(emu_flash, 0xFF, sizeof emu_flash);   /* a fresh device: the defaults */
+        power_on();
+        cr_ui_init();
+        CHECK(cs.layout == 1u && (crs_rec.cr.leds & CRS_KEYS_MOVED) && !cs.leds,
+              "a fresh unit: Chord Keys FM-1, the record marked moved, LEDs Glow (%u %02X)", (unsigned)cs.layout, (unsigned)crs_rec.cr.leds);
+        crs_capture(&crs_rec.cr);
+        memcpy(&pv, &crs_rec, sizeof pv);
+        pv.cr.sticky = CRS_STICKY_BYTE(1, 0, 0, 60);   /* as 0.25 wrote it: Classic, LATCH, 60 ms */
+        pv.cr.leds = CRS_LEDS_STOCK;                    /* (0.25's byte: LEDs Stock, no mark) */
+        cr_settings_seal(&pv.cr);
+        rc = t_put(1, (const uint8_t *)&pv, sizeof pv);
+        CHECK(rc == 0 && cr_restore_lock, "0.25 backup with Classic: the settings restore (rc %d)", rc);
+        cr_restore_lock = 0;
+        power_on();
+        cr_ui_init();
+        CHECK(cs.layout == 1u && cs.sticky == 1u && cs.suswin == 60u && cs.leds == 1u && (crs_rec.cr.leds & CRS_KEYS_MOVED),
+              "0.25 backup with Classic: after the restart FM-1, LATCH, 60 ms and LEDs Stock kept, the record marked (%u %u %u %u)",
+              (unsigned)cs.layout, (unsigned)cs.sticky, (unsigned)cs.suswin, (unsigned)cs.leds);
+        pv.cr.leds = CRS_LEDS_STOCK | CRS_KEYS_MOVED;   /* a 0.25.1 backup: Classic chosen after the move */
+        cr_settings_seal(&pv.cr);
+        rc = t_put(1, (const uint8_t *)&pv, sizeof pv);
+        cr_restore_lock = 0;
+        power_on();
+        cr_ui_init();
+        CHECK(rc == 0 && cs.layout == 0u && cs.sticky == 1u && cs.leds == 1u,
+              "0.25.1 backup with Classic chosen: Classic after the restart (rc %d, %u)", rc, (unsigned)cs.layout);
+        power_on();
+        cr_ui_init();
+        CHECK(cs.layout == 0u, "0.25.1 backup with Classic chosen: Classic after a second power cycle (the move never runs twice)");
     }
 
     /* ---- DEBUG (73): version 1, a count, count x u32; the stub's key samples are its last four values ---- */

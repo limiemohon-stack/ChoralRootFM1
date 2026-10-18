@@ -1,0 +1,89 @@
+keys classic                  # (cr_harm_buttons.txt in the Classic layout: Options > Chord Keys)
+# Harmony mode's chord keys (cr_ui.c cu_hm_button): the upper row a colour world while held, the chord sounding turned
+# into it at once and back when let go; the lower row an approach into the next key. Key Mode off, home C major.
+#  A. C major (MAJ + C5), LATCH held (the mode), LATCH tapped (Sticky), D4 tapped: Cmaj9 rings on (dump 1)
+#  B. MAJ (A#3) down: lush -- the latched chord turns into Cmaj9#11 (dump 2); up: back to Cmaj9 (dump 3)
+#  C. DIM (F#3) held: altered -- D4: home stays as written, Cmaj9 (dump 4); F5: G7b9b13 (dump 5); DIM up: G9 (dump 6)
+#  D. M7 (A3) held + A4: C#dim7, the lead-in to Dm9 (dump 7); M7 up, A4: Dm9 lands (dump 8)
+#  E. D4 held, then 6 (F3) pressed: it adds the 6th -- C6/9 at once (dump 9); 6 let go: Cmaj9 again (dump 10)
+#  F. D4 tapped twice more (latched): the same chord struck again each time (dumps 11, 12: 5 notes out each)
+#  G. LATCH tapped (Sticky off), OCT-, PANIC
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 200
+btn LFO
+wait 200
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn A#3 down
+wait 300
+dump
+btn A#3 up
+wait 300
+dump
+btn F#3 down
+wait 100
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn F5 down
+wait 50
+btn F5 up
+wait 300
+dump
+btn F#3 up
+wait 300
+dump
+btn A3 down
+wait 100
+btn A4 down
+wait 50
+btn A4 up
+wait 300
+dump
+btn A3 up
+wait 100
+btn A4 down
+wait 50
+btn A4 up
+wait 300
+dump
+btn D4 down
+wait 100
+btn F3 down
+wait 300
+dump
+btn F3 up
+wait 300
+dump
+btn D4 up
+wait 100
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn D4 down
+wait 50
+btn D4 up
+wait 300
+dump
+btn LFO
+wait 200
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump

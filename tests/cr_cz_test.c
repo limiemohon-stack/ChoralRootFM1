@@ -188,6 +188,20 @@ int main(void)
        !bad, "engine: CZ-1 is 14 (after VA's 13; Melodee: 15), shown after the VA (0.14)");
     for (k = 0, bad = 0; k < CZ_FACTORY_N; k++)
         bad += !cz_patch_valid(CZ_FACTORY[k]);
+    {   /* the packed bank (3y129): every tone unpacked (cz_factory_bank, cz_factory_tone) is the tone as it is */
+        uint8_t bank[16u * CZ_BYTES], one[CZ_BYTES];
+        uint32_t j, n = 0;
+        for (j = 0; j < CZ_FACTORY_BANKS; j++) {
+            cz_factory_bank(j, bank);
+            for (k = 0; k < 16u; k++)
+                n += !memcmp(bank + k * CZ_BYTES, CZ_FACTORY[j * 16u + k], CZ_BYTES);
+        }
+        for (k = 1; k <= CZ_FACTORY_N; k++) {
+            cz_factory_tone(k, one);
+            n += !memcmp(one, CZ_FACTORY[k - 1u], CZ_BYTES);
+        }
+        OK(n == 2u * CZ_FACTORY_N, "the packed bank: %u of %u tones unpack to Casio's bytes", n, 2u * CZ_FACTORY_N);
+    }
     OK(CZ_FACTORY_N == 64u && !bad && NELEM(CZ_PRESETS) == 65u && !strcmp(CZ_PRESETS[0].name, "INIT TONE") &&
        !strcmp(CZ_PRESETS[1].name, "BRASS 1") && !strcmp(CZ_PRESETS[64].name, "TYPHOON") &&
        !memcmp(CZ_FACTORY[0] + 128, "    BRASS 1     ", 16) && CZ_PRESETS[25].e[0] == 1 && CZ_PRESETS[25].e[1] == 9,

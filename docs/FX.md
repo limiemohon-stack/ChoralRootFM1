@@ -615,7 +615,7 @@ A table in flash is read through the same cache as the code. What the hot paths 
 | --- | --- | --- |
 | P5 | **`P5_TANH_Q15` 4098** (seven look-ups a sample), `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256: 5382 B, XIP; RAM with `CR_RAM_TABLES_P5` | `PITCH_OCT` 768, `P5_ENV_ATK` 512, `P5_ENV_SSM` 512, `P5_ENV_EXP` 256, `P5_LFO_INC` 512, `P5_AMOUNT_Q15` 256 |
 | CZ-1 | `CZ_CARRIER` 4096 (every loop), `CZ_RECIP` 8192 (the `_mv` loops and NOISE): XIP | `CZ_AMP` 256, `PITCH_OCT` |
-| FM6 | `FM6_SIN` 4100, `FM6_MKI_LOG` 4096, `FM6_MKI_EXP` 2048, `FM6_OPL_LOG` 1024, `FM6_OPL_EXP` 512: **RAM already** | `FM6_FREQ` 4100, `FM6_EXP2` 4100, `FM6_ALG` 192, the small ones: XIP |
+| FM6 | `FM6_SIN` 4100, `FM6_MKI_LOG` 4096, `FM6_MKI_EXP` 2048, `FM6_OPL_LOG` 1024, `FM6_OPL_EXP` 512: **RAM already** (since 3y127 `FM6_SIN` is built at power-on and the two LOG tables mirrored from stored halves: `.bss`, not `.data`) | `FM6_FREQ` 4100, `FM6_EXP2` 4100, `FM6_ALG` 192, the small ones: XIP |
 | VA | `SINE` 2050, `TANH_Q15` 514: XIP | `SVF_G` 256, `PITCH_OCT` 768, `ENV_EXP` 256, `ENV_LIN` 512 (one copy with `P5_ENV_ATK`: the same bytes), `VA_BROWN_*` |
 | FM TONE | `QUAD_HARM` 27 702, `SINE`, `TANH_Q15`, five of 256: XIP | |
 | the chorus, the effects' block | | `SINE` (the LFOs, once a block), `LFO_INC` |

@@ -1,6 +1,7 @@
 # ChoralRoot: B3 = LOCK, the chord block's latch mode. LOCK on (B3 lit); MIN held and released: latched (lit), D4 ->
 # Dm; 6 tapped: Dm6; 9: Dm6/9; 9 again: Dm6 (toggled off); MAJ: D (the type reset, the extensions cleared); LOCK
 # off: the latch gone, D4 alone a single note. The trace: "lock:" and "chord:" lines.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 expect led B3 faint
 btn B3                         # B3 = LOCK

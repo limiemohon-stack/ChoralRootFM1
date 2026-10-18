@@ -1,5 +1,6 @@
 # test_persist.sh, LOCK styles run 2 (the same flash file): the dump's "lock:" line says keeps / pushed at power-on
 # (LOCK itself is off at power-on and not saved); quit
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 dump
 quit

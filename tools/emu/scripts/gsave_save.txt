@@ -4,6 +4,7 @@
 # Stock), a chord latched (LATCH, MAJ + D4), and GLO + SAVE held 1.2 s: the revert, the message "reverted" (shot):
 # dump 3: 137 BPM, voicing 0, the bass off, the saved sound, LATCH off and silence; the Option stays as changed (it is
 # not the revert's). D4 plays (dump 3). GLO + SAVE let go early (0.6 s): nothing (dump 4).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 knob SELECT +17
 wait 200
@@ -29,7 +30,7 @@ knob PRESETS +3
 wait 1300
 btn GLO                       # Options: LEDs Stock
 wait 200
-knob SELECT +20
+knob SELECT +23
 wait 200
 knob KNOB1 +1
 wait 200

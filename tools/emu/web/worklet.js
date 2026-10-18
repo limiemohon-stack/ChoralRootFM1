@@ -70,7 +70,8 @@ class FM1 extends AudioWorkletProcessor {
 
   publish() {
     const ex = this.ex;
-    const msg = { type: "frame", leds: new Uint8Array(this.mem.buffer, ex.web_leds(), 42).slice(), master: ex.web_master_get() };
+    const msg = { type: "frame", leds: new Uint8Array(this.mem.buffer, ex.web_leds(), 42).slice(), master: ex.web_master_get(),
+                  layout: ex.web_layout ? ex.web_layout() : 0 };
     const transfer = [];
     if (this.frames >= 22050) {                      // the share of real time spent running the device
       msg.load = Math.round((100 * this.busy) / ((this.frames / sampleRate) * 1000));

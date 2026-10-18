@@ -54,12 +54,15 @@ def parse(path):
              re.findall(r"\{(-?\d+, -?\d+, -?\d+, -?\d+, -?\d+, -?\d+)\}",
                         re.search(r"AF_%s_G\[\d+\] = \{(.*?)\n\};" % name, t, re.S).group(1))]
         kern = {}
-        if f[8] != "0":
-            kern = dict(zip(arr("KERN"), arr("KD")))
+        ex = arr("EX")[:int(f[4])]
+        if f[8] != "0":                              # the pairs by their first glyph's row (gfx.c kern): (a << 8 | b) -> delta
+            codes = list(range(int(f[2]), int(f[3]) + 1)) + ex
+            krow, kb, kd = arr("KROW"), arr("KB"), arr("KD")
+            kern = {(codes[i] << 8) | kb[j]: kd[j] for i in range(len(codes)) for j in range(krow[i], krow[i + 1])}
         faces[name] = {"h": int(f[0]), "asc": int(f[1]), "first": int(f[2]), "last": int(f[3]), "nex": int(f[4]),
-                       "g": g, "data": bytes(arr("DATA")), "kern": kern, "ex": arr("EX")[:int(f[4])],
-                       "psh": int(f[11]) if len(f) > 11 else 0,
-                       "hc": arr("HC") if len(f) > 12 and f[12] != "0" else None}
+                       "g": g, "data": bytes(arr("DATA")), "kern": kern, "ex": ex,
+                       "psh": int(f[12]) if len(f) > 12 else 0,
+                       "hc": arr("HC") if len(f) > 13 and f[13] != "0" else None}
     return faces
 
 

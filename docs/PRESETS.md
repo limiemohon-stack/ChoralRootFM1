@@ -17,8 +17,8 @@ it, no way to save over a factory sound). Mock-ups: `design/choralroot-fm1-prese
 
 - **A pool per engine.** Each engine's pool starts with **INIT** at position 00 (the engine's init sound, `cu_sound_init`; it cannot be overwritten: Overwrite on it is Save as new), then its factory presets (`engine_t.presets`: FM6 25 (F1..F24, PIANO),
   FM TONE 16 (engine 15, `eng_quad.c`, code name QUAD), VA 25, CZ-1 64, P5 115 (engine 16, code name PROPHET, 0.22 in development: a list,
-  below), WHEEL 5: the picker's order, six
-  engines; five from 0.18 until P5; PHASE 6, LOFI 5, VOICE 4, TRIO 5, PHYS 9 and NOISE 4 came between and after them until then) followed by
+  below), WHEEL 5, GRAIN 8 (engine 8, 0.24-beta2: docs/GRAIN.md): the picker's order, seven
+  engines; six from P5 until GRAIN, five from 0.18 until P5; PHASE 6, LOFI 5, VOICE 4, TRIO 5, PHYS 9 and NOISE 4 came between and after them until then) followed by
   the presets the user added. ANALOG (engine 0, 12 presets) is retired
   since 0.14 (`FELUCCA_ANALOG` 0): no pool; a user record of ANALOG is an added preset of the VA's pool and plays there
   with its CUT / RES / DRIVE / MIX / DTN, filter envelope and ATK / REL on the VA's macros of the same name (`cr_ui.c`
@@ -198,7 +198,8 @@ which it also reads as none: by reading its code, not run). A backup taken befor
 **When it is written.** By itself, as an Option is: once no mark changed for 1.5 s and nothing has sounded for 1 s,
 never while a loop plays (`cr_settings.c crf_poll`: the erase holds the audio 45 ms, so a mark made under a ringing
 chord waits for the quiet); also with the global save (SAVE held) and before a backup's LIST. Not in SAFE MODE.
-Options > Reset Settings leaves the marks; SAFE MODE's Flash Data erases them with the sounds (60 sectors now).
+Options > Reset Settings leaves the marks; SAFE MODE's Flash Data erases them with the sounds (76 sectors now: the pool's 16 joined after 0.24-beta2, which left
+the sounds in place).
 
 **Backup.** Object id **23**, "favorites" (`cr_backup.c`, `web/fm1backup.js`, `tools/fm1_install.py`). A firmware
 before 0.22 does not list 23, the clients write only what the FM-1 lists, so restoring a 0.22 backup there leaves the

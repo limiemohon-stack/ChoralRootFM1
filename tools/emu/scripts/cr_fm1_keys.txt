@@ -1,0 +1,211 @@
+# ChoralRoot 0.24: Options > Chord Keys FM-1 (docs/CHORD-LAYOUT.md). The FM-1 layout's keys, the SUS Window, LOCK on
+# LFO, LATCH on GLO held + LFO, the KEY layer's pick, a layout change. tools/emu/test_cr.sh reads the dumps by number:
+#   1 Chord Keys FM-1 (the Options)     2 SUS Window 80 ms
+#   3 G#3 A#3 then D4: Dsus             4 G#3, D4 25 ms later: nothing yet (D4 waits)   5 A#3 at 50 ms: Dsus, once
+#   6 G#3 and D4, no partner: nothing yet              7 the window closed (80 ms): Dm
+#   8 G#3 held 400 ms, then D4: Dm at once (no wait)   9 D4 alone: a single D at once
+#   10 C4: a single C (60)              11 C#4: 61     12 A#3 + B3 (9) + D4: D add 9
+#   13 Simple, D4 then G#3 A#3: the single D stays
+#   14 LFO tap: LOCK on                 15 G#3 + A#3 pressed and let go: SUS latched   16 D4: Dsus (the latch)
+#   17 G#3 + A#3 again, alone, let go: SUS off      18 LFO held: Harmony mode (this fork; LOCK's settings: SEQ held)
+#   19 .. 22 GLO held + LFO: LATCH on, no Options, the LFO light pulsing (four dumps 300 ms apart)   23 GLO + LFO: LATCH off
+#   24 LFO tap: LOCK off                25 GLO held alone 700 ms: no Options
+#   26 KEY layer (pick): G#3 then A#3 25 ms later: minor, the second key ignored   27 A#3 alone later: major
+#   28 back to Classic: C#4 is SUS again (C#4 + D4: Dsus)
+wait 500
+btn GLO 80                    # Options: Chord Keys is the 4th entry listed (after Secret Chords)
+wait 300
+knob SELECT +3
+wait 200
+knob KNOB1 +1
+wait 300
+dump                          # 1
+shot build/emu/test/cr_fm1_opt_layout.ppm
+knob SELECT +1                # SUS Window (listed in FM-1 only)
+wait 200
+knob KNOB1 +10                # 30 (the default) -> 80 ms (a wide window: the emulator's frames are coarse)
+wait 300
+dump                          # 2
+shot build/emu/test/cr_fm1_opt_suswin.ppm
+btn GLO 80
+wait 500
+btn G#3 down                  # the pair, then the root
+wait 30
+btn A#3 down
+wait 30
+btn D4 down
+wait 300
+dump                          # 3
+btn D4 up
+btn A#3 up
+btn G#3 up
+wait 800
+btn G#3 down                  # G#3, the root 25 ms later, A#3 50 ms after G#3: the root waits for the pair
+wait 25
+btn D4 down
+wait 10
+dump                          # 4
+wait 15
+btn A#3 down
+wait 300
+dump                          # 5
+btn D4 up
+btn A#3 up
+btn G#3 up
+wait 800
+btn G#3 down                  # no partner: the root waits for the window, then MIN
+wait 25
+btn D4 down
+wait 10
+dump                          # 6
+wait 200
+dump                          # 7
+btn D4 up
+btn G#3 up
+wait 800
+btn G#3 down                  # held from before the window: the root plays at once
+wait 400
+btn D4 down
+wait 10
+dump                          # 8
+btn D4 up
+btn G#3 up
+wait 800
+btn D4 down                   # a root alone: at once
+wait 10
+dump                          # 9
+btn D4 up
+wait 500
+btn C4 down                   # C4 and C#4: roots in FM-1
+wait 200
+dump                          # 10
+btn C4 up
+wait 500
+btn C#4 down
+wait 200
+dump                          # 11
+btn C#4 up
+wait 500
+btn A#3 down                  # MAJ, held from before (A#3 alone, no partner: its window closes), then B3 = 9
+wait 200
+btn B3 down
+wait 100
+btn D4 down
+wait 300
+dump                          # 12
+btn D4 up
+btn B3 up
+btn A#3 up
+wait 800
+btn D4 down                   # Simple: the root first, then the pair: the root's single note stays
+wait 30
+btn G#3 down
+wait 30
+btn A#3 down
+wait 300
+dump                          # 13
+btn D4 up
+btn A#3 up
+btn G#3 up
+wait 800
+btn LFO 80                    # LOCK on (FM-1: LFO tap)
+wait 300
+dump                          # 14
+expect led LFO on
+btn G#3 down                  # the pair, let go: SUS latched
+wait 30
+btn A#3 down
+wait 200
+btn G#3 up
+btn A#3 up
+wait 300
+dump                          # 15
+expect led G#3 on
+expect led A#3 on
+btn D4 down
+wait 300
+dump                          # 16
+btn D4 up
+wait 600
+btn G#3 down                  # the same pair again, alone: off at the release
+wait 30
+btn A#3 down
+wait 200
+btn G#3 up
+btn A#3 up
+wait 300
+dump                          # 17
+expect led G#3 faint
+btn LFO down                  # LFO held: Harmony mode (this fork)
+wait 700
+btn LFO up
+wait 200
+dump                          # 18
+shot build/emu/test/cr_fm1_lock_layer.ppm
+btn OCT- 80
+wait 300
+btn GLO down                  # GLO held, then LFO: LATCH
+wait 60
+btn LFO 80
+wait 60
+btn GLO up
+wait 200
+dump                          # 19
+wait 300
+dump                          # 20
+wait 300
+dump                          # 21
+wait 300
+dump                          # 22
+btn GLO down                  # LATCH off
+wait 60
+btn LFO 80
+wait 60
+btn GLO up
+wait 200
+dump                          # 23
+btn LFO 80                    # LOCK off
+wait 300
+dump                          # 24
+btn GLO down                  # GLO held alone past the hold time: no Options
+wait 700
+btn GLO up
+wait 300
+dump                          # 25
+btn SEL down                  # the KEY layer (keys on pick): the one-finger pair picks once
+wait 700
+btn SEL up
+wait 300
+btn G#3 down
+wait 25
+btn A#3 down
+wait 200
+btn A#3 up
+btn G#3 up
+wait 300
+dump                          # 26
+btn A#3 80
+wait 300
+dump                          # 27
+btn OCT- 80
+wait 300
+btn GLO 80                    # back to Classic: the latch kept, C#4 is SUS again
+wait 300
+knob SELECT -40
+wait 200
+knob SELECT +3
+wait 200
+knob KNOB1 -1
+wait 200
+btn GLO 80
+wait 500
+btn C#4 down
+wait 30
+btn D4 down
+wait 300
+dump                          # 28
+btn D4 up
+btn C#4 up
+wait 2000
+dump
+quit

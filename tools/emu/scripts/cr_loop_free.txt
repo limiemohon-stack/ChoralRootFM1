@@ -2,6 +2,7 @@
 # (MIN + E4) at beat 3, REC at 2 s commits a 1-bar loop that plays at once; dumps at known times count the re-triggers;
 # REC: overdub armed, G (MAJ + G4) overdubbed, REC ends it; REC held: undo; LOOP held, GLO (Keys = Loops) + D#4 held
 # 1 s: clear. The record mode is set to Overdub first (LOOP held + ALGORITHM +2: Overwrite -> Overdub).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn PLAY down
 wait 400

@@ -29,10 +29,22 @@
                               inlined) beside build/layout-web/crlayout.js and crlayout.wasm (made by
                               sh tools/layout/build_layout.sh; LAYOUT_DIR overrides; missing: a warning, the site is
                               made without it and the landing page has no link to it: {{LAYOUT}} is empty)
+  webapp/smk37/index.html     the SMK-37 test installer (SMK37.md): smk37.html, self-contained (fm1pkg.js, fm1ota.js,
+                              fm1backup.js and the metadata inlined), not linked from any other page (noindex): the
+                              versions of web/releases-smk37.json, each with its three models' packages
+  firmware/smk37/             those packages (choralroot-X.Y-smk37[-elite|-mke][-1core].fwsc), each checked against
+                              the sha256 in releases-smk37.json and its identity (the model's, _9xx, Felucca's
+                              loader), SHA256SUMS and index.html (noindex). --smk-packages DIR (or
+                              CR_SMK_PACKAGES_DIR; build/release-smk37 when it exists) holds them; a local build skips
+                              a version whose files are not all there, --require-all stops. No version offered: no
+                              SMK page (a line says so)
+  webapp/smk37/emu/           the SMK-37 browser emulator beside it: build/emu-web-smk37/* (sh tools/emu/web/build_web.sh;
+                              SMK_EMU_DIR overrides; missing: a warning, the page is made without it and without the
+                              link to it: smk37.html's <!--EMU--> is empty); linked from the SMK page alone (noindex)
   src/                        not touched
 
   web/make_site.py build/choralroot.fwsc VERSION OUT_DIR [EMU_DIR]     (or build/choralroot-X.Y.fwsc X.Y)
-                   [--packages DIR] [--require-all]
+                   [--packages DIR] [--smk-packages DIR] [--require-all]
 
 The other versions: --packages DIR (or CR_PACKAGES_DIR; build/scratch/packages when it exists) holds their
 choralroot-X.Y.fwsc (and choralroot-X.Y-1core.fwsc where listed). A local build skips a version whose file is not there, with a "skipped:" line, and builds a
@@ -61,6 +73,9 @@ HERE = Path(__file__).resolve().parent
 SITE = HERE / "site"
 RELEASES = Path(os.environ.get("CR_RELEASES_JSON") or HERE / "releases.json")   # the versions the installer offers
 # (newest first), their notes; CR_RELEASES_JSON: another list (tests/site_test.py, a draft of a release's entry)
+SMK_RELEASES = Path(os.environ.get("CR_SMK_RELEASES_JSON") or HERE / "releases-smk37.json")   # the SMK-37 test builds
+SMK_MODELS = {"pro": ("SMK-37 Pro", ""), "elite": ("SMK-37 Elite", "-elite"), "mke": ("MKE-P37", "-mke")}   # key: the
+# model name its packages carry, the file name's suffix (tools/build.py: choralroot-X.Y-smk37[-elite|-mke][-1core].fwsc)
 MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
           "November", "December")
 BLOCKS, BLK, KEEP = 20, 0x30, 0x2F
@@ -318,7 +333,139 @@ def firmware_index(data, offered, product, one=None):
             f'it. {esc(data["minimum"]["note"])} <a href="{esc(repo)}/releases">Older versions are on GitHub</a>.</p>\n')
 
 
-def main(pkg, version, out, emu=None, packages=None, require_all=False):
+def smk_name(version, key, one=False):
+    return f"choralroot-{re.sub(r'[^A-Za-z0-9.-]', '-', version)}{SMK_MODELS[key][1]}{'-1core' if one else ''}.fwsc"
+
+
+def check_smk_package(path, raw, key):
+    """an SMK-37 test package: its model's identity (_9xx) and Felucca's loader, or the build stops"""
+    product = product_of(raw)
+    if not re.fullmatch(re.escape(SMK_MODELS[key][0]) + r"_9\d\d", product):
+        raise SystemExit(f"{path}: identity {product!r} is not ChoralRoot's {SMK_MODELS[key][0]} package ({SMK_MODELS[key][0]}_9xx)")
+    if b"FELUCCA-LOADER-1" not in raw:
+        raise SystemExit(f"{path}: no Felucca loader in it; the site ships only fm1pkg_make.py packages")
+    return product
+
+
+def smk_collect(smk, require_all):
+    """the SMK-37 test builds the site offers, newest first: [(entry, {key: {std, one: (raw, sha256)}})], the lines to
+    print. Every listed version needs all three models' packages (and their single-core ones where listed), each with
+    the sha256 releases-smk37.json gives it"""
+    if not SMK_RELEASES.is_file():
+        return None, [], [f"no SMK page: {SMK_RELEASES} missing"]
+    data = json.loads(SMK_RELEASES.read_text(encoding="utf-8"))
+    out, notes = [], []
+    for r in data["releases"]:
+        v, files, missing = r["version"], {}, []
+        if set(r["packages"]) != set(SMK_MODELS):
+            raise SystemExit(f"{SMK_RELEASES}: {v} lists {sorted(r['packages'])}, not the three models {sorted(SMK_MODELS)}")
+        for key, want in r["packages"].items():
+            got = {}
+            for one, field in ((False, "sha256"), (True, "sha256_1core")):
+                if not want.get(field):
+                    continue
+                name = smk_name(v, key, one)
+                src = smk / name if smk else None
+                if src is None or not src.is_file():
+                    missing.append(name)
+                    continue
+                raw = src.read_bytes()
+                digest = hashlib.sha256(raw).hexdigest()
+                if digest != want[field]:
+                    raise SystemExit(f"SMK {v}: {src} has sha256 {digest}, web/releases-smk37.json says {want[field]}: refused")
+                got["one" if one else "std"] = (raw, digest, check_smk_package(src, raw, key))
+            files[key] = got
+        if missing:
+            where = f"not in {smk}" if smk else "no SMK packages folder given"
+            if require_all:
+                raise SystemExit(f"SMK {v}: {', '.join(missing)} missing ({where}). Every version of "
+                                 f"web/releases-smk37.json must be published: download them from the release {r['tag']}, "
+                                 "or take the version out of web/releases-smk37.json")
+            notes.append(f"skipped: SMK {v} ({len(missing)} package(s) {where}; --smk-packages DIR or CR_SMK_PACKAGES_DIR)")
+            continue
+        out.append((r, files))
+    return data, out, notes
+
+
+SMK_EMU_LINK = ('<p class="small"><b><a href="emu/">Try it in the browser first</a></b>: the SMK-37 build in an emulator '
+                '(the panel with the mouse or the computer keyboard; no keyboard needed).</p>')
+
+
+def smk_site(out, collected, emu=None):
+    """webapp/smk37/index.html, webapp/smk37/emu/ and firmware/smk37/ (see the top) from smk_collect's answer; -> the
+    line to print"""
+    data, offered, notes = collected
+    emu = Path(emu or os.environ.get("SMK_EMU_DIR") or HERE.parent / "build" / "emu-web-smk37")
+    has_emu = (emu / "index.html").is_file() and (emu / "choralroot-smk37.wasm").is_file()
+    for line in notes:
+        print(line)
+    fw, inst = out / "firmware" / "smk37", out / "webapp" / "smk37"
+    for old in fw.glob("*.fwsc") if fw.is_dir() else []:
+        old.unlink()
+    if not offered:
+        if (inst / "index.html").is_file():
+            (inst / "index.html").unlink()
+        return "no webapp/smk37/ (no SMK-37 test build offered)"
+    fw.mkdir(parents=True, exist_ok=True)
+    inst.mkdir(parents=True, exist_ok=True)
+    rels, sums, rows = [], [], []
+    for r, files in offered:
+        models = {}
+        for key, got in files.items():
+            raw, digest, product = got["std"]
+            m = {"product": product, "pkg": "../../firmware/smk37/" + smk_name(r["version"], key), "sha256": digest, "size": len(raw)}
+            (fw / smk_name(r["version"], key)).write_bytes(raw)
+            sums.append(f"{digest}  {smk_name(r['version'], key)}\n")
+            row = f'<li>{html_escape(smk_name(r["version"], key))} · {len(raw)} bytes · {html_escape(product)}<br><code>sha256 {digest}</code>'
+            if "one" in got:
+                raw1, d1, p1 = got["one"]
+                if p1 != product:
+                    raise SystemExit(f"SMK {r['version']} {key}: the single-core package's identity {p1} is not {product}")
+                m.update({"pkg_1core": "../../firmware/smk37/" + smk_name(r["version"], key, True), "sha256_1core": d1,
+                          "size_1core": len(raw1)})
+                (fw / smk_name(r["version"], key, True)).write_bytes(raw1)
+                sums.append(f"{d1}  {smk_name(r['version'], key, True)}\n")
+                row += f'<br>{html_escape(smk_name(r["version"], key, True))} · {len(raw1)} bytes · single core<br><code>sha256 {d1}</code>'
+            models[key] = m
+            rows.append(row + "</li>")
+        rels.append({**{k: x for k, x in r.items() if k != "packages"}, "models": models})
+    (fw / "SHA256SUMS").write_text("".join(sums), encoding="utf-8")
+    (fw / "index.html").write_text(
+        '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
+        '<meta name="robots" content="noindex, nofollow"><title>ChoralRoot SMK-37 test builds</title>'
+        '<h1>ChoralRoot for the SMK-37: test builds</h1><p>Community test builds, community-tested and not tested by '
+        'the maintainer (<a href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/SMK37.md">SMK37.md</a>). '
+        'Install with the <a href="../../webapp/smk37/">SMK-37 test installer</a> or '
+        '<code>python3 tools/fm1_install.py FILE</code>. <a href="SHA256SUMS">SHA256SUMS</a>; the licences: '
+        '<a href="../LICENSE">LICENSE</a>, <a href="../LICENSING.md">LICENSING.md</a>, <a href="../LICENSES/">LICENSES/</a>; '
+        'the source of each version is the repository at its tag.</p><ul>' + "".join(rows) + "</ul>\n", encoding="utf-8")
+    html = (HERE / "smk37.html").read_text(encoding="utf-8")
+    for mark in ("/*LIB*/", "/*META*/", "<!--EMU-->"):
+        if html.count(mark) != 1:
+            raise SystemExit(f"smk37.html must contain {mark} once; update make_site.py")
+    lib = "\n".join(strip_module((HERE / n).read_text(encoding="utf-8")) for n in SMK_LIB)
+    meta = json.dumps({"repo": data["repo"], "releases": rels}, ensure_ascii=False,
+                      separators=(",", ":")).replace("</", "<\\/")
+    page = html.replace("/*LIB*/", lib).replace("/*META*/", meta).replace("<!--EMU-->", SMK_EMU_LINK if has_emu else "")
+    (inst / "index.html").write_text(page, encoding="utf-8")
+    if has_emu:
+        (inst / "emu").mkdir(exist_ok=True)
+        emu_files = sorted(f.name for f in emu.iterdir() if f.is_file() and not f.name.startswith("."))
+        for n in emu_files:
+            shutil.copy(emu / n, inst / "emu" / n)
+        emu_note = f"webapp/smk37/emu/ ({', '.join(emu_files)})"
+    else:
+        emu_note = "no webapp/smk37/emu/"
+        print(f"warning: {emu}/index.html or choralroot-smk37.wasm missing: the SMK page is made without its emulator "
+              "(sh tools/emu/web/build_web.sh builds it)", file=sys.stderr)
+    return (f"webapp/smk37/index.html ({len(page)} B, " + ", ".join(r["version"] for r, _ in offered) +
+            f"), firmware/smk37/ ({len(sums)} packages, SHA256SUMS, index.html), {emu_note}")
+
+
+SMK_LIB = ("fm1pkg.js", "fm1ota.js", "fm1backup.js")
+
+
+def main(pkg, version, out, emu=None, packages=None, require_all=False, smk_packages=None):
     pkg, out = Path(pkg), Path(out)
     emu = Path(emu or os.environ.get("EMU_DIR") or HERE.parent / "build" / "emu-web")
     lay = Path(os.environ.get("LAYOUT_DIR") or HERE.parent / "build" / "layout-web")
@@ -327,7 +474,12 @@ def main(pkg, version, out, emu=None, packages=None, require_all=False):
         default = HERE.parent / "build" / "scratch" / "packages"
         packages = os.environ.get("CR_PACKAGES_DIR") or (default if default.is_dir() else None)
     packages = Path(packages) if packages else None
+    if smk_packages is None:
+        default = HERE.parent / "build" / "release-smk37"
+        smk_packages = os.environ.get("CR_SMK_PACKAGES_DIR") or (default if default.is_dir() else None)
+    smk_packages = Path(smk_packages) if smk_packages else None
     data, offered, product, notes, one = collect(pkg, version, packages, require_all)
+    smk = smk_collect(smk_packages, require_all)    # (its refusals, too, before anything is written)
     html = (HERE / "index_pkg.html").read_text(encoding="utf-8")
     lib = strip_module((HERE / "fm1pkg.js").read_text(encoding="utf-8")) + "\n" + \
         strip_module((HERE / "fm1ota.js").read_text(encoding="utf-8")) + "\n" + \
@@ -411,6 +563,7 @@ def main(pkg, version, out, emu=None, packages=None, require_all=False):
         print(f"warning: {lay}/crlayout.js or crlayout.wasm missing: the site is made without the layout viewer "
               "(webapp/layout/) and the landing page does not link it; build it with sh tools/layout/build_layout.sh",
               file=sys.stderr)
+    smk_note = smk_site(out, smk)
     for line in notes:
         print(line)
     print(f"site: {out}: {', '.join(site)}; webapp/installer/index.html ({len(html)} B); "
@@ -419,7 +572,7 @@ def main(pkg, version, out, emu=None, packages=None, require_all=False):
                       + (f" + {pkg_name_1core(r['version'])} ({len(one[r['version']])} B)" if r["version"] in one else "")
                       for r, raw in offered)
           + f", firmware/index.html, firmware/SHA256SUMS, firmware/LICENSE, firmware/LICENSING.md, "
-          f"firmware/LICENSES/ ({len(names)} texts + index.html); {emu_note}; {lay_note}")
+          f"firmware/LICENSES/ ({len(names)} texts + index.html); {emu_note}; {lay_note}; {smk_note}")
 
 
 if __name__ == "__main__":
@@ -430,7 +583,9 @@ if __name__ == "__main__":
     ap.add_argument("emu", nargs="?", help="the browser emulator's folder (default: EMU_DIR, build/emu-web)")
     ap.add_argument("--packages", metavar="DIR", help="the folder with the other versions' choralroot-X.Y.fwsc "
                     "(default: CR_PACKAGES_DIR, else build/scratch/packages when it exists)")
+    ap.add_argument("--smk-packages", metavar="DIR", help="the folder with the SMK-37 test packages of "
+                    "web/releases-smk37.json (default: CR_SMK_PACKAGES_DIR, else build/release-smk37 when it exists)")
     ap.add_argument("--require-all", action="store_true", help="stop when a version of web/releases.json has no "
                     "package, or the current version is not its newest (the Pages job)")
     a = ap.parse_args()
-    main(a.pkg, a.version, a.out, a.emu, a.packages, a.require_all)
+    main(a.pkg, a.version, a.out, a.emu, a.packages, a.require_all, a.smk_packages)

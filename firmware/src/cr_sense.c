@@ -16,8 +16,8 @@
  * the ceiling (896) the lightest press that seats; Velo's per-key calibration is not here (its open item).
  *
  * The landing lands in cr_sense_land[key] (the driven reading; 0: none yet for this press) at the second pulled-up
- * sample after the touch (a driven one before each: four samples, 8.8 ms after the touch sample;
- * tests/cr_sense_test.c); the UI (cr_ui.c cu_scan_keys) holds a root's debounced press until it is there, maps it
+ * sample after the touch (a driven one before each: four samples, 8.8 ms after the touch sample at 2.2 ms a sample,
+ * 13.2 ms while the top row's probe takes a third frame phase; tests/cr_sense_test.c); the UI (cr_ui.c cu_scan_keys) holds a root's debounced press until it is there, maps it
  * to the velocity (cr_sense_take: the log map runs in the main loop, so TIMER5's tick has no loop and no divide in
  * it) and clears it. The digital debounce stays the truth for pressed / released; this only adds the velocity.
  * cr_sense_sample and the hooks run in TIMER5's tick; the rest is the main loop's (bytes and halfwords: no locking). */

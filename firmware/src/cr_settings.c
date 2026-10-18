@@ -85,7 +85,11 @@ void cr_settings_defaults(cr_settings_t *s)
     s->single = CR_SINGLE_FULL;
     s->split_pc = 5;
     s->vel = 100;
+#if BOARD_SMK37
+    s->bass_on = CRS_TOUCH_BITS(1u, 0u, 0u);       /* SMK-37: Key Touch Dynamic, the keys' velocity (SMK37.md) */
+#else
     s->bass_on = 0;                                /* (always 0 in the block: Bass on is the session's, cr_settings.h) */
+#endif
     s->bass_mode = CR_BASS_CHORDS_ONLY;
     s->perform_mode = CR_PM_STRUM;
     s->bpm = 120;
@@ -110,6 +114,13 @@ void cr_settings_defaults(cr_settings_t *s)
                                                     * record that is there keeps what it holds: its Off cannot be
                                                     * told from 0.16 .. 0.21's default (docs/DUALCORE.md) */
     s->fx_on = 1;
+#if !BOARD_SMK37
+    s->sticky = CRS_LAYOUT_FM1;                    /* Options > Chord Keys FM-1 (0.25.1, the owner, 2026-10-16: "let's
+                                                    * make it the default"): a unit with no record, Flash Data, Reset
+                                                    * Settings. Moved already (CRS_KEYS_MOVED): the layout a record of
+                                                    * this firmware holds is the player's (the SMK-37: Classic, hidden) */
+    s->leds = CRS_KEYS_MOVED;
+#endif
     s->chord_sound = CRS_SOUND_DEFAULT;
     s->bass_sound = CRS_SOUND_DEFAULT;
     for (i = 0; i < (uint32_t)CRS_NENG; i++) {
@@ -166,6 +177,8 @@ void cr_settings_auto(cr_settings_t *dst, const cr_settings_t *src)
     dst->usb_in = src->usb_in;
     dst->usb_level = src->usb_level;
     dst->pick_roots = (uint8_t)((dst->pick_roots & (uint8_t)~CRS_PICK_AUTO) | (src->pick_roots & CRS_PICK_AUTO));
+    dst->sticky = (uint8_t)((dst->sticky & (uint8_t)~CRS_STICKY_AUTO) | (src->sticky & CRS_STICKY_AUTO));   /* (the
+                                                    * chord layouts' Options; LATCH, bit 0, is manual) */
     dst->view = (uint8_t)((dst->view & (uint8_t)~CRS_DC_ON) | (src->view & CRS_DC_ON));   /* (Dual Core rides in the
                                                     * view's byte: the view and its lock are manual) */
 }
@@ -188,6 +201,11 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(transpose, -24, 24);
     CRS_FIX(single, 0, CR_SINGLE_SPLIT_BASS);      /* (v14: 2 Split Bass) */
     CRS_FIX(split_pc, 0, 11);
+#if BOARD_SMK37
+    if (!s->vel)                                   /* the SMK builds of 0.22 (PR #14): Velocity 0 "keys", the keys'
+                                                    * velocity; since 0.24 that is Key Touch Dynamic (Velocity 100) */
+        s->bass_on = (uint8_t)((s->bass_on & 3u) | CRS_TOUCH_BITS(1u, CRS_VSENS(s), 0u));
+#endif
     CRS_FIX(vel, 1, 127);
     CRS_FIX(bass_on, 0, 255);                      /* (bit 1: the KEY layer's Numerals, CRS_NUMERALS; bits 2..7 Key Touch
                                                     * and the two sensitivities, CRS_TOUCH / VSENS / ATSENS: 0.22) */
@@ -196,7 +214,10 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(perform_on, 0, 1);
     CRS_FIX(perform_mode, 0, CRS_NPM - 1);
     CRS_FIX(perf_sel, 0, 6);
-    CRS_FIX(sticky, 0, 1);
+    CRS_FIX(sticky, 0, 0x7F);                      /* (0.24: bit 1 Chord Keys, bit 2 Full K Shorts, bits 3 .. 6 the SUS
+                                                    * Window; bit 7 unknown: the default byte) */
+    if (CRS_SUSWIN_CODE(s) > 10)                   /* (above 80 ms: 30, the default, the other bits kept) */
+        s->sticky = (uint8_t)(s->sticky & 0x07u);
     CRS_FIX(bpm, 20, 300);
     for (m = 0; m < CRS_NPM; m++)
         for (p = 0; p < CRS_NPAR; p++)
@@ -211,14 +232,16 @@ static void crs_sanitize(cr_settings_t *s)
         if (s->midi_ch[i] > 15u) s->midi_ch[i] = d.midi_ch[i];
     }
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
-    CRS_FIX(raw_sound, 0, 1);
+    CRS_FIX(raw_sound, 0, 0x3F);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel) */
+    if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound kept) */
+        s->raw_sound = (uint8_t)(s->raw_sound & 1u);
     if ((s->view & 0x38u) || CRS_VIEW(s) > 5u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; 5 Geek Out 2
                                                     * since 0.22; an unknown bit or view: the default view, unlocked;
                                                     * Dual Core as the record has it: since 0.22 the default is On,
                                                     * and a record's Off is never turned On for it) */
         s->view = (uint8_t)(s->view & CRS_DC_ON);
     CRS_FIX(motion, 0, 2);
-    CRS_FIX(leds, 0, 1);
+    CRS_FIX(leds, 0, (int)(CRS_LEDS_STOCK | CRS_KEYS_MOVED));   /* (0.25.1: bit 1 the move to FM-1, CRS_KEYS_MOVED) */
     CRS_FIX(fx_on, 0, 1);
     CRS_FIX(metro_on, 0, 1);
     CRS_FIX(metro_sig, 0, 2);
@@ -352,6 +375,17 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
          * was 0 in every older record and stays 0 */
     }
     crs_sanitize(s);
+#if !BOARD_SMK37
+    if (!(s->leds & CRS_KEYS_MOVED))               /* 0.25.1: a record no firmware since 0.25.1 has written (any version: 0.23
+                                                    * and older have no Chord Keys, 0.24 / 0.25 Classic or FM-1): FM-1,
+                                                    * once; the mark keeps a later Classic (cr_settings.h CRS_KEYS_MOVED).
+                                                    * The rest of the byte and the record as they were; rc unchanged (a
+                                                    * current record stays current: the session beside it is applied) */
+    {
+        s->sticky = (uint8_t)(s->sticky | CRS_LAYOUT_FM1);
+        s->leds = (uint8_t)(s->leds | CRS_KEYS_MOVED);
+    }
+#endif
     cr_settings_seal(s);
     return rc;
 }
@@ -513,9 +547,9 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
                 cr_set_param(c, (cr_pmode_t)m, p, s->par[m][p]);
     cr_set_perform_mode(c, (cr_pmode_t)s->perform_mode);
     cr_set_perform(c, s->perform_on);
-    cr_set_sticky(c, s->sticky);
+    cr_set_sticky(c, (int)CRS_LATCH(s));           /* (bit 0: the other bits are the UI's Options) */
     cr_set_tempo(c, s->bpm);
-    cr_set_stream(c, CR_STREAM_RAW, s->midi_en[CR_STREAM_RAW] || s->raw_sound);
+    cr_set_stream(c, CR_STREAM_RAW, s->midi_en[CR_STREAM_RAW] || CRS_RAW(s));
     if (o) {
         for (i = 0; i < 3; i++) {
             o->midi_en[i] = s->midi_en[i];
@@ -523,7 +557,7 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
         }
         o->part[CR_STREAM_MAIN] = 0;
         o->part[CR_STREAM_BASS] = 1;
-        o->part[CR_STREAM_RAW] = s->raw_sound ? 0 : CRS_NONE;
+        o->part[CR_STREAM_RAW] = CRS_RAW(s) ? 0 : CRS_NONE;
         o->clock_out = s->clock_mode == CRS_CLOCK_OUT;
         o->clock_in = s->clock_mode == CRS_CLOCK_IN;
     }
@@ -548,7 +582,7 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
     s->bass_voicing = c->bass_voicing;
     s->perform_on = c->perform_on;
     s->perform_mode = c->perform_mode;
-    s->sticky = c->sticky;
+    s->sticky = (uint8_t)((s->sticky & (uint8_t)~1u) | (c->sticky ? 1u : 0u));   /* (bits 1 .. 6: the UI's) */
     s->bpm = c->bpm;
     for (m = 0; m < CRS_NPM; m++)
         for (p = 0; p < CRS_NPAR; p++)
@@ -558,7 +592,7 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
             s->midi_en[i] = o->midi_en[i] ? 1u : 0u;
             s->midi_ch[i] = (uint8_t)(o->ch[i] & 15u);
         }
-        s->raw_sound = o->part[CR_STREAM_RAW] != CRS_NONE;
+        s->raw_sound = (uint8_t)((s->raw_sound & (uint8_t)~1u) | (o->part[CR_STREAM_RAW] != CRS_NONE ? 1u : 0u));
         s->clock_mode = o->clock_in ? CRS_CLOCK_IN : o->clock_out ? CRS_CLOCK_OUT : CRS_CLOCK_OFF;
     }
     cr_settings_seal(s);
@@ -752,7 +786,7 @@ static void crs_capture(cr_settings_t *s)
                                                     * Solfege is scale's bit 7, not this byte's) */
     s->perform_on = cs.perform_on;
     s->perf_sel = cs.perf_sel;
-    s->sticky = cs.sticky;
+    s->sticky = CRS_STICKY_BYTE(cs.sticky, cs.layout, cs.full_short, cs.suswin);   /* (docs/CHORD-LAYOUT.md) */
     s->bpm = cs.bpm;
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         s->par[i / CRS_NPAR][i % CRS_NPAR] = cs.par[i / CRS_NPAR][i % CRS_NPAR];
@@ -761,7 +795,7 @@ static void crs_capture(cr_settings_t *s)
         if (cs.ch[i])
             s->midi_ch[i] = (uint8_t)(cs.ch[i] - 1u);
     }
-    s->raw_sound = cs.raw_sound;
+    s->raw_sound = CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys);
     s->loop_sync = cs.loop_len;
     s->loop_quant = cs.loop_quant;
     s->loop_count_in = cs.loop_count_in;
@@ -781,7 +815,8 @@ static void crs_capture(cr_settings_t *s)
     s->split_pc = cs.split;
     s->view = (uint8_t)(CRS_VIEW_BYTE(cs.view, cs.view_lock) | (cs.dualcore ? CRS_DC_ON : 0u));
     s->motion = cr_motion;
-    s->leds = cs.leds;
+    s->leds = (uint8_t)((cs.leds ? CRS_LEDS_STOCK : 0u) | (s->leds & CRS_KEYS_MOVED));   /* (the record's mark, as
+                                                    * the import left it: set, but on the SMK-37) */
     s->fx_on = cs.fx_on;
     s->chord_sound = (uint16_t)((trk[CR_PART_CHORD].eng_req % NENGINES) << 8 | (cs.sound & 0xFFu));
     s->bass_sound = (uint16_t)((trk[CR_PART_BASS].eng_req % NENGINES) << 8 |
@@ -1092,12 +1127,16 @@ static void cr_settings_load(void)
     cs.bass_mode = s->bass_mode;
     cs.perform_on = s->perform_on;
     cs.perf_sel = s->perf_sel;
-    cs.sticky = s->sticky;
+    cs.sticky = (uint8_t)CRS_LATCH(s);
+    cs.layout = (uint8_t)(CU_FN_KEYS ? CRS_LAYOUT(s) : 0u);   /* (the SMK-37: hidden, Classic) */
+    cs.full_short = (uint8_t)CRS_FULLSHORT(s);
+    cs.suswin = (uint8_t)CRS_SUSWIN_MS(s);
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         cs.par[i / CRS_NPAR][i % CRS_NPAR] = s->par[i / CRS_NPAR][i % CRS_NPAR];
     for (i = 0; i < 3u; i++)
         cs.ch[i] = (uint8_t)(s->midi_en[i] ? s->midi_ch[i] + 1u : 0u);
-    cs.raw_sound = s->raw_sound;
+    cs.raw_sound = (uint8_t)CRS_RAW(s);
+    cs.midi_keys = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_KEYS(s) : 0u);
     cr_route.clock_out = o.clock_out;
     cr_route.clock_in = o.clock_in;
     cs.loop_len = s->loop_sync;
@@ -1130,7 +1169,7 @@ static void cr_settings_load(void)
     cs.dualcore = crs_dc_bar ? 0u : (uint8_t)CRS_DUALCORE(s);   /* (what this power-on did: cr_c1_off, cr_settings_boot;
                                                     * Off after a bar, crs_dc_bar) */
     cr_motion = s->motion;
-    cs.leds = s->leds;
+    cs.leds = (uint8_t)CRS_LEDS(s);                /* (bit 1: the move to FM-1, the record's) */
     palette_set(s->palette < NPALETTES ? s->palette : NPALETTES - 1u);
     for (i = 0; i < (uint32_t)NENG_SHOWN; i++) {    /* each part's place per engine (the pools: checked on use) */
         int32_t k = crs_slot(i);
@@ -1155,6 +1194,7 @@ static void cr_settings_load(void)
     }
     cu_pos_sync();
     cu_route();
+    cu_fsc_enter();                                /* (Full K Shorts: F#5 off, G5 as Key plays makes it) */
     cu_post_kbd();                                 /* (the split key's note: the UI's, with its octave) */
     cu_set_tempo(s->bpm);
     crs_loaded = 1;

@@ -266,6 +266,61 @@ static void cr_midi(uint32_t status, uint32_t d1, uint32_t d2)
     midi_out_event((status >> 4) | status << 8 | (d1 & 0x7Fu) << 16 | (d2 & 0x7Fu) << 24);
 }
 
+#if BOARD_SMK37
+/* SMK-37: the wheels (cr_ui.c cr_smk_wheels writes these, the audio ISR plays them, once a block). The pitch wheel
+ * bends both parts as their channels' bend does (cr_mbend: +-2 semitones, RPN 0 sets the range), the mod wheel is a
+ * vibrato on both parts, 5.5 Hz, up to +-1/2 semitone at the top, and the parts' MODW source (mod.c, CC 1). Both go
+ * out on the CHORD and BASS streams' MIDI channels too (pitch bend, CC 1), as the streams' notes do */
+static volatile int16_t cr_smk_bend;             /* -8192..8191 */
+static volatile uint8_t cr_smk_modw;             /* 0..127 */
+static void cr_smk_wheel_block(uint32_t n)
+{
+    static int16_t bend_was;
+    static uint8_t modw_was;
+    static uint32_t ph;
+    int32_t b = cr_smk_bend, vib = 0;
+    uint32_t m = cr_smk_modw, p, s;
+    if (b != bend_was) {
+        bend_was = (int16_t)b;
+        for (p = 0; p < 2u; p++) {
+            cr_mchan(p)->bend = (int16_t)b;
+            cr_mbend(p);
+        }
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xE0u | (cr_route.ch[s] & 15u), (uint32_t)(b + 8192) & 0x7Fu, (uint32_t)(b + 8192) >> 7);
+    }
+    if (m != modw_was) {
+        modw_was = (uint8_t)m;
+        for (p = 0; p < 2u; p++)
+            mod_midi(&trk[p], 0xB0u, 1u, m);
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xB0u | (cr_route.ch[s] & 15u), 1u, m);
+        if (!m) {                                /* the vibrato over: the bends as they are */
+            ph = 0;
+            cr_mbend(0);
+            cr_mbend(1);
+        }
+    }
+    if (!m)
+        return;
+    ph += (uint32_t)(11ull * 2147483648ull / FS) * n;   /* 5.5 Hz */
+    {
+        int32_t t = (int32_t)(ph >> 16), tri = t < 32768 ? t - 16384 : 49151 - t;   /* -16384..16383 */
+        vib = tri * (int32_t)m / 127 * 128 / 16384;     /* Q8 semitones: +-1/2 at the top */
+    }
+    for (p = 0; p < 2u; p++) {
+        const cr_mch_t *c = cr_mchan(p);
+        int32_t range = ((int32_t)c->semis * 100 + c->cents) * 256 / 100, raw;
+        cr_mbend(p);
+        midi_bend_target[p] += vib;
+        raw = c->bend + (range ? vib * 8192 / range : 0);   /* (FM6 bends by its own range: the raw value) */
+        trk[p].bend_raw = (int16_t)(raw < -8192 ? -8192 : raw > 8191 ? 8191 : raw);
+    }
+}
+#endif
+
 /* TRANSPOSE (the part's P_TRANS, MIX page): the part's notes play P_TRANS semitones away (clamped to 0..127). The
  * MIDI out of the stream is not transposed: it carries the harmony as played. A part's transposition is taken when
  * none of its notes from here sound (cr_tr_n: started and not ended) and kept while any does, so every note-off
@@ -450,6 +505,8 @@ enum {
                        * whole): a: the key's note, b: vel, v: 1 a press, 2 the chord sounding turned (legato). Its release is an ordinary CRE_KEY up. The UI posts the
                        * group only when the queue has room for all of it (cr_post_room) */
     CRE_KEYSNAP,      /* v: Snap 0 Off, 1 Scale, 2 Chord (cr_set_key_snap) */
+    CRE_FULLCHORD,    /* v: the Full keyboard's G5 (Full K Shorts): 0 none, 1 chords on every key, 2 single notes
+                       * (cr_set_full_chords) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
     CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM, quietly (cr_set_perform_quiet:
@@ -619,6 +676,7 @@ static void cr_apply(const cr_ev_in_t *e)
         cr_hspec.n = cr_hspec.got = 0;
         break;
     case CRE_KEYSNAP: cr_set_key_snap(&cr, (cr_keysnap_t)e->v); break;
+    case CRE_FULLCHORD: cr_set_full_chords(&cr, e->v); break;
     case CRE_LOOP: cr_loop_op(e); break;
     case CRE_AT: cr_touch_at((uint32_t)e->v); break;
     default: break;
@@ -661,6 +719,44 @@ static int cr_min_take(crm_act_t *a)             /* the UI */
     *a = cr_minq[cr_minq_r % CR_MINQ];
     RING_PUBLISH();
     cr_minq_r++;
+    return 1;
+}
+
+/* MIDI Keys (crm_key): the keys' events, ISR -> UI, a queue of their own (cr_minq drops a burst: a lost note-off
+ * would hold a key). A note-on is taken while fewer than CR_MKQ_ON wait, a note-off while there is room; one that
+ * finds the queue full asks for every key up instead (cr_mkq_allup), so nothing stays held */
+#define CR_MKQ 64u                               /* (a power of two) */
+#define CR_MKQ_ON 48u
+#define CR_MKQ_ALLUP CRM_KEY_ALLUP
+static volatile uint8_t cr_mkeys_ch;             /* the keys' channel 1 .. 16, 0 Off (the UI's cu_route) */
+static uint16_t cr_mkq[CR_MKQ];
+static volatile uint32_t cr_mkq_w, cr_mkq_r;
+static volatile uint8_t cr_mkq_allup;
+static void cr_mkq_post(uint32_t ev)
+{
+    uint32_t used = cr_mkq_w - cr_mkq_r;
+    if (((ev >> 12) & 1u) ? used >= CR_MKQ_ON : used >= CR_MKQ) {
+        if (!((ev >> 12) & 1u))
+            cr_mkq_allup = 1;
+        return;
+    }
+    cr_mkq[cr_mkq_w % CR_MKQ] = (uint16_t)ev;
+    RING_PUBLISH();
+    cr_mkq_w++;
+}
+static int cr_mkq_take(uint32_t *ev)             /* the UI */
+{
+    if (cr_mkq_r == cr_mkq_w) {
+        if (cr_mkq_allup) {                      /* (an off was lost: every key up, once the queue is empty) */
+            cr_mkq_allup = 0;
+            *ev = CR_MKQ_ALLUP;
+            return 1;
+        }
+        return 0;
+    }
+    *ev = cr_mkq[cr_mkq_r % CR_MKQ];
+    RING_PUBLISH();
+    cr_mkq_r++;
     return 1;
 }
 
@@ -714,8 +810,15 @@ static void cr_midi_in(void)
             }
         } else if (status >= 0x80u && status < 0xF0u) {
             crm_act_t a[2];
-            int i, n = crm_map(status, d1, d2, en, ch, a);
+            uint32_t kev;
+            int i, n, kr = crm_key(status, d1, d2, cr_mkeys_ch, &kev);
             cr_in_msg_n++;
+            if (kr >= 0) {                       /* MIDI Keys' channel: the FM-1's keys, nothing else */
+                if (kr)
+                    cr_mkq_post(kev);
+                continue;
+            }
+            n = crm_map(status, d1, d2, en, ch, a);
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)
                     midi_event(status & 0xF0u, a[i].part, d1, d2);
@@ -770,6 +873,9 @@ static void cr_audio_block(uint32_t n)
     if (cr_klat.pend && (int32_t)(w - cr_klat.at) > 0)
         cr_klat_applied();                       /* (78 PEAK key_eng_us: a key's note-on is in the engine) */
     cr_midi_in();
+#if BOARD_SMK37
+    cr_smk_wheel_block(n);
+#endif
     cr_ms_rem += n * 1000u;                      /* samples -> ms, the remainder kept (no drift) */
     while (cr_ms_rem >= FS) {
         cr_ms_rem -= FS;

@@ -74,8 +74,10 @@ static int up_patch_get(uint32_t k, uint32_t e, uint8_t *b, uint32_t n)
 {
     uint8_t h[4];
     if (!up_used(k) || n > UPP_MAX || sp_read(k, UPP_HDR, h, 4) != 0 || h[0] != e + 1u ||
-        (h[1] != n && !(e == ENGI_QUAD && h[1] == QUAD_BLOB_V3)))   /* (FM TONE: an older slot's 80-byte version 1..3
-                                                                     * blob, the rest zeros; eng_quad.c converts it) */
+        (h[1] != n && !(e == ENGI_QUAD && h[1] == QUAD_BLOB_V3) &&         /* (FM TONE: an older slot's 80-byte version 1..3
+                                                                     * blob, the rest zeros; eng_quad.c converts it; GRAIN:
+                                                                     * the first build's 20-byte version 1, 3y139) */
+         !(FELUCCA_GRAIN && e == ENGI_GRAIN && h[1] == GRAIN_BLOB_V1)))
         return 1;
     memset(b, 0, n);
     return sp_read(k, UPP_DATA, b, h[1]) != 0;
@@ -87,6 +89,9 @@ static uint32_t up_patch_len(uint32_t e)        /* the length of engine e's patc
 #if FELUCCA_PROPHET
         && e != ENGI_PROPHET
 #endif
+#if FELUCCA_GRAIN
+        && e != ENGI_GRAIN
+#endif
     )
         return 0;
     return d && d->blob_get && d->blob_size <= UPP_MAX ? d->blob_size : 0u;
@@ -95,7 +100,8 @@ static uint32_t up_patch_len(uint32_t e)        /* the length of engine e's patc
 static const char *up_patch_tag(uint32_t e, const char **what)   /* the traces' names (as the stores printed them) */
 {
     *what = e == ENGI_CZ ? "tone" : "patch";
-    return e == ENGI_VA ? "va" : e == ENGI_FM6 ? "fm6" : e == ENGI_CZ ? "cz" : e == ENGI_QUAD ? "quad" : "p5";
+    return e == ENGI_VA ? "va" : e == ENGI_FM6 ? "fm6" : e == ENGI_CZ ? "cz" : e == ENGI_QUAD ? "quad" :
+           e == ENGI_GRAIN ? "grain" : "p5";
 }
 #endif
 /* the loaders' readers (eng_*.c X_store_read): slot k's patch of that engine, 0 = there is one */
@@ -119,6 +125,9 @@ static int up_read_quad(uint32_t k, uint8_t *b) { return up_read_engine(k, b, EN
 #if FELUCCA_PROPHET
 static int up_read_p5(uint32_t k, uint8_t *b) { return up_read_engine(k, b, ENGI_PROPHET); }
 #endif
+#if FELUCCA_GRAIN
+static int up_read_grain(uint32_t k, uint8_t *b) { return up_read_engine(k, b, ENGI_GRAIN); }
+#endif
 
 /* up_values loads record r: a record of an engine with a patch marks its slot for that engine's track_loaded */
 static void up_loading(const up_rec_t *r)
@@ -131,6 +140,9 @@ static void up_loading(const up_rec_t *r)
     quad_user_pending = r->engine == ENGI_QUAD ? pend : 0u;
 #if FELUCCA_PROPHET
     p5_user_pending = r->engine == ENGI_PROPHET ? pend : 0u;
+#endif
+#if FELUCCA_GRAIN
+    grain_user_pending = r->engine == ENGI_GRAIN ? pend : 0u;
 #endif
 }
 
@@ -326,6 +338,9 @@ static void upool_boot(void)                       /* persist_boot: the table; t
     fm6_store_read = up_read_fm6;
     cz_store_read = up_read_cz;
     quad_store_read = up_read_quad;
+#if FELUCCA_GRAIN
+    grain_store_read = up_read_grain;
+#endif
 #if FELUCCA_PROPHET
     p5_store_read = up_read_p5;
 #endif

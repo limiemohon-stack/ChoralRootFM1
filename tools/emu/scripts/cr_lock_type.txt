@@ -3,6 +3,7 @@
 # they stay latched and lit, do nothing without a type, and apply again when a type is pushed (Clears or Keeps).
 #   chord block: F3 6, F#3 DIM, G3 m7, G#3 MIN, A3 M7, A#3 MAJ, B3 LOCK, C4 9, C#4 SUS
 # The dumps' "lock:" line: latched = bits DIM 01 MIN 02 MAJ 04 SUS 08, 6 10, m7 20, M7 40, 9 80.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn B3                        # LOCK on
 wait 200

@@ -106,9 +106,27 @@ static void t_transport(void)
     ok(crm_transport(0xFA, 0, 1, 1) == 0 && crm_transport(0xFC, 1, 0, 1) == 0, "transport: a take in progress is left alone");
 }
 
+/* 0.24: MIDI Keys (crm_key; docs/CHORD-LAYOUT.md "MIDI in"): notes 53 .. 79 on the keys' channel are the keys F3 .. G5 */
+static void t_keys(void)
+{
+    uint32_t ev = 0;
+    ok(crm_key(0x94, 56, 100, 5, &ev) == 1 && ev == ((56u - 53u) | 100u << 5 | 1u << 12), "keys: ch 5 note-on 56 = key 3 (G#3), down, its velocity");
+    ok(crm_key(0x84, 56, 0, 5, &ev) == 1 && ev == (3u | 0u << 5), "keys: note-off: up");
+    ok(crm_key(0x94, 56, 0, 5, &ev) == 1 && !((ev >> 12) & 1u), "keys: note-on at velocity 0: up");
+    ok(crm_key(0x94, 53, 1, 5, &ev) == 1 && (ev & 31u) == 0u && crm_key(0x94, 79, 1, 5, &ev) == 1 && (ev & 31u) == 26u,
+       "keys: 53 is F3, 79 is G5");
+    ok(crm_key(0x94, 52, 1, 5, &ev) == 0 && crm_key(0x94, 80, 1, 5, &ev) == 0, "keys: 52 and 80: nothing");
+    ok(crm_key(0xB4, 123, 0, 5, &ev) == 1 && ev == CRM_KEY_ALLUP && crm_key(0xB4, 120, 0, 5, &ev) == 1 && ev == CRM_KEY_ALLUP,
+       "keys: CC 123 and CC 120: every key up");
+    ok(crm_key(0xB4, 7, 100, 5, &ev) == 0 && crm_key(0xC4, 3, 0, 5, &ev) == 0 && crm_key(0xE4, 0, 64, 5, &ev) == 0,
+       "keys: other messages on the keys' channel do nothing");
+    ok(crm_key(0x90, 60, 100, 5, &ev) == -1 && crm_key(0x94, 60, 100, 0, &ev) == -1, "keys: another channel, or MIDI Keys Off: not the keys'");
+}
+
 int main(void)
 {
     t_transport();
+    t_keys();
     t_clock();
     t_map();
     printf("cr_midi_test: %d passed, %d failed\n", passes, fails);

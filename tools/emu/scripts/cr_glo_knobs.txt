@@ -19,6 +19,7 @@
 #   31     the held-layer rule: SEQ held past the hold time and still down, GLO pressed too, ALGORITHM: the bass sound
 #          (SEQ's hold owns the knob: GLO is not the shift then), the layer open
 #   32     the bass off (BASS tap), the FX layer: GLO + ALGORITHM changes the engine, the bass stays off
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 knob ALGORITHM +2
 wait 1500

@@ -1,10 +1,11 @@
 # ChoralRoot: MIDI in (docs/INTEGRATION.md section 2). Options > MIDI Clock = In, clock pulses at 100 BPM (25 ms),
 # then 140 BPM; a SELECT turn (the clock re-asserts); program changes on the CHORD / BASS channels; CC 7 / 91;
 # a note on channel 1 plays part 0; a note on channel 5 (no part) is ignored
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn GLO 80                     # Options
 wait 100
-knob SELECT +16              # MIDI Clock
+knob SELECT +19              # MIDI Clock
 knob KNOB1 +2                # Off/Out -> In
 wait 100
 btn GLO 80

@@ -29,6 +29,8 @@ globalThis.FM1 = {
   ENC_ROLE: ["BPM", "BASS SND", "SOUND", "VOICING", "BASS VOICE", "PERFORM", "FX", "VOLUME"],
   // the chord block's sticker: firmware key -> label
   CHORD: { 0: "6", 1: "DIM", 2: "m7", 3: "MIN", 4: "M7", 5: "MAJ", 6: "LOCK", 7: "9", 8: "SUS" },
+  // .. Options > Chord Keys FM-1 (docs/CHORD-LAYOUT.md): SUS is MIN + MAJ together, B3 the 9, C4 and C#4 roots, LOCK on LFO
+  CHORD_FM1: { 0: "6", 1: "DIM", 2: "m7", 3: "MIN", 4: "M7", 5: "MAJ", 6: "9" },
   noteName(k) {
     const N = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"], m = 53 + k;
     return N[m % 12] + (Math.floor(m / 12) - 1);

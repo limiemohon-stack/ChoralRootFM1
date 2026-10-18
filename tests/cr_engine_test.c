@@ -1771,6 +1771,80 @@ static void s_torture(void)
 }
 
 /* -------------------------------------------- tick-independent checks --- */
+/* 0.24, the FM-1 chord keys (docs/CHORD-LAYOUT.md): the UI posts a set of types as HELD downs, ups, then one PRESS;
+ * a HELD down re-types nothing (a key of the pair let go leaves the other's type for the next root, what sounds stays),
+ * a PRESS does what a down does; and G5's chords on the Full keyboard (cr_set_full_chords: 1 the chord keys down / Key
+ * Mode's chord on every key, 2 single notes only) */
+static void s_fm1(void)
+{
+    char n[96];
+    fresh("fm1 mods");
+    cr_set_playstyle(&C, CR_PS_ADVANCED);
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62"), "fm1: D alone");
+    clear();
+    cr_mod_ex(&C, CR_MOD_MIN, CR_MOD_HELD, 1); step(40);
+    ok(count('+', 0) == 0 && count('-', 0) == 0, "fm1: a type posted HELD re-types nothing (Advanced, a root held)");
+    cr_mod_ex(&C, CR_MOD_MIN, CR_MOD_PRESS, 0); step(40);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 65 69"), "fm1: its PRESS: the held root re-typed once, Dm");
+    clear();
+    cr_mod_ex(&C, CR_MOD_SUS, CR_MOD_HELD, 1); cr_mod_ex(&C, CR_MOD_MIN, CR_MOD_UP, 1); cr_mod_ex(&C, CR_MOD_SUS, CR_MOD_PRESS, 0); step(40);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 67 69") && C.mods_down == (1u << CR_MOD_SUS), "fm1: the pair (SUS HELD, MIN up, SUS PRESS): one re-type, Dsus");
+    clear();
+    cr_mod_ex(&C, CR_MOD_MIN, CR_MOD_HELD, 1); cr_mod_ex(&C, CR_MOD_SUS, CR_MOD_UP, 1); step(40);
+    ok(count('+', 0) == 0, "fm1: a key of the pair let go (MIN HELD, SUS up): nothing re-strikes, Dsus sounds on");
+    R(62, 1); step(400); clear();
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 65 69"), "fm1: the next root takes the type left held: Dm");
+    R(62, 1); cr_mod(&C, CR_MOD_MIN, 0); step(400); clear();
+    cr_set_secret(&C, CR_SECRET_ALL);              /* the secret chords from the posted pairs, as Classic's keys */
+    cr_mod_ex(&C, CR_MOD_MIN, CR_MOD_HELD, 1); cr_mod_ex(&C, CR_MOD_SUS, CR_MOD_HELD, 1); cr_mod_ex(&C, CR_MOD_SUS, CR_MOD_PRESS, 0);
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 65 67"), "fm1: MIN + SUS posted with Secret Chords All: Dm add4 (F# + G#)");
+    R(62, 1); cr_mod(&C, CR_MOD_MIN, 0); cr_mod(&C, CR_MOD_SUS, 0); step(400); clear();
+    cr_set_secret(&C, CR_SECRET_OFF);
+    cr_set_playstyle(&C, CR_PS_SIMPLE);
+    fresh("fm1 full chords");
+    cr_set_keyboard(&C, 1, 65);
+    cr_mod(&C, CR_MOD_MAJ, 1);                     /* (LOCK's latch: down) */
+    K(53, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "53"), "full: the chord keys down are ignored, as before (cr_set_full_chords 0)");
+    R(53, 1); step(400); clear();
+    cr_set_full_chords(&C, 1);
+    K(53, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "53 57 60"), "full, G5 on: the key takes the latched MAJ: F major");
+    R(53, 1); step(400); clear();
+    cr_mod(&C, CR_MOD_MAJ, 0);
+    K(53, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "53"), "full, G5 on, nothing down, Key Mode off: a single note, as normal");
+    R(53, 1); step(400); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 65 69"), "full, G5 on, Key Mode C major: Key Mode's chord (Dm)");
+    R(62, 1); step(400); clear();
+    cr_set_full_chords(&C, 2);
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62"), "full, G5 off (2): a single note even with Key plays Chords");
+    R(62, 1); step(400); clear();
+    cr_set_full_chords(&C, 0);
+    K(62, 1); step(50);
+    on_notes_sorted(n, 0);
+    ok(!strcmp(n, "62 65 69"), "full, no shortcuts (0): Key Mode's chord as before 0.24");
+    R(62, 1); step(400); clear();
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+    cr_set_keyboard(&C, 0, 65);
+}
+
 static void s_names_std(void);
 static void s_tables(void)
 {
@@ -2737,6 +2811,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_fixedchord(); s_quiet(); s_loopvoice(); s_queries();
     s_limits(); s_torture();
     s_sixth();
+    s_fm1();
     fresh("end");
 }
 

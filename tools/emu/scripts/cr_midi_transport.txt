@@ -1,9 +1,10 @@
 # ChoralRoot: MIDI start / continue / stop in (Options > MIDI Clock = In) drive the loop; with Clock = Out they are
 # ignored. A 1-bar Free loop (as cr_loop_free), LOOP stops it, then FC / FA / FC / FB / FA-while-playing; Out: FA.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn GLO 80                     # Options: MIDI Clock -> In
 wait 100
-knob SELECT +16
+knob SELECT +19
 knob KNOB1 +2
 wait 100
 btn GLO 80

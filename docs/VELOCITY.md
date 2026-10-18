@@ -58,7 +58,10 @@ curve 2.40, the velocity taken once two readings are in; C#5 .. G5 sense velocit
 Key Touch's fourth value (the pressure out as polyphonic aftertouch to every sounding note of the Perform and Bass
 streams, `cr_out.c cr_touch_at`; the parts hear it as before); and the readout on **GEEK OUT 2**'s title line while
 the keys sense, `VEL 73 AT 42` (the last key's velocity, the aftertouch now) in place of the cores' count. The
-emulator models the probe too (`emu_touch_feed`: a top key's rise from its velocity). Still not here: Velo's per-key
+emulator models the probe too (`emu_touch_feed`: a top key's rise from its velocity, the analog rows every 3 ms
+while it runs). The probe's price: the analog rows every 3.3 ms, so the lower keys' velocity is known 13.2 ms after
+the touch sample instead of 8.8, and `cu_scan_keys` waits 18 ms for it (12 before: the designer-handoff session's
+release agent caught the miss, 3y124). Still not here: Velo's per-key
 calibration, a probe that tells light presses, anything faster than WAIT 2.
 
 The owner: "look into https://github.com/charlesvestal/fm1-monk: he added velocity and aftertouch to the FM-1, which

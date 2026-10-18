@@ -11,6 +11,10 @@
  *   chord block        F1 F2 F3 F4                       = F#3 G#3 A#3 C#4 (keys 1 3 5 8)
  *                      2  3  4  5                        = F3  G3  A3  C4  (keys 0 2 4 7)
  *                      Tab                               = B3 (key 6: ChoralRoot's LOCK, the chord mod key)
+ *                      (the keys are the firmware's: Options > Chord Keys says what they do. Classic: F1..F4 DIM MIN
+ *                      MAJ SUS, 2..5 6 m7 M7 9, Tab LOCK. FM-1, docs/CHORD-LAYOUT.md: F1 F2 F3 DIM MIN MAJ, F2 + F3
+ *                      SUS, 2 3 4 Tab 6 m7 M7 9, F4 / W and 5 / A the roots C#4 / C4, F8 (LFO) LOCK, F10 (GLO) held +
+ *                      F8 LATCH)
  *   octave             Z X (and Esc Return)              = OCT- OCT+;  End = both = panic
  *   buttons, top row   F5 F6 F7 F8 F9 F10                = FX SEL ENV LFO EDIT GLO
  *            bottom    7  8  9  0  -  =                  = HOME SAVE ARP SEQ PLAY REC

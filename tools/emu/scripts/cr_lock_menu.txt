@@ -10,6 +10,7 @@
 #                   the only extension on: off (02); m7: on (22); m7 held + 9: both (A2); then m7 alone: m7 (22: two
 #                   were on, so a lone push is the set); 9 alone: 9 (82); MAJ: the type alone changes (84); MIN (82)
 #   Clears + Pushed: 6 + 9 (92); MAJ: the extensions cleared (04)
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn B3 600                    # held: the layer; LOCK not toggled
 wait 300

@@ -31,10 +31,13 @@
 #define FELUCCA_PROPHET 1                             /* as choralroot.c: Melodee's Prophet-5 engine (16) */
 #endif
 #ifndef FELUCCA_SAMPLE
-#define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, GRAIN, DRUM retired */
+#define FELUCCA_SAMPLE 0                              /* as choralroot.c: SAMPLE, DRUM retired */
 #endif
 #ifndef FELUCCA_GRAIN
-#define FELUCCA_GRAIN 0
+#define FELUCCA_GRAIN 1                               /* as choralroot.c: GRAIN (8) over its own material (0.22) */
+#endif
+#ifndef GRAIN_ASYNC
+#define GRAIN_ASYNC 1                                 /* as choralroot.c: its renders from the idle hook (emu_fw_idle) */
 #endif
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 0
@@ -81,7 +84,13 @@
 #ifndef FM6_POLY
 #define FM6_POLY 8                                    /* as choralroot.c: FM6 capped at 8 voices (docs/FM6.md) */
 #endif
+#if EMU_SMK37
+#define fm1_in hostsim_fm1_in                         /* (hostsim.c's two-field stand-in; the SMK's is smk_input.h's) */
+#endif
 #include "../../tests/hostsim.c"
+#if EMU_SMK37
+#undef fm1_in
+#endif
 #undef mix_block
 #undef main
 
@@ -93,9 +102,11 @@
 #define cr_param_t cr_eparam_t
 /* the key sensing (firmware/src/cr_sense.c, docs/VELOCITY.md), as the unit has it, fed by emu_fw.c from the script's
  * velocities and leans instead of the scan's hooks; the scan's analog state it would switch is a stub here */
+#if !EMU_SMK37                                        /* (the SMK-37: the keys' two contacts, emu_smk_hal.h) */
 #define CR_SENSE_NO_HOOKS 1
 #include "../../firmware/src/cr_sense.c"
 static struct { uint8_t drive, probe; } fm1_an;
+#endif
 #include "../../firmware/src/cr_engine.h"
 #include "../../firmware/src/cr_engine.c"
 #undef cr_param_t

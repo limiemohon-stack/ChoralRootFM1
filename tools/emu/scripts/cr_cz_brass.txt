@@ -7,6 +7,7 @@
 # twice (every voice still sounds); then the unit's own Arpeggiate over the same chord for 3 s, the bass under it
 # (each note struck again while its tail sounds). test_cr.sh asks for no burst that stands above the sound on both
 # of its sides (wavclicks --both-sides), no jump, no hole.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 master 1023
 wait 300
 btn ENV down                  # the bass part's engine (BASS held + EDIT, the editor's EDIT-held picker):

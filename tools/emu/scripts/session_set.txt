@@ -11,6 +11,7 @@
 #   LOCK on with MAJ + M7 latched (B3, then A#3 + A3).
 # Then nothing for 4 s: nothing is written (dump 1: saving is manual, 0.18). SAVE held: the settings, the session and
 # the loop are each written once (dump 2), quit.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn PLAY down                 # the PLAY menu: slot 3
 wait 400

@@ -1,5 +1,6 @@
 # ChoralRoot 0.20: after cr_sixth_set.txt, on the same flash file: 6th with 7th is Octave up at power-on, with nothing
 # touched: A + 7 + 6 (A#3 = MAJ, G3 = 7, F3 = 6, A4) sounds 69 73 76 79 90.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn A#3 down
 btn G3 down

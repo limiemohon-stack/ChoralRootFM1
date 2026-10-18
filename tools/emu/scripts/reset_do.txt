@@ -2,7 +2,8 @@
 # the stored ones, Dual Core is Off: one core), LOCK on with MAJ latched, then the entry: OCT+ asks, another entry or OCT-
 # cancels, a closed menu forgets the ask, OCT+ twice resets: everything reads default at once (on the view, LOCK
 # off) and is saved; the unit plays on the default sound.
-#   Options: 25 Reset Settings, the last entry (SELECT past the end stops on it)
+#   Options: Reset Settings, the last entry (SELECT past the end stops on it)
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 dump                          # 1: as stored: Advanced, 137 BPM, Key Mode on, Motion Off, Dual Core Off
 btn B3                        # LOCK on, MAJ latched
@@ -11,7 +12,7 @@ btn A#3
 wait 300
 btn GLO
 wait 200
-knob SELECT +30               # past the end: the last entry: Reset Settings
+knob SELECT +33               # past the end: the last entry: Reset Settings
 wait 300
 shot build/emu/test/reset_entry.ppm
 dump                          # 2: entry 25 'Reset Settings', 'all options to default'

@@ -4,6 +4,7 @@
 # shows "c1 ok <jobs> . stk <bytes>" and the ISR's stages; then perf.sh (j)'s case: an 8-note VA chord + the bass over
 # MIDI, all 9 voices sounding while core 1 is alive. Run again with EMU_C1=nostart / hang ("c1 failed" / "c1 gave up")
 # and with Dual Core Off ("c1 off"): one core's shared budget, voices given up
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 key F3 down
 btn D4 down

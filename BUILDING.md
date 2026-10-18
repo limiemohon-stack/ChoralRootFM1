@@ -12,7 +12,7 @@ export DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib   # Pillow finds libraqm for
 python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()'   # build/gen/*.h
 cc -O1 -w -Ibuild/gen -Ifirmware/src -o build/host/ui_test tests/ui_test.c -lm && build/host/ui_test
 sh tools/emu/build.sh && build/host/emu          # the Mac emulator (tools/emu/README.md)
-sh tools/emu/web/build_web.sh                    # the browser emulator (needs the Emscripten SDK: tools/emu/README.md "Browser build")
+sh tools/emu/web/build_web.sh                    # the browser emulators, the FM-1's and the SMK-37's (needs the Emscripten SDK: tools/emu/README.md "Browser build")
 sh tools/layout/build_layout.sh && python3 tools/layout/make_page.py   # the layout viewer: build/layout-web/index.html (Emscripten; docs/LAYOUT-TOOL.md)
 sh tests/run_cr_tests.sh                         # the ChoralRoot engine tests
 sh tests/run_cr_draw.sh                          # renders every mock-up screen to build/cr_screens/
@@ -82,6 +82,19 @@ On Linux x86-64 the toolchain runs natively and Docker is not needed.
 
 `JIELI_TOOLCHAIN` and `AC79_SDK` override the default locations
 (`~/.jieli/toolchain`, `~/fw-AC79_AIoT_SDK`).
+
+Target board: `BOARD=smk37 ./build.sh` (or `./build.sh --board smk37`) builds ChoralRoot for the M-Vave SMK-37
+([SMK37.md](SMK37.md)): `-DBOARD_SMK37=1` for the app, the update loader and the boot stub, identity `SMK-37 Pro_920`,
+the SMK flash layout (PRCT 0x9D000, the stock region table with USRTRIM / USRFLASH; the stub, the body and the marker at
+the FM-1's places) and the package `build/choralroot-smk37.fwsc`. `MODEL=elite` or `MODEL=mke` builds the same firmware
+under the SMK-37 Elite's or the MKE-P37's model name (`build/choralroot-smk37-elite.fwsc`,
+`build/choralroot-smk37-mke.fwsc`), so M-Vave's updater still takes that unit's factory package; the Starrykey 37 Play
+uses the Pro build. Each model's boot stub has its lock (`firmware/stub/stub_smk37*.lock`: the stub's update record
+names the model). The intermediate files (`build/choralroot.bin`, `build/loader/ota.bin`, `build/choralroot.dis`) are
+shared: build the FM-1 again before `tests/run_tests.sh`. The default stays the FM-1, byte for byte. An SMK release names the
+board in its version (`BOARD=smk37 [MODEL=...] ./build.sh --release 0.24-beta2-smk37`: "ChoralRoot 0.24-beta2-smk37";
+`--release` without `smk37` is refused for the SMK, and with it for the FM-1) and collects the three models' packages,
+apps and `-1core` twins in `build/release-smk37/` with one `SHA256SUMS` ([SMK37.md](SMK37.md) "Build").
 
 `build.sh` sets `DYLD_FALLBACK_LIBRARY_PATH=/opt/homebrew/lib` itself on macOS (macOS drops `DYLD_*` variables
 on the way into `/bin/sh`); calling `python3 tools/build.py` directly needs it exported.
@@ -284,6 +297,35 @@ beta's entry may stay as an older choice or be removed with its packages no long
 version (`0.22-beta2`) goes first the same way and the earlier one stays below it, still behind the switch (pages.yml
 fetches both of its packages from its own release); the later beta's notes open with what is new since the earlier
 one, then the whole of X.Y's notes so far, and `docs/releases/X.Y.md` points at the newest beta's file.
+
+### An SMK-37 test release
+
+The SMK-37 community test builds ([SMK37.md](SMK37.md)) have their own version, list, page and tag: the version is
+the FM-1 version they are built from with `-smk37` after it (`0.24-beta2-smk37`), the list `web/releases-smk37.json`
+(never `web/releases.json`), the page the SMK-37 test installer at
+<https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/> (`web/smk37.html`), which no page of the site links: the
+link goes to the testers who accept the risk.
+A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-beta3-smk37.1`, tag
+`v0.24-beta3-smk37.1`): the same steps, its own entry, its `base` the same FM-1 version.
+
+1. Build the three models locally, twice, and compare `build/release-smk37/SHA256SUMS`:
+   `BOARD=smk37 ./build.sh --release X.Y-smk37`, then `MODEL=elite`, then `MODEL=mke` (six packages, their apps,
+   `SHA256SUMS` over all twelve, `SMK37.md`, the licences). Add the version first in `web/releases-smk37.json`: its
+   `base` (the FM-1 version of `web/releases.json` it is built from), date, tag `vX.Y-smk37`, a title, 2 to 12
+   bullets and the notes for players, and each model's `sha256` and `sha256_1core` (`pro` is
+   `choralroot-X.Y-smk37.fwsc`, `elite` the `-elite` one, `mke` the `-mke` one). `python3 tests/releases_test.py`
+   checks it and the files. Commit on main before the tag (pages.yml runs from main and builds the site from the
+   tag's tree).
+2. `git tag vX.Y-smk37 && git push origin vX.Y-smk37`. release.yml builds the three models on ubuntu, checks their
+   sha256s against `web/releases-smk37.json`, creates the **pre-release** `vX.Y-smk37` ("ChoralRoot X.Y-smk37 for the
+   SMK-37 (community test)") with the six packages, their apps, `SHA256SUMS`, the licences and `SMK37.md`, and starts
+   pages.yml for the FM-1's current version (the first entry of `web/releases.json`, as it is) from the SMK tag: the
+   FM-1 site stays as it was, and `webapp/smk37/` offers the new build. A pre-release never becomes the latest
+   release, and the FM-1 installer never lists an SMK build.
+3. pages.yml fetches every version of `web/releases-smk37.json` from its own release (`choralroot-X.Y-smk37*.fwsc`)
+   and `web/make_site.py --smk-packages build/smk-packages --require-all` checks each package's sha256 and identity
+   (the model's `_9xx`, Felucca's loader) and writes `webapp/smk37/` and `firmware/smk37/`; the job fails when a page
+   of the site links the SMK page.
 
 Once, before the first release: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 

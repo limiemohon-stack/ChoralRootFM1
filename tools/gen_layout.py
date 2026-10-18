@@ -49,8 +49,8 @@ COLOURS = {"white": 1, "red": 2, "blue": 3, "yellow": 4, "orange": 5, "green": 6
 GLYPHS = ["none", "knob", "bar", "wave", "saw", "square", "steps", "dots", "morph", "noise", "room", "moon", "echoes",
           "lfo", "clip", "mix", "gate", "range", "arrow", "shift", "harm", "detune", "lfowave", "ratio", "tail", "pre",
           "cut", "width", "spread", "sync", "ping"]
-BANDS = ["none", "env", "filter", "dx", "cz", "algo", "ade2"]
-PLAN_BAND = {"none": 0, "env": 1, "filter": 2, "algo": 4, "ade2": 5}     # core.h ENG_B_* (fm1layout.js PLAN_BAND)
+BANDS = ["none", "env", "filter", "dx", "cz", "algo", "ade2", "wave"]
+PLAN_BAND = {"none": 0, "env": 1, "filter": 2, "algo": 4, "ade2": 5, "wave": 6}   # core.h ENG_B_* (fm1layout.js PLAN_BAND)
 ENG_B = ["ENG_B_NONE", "ENG_B_ENV", "ENG_B_FILTER", "ENG_B_WINDOW", "ENG_B_ALGO", "ENG_B_ADE2"]
 FMTS = ["int", "pct", "bipct", "time", "lfohz", "cutoff", "db", "semi", "enum", "bpm", "note", "onoff", "oct", "steps",
         "ofs", "fmnote", "fmfrq", "timei", "fix2", "inti"]                # core.h F_* (the catalog's "fmt", layout_web.c)

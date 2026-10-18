@@ -8,6 +8,34 @@
 #define CZ_BYTES 144u
 #define CZ_NATIVE 2u
 typedef struct { uint8_t raw[CZ_BYTES]; } cz_patch_t;
+
+/* an LZ4 block (tools/lz4blk.py's format: literals and matches, no frame) into dst, n bytes: the factory bank's tones
+ * (melodee_cz1.h CZ_FACTORY_LZ4, 3y129). The packer's blocks are well formed; a bad one leaves the rest of dst as it
+ * was and stops at its end */
+static void cz_lz4_block(const uint8_t *src, uint32_t len, uint8_t *dst, uint32_t n)
+{
+    uint32_t i = 0, o = 0;
+    while (i < len && o < n) {
+        uint32_t tok = src[i++], ll = tok >> 4, ml, off, b;
+        if (ll == 15u) {
+            do { b = i < len ? src[i++] : 0u; ll += b; } while (b == 255u);
+        }
+        while (ll-- && o < n && i < len)
+            dst[o++] = src[i++];
+        if (i + 2u > len)
+            break;
+        off = src[i] | (uint32_t)src[i + 1u] << 8;
+        i += 2u;
+        ml = tok & 15u;
+        if (ml == 15u) {
+            do { b = i < len ? src[i++] : 0u; ml += b; } while (b == 255u);
+        }
+        if (!off || off > o)
+            break;
+        for (ml += 4u; ml-- && o < n; o++)
+            dst[o] = dst[o - off];
+    }
+}
 static const uint8_t CZ_ENV_BASE[2][3] = {{55,38,21},{112,95,78}};
 static const uint8_t CZ_ENV_END[2][3] = {{54,37,20},{111,94,77}};
 static __attribute__((noinline)) int cz_patch_valid(const uint8_t *b)

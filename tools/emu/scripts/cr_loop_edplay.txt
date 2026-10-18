@@ -17,6 +17,7 @@
 #    SELECT -1: page 1: GLO + ALGORITHM +1: "step voicing: Follow".
 # G. LOCK (B3) with MIN latched: E5 alone into step 2: Em, one chord; F5 into step 4: Fm. LOCK off.
 #    LOOP plays the result a pass; stop; silent.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn SEQ
 wait 400

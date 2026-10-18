@@ -4,7 +4,7 @@
 // FM-1 .fwsc packages in the browser: the package identity and the image the
 // device reads during an update.
 
-const BLOCKS = 20, BLK = 0x30, KEEP = 0x2F;
+const BLOCKS = 20, BLK = 0x30, KEEP = 0x2F, MAX_BLOCKS = 64;   // BLOCKS: the identity blocks (more may follow)
 export const STOCK_V15_SHA256 = "db1642b2b6fa5c2cccb11ffd13878068bb28601678d3644049f99dc40e7edb8a";
 export const STOCK_APP_SIZE = 0x8DFBC;
 export const STOCK_V15_SIZE = 699956;
@@ -208,24 +208,75 @@ export class Package {
   }
 }
 
-// the package identity ("FM-1_904"): one marker byte after each of the first 20 blocks
+const printable = (m, i) => { const c = (m - i - 1) & 0xFF; return c >= 0x20 && c < 0x7F; };
+
+// the identity blocks: 20, or more when the identity is longer (the Starrykey 37 Play V016's "STARRYKEY-37 PLAY_016"
+// takes 21): further identity markers count only when unused 0x7D markers follow them (the 36-block layout of the
+// stock SMK-37 packages)
+function identityBlocks(fwsc) {
+  let n = BLOCKS;
+  while (n < MAX_BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] !== 0x7D && printable(fwsc[n * BLK + KEEP], n)) n++;
+  return n > BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] === 0x7D ? n : BLOCKS;
+}
+
+// interleave blocks: the identity blocks, then more while the marker is the unused 0x7D (the stock SMK-37 packages
+// have 36)
+export function blockCount(fwsc) {
+  let n = identityBlocks(fwsc);
+  while (n < MAX_BLOCKS && (n + 1) * BLK <= fwsc.length && fwsc[n * BLK + KEEP] === 0x7D) n++;
+  return n;
+}
+
+// the package identity ("FM-1_904", "SMK-37 Pro_016"): one marker byte after each identity block (0x7D: none); past
+// the first 20 only when the package really has those blocks (logicalImage's count)
 export function productOf(fwsc) {
   if (fwsc.length < BLOCKS * BLK) throw new Error("not an FM-1 package (too short)");
+  const ib = identityBlocks(fwsc), n = ib === BLOCKS ? BLOCKS : Math.min(ib, layout(fwsc).blocks);
   let s = "";
-  for (let i = 0; i < BLOCKS; i++) {
+  for (let i = 0; i < n; i++) {
     const m = fwsc[i * BLK + KEEP];
     if (m !== 0x7D) s += String.fromCharCode((m - i - 1) & 0xFF);
   }
   return s;
 }
 
-// the image the device addresses during an update: the .fwsc without the 20 marker bytes
-export function logicalImage(fwsc) {
-  const out = new Uint8Array(fwsc.length - BLOCKS);
-  for (let i = 0; i < BLOCKS; i++) out.set(fwsc.subarray(i * BLK, i * BLK + KEEP), i * KEEP);
-  out.set(fwsc.subarray(BLOCKS * BLK), BLOCKS * KEEP);
+function deinterleave(fwsc, blocks) {
+  const out = new Uint8Array(fwsc.length - blocks);
+  for (let i = 0; i < blocks; i++) out.set(fwsc.subarray(i * BLK, i * BLK + KEEP), i * KEEP);
+  out.set(fwsc.subarray(blocks * BLK), blocks * KEEP);
   return out;
 }
+
+// the logical image's header and file list are intact and flash.bin (0) / ota.bin (100) match their CRCs (the stock
+// packer's other entries store a CRC of something else: their bounds only)
+function filesOk(img) {
+  if (img.length < 0x40) return false;
+  const h = img.slice(0, 0x40);
+  enc(h, 0, 0x40);
+  if (crc16(h.subarray(2, 0x40)) !== u16(h, 0)) return false;
+  const n = u16(h, 8);
+  if (n < 1 || n > 8 || img.length < 0x40 + 0x50 * n) return false;
+  for (let i = 0; i < n; i++) {
+    const e = img.slice(0x40 + i * 0x50, 0x90 + i * 0x50);
+    enc(e, 0, 0x50);
+    const type = u16(e, 0), off = u32(e, 8), size = u32(e, 12);
+    if (off + size > img.length) return false;
+    if ((type === 0 || type === 100) && crc16(img.subarray(off, off + size)) !== u16(e, 4)) return false;
+  }
+  return true;
+}
+
+// the image the device addresses during an update: the .fwsc without the marker bytes (20 blocks, or the detected
+// count when the files' CRCs agree: a 20-block package can have 0x7D after block 20 by chance)
+function layout(fwsc) {
+  const n = blockCount(fwsc);
+  if (n !== BLOCKS) {
+    const img = deinterleave(fwsc, n);
+    if (filesOk(img) || !filesOk(deinterleave(fwsc, BLOCKS))) return { blocks: n, image: img };
+  }
+  return { blocks: BLOCKS, image: deinterleave(fwsc, BLOCKS) };
+}
+export function logicalImage(fwsc) { return layout(fwsc).image; }
 
 export async function sha256hex(bytes) {
   const d = await crypto.subtle.digest("SHA-256", bytes);

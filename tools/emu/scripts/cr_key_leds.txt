@@ -4,6 +4,7 @@
 # keys at the middle level (mid, fm1_led_dim2), the roots out of the scale are dark, a sounding note is lit over it
 # (on every root of its name: both D of Dm, the tonic's mid under them).
 # The dump's "key leds:" line: F3..C4, then D4..G5: 0 off 1 faint 2 dim 3 mid 4 lit.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 expect led D4 off             # Key Mode off: a root has no idle glow,
 expect led G5 off
@@ -67,7 +68,7 @@ expect led D4 off
 dump                          # 7: 000000000000000000
 btn GLO 80                    # Options > LEDs: Stock (two levels: the idle keys lit, the active dark)
 wait 300
-knob SELECT +20
+knob SELECT +23
 wait 300
 knob KNOB1 +1
 wait 300

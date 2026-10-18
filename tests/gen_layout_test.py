@@ -254,7 +254,7 @@ PLAN = {   # the screen plan's rules on p5-rows.json
     "a stack in OSC": (lambda d: rscr(d, "OSC").update(kind="stack"), r"a stack of 2 lanes: the screen plan has edit8 screens of one or two lanes"),
     "three lanes": (lambda d: rscr(d, "LFO").__setitem__("lanes", rscr(d, "LFO")["lanes"] + [{"title": "X", "cells": [None] * 4}]),
                     r"an? edit8 of 3 lanes: the screen plan"),
-    "a dx band": (lambda d: rscr(d, "ENV").update(band="dx"), r'band "dx": not a band of the screen plan \(none, env, filter, algo, ade2\)'),
+    "a dx band": (lambda d: rscr(d, "ENV").update(band="dx"), r'band "dx": not a band of the screen plan \(none, env, filter, algo, ade2, wave\)'),
     "a part parameter on an engine page": (lambda d: (rscr(d, "OSC")["lanes"][1]["cells"].__setitem__(3, {"param": "part:33"}),
                                                       rscr(d, "FX")["lanes"][0]["cells"].__setitem__(0, None)),
                                            r"part:33: a part parameter on an engine page"),

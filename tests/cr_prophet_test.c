@@ -1343,9 +1343,10 @@ int main(int argc, char **argv)
         if (ENGINE_ORDER[k] == ENGI_CZ)
             bad = !(k + 2u < NENG_SHOWN && ENGINE_ORDER[k + 1u] == ENGI_PROPHET && ENGINE_ORDER[k + 2u] == 7u);
     OK(ENGI_PROPHET == 16u && NENGINES == 17u && ENGINES[ENGI_PROPHET] == &ENG_P5_TEST && !strcmp(ENG_P5_TEST.name, "P5") &&
-       eng_ok(ENGI_PROPHET) && !bad && NENG_SHOWN == 6 && cu_engine_melodic(ENGI_PROPHET) && cu_engine_rank(ENGI_PROPHET) == 4,
-       "engine: P5 (the code's PROPHET) is 16 (appended after FM TONE's 15), shown after CZ-1 and before WHEEL, six engines to pick");
-    OK(sizeof(p5_patch_t) == 138u && sizeof(p5_part_t) <= sizeof eng_state[0] && sizeof eng_state[0] == sizeof(fm6_part_t) &&
+       eng_ok(ENGI_PROPHET) && !bad && NENG_SHOWN == 7 && cu_engine_melodic(ENGI_PROPHET) && cu_engine_rank(ENGI_PROPHET) == 4,
+       "engine: P5 (the code's PROPHET) is 16 (appended after FM TONE's 15), shown after CZ-1 and before WHEEL, seven engines to pick (GRAIN after WHEEL since 3y109)");
+    OK(sizeof(p5_patch_t) == 138u && sizeof(p5_part_t) <= sizeof eng_state[0] && sizeof eng_state[0] <= sizeof(fm6_part_t) + 8u &&   /* (+8: the host's
+                                                  * alignment padding for GRAIN's pool, which holds pointers; none on the device) */
        ENG_P5_TEST.poly == 4u && P5_CORE == 4u && P5_POLY == 8u && P5_STACK == 4u && !cr_dualcore_active() && p5_units(t) == 3u &&
        ENG_P5_TEST.ownenv && ENG_P5_TEST.deep == &P5_DEEP,
        "state: p5_part_t %u B in the parts' engine state (%u B, FM6's size: no growth): eight voices' state; one core: four voices (the cap) of three units",

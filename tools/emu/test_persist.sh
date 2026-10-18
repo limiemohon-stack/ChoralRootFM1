@@ -171,10 +171,10 @@ grep -aq '^save: part 0 slot U001 name ADG rc 0' "$R1" && [ "$(sf "$R1" 1)" = "s
     [ -n "$changed" ] && [ "$changed" = "$(sn "$R2" 1)" ] && [ "$(bpm "$R2")" != "" ] && grep -aq ' bpm 137 ' "$R2" &&
     ok "reset run 1 / 2: U01 saved; Advanced, 137 BPM, Key Mode on, Motion Off, Hold Time, Dual Core Off stored and back after a relaunch" \
     || bad "reset: the changed settings: $(sf "$R1" 1) / $changed / $(sn "$R2" 1)"
-[ "$(ov "$R2" 2)" = "1 29 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 29 of 30 " "$R2" &&
-    ok "Reset Settings is the last Options entry (29 of 29): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
-[ "$(ov "$R2" 3)" = "1 29 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 29 Reset Settings: all options to default" ] &&
-    [ "$(ov "$R2" 5)" = "0 29 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 29 Reset Settings: all options to default" ] &&
+[ "$(ov "$R2" 2)" = "1 32 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 32 of 33 " "$R2" &&
+    ok "Reset Settings is the last Options entry (32 of 32 since 0.24's three): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
+[ "$(ov "$R2" 3)" = "1 32 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 32 Reset Settings: all options to default" ] &&
+    [ "$(ov "$R2" 5)" = "0 32 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 32 Reset Settings: all options to default" ] &&
     [ "$(sn "$R2" 3)" = "$changed" ] && [ "$(sn "$R2" 4)" = "$changed" ] && [ "$(sn "$R2" 5)" = "$changed" ] && [ "$(sn "$R2" 6)" = "$changed" ] &&
     ! grep -a '^options: settings reset' "$R2" | sed -n 2p | grep -q . &&
     ok "OCT+ asks (OCT+ again); another entry cancels; OCT- leaves and cancels; the menu reopened is not armed; nothing reset: $OUT/reset_ask.ppm" \
@@ -758,8 +758,8 @@ ffl "$X4" 1 | grep -q 'favs: 2 marked, saves 0, pending 0 (at power-on: read), f
 # the single-core package: Options, the version, one core on a flash whose record says Dual Core On
 EMU_UI_LOG=1 "$E1" --headless --flash "$XF" --script "$S/persist_1core_opt.txt" >"$X5" 2>&1 || bad "two packages, Options: exit status"
 want1="$(grep -a -m1 '^  version:' "$X5" | sed -n "s/.* build '\(.*\)'$/\1/p") 1-core"
-grep -aq "^  options: open 1 entry 25 of 3[0-9] 'Dual Core' value '1 core build'" "$X5" &&
-    grep -aq "^  options: open 1 entry 27 of 3[0-9] 'Version' value '$want1'" "$X5" &&
+grep -aq "^  options: open 1 entry 29 of 3[0-9] 'Dual Core' value '1 core build'" "$X5" &&
+    grep -aq "^  options: open 1 entry 31 of 3[0-9] 'Version' value '$want1'" "$X5" &&
     grep -a -m1 '^  version:' "$X5" | grep -q "options '$want1' identity '$want1' " &&
     ok "the single-core package: Options > Dual Core '1 core build' (KNOB 1 changes nothing), Version and the SysEx identity '$want1': $OUT/persist_1core_opt.ppm, persist_1core_version.ppm" ||
     bad "the single-core package's Options: $(grep -a 'options: open 1' "$X5" | tr '\n' ' ') / $(grep -a -m1 '^  version:' "$X5")"
@@ -821,5 +821,46 @@ set -- $(qw "$Q1" 7)
 [ "$(sx "$QS" 1 1)" = 3 ] && [ "$(qe "$QS" 1)" = "2 0 0 0 0" ] && [ "$(qs "$QS" 1)" = 2 ] && grep -q '^expect sound at .*: ok' "$QS" &&
     ok "SAVE held three times under a held chord: the third session save has to erase and does so at once (the player's own press, as before), and the settings' save erases (3y52: not erased ahead): two erases, in the chord; not counted as near (that is for what the unit starts itself)" \
     || bad "quiet writes, SAVE held: $(sv "$QS" 1) / $(qw "$QS" 1) / stalls $(qs "$QS" 1)"
+
+# ---- 0.25.1: FM-1 is the default chord keys, and every unit moves to them once (cr_settings.h CRS_KEYS_MOVED, docs/
+# SETTINGS.md "0.25.1: FM-1 the default"). A fresh unit (run 3 above, no flash) is FM-1. keys_old_set.txt on a fresh flash:
+# the Classic keys, LOCK on with SUS + 9 latched, SAVE held. The block rewritten as 0.25 with Classic, 0.25 with FM-1
+# and 0.23 wrote it (tools/emu/seed_keys.py: no mark), the session as it was: each powers on FM-1 with LOCK and the
+# latch kept (the latch is a set of chord types, shown on the new keys), and writes nothing. On the 0.25 Classic one,
+# Classic chosen in the Options is written by itself and is still Classic after a relaunch: no second move
+KF=$OUT/persist_keys_flash.bin; K1=$OUT/persist_keys_1.log
+rm -f "$KF" "$OUT"/persist_keys_*.bin "$OUT"/persist_keys_*.log
+kd() { grep -a "^  $2" "$1" | sed -n "$3p"; }
+kr() { kd "$1" 'keys-record:' "$2" | sed -n 's/.*keys-record: fm1 \([01]\) moved \([01]\) saved-fm1 \([01]\) saved-moved \([01]\) .*/\1 \2 \3 \4/p'; }
+kl() { kd "$1" 'chord keys: layout' "$2" | sed -n 's/.*chord keys: layout \([a-z0-9]*\) .*/\1/p'; }
+kk() { kd "$1" 'lock: on' "$2" | sed -n 's/.*lock: on \([01]\) latched \([0-9A-F]*\) .*/\1 \2/p'; }
+kw() { kd "$1" 'flash:' "$2" | sed -n 's/.*, \([0-9]*\) writes, settings saves \([0-9]*\) (record: \([a-z]*\)).*/\1 \2 \3/p'; }
+[ "$(kl "$OUT/persist_3.log" 1)" = fm1 ] && [ "$(kr "$OUT/persist_3.log" 1)" = "1 1 1 1" ] &&
+    ok "a fresh unit (no settings record): the FM-1 chord keys, the record marked moved" \
+    || bad "a fresh unit's chord keys: $(kl "$OUT/persist_3.log" 1) / $(kr "$OUT/persist_3.log" 1)"
+"$EMU" --headless --flash "$KF" --script "$S/keys_old_set.txt" >"$K1" 2>&1 || bad "keys run 1: exit status"
+[ "$(kl "$K1" 1)" = classic ] && [ "$(kk "$K1" 1)" = "1 88" ] && [ "$(sx "$K1" 1 1)" = 1 ] &&
+    ok "keys run 1: the Classic keys, LOCK on with SUS + 9 latched (88), saved" || bad "keys run 1: $(kl "$K1" 1) / $(kk "$K1" 1) / $(sv "$K1" 1)"
+for as in 0.25-classic 0.25-fm1 0.23; do
+    F=$OUT/persist_keys_$as.bin; L=$OUT/persist_keys_$as.log
+    cp "$KF" "$F"
+    n=$(python3 tools/emu/seed_keys.py "$F" "$as")
+    "$EMU" --headless --flash "$F" --script "$S/keys_moved_check.txt" >"$L" 2>&1 || bad "keys, $as: exit status (an LED expectation: $(grep -a 'FAILED' "$L" | head -2 | tr '\n' ' '))"
+    case $as in 0.25-classic) want="00 00";; 0.25-fm1) want="02 00";; 0.23) want="00 00";; esac
+    [ "${n:-0}" -ge 1 ] && [ "$(python3 tools/emu/seed_keys.py "$F" | cut -c1-2)" = "$(echo "$want" | cut -c1-2)" ] &&
+        [ "$(kl "$L" 1)" = fm1 ] && [ "$(kr "$L" 1)" = "1 1 1 1" ] && [ "$(kk "$L" 1)" = "1 88" ] && grep -aq 'record: current' "$L" &&
+        [ "$(sx "$L" 1 2)" = current ] && kd "$L" 'cr: voices' 2 | grep -q 'notes 62 67 69 76' && grep -aq '^expect sound .*: ok' "$L" &&
+        [ "$(kw "$L" 3)" = "0 0 current" ] && [ "$(python3 tools/emu/seed_keys.py "$F" | cut -c1-2)" = "$(echo "$want" | cut -c1-2)" ] &&
+        ok "the block as $as wrote it (no mark): the FM-1 keys at power-on (current: the session applied), LOCK on LFO with SUS + 9 latched, lit on G#3 + A#3 and B3; D4: Dsus 9 (62 67 69 76); nothing written" \
+        || bad "keys, $as: seeded '$n' $(python3 tools/emu/seed_keys.py "$F"), $(kl "$L" 1) / $(kr "$L" 1) / $(kk "$L" 1) / $(sv "$L" 1) / $(kd "$L" 'cr: voices' 2) / $(kw "$L" 3)"
+done
+F=$OUT/persist_keys_0.25-classic.bin; L3=$OUT/persist_keys_pick.log; L4=$OUT/persist_keys_relaunch.log
+"$EMU" --headless --flash "$F" --script "$S/keys_classic_pick.txt" >"$L3" 2>&1 || bad "keys, Classic chosen: exit status"
+"$EMU" --headless --flash "$F" --script "$S/keys_classic_check.txt" >"$L4" 2>&1 || bad "keys, the relaunch: exit status (an LED expectation: $(grep -a 'FAILED' "$L4" | head -2 | tr '\n' ' '))"
+[ "$(kl "$L3" 1)" = classic ] && [ "$(kw "$L3" 1 | cut -d' ' -f2)" = 1 ] && [ "$(python3 tools/emu/seed_keys.py "$F" | cut -d' ' -f2)" = 02 ] &&
+    [ "$(kl "$L4" 1)" = classic ] && [ "$(kr "$L4" 1)" = "0 1 0 1" ] && [ "$(kk "$L4" 1)" = "1 88" ] &&
+    ok "Classic chosen after the move: written by itself with the mark (leds 02); the relaunch is Classic, LOCK on B3 with SUS + 9 on C#4 and C4: the move never runs twice" \
+    || bad "keys, Classic after the move: $(kl "$L3" 1) / $(kw "$L3" 1) / flash $(python3 tools/emu/seed_keys.py "$F") / $(kl "$L4" 1) / $(kr "$L4" 1) / $(kk "$L4" 1)"
+
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

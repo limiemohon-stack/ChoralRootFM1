@@ -1,0 +1,346 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-only
+     Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
+     SMK-37 port: Copyright (C) 2026 M. Geisler (genkigenki/makkuro) -->
+<!-- The SMK-37 test installer (SMK37.md): ChoralRoot's community test builds for the M-Vave SMK-37 Pro, SMK-37 Elite,
+     MKE-P37 and Starrykey 37 Play, around the update protocol of fm1ota.js. Not linked from the landing page or the
+     FM-1 installer: the link goes to testers who accept the risk. web/make_site.py writes it to webapp/smk37/index.html
+     and inlines the libraries at LIB and the metadata at META: the versions of web/releases-smk37.json, newest first,
+     each with its three models' packages (standard and single core) under ../../firmware/smk37/, their sha256 and
+     identities. Install picks the connected keyboard's model (a Starrykey 37 Play, or another name of the SMK-37: the
+     Pro's package), checks the package's sha256 and identity before any write, and refuses an FM-1, another SMK
+     firmware's updater and a firmware the installers do not install over. A keyboard already in ChoralRoot's update
+     mode (an interrupted install) is finished with its loader's model's package. EMU: make_site.py's link to the SMK-37
+     browser emulator beside it (webapp/smk37/emu/), when the site has it. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="robots" content="noindex, nofollow">
+<title>ChoralRoot SMK-37 · test installer</title>
+<style>
+  @font-face { font-family: "Inter Tight"; src: url(../../InterTight.woff2) format("woff2");
+               font-weight: 100 900; font-display: swap; }
+  :root { --ground: #080808; --cream: #F6F2EE; --red: #E63829; --orange: #F67918; --yellow: #F6B600;
+          --blue: #2950CD; --green: #29B27B; --grey: #6A696A; --dark: #313031; --dim: #9A999A; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--ground); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+  body { margin: 0; background: var(--ground); color: var(--cream); overflow-x: hidden;
+         font: 400 17px/1.5 "Inter Tight", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+  a:hover { color: var(--orange); }
+  a:focus-visible, button:focus-visible, input:focus-visible { outline: 3px solid var(--cream); outline-offset: 3px; }
+  h1 { font-size: clamp(36px, 10vw, 56px); font-weight: 900; letter-spacing: -0.045em; line-height: .95; margin: 0; }
+  .sub { margin: 12px 0 0; font-size: 15px; font-weight: 600; color: var(--dim); }
+  .stripes { display: grid; gap: 5px; margin: 24px 0 28px; }
+  .stripes i { display: block; height: 10px; }
+  .stripes i:nth-child(1) { background: var(--red); }
+  .stripes i:nth-child(2) { background: var(--orange); }
+  .stripes i:nth-child(3) { background: var(--cream); }
+  p { margin: 0 0 16px; }
+  h2 { font-size: 20px; font-weight: 800; letter-spacing: -0.02em; margin: 0 0 14px; }
+  .risk { margin: 0 0 24px; padding: 16px 18px 4px; border-left: 6px solid var(--red); background: #1a0f0e; }
+  .risk ul { margin: 0 0 14px; padding-left: 20px; }
+  .risk li { margin: 0 0 6px; }
+  .accept { display: flex; gap: 12px; align-items: flex-start; margin: 0 0 22px; font-weight: 700; cursor: pointer; }
+  .accept input { width: 20px; height: 20px; margin: 3px 0 0; accent-color: var(--red); flex: none; }
+  #rel { margin: 0 0 10px; font-size: 19px; font-weight: 600; }
+  #rel b { font-weight: 900; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 14px; }
+  .chip { font: inherit; border: 0; border-radius: 2px; cursor: pointer; padding: 8px 12px; background: var(--dark);
+          color: var(--cream); font-size: 15px; font-weight: 700; text-align: left; }
+  .chip[aria-pressed="true"] { background: var(--yellow); color: #080808; }
+  .chip:disabled { opacity: .3; cursor: default; }
+  #go { display: block; width: 100%; margin: 0; padding: 20px 24px; border: 0; border-radius: 2px; cursor: pointer;
+        background: var(--red); color: #fff; font: inherit; font-size: clamp(22px, 5.6vw, 26px); font-weight: 800;
+        letter-spacing: -0.02em; text-align: left; }
+  #go:disabled { opacity: .3; cursor: default; }
+  .check { display: flex; gap: 10px; align-items: baseline; margin: 14px 0 0; color: var(--dim); font-size: 14px; cursor: pointer; }
+  progress { -webkit-appearance: none; appearance: none; display: block; width: 100%; height: 8px; margin: 14px 0 0;
+             border: 0; background: var(--dark); color: var(--cream); }
+  progress::-webkit-progress-bar { background: var(--dark); }
+  progress::-webkit-progress-value { background: var(--cream); }
+  progress::-moz-progress-bar { background: var(--cream); }
+  #status { margin: 12px 0 0; min-height: 1.5em; font-size: 19px; font-weight: 700; overflow-wrap: anywhere; }
+  pre { color: var(--grey); font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        white-space: pre-wrap; margin: 12px 0 0; max-height: 240px; overflow: auto; }
+  pre:empty { display: none; }
+  .halt { margin: 16px 0 0; padding: 16px 18px 4px; background: var(--red); color: #fff; border-radius: 3px; font-size: 15px; }
+  .fin { margin: 16px 0 0; padding: 14px 18px; background: var(--green); color: #080808; border-radius: 3px; font-weight: 700; }
+  .fin p { margin: 0; }
+  section { margin-top: 48px; border-top: 3px solid var(--dark); padding-top: 20px; }
+  ul.news { margin: 0 0 14px; padding: 0; list-style: none; font-size: 15px; line-height: 1.4; }
+  ul.news li { position: relative; padding: 4px 0 4px 20px; }
+  ul.news li::before { content: ""; position: absolute; left: 0; top: 10px; width: 9px; height: 9px; background: var(--orange); }
+  .files { margin: 0; padding: 0; list-style: none; }
+  .files li { padding: 10px 0; border-top: 1px solid var(--dark); font-size: 15px; }
+  code { font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--dim); overflow-wrap: anywhere; }
+  .small { color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ChoralRoot<br>for the SMK-37</h1>
+  <p class="sub" data-t="sub"></p>
+  <div class="stripes"><i></i><i></i><i></i></div>
+
+  <div class="risk">
+    <h2 data-t="riskTitle"></h2>
+    <ul>
+      <li data-t="risk1"></li>
+      <li data-t="risk2"></li>
+      <li data-t="risk3"></li>
+      <li data-t="risk4"></li>
+      <li data-t="risk5"></li>
+    </ul>
+  </div>
+  <label class="accept"><input type="checkbox" id="accept"><span data-t="accept"></span></label>
+
+  <!--EMU-->
+  <p id="rel"></p>
+  <div class="row" id="versions"></div>
+  <div class="row" id="variants"></div>
+  <button id="go" disabled></button>
+  <label class="check"><input type="checkbox" id="skip-backup"><span data-t="skipBackup"></span></label>
+  <progress id="bar" max="100" value="0"></progress>
+  <p id="status"></p>
+  <div class="halt" id="interrupted" hidden><p data-t="interrupted"></p></div>
+  <div class="fin" id="done" hidden><p data-t="doneTitle"></p><p data-t="doneText"></p></div>
+  <pre id="log"></pre>
+
+  <section>
+    <h2 data-t="notesTitle"></h2>
+    <ul class="news" id="bullets"></ul>
+    <ul class="news" id="notes"></ul>
+    <p class="small"><a id="doc" href="https://github.com/Quixotic7/ChoralRootFM1/blob/main/SMK37.md" target="_blank" rel="noopener" data-t="docLink"></a></p>
+  </section>
+
+  <section>
+    <h2 data-t="backTitle"></h2>
+    <p data-t="backText"></p>
+  </section>
+
+  <section>
+    <h2 data-t="filesTitle"></h2>
+    <ul class="files" id="files"></ul>
+    <p class="small" data-t="licence"></p>
+    <p class="small"><a href="../../firmware/LICENSE">LICENSE</a> · <a href="../../firmware/LICENSING.md">LICENSING.md</a> ·
+      <a href="../../firmware/LICENSES/">LICENSES/</a> · <a href="../../firmware/smk37/SHA256SUMS">SHA256SUMS</a> ·
+      <a href="https://github.com/Quixotic7/ChoralRootFM1">source</a> ·
+      <a href="https://github.com/genkigenki/fm1-to-smk37">fm1-to-smk37</a></p>
+  </section>
+</main>
+<script type="module">
+/*LIB*/
+const meta = /*META*/;
+
+const TEXT = {
+  en: {
+    sub: "Community test builds · community-tested, not tested by the maintainer · port by genkigenki",
+    riskTitle: "Before you install",
+    risk1: "This is a test build. The maintainer has no SMK-37: nothing here has been tried on a unit by the project. It may have bugs, and it may stop working.",
+    risk2: "Have M-VAVE's stock package for your model and their updater, M-UPGRADE, at hand: that is the way back.",
+    risk3: "The first start clears the stock firmware's settings and any other firmware's data in ChoralRoot's flash areas. The keyboard's calibration, Bluetooth pairing and key areas are never written.",
+    risk4: "Keep the USB cable connected and the computer awake until the keyboard has restarted.",
+    risk5: "Installing other firmware is at your own risk.",
+    accept: "I have read this, I have M-VAVE's stock package and M-UPGRADE for my model, and I install at my own risk.",
+    acceptFirst: "Tick the box above first.",
+    skipBackup: "Skip the backup (a keyboard running ChoralRoot is backed up to a file first)",
+    install: "Install ChoralRoot {version}",
+    std: "Standard (two cores)",
+    one: "Single core (if the standard one crashes or freezes)",
+    nomidi: "This browser has no Web MIDI. Use Chrome or Edge on a computer.",
+    denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
+    notfound: "No keyboard found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
+    fm1: "This is an FM-1: this page installs the SMK-37 test builds only. Use the FM-1 installer. Nothing was written.",
+    notsmk: "The connected device is not an SMK-37 (it reports {detail}). Nothing was written.",
+    several: "More than one keyboard is connected: unplug the others and press Install again. Nothing was written.",
+    model: "The keyboard and the package are for different devices. Nothing was written. ",
+    other: "This keyboard runs one of ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom). They have their own updater, which takes only their packages, so ChoralRoot cannot be installed over them from here. Nothing was written.",
+    foreign: "The keyboard is in the update mode of another firmware: nothing was written. Finish that update with its own updater: ",
+    refused: "ChoralRoot is not installed over this firmware: {detail}. Return to the stock firmware with M-UPGRADE first. Nothing was written.",
+    loadfail: "The package could not be downloaded: ",
+    badpkg: "The package is not the one this page lists (its checksum or identity differ). Nothing was written.",
+    backup: "Backing up the keyboard: ",
+    backupSaved: "Backup saved: ",
+    noBackupConfirm: "The keyboard could not be backed up. Install anyway?",
+    cancelled: "Cancelled. Nothing was written.",
+    start: "Starting the update…",
+    verify: "Checking…",
+    loader: "Waiting for the update mode…",
+    write: "Writing… do not unplug the keyboard.",
+    reboot: "Restarting…",
+    done: "Done.",
+    stopped: "The write stopped. Switch the keyboard on again (hold OCTAVE- if needed) and press Install again: it finishes.",
+    lost: "The USB connection was lost. Replug it, switch the keyboard on (hold OCTAVE- if it does not start in update mode) and press Install again.",
+    noloader: "The keyboard in update mode was not found. Replug the USB cable and press Install again (it stays in update mode until it is finished).",
+    noreturn: "The keyboard did not come back. Switch it off and on.",
+    mismatch: "The keyboard reports a different firmware after the install: ",
+    badreq: "The keyboard asked for something unexpected; nothing more was written. Press Install again.",
+    resume: "The keyboard is in update mode: finishing the install for ",
+    leave: "The install is still running.",
+    error: "Error: ",
+    interrupted: "The install did not finish. Switch the keyboard on again (hold OCTAVE- while switching on if it does not show the update mode: OCTAVE-'s light flashes three times) and press Install again: it continues where it stopped. To give up, install M-VAVE's stock package with M-UPGRADE.",
+    doneTitle: "ChoralRoot is installed.",
+    doneText: "The keyboard restarted with it. Report what you find in the project's issues; SMK37.md lists what to test.",
+    notesTitle: "This build",
+    docLink: "SMK37.md: the controls, what to test, building it yourself",
+    backTitle: "Going back",
+    backText: "Install M-VAVE's firmware package for your model with M-VAVE's updater, M-UPGRADE. It works directly: the installed package keeps the keyboard's model name, and the calibration was never written.",
+    filesTitle: "Files",
+    licence: "Free software under the GNU General Public License, version 3 only; the packages hold three JieLi AC79 SDK files under Apache-2.0.",
+    model_pro: "SMK-37 Pro (and Starrykey 37 Play)", model_elite: "SMK-37 Elite", model_mke: "MKE-P37",
+  },
+};
+const lang = "en";
+const $ = (id) => document.getElementById(id);
+const t = (k) => TEXT[lang][k];
+const sayK = (k, arg = "") => { $("status").textContent = t(k).replace("{detail}", arg) + (t(k).includes("{detail}") ? "" : arg); };
+const say = (txt) => { $("status").textContent = txt; };
+const log = (s) => { $("log").textContent += s + "\n"; };
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const coded = (code, detail = "") => Object.assign(new Error(code + (detail ? ": " + detail : "")), { code, detail });
+for (const el of document.querySelectorAll("[data-t]")) el.textContent = t(el.dataset.t);
+
+// the keyboard's model name -> the package: the three model names have their own; every other name of the SMK-37
+// (the Starrykey 37 Play, the bare SMK-37 of other firmwares) takes the Pro's, written with the same-keyboard rule
+const MODELS = { "SMK-37 PRO": "pro", "SMK-37 ELITE": "elite", "MKE-P37": "mke" };
+function modelOf(name) {
+  const n = String(name || "").replace(/^ota-/i, "");
+  const k = MODELS[n.toUpperCase()];
+  if (k) return { key: k, any: false };
+  return SMK_FAMILY.test(n) ? { key: "pro", any: true } : null;
+}
+
+const releases = meta.releases || [];
+let sel = 0, oneCore = false, writing = false;
+const cur = () => releases[sel];
+const pkgOf = (rel, key) => {
+  const m = rel.models[key];
+  return oneCore && m.pkg_1core ? { url: m.pkg_1core, sha256: m.sha256_1core, product: m.product }
+    : { url: m.pkg, sha256: m.sha256, product: m.product };
+};
+function render() {
+  const rel = cur();
+  if (!rel) { $("rel").textContent = "No test build is published yet."; $("go").disabled = true; return; }
+  $("rel").innerHTML = `<b>ChoralRoot ${esc(rel.version)}</b> · ${esc(rel.date || "")}${rel.title ? " · " + esc(rel.title) : ""}`;
+  $("go").textContent = t("install").replace("{version}", rel.version);
+  $("go").disabled = writing || !$("accept").checked;
+  $("versions").innerHTML = releases.length > 1 ? releases.map((r, i) =>
+    `<button class="chip" data-v="${i}" aria-pressed="${i === sel}">${esc(r.version)}</button>`).join("") : "";
+  const has1 = Object.values(rel.models).every((m) => m.pkg_1core);
+  $("variants").innerHTML = has1 ? [false, true].map((o) =>
+    `<button class="chip" data-o="${o ? 1 : 0}" aria-pressed="${o === oneCore}">${esc(t(o ? "one" : "std"))}</button>`).join("") : "";
+  if (!has1) oneCore = false;
+  $("bullets").innerHTML = (rel.bullets || []).map((b) => `<li>${esc(b)}</li>`).join("");
+  $("notes").innerHTML = (rel.notes || []).map((b) => `<li>${esc(b)}</li>`).join("");
+  $("files").innerHTML = Object.entries(rel.models).map(([k, m]) =>
+    `<li><b>${esc(t("model_" + k))}</b> · ${esc(m.product)}<br><a href="${esc(m.pkg)}" download>${esc(m.pkg.split("/").pop())}</a> ` +
+    `<code>sha256 ${esc(m.sha256)}</code>` + (m.pkg_1core ? `<br><a href="${esc(m.pkg_1core)}" download>${esc(m.pkg_1core.split("/").pop())}</a> ` +
+    `<code>sha256 ${esc(m.sha256_1core)}</code>` : "") + "</li>").join("");
+}
+$("versions").addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-v]"); if (b && !writing) { sel = +b.dataset.v; render(); } });
+$("variants").addEventListener("click", (e) => { const b = e.target.closest && e.target.closest("[data-o]"); if (b && !writing) { oneCore = b.dataset.o === "1"; render(); } });
+$("accept").addEventListener("change", render);
+window.addEventListener("beforeunload", (e) => { if (writing) { e.preventDefault(); e.returnValue = t("leave"); } });
+
+// the package for a model, checked against the list (sha256) and its own identity before anything is sent
+async function fetchPackage(rel, key) {
+  const p = pkgOf(rel, key);
+  let raw;
+  try {
+    const r = await fetch(p.url);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    raw = new Uint8Array(await r.arrayBuffer());
+  } catch (e) { throw coded("loadfail", e.message); }
+  if (await sha256hex(raw) !== p.sha256 || productOf(raw) !== p.product) throw coded("badpkg");
+  log(`package ${p.url.split("/").pop()}: ${p.product}, sha256 ok`);
+  return { image: logicalImage(raw), product: p.product };
+}
+async function takeBackup(dev) {                 // a keyboard running ChoralRoot: its data to a file; others: nothing
+  const link = new BackupConnection(dev.input, dev.output);
+  try {
+    const req = (r, o) => link.request(r, o), info = await deviceInfo(req);
+    if (!info || info.family !== "choralroot") { log(`backup: ${info ? info.version : "no answer"}: nothing to back up`); return info; }
+    const archive = await captureBackup(req, info.version, (d, total) => sayK("backup", `${Math.round(d / Math.max(1, total) * 100)}%`));
+    const url = URL.createObjectURL(new Blob([JSON.stringify(archive, null, 1)], { type: "application/json" }));
+    const a = document.createElement("a"); a.href = url; a.download = backupFileName(archive.firmware);
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    sayK("backupSaved", a.download);
+    return info;
+  } finally { link.close(); }
+}
+
+$("go").addEventListener("click", async () => {
+  if (writing) return;
+  if (!$("accept").checked) { sayK("acceptFirst"); return; }
+  if (!navigator.requestMIDIAccess) { sayK("nomidi"); return; }
+  const rel = cur();
+  let began = false, okDone = false;
+  writing = true; render();
+  $("interrupted").hidden = true; $("done").hidden = true; $("bar").value = 0;
+  try {
+    let midi;
+    try { midi = await navigator.requestMIDIAccess({ sysex: true }); } catch (e) { throw coded("denied"); }
+    const up = new Updater(midi, log);
+    const all = await up.all(null);
+    if (!all.length) throw coded("notfound");
+    if (all.length > 1) throw coded("several");
+    const id = all[0].id;
+    log(`device: ${id.text} (port ${all[0].name})`);
+    const m = modelOf(id.model);
+    if (!m) throw /^(ota-)?FM-1$/i.test(id.model) ? coded("fm1") : coded("notsmk", id.text);
+    if (OTHER_SMK(id)) throw coded("other");
+    const total = 74 + 1167;
+    const step = (k, a) => {
+      log(`${k} ${a ?? ""}`);
+      if (k === "start") { began = true; sayK("start"); }
+      if (k === "verify") { sayK("verify"); $("bar").value = (a / total) * 100; }
+      if (k === "loader") sayK("loader");
+      if (k === "write") { began = true; sayK("write"); $("bar").value = ((74 + a) / total) * 100; }
+      if (k === "reboot") sayK("reboot");
+      if (k === "done") { $("bar").value = 100; sayK("done"); }
+    };
+    if (/^ota-/i.test(id.model)) {               // an interrupted install: its loader's model's package
+      if (!OUR_LOADER(id)) throw coded("foreign", id.text);
+      const p = await fetchPackage(rel, m.key);
+      sayK("resume", id.text);
+      began = true;
+      okDone = await up.resume(p.image, step, { package: p.product, anyModel: m.any });
+      if (!okDone) throw coded("stopped");
+    } else {
+      const fw = await (async () => {           // which firmware runs (the INFO version tells the ports apart)
+        const link = new BackupConnection(all[0].input, all[0].output);
+        let info = null;
+        try { info = await deviceInfo((r, o) => link.request(r, o)); } finally { link.close(); }
+        return classifyFirmware(id.text, info && info.version);
+      })();
+      log(`running: ${fw.name} -> ${fw.verdict} (${fw.kind})`);
+      if (fw.verdict !== "allow") throw coded(fw.kind === "other" ? "other" : "refused", fw.name);
+      const p = await fetchPackage(rel, m.key);
+      if (!$("skip-backup").checked) {
+        try { await takeBackup(all[0]); }
+        catch (e) { log(`backup: ${e.message}`); if (!confirm(t("noBackupConfirm"))) throw coded("cancelled"); }
+      }
+      log(`install: ChoralRoot ${rel.version} ${oneCore ? "(single core) " : ""}for ${id.text}`);
+      await up.install(p.image, p.product, step, m.any);
+      okDone = true;
+    }
+  } catch (e) {
+    if (e && e.code && TEXT[lang][e.code]) sayK(e.code, e.code === "other" || e.code === "several" ? "" : e.detail || "");
+    else sayK("error", e && e.message);
+    log(String(e && e.stack || e));
+  }
+  writing = false; render();
+  if (okDone) $("done").hidden = false;
+  else if (began) $("interrupted").hidden = false;
+});
+
+render();
+if (!navigator.requestMIDIAccess) sayK("nomidi");
+</script>
+</body>
+</html>

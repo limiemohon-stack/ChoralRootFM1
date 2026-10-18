@@ -1,0 +1,161 @@
+# ChoralRoot 0.24 (docs/CHORD-LAYOUT.md): Options > MIDI Keys (notes 53 .. 79 on its channel press F3 .. G5 through the
+# layout) and Options > Full K Shorts (F#5 the chord keys, G5 chords on every key), on the FM-1 layout.
+# tools/emu/test_cr.sh reads the dumps by number:
+#   1 MIDI Keys ch 5            2 Full K Shorts On
+#   3 MIDI G#3 A#3 then D4 (ch 5): Dsus      4 all let go: no key held by MIDI
+#   5 notes 52 and 80 on ch 5: nothing       6 MIDI G#3, D4 25 ms later: D4 waits   7 MIDI A#3: Dsus
+#   8 MIDI C4: 60                9 CC 123: every MIDI key up
+#   10 D4 on the panel and over MIDI, the panel lets go: still down   11 MIDI lets go: up
+#   12 a note on the MIDI Perform channel (ch 1): the sound directly, no key
+#   13 the Full keyboard (KEY layer, page 2, KNOB 2)   14 F3 on it: 53
+#   15 F#5 tapped: the chord keys show    16 G#3 + A#3 + D4: Dsus    17 F5: a root (77)
+#   18 F#5 again: notes                   19 G5 tapped: chords on every key   20 F3, nothing latched: 53, a single note
+#   21 LOCK on, the chord keys shown, MAJ latched, hidden again: F3 plays F major
+#   22 G5 held (a long press): off while held   23 let go: on again
+wait 500
+btn GLO 80                    # Options: Chord Keys FM-1, then MIDI Keys and Full K Shorts
+wait 300
+knob SELECT +3
+wait 200
+knob KNOB1 +1
+wait 200
+knob SELECT +1                # SUS Window: 80 ms (30 by default: the emulator's frames are coarse)
+wait 200
+knob KNOB1 +10
+wait 200
+knob SELECT +2                # MIDI Keys (Chord Keys, SUS Window, Full K Shorts, MIDI Keys)
+wait 200
+knob KNOB1 +5                 # Off -> ch 5 (ch 1 and 2 are the parts': not offered)
+wait 300
+dump                          # 1
+knob SELECT -1                # Full K Shorts
+wait 200
+knob KNOB1 +1
+wait 300
+dump                          # 2
+btn GLO 80
+wait 500
+midi 94 38 64                 # G#3, A#3, then D4, over MIDI (ch 5)
+wait 30
+midi 94 3A 64
+wait 30
+midi 94 3E 64
+wait 300
+dump                          # 3
+midi 84 3E 00
+midi 84 3A 00
+midi 84 38 00
+wait 800
+dump                          # 4
+midi 94 34 64                 # 52 and 80: no key
+midi 94 50 64
+wait 300
+dump                          # 5
+midi 84 34 00
+midi 84 50 00
+wait 500
+midi 94 38 64                 # G#3, D4 25 ms later: D4 waits for the window (80 ms here)
+wait 25
+midi 94 3E 64
+wait 10
+dump                          # 6
+wait 5
+midi 94 3A 64                 # A#3: the pair, Dsus at once
+wait 300
+dump                          # 7
+midi 84 3E 00
+midi 84 3A 00
+midi 84 38 00
+wait 800
+midi 94 3C 64                 # C4: a root in FM-1
+wait 300
+dump                          # 8
+midi B4 7B 00                 # CC 123: every key MIDI holds goes up
+wait 800
+dump                          # 9
+btn D4 down                   # held on the panel and over MIDI: one press
+wait 50
+midi 94 3E 64
+wait 100
+btn D4 up
+wait 300
+dump                          # 10
+midi 84 3E 00
+wait 800
+dump                          # 11
+midi 90 40 64                 # MIDI Perform (ch 1): the sound plays the note, no key
+wait 300
+dump                          # 12
+midi 80 40 00
+wait 800
+btn SEL down                  # the KEY layer, page 2, KNOB 2: Keyboard Full
+wait 700
+btn SEL up
+wait 200
+knob SELECT +1
+wait 200
+knob KNOB2 +1
+wait 200
+btn OCT- 80
+wait 300
+dump                          # 13
+btn F3 down
+wait 300
+dump                          # 14
+btn F3 up
+wait 600
+btn F#5 80                    # F#5 tapped: the chord keys
+wait 300
+dump                          # 15
+btn G#3 down
+wait 20
+btn A#3 down
+wait 20
+btn D4 down
+wait 300
+dump                          # 16
+btn D4 up
+btn A#3 up
+btn G#3 up
+wait 600
+btn F5 down                   # the last root: F5
+wait 300
+dump                          # 17
+btn F5 up
+wait 600
+btn F#5 80                    # F#5 again: notes
+wait 300
+dump                          # 18
+btn G5 80                     # G5 tapped: chords on every key
+wait 300
+dump                          # 19
+btn F3 down                   # nothing latched, Key Mode off: a single note, as normal
+wait 300
+dump                          # 20
+btn F3 up
+wait 600
+btn LFO 80                    # LOCK on (FM-1: LFO), the chord keys shown, MAJ latched, hidden again
+wait 200
+btn F#5 80
+wait 200
+btn A#3 down
+wait 200
+btn A#3 up
+wait 200
+btn F#5 80
+wait 300
+btn F3 down                   # G5 on: F3 plays the latched chord, F major
+wait 300
+dump                          # 21
+btn F3 up
+wait 600
+btn G5 down                   # a long press: off only while held
+wait 700
+dump                          # 22
+btn G5 up
+wait 300
+dump                          # 23
+btn LFO 80                    # LOCK off
+wait 2000
+dump
+quit

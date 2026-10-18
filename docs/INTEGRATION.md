@@ -202,9 +202,15 @@ is untouched: `tests/run_tests.sh`'s goldens and CPU baseline (Felucca's unit, e
 pass, and the emulator's WAVs of test_cr.sh, test_persist.sh and perf.sh (ChoralRoot's unit) are byte for byte those
 of the commit before, but for the scripts that changed.
 
+**0.24-beta2: GRAIN (engine 8) shown again** (HISTORY 3y133 .. 3y139, docs/GRAIN.md): a new engine in Felucca's slot,
+`FELUCCA_GRAIN 1` in `choralroot.c`, `ENGINE_ORDER` (shown: **FM6, FM TONE, VA, CZ-1, P5, WHEEL, GRAIN**,
+`NENG_SHOWN` 7). Its user records are pool slots with a 64-byte patch (`upool.c`); a build without it (0.24-beta1, 0.23)
+treats them as the retired engines' above: an added preset of the VA's pool, the VA's init sound (`engine retired:
+init sound`), the record and its patch untouched, GRAIN again on a build that has it.
+
 Build flags stay Felucca's; `FELUCCA_SLICE=0`, `FELUCCA_SLICER=0`, `FELUCCA_FM4=0`, `FELUCCA_UAC=1` (since 0.14 Melodee's
 USB audio recording: ChoralRoot In, docs/USB-AUDIO.md), `FELUCCA_UART=1`,
-and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0`, `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
+and the all-synth set `FELUCCA_SEQ=0`, `FELUCCA_SAMPLE=0`, `FELUCCA_GRAIN=0` (1 again from 0.24-beta2: its own GRAIN, no SAMPLE), `FELUCCA_DRUM=0`, `FELUCCA_ICONS=0`,
 `FELUCCA_KEYCAPS=0` (BUILDING.md).
 The package identity becomes `FM-1_920` and the version string `ChoralRoot X.Y`. **The version has one source**:
 `FELUCCA_VERSION` in `firmware/src/choralroot.c` (the dev tree reads as the next tag, `ChoralRoot 0.17`;

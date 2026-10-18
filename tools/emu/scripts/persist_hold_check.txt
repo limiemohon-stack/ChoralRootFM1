@@ -1,9 +1,10 @@
 # test_persist.sh, Hold Time run 2 (the same flash file): Options, SELECT +17: Hold Time reads 600 ms (the UI log's
 # "item 'Hold Time' value '600 ms'"); OCT-; nothing changed: no save; quit
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +21
+knob SELECT +24
 wait 400
 btn OCT-
 wait 3000

@@ -1,10 +1,11 @@
 # ChoralRoot: Options > Dual Core On (KNOB 1 +1; settings v12; On is the default since 0.22, docs/DUALCORE.md).
 # tools/emu/test_cr.sh runs it on a flash file whose settings say Off (cr_dualcore_opt.txt: the value reads "Off",
 # then "On . restart" until the next power-on) to get the flash the dual-core runs start from. Saved, quit
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO 80
 wait 300
-knob SELECT +25
+knob SELECT +28
 wait 300
 knob KNOB1 +1
 wait 400

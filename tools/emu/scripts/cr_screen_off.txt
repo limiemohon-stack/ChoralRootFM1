@@ -6,6 +6,7 @@
 # playing, PLAY's green LED lit; MIDI in wakes that. SysEx 74 SCREEN 0: off at once; MIDI in plays and does not wake
 # it, a key does (and plays); SCREEN 0 again, SCREEN 1: on.
 # Every dump follows a shot: tools/emu/test_cr.sh reads the dump after each shot's name.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 key F3 down
 wait 60

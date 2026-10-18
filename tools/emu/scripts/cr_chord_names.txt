@@ -6,6 +6,7 @@
 #   1 / 2 / 3 Orchid: A7 9, A9, Asus m7 9          4 the entry, Orchid      5 KNOB 1 +1: Standard
 #   6 / 7 / 8 Standard: A9, Aadd9, A9sus4 (the same notes as 1 / 2 / 3)    9 KNOB 1 -1: Orchid again
 #   10 Orchid: A9 for A + 9 again                    11 silent
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn A#3 down                  # MAJ + 7 + 9, A4
 btn G3 down
@@ -35,7 +36,7 @@ btn C#4 up
 wait 600
 btn GLO 80                    # Options > Chord Names
 wait 300
-knob SELECT +19
+knob SELECT +22
 wait 300
 dump                          # 4
 shot build/emu/test/cr_chord_names_opt_orchid.ppm

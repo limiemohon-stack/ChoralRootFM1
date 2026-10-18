@@ -3,6 +3,7 @@
 # length; KNOB 1..4: each cell hot, no popup. SELECT +1: page 2: Level (KNOB 1) and Metronome (KNOB 2: on, then off again), the bottom line "2/2"; SELECT
 # -1: page 1. OCT-. Then a 1-bar loop is recorded (REC, D, REC) and plays; LOOP held: the menu, the timeline in the
 # middle, the dial in the top line, no ring; page 2, KNOB 1: Level hot; OCT- closes it.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn PLAY down
 wait 500

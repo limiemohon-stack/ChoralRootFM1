@@ -167,7 +167,15 @@ steps (the manual's §11.3.4); 0 = 0.25/0.25 and 360 = 16/16 hold. The text is `
 **DTUN** (`QUAD_DT_UP` / `QUAD_DT_DN`): A up and B2 down by `6 x d / 64` cents up to 64, `6 + 44 x ((d - 64) / 63)^2`
 above (16 cents at 96, 50 at 127); C and B1 untouched. Increments: `pitch inc x ratio (Q16) x detune (Q16)` in 64-bit.
 
-**HARM.** 27 tables x 513 int16 (512 points and the wrap point; 27.1 KB `const`, XIP flash; was 15 x 1025, 30.8 KB):
+**HARM.** 27 tables x 513 int16 (512 points and the wrap point): in flash as 27 x 257 (the first half of each cycle and
+its end point, 13.5 KB `const`; was 27 x 513, 27.1 KB, and 15 x 1025, 30.8 KB before that): every wave is a sum of
+sines, so f(512 - i) = -f(i) exactly (`tests/quad_ref.py` asserts it point by point; HISTORY 3y126). The render reads
+the halves in flash with a mirror (`eng_quad.c quad_hw`, HISTORY 3y150): in the second half of the cycle the two points
+around the phase are the first half's pair at 511 - i, reversed and negated, so the slope is the same and only the
+start changes sign (branchless, bit for bit the whole cycle's values: `cr_quad_test` checks every point at ten
+fractions and six crossfades). From 3y126 to 3y150 the whole cycles were built at power-on into POOL (`quad_init`,
+`quad_harm`, 27.7 KB) and read there; the owner chose the mirror's CPU over the POOL ("I'd like to keep things open
+for potentially more engines or FX"). The waves:
 0 the sine, 1..26 the manual's series, additive (sine phases, the fundamental at 1, each wave scaled to a peak of
 32767). The recipes (harmonic: amplitude; `tests/quad_ref.py harm_recipes`):
 
@@ -426,8 +434,15 @@ destinations, FADE, RAND slew, every filter type): no int32 wrap, the voices end
 float model and the integer engine part ways.)
 
 **CPU** (`tests/regress.c`, host instructions a sample, 8 voices): the 16 presets average 1491 (v2: 1510); the heaviest
-WOBBLE 1880 (LP24; v2's WOBBLE 1684), STRINGS 1630 (v2 1891). HARM's tables are 27.1 KB in XIP flash (v2: 30.8 KB);
-HARM + reads two tables for A and B1 (two operators a sample instead of v2's carriers).
+WOBBLE 1880 (LP24; v2's WOBBLE 1684), STRINGS 1630 (v2 1891). HARM's tables are 13.5 KB in XIP flash since 3y126 (27.1 before, v2: 30.8 KB), no POOL
+since 3y150; HARM + reads two tables for A and B1 (two operators a sample instead of v2's carriers). The mirror read
+(3y150) costs the presets that use HARM, measured the same day before and after: GLASS PAD (HARM +8) 1593 -> 1742
+(+9.4 %), DRONE (an LFO across HARM 0) 1575 -> 1718 (+9.1 %), HOLLOW +3.9 %, CLAV +2.9 %, STRINGS +2.0 %, SQUARE LEAD
++0.5 % (HARM - reads one table, for C); the presets without HARM -4 .. 0 % (their loops' source is the same). On the
+unit's listing the per-sample loop of a HARM + algorithm is 133 .. 155 instructions (was 112 .. 130), HARM - 109 .. 129
+(97 .. 115), no HARM 81 .. 103 (83 .. 98; the eight together 748 for 749): the compiler spills differently across the
+one function, so algorithm 5's no-HARM loop (METAL) grew 96 -> 103 (six more stack accesses) while the others moved
+-3 .. +2.
 **For the wiring (milestone 2).** core.h: `FELUCCA_QUAD` (0 by default, 1 in choralroot.c, the emulator,
 tests/regress.c), `NENGINES += FELUCCA_QUAD`, `ENGI_QUAD` = 15 (after CZ-1, 14; eng_quad.c defaults it to 15u when core.h
 does not define it). engines.c: `#include "eng_quad.c"` (it includes `quad_tables.h`), `ENGINES[15] = &ENG_QUAD`,

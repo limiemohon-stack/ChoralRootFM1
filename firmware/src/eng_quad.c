@@ -1142,15 +1142,22 @@ static int32_t quad_bwk(int32_t x)
     return k0 + (((int32_t)QUAD_BW_K[i + 1] - k0) * (x % 100)) / 100;
 }
 
-/* the HARM wave: tables a and b (HARM's neighbours, one index), b's share f (Q15) */
+/* the HARM wave: tables a and b (HARM's neighbours, one index), b's share f (Q15). The tables are the stored first
+ * halves (quad_tables.h QUAD_HARM: the points 0 .. 256 of 512; every wave is a sum of sines, so f(512 - i) = -f(i)
+ * exactly, tests/quad_ref.py checks every point), read from flash with a mirror: in the second half (s = -1) the
+ * pair of points around the phase is the pair at u = 511 - i, u + 1 of the first, swapped and negated, so the slope
+ * h - l is the same and the start is -h (l - ((l + h) & s), branchless): bit for bit the whole cycle's values
+ * (cr_quad_test checks every point). The whole cycles were built into POOL at power-on (3y126, 27.7 KB) until 3y150 */
 static inline int32_t quad_hw(const int16_t *a, const int16_t *b, int32_t f, uint32_t ph)
 {
-    uint32_t i = ph >> 23;
-    int32_t fr = (int32_t)((ph >> 8) & 0x7FFFu), x0 = a[i], x = x0 + (((a[i + 1u] - x0) * fr) >> 15), y0, y;
+    int32_t s = (int32_t)ph >> 31, fr = (int32_t)((ph >> 8) & 0x7FFFu), l, h, x, y;
+    uint32_t u = (ph ^ (uint32_t)s) >> 23;
+    l = a[u], h = a[u + 1u];
+    x = l - ((l + h) & s) + (((h - l) * fr) >> 15);
     if (!f)
         return x;
-    y0 = b[i];
-    y = y0 + (((b[i + 1u] - y0) * fr) >> 15);
+    l = b[u], h = b[u + 1u];
+    y = l - ((l + h) & s) + (((h - l) * fr) >> 15);
     return x + (((y - x) * f) >> 15);
 }
 

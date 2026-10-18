@@ -1,0 +1,9 @@
+# SAFE MODE's Flash Data: a user sound to erase. SAVE on TINE EP, OCT+ (Save as new: the naming screen, TINE EP
+# prefilled), OCT+ saves it to U01, the sound pool's first slot (storage.c sp_*, 0xB8000..0xC7FFF)
+wait 300
+btn SAVE
+wait 300
+btn OCT+
+wait 300
+btn OCT+
+wait 1500

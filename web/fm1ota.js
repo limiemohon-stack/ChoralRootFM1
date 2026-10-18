@@ -12,9 +12,24 @@ const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 const MAXDATA = 512;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const IS_OTA = (id) => /^ota-/i.test(id.model);
+// the SMK-37 Pro, SMK-37 Elite, MKE-P37, Starrykey 37 Play and the SMK-37+VA mod: one keyboard under several model
+// names, so a package for one runs on all of them (also "SMK-37", the name other firmwares report); an FM-1 is
+// another device (SMK37.md)
+const SMK_FAMILY = /^(ota-)?(SMK-37([ +].*)?|MKE-P37|STARRYKEY-37.*)$/i;
+export const sameKeyboard = (a, b) => a === b || (SMK_FAMILY.test(a) && SMK_FAMILY.test(b));   // two models
+// the update loader of SLOOP / Felucca packages ("ota-FM-1_9XX", "ota-SMK-37 Pro_9XX"; the SMK ports also under the
+// Elite's and the MKE-P37's model name, Makkuro37 _7XX). A device left in the update mode of another firmware (the
+// stock updater's loader) is never written: its loader may lay the image out differently. The bare "SMK-37" name
+// ("ota-SMK-37_931") is ChanceTheMaker's SMK firmwares' RAM updater: another package format, so not ours.
+export const OUR_LOADER = (id) => /^ota-(FM-1|SMK-37 Pro|SMK-37 Elite|MKE-P37)_[789]\d\d$/i.test(id.text);
+// ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom): "SMK-37_9NN", their own updater
+export const OTHER_SMK = (id) => /^(ota-)?SMK-37_9\d\d$/i.test(id.text);
+// the MIDI ports find() probes: the FM-1 / SMK-37 models' and the firmwares' names; other gear is never sent anything
+export const PORT_RE = /fm-1|smk|elite|mke-p37|starry|felucca|sloop|clipper|melodee|fomni|x0x|makkuro|maku|rainbow|amb-1|choral|orbit|snoop|vector|vox|ota|composite|sinco|usb-midi/i;
 
 // errors carry a code the pages translate: notfound, model, stopped, noloader, lost, noreturn,
-// mismatch (detail: the identity the device reports), badreq
+// mismatch (detail: the identity the device reports), badreq, other (an SMK firmware with its own updater),
+// foreign (detail: the loader's identity)
 function fail(code, msg, detail = "") { const e = new Error(msg); e.code = code; e.detail = detail; return e; }
 
 export function pack7(data) {
@@ -60,7 +75,7 @@ function parseRequest(pkt) {
 function parseIdentity(pkt) {
   const d = unpack7(pkt.slice(1, -1));
   if (d.length !== 34 || d[0] !== 0 || d[1] !== 0x59 || d[2] !== 0x11) return null;
-  const txt = String.fromCharCode(...d.slice(6, 33)).replace(/\0+$/, "");
+  const txt = String.fromCharCode(...d.slice(6, 33)).split("\0")[0];   // (some firmwares end the text early)
   const m = /^([^_]+)_(\d+)$/.exec(txt);
   return m ? { text: txt, model: m[1], version: parseInt(m[2], 10) } : null;
 }
@@ -78,6 +93,7 @@ export function classifyFirmware(identity, info) {
   if (!m) return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity || "no identity"})` };
   if (m[1]) return { verdict: "loader", kind: "loader", name: identity };            // update mode: resume
   const num = parseInt(m[3], 10);
+  if (SMK_FAMILY.test(m[2])) return classifySmk(identity, m[2], num, v);   // the M-Vave SMK-37 (SMK37.md)
   if (m[2] !== "FM-1") return { verdict: "refuse", kind: "unknown", name: identity };
   if (num >= 1 && num < 100) return { verdict: "allow", kind: "stock", name: `the official M-VAVE firmware (${identity})` };
   if (num === 0) return { verdict: "refuse", kind: "sloop", name: "Sloop's rescue mode (FM-1_000)" };
@@ -91,6 +107,17 @@ export function classifyFirmware(identity, info) {
     return { verdict: "allow", kind: "felucca", name: `Felucca ${f[1] || "v"}${f[2]}.${f[3]}${f[4]}` };
   if (/^felucca\b/i.test(v)) return { verdict: "refuse", kind: "felucca-beta", name: `a Felucca beta or a firmware based on one (${v})` };
   return { verdict: "refuse", kind: "unknown", name: v ? `an unknown firmware (${identity}, ${v})` : `an unknown Felucca-based firmware (${identity})` };
+}
+// an SMK-37 (any of its model names): the official firmware and the Felucca-family ports (SLOOP, Felucca and the ports
+// on their SMK board layer: its owner tag keeps each firmware's data apart) are installed over. The bare name
+// "SMK-37_9NN" is ChanceTheMaker's SMK firmwares': another package format and their own updater, so not ours
+function classifySmk(identity, model, num, v) {
+  if (model.toUpperCase() === "SMK-37" && num >= 900 && num < 1000)
+    return { verdict: "refuse", kind: "other", name: `a firmware with its own updater (${identity})` };
+  if (num >= 1 && num < 100) return { verdict: "allow", kind: "stock", name: `the official M-VAVE firmware (${identity})` };
+  if (/^choralroot\b/i.test(v)) return { verdict: "allow", kind: "choralroot", name: v };
+  if (num >= 700 && num < 1000) return { verdict: "allow", kind: "smk", name: `an SMK-37 port (${identity}${v ? ", " + v : ""})` };
+  return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity})` };
 }
 export function refusalText(name) {
   return `Installing over ${name} is not supported: ${REFUSE_REASON} ` +
@@ -149,7 +176,7 @@ export function pairOutput(access, input) {
   const k = live(access.inputs).indexOf(input);
   return k < 0 ? null : live(access.outputs)[k] || null;
 }
-const FM1_PORT = /fm-1|felucca|ota|composite|sinco|usb-midi/i;   // never probe other gear
+const FM1_PORT = PORT_RE;                                       // never probe other gear (the FM-1s and SMK-37s)
 
 export class Updater {
   constructor(access, log) {
@@ -225,22 +252,32 @@ export class Updater {
     }
   }
 
-  // full install: running firmware -> loader -> new firmware
-  async install(image, product, onStep) {
+  // full install: running firmware -> loader -> new firmware. anyModel: the package may be for another model of the
+  // same keyboard (an SMK-37 Elite package on a unit that reports SMK-37 Pro); never an FM-1 one on an SMK, nor back
+  async install(image, product, onStep, anyModel = false) {
     const step = onStep || (() => {});
     const dev = await this.find((id) => !IS_OTA(id));
     if (!dev) throw fail("notfound", "FM-1 not found (USB cable, and no other app using it?)");
+    if (OTHER_SMK(dev.id)) { dev.link.close(); throw fail("other", `the keyboard runs a firmware with its own updater (${dev.id.text}): nothing was sent`, dev.id.text); }
     const [model] = product.split("_");
-    if (dev.id.model !== model) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
+    if (dev.id.model !== model && !(anyModel && sameKeyboard(dev.id.model, model))) { dev.link.close(); throw fail("model", `the device is ${dev.id.text}, the package is for ${product}`); }
     step("start", dev.id.text);
     dev.link.send(UPGRADE);
     await sleep(2000);
     const s1 = await this.serve(dev.link, image, 0xE0000000, 8000, (n) => step("verify", n));
     dev.link.close();
-    if (!s1.finished) throw fail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
+    // some firmwares restart into their loader at once, without step 1: such a loader (ours, of this keyboard) goes on
+    const jumped = !s1.finished && s1.lost && s1.served === 0;
+    if (!s1.finished && !jumped) throw fail(s1.lost ? "lost" : "stopped", `the device ${s1.lost ? "was disconnected" : "stopped"} after ${s1.served} requests: nothing was written`);
     step("loader");
     await sleep(3000);
-    const ota = await this.waitFor((id) => id.model === "ota-" + model, 30000);
+    const ota = await this.waitFor(jumped ? IS_OTA : (id) => id.model === "ota-" + model, jumped ? 15000 : 30000);
+    if (jumped && !(ota && OUR_LOADER(ota.id) && sameKeyboard(ota.id.model.replace(/^ota-/i, ""), dev.id.model) &&
+                    (ota.id.model === "ota-" + model || (anyModel && sameKeyboard(ota.id.model.replace(/^ota-/i, ""), model))))) {
+      if (ota) ota.link.close();
+      throw fail(ota ? "foreign" : "lost", ota ? `the device restarted into the update mode of another firmware (${ota.id.text}): nothing was written`
+        : "the device was disconnected after 0 requests: nothing was written", ota ? ota.id.text : "");
+    }
     if (!ota) throw fail("noloader", "the update loader did not appear. Replug the USB cable and press Install again: the device stays in update mode until it is finished.");
     const s2 = await this.write(ota, image, step);
     if (!s2.finished) throw fail(s2.lost ? "lost" : "stopped", `the loader ${s2.lost ? "was disconnected" : "stopped"} after ${s2.served} requests. Replug and press Install again to resume.`);
@@ -263,18 +300,33 @@ export class Updater {
     return s2;
   }
 
-  // resume: the device is already in update mode (loader) -> true when the write finished
-  async resume(image, onStep, product = null) {
-    const model = product && product.split("_")[0];
-    const ota = await this.find((id) => model ? id.model === "ota-" + model : IS_OTA(id));
+  // resume: the device is already in update mode (loader) -> true when the write finished and the FM-1 is back with
+  // the identity written. opts.package: the identity of the package being written; opts.product: the official
+  // package's (the return to stock). The loader's model must match it by install()'s rule (the same model, or with
+  // opts.anyModel another model of the same keyboard): an SMK's loader never gets an FM-1 image, nor back, and without
+  // either identity nothing is written
+  async resume(image, onStep, opts = {}) {
+    const want = opts.product || opts.package || "";
+    const model = want.split("_")[0];
+    const ota = await this.find(IS_OTA);
     if (!ota) return false;
+    if (!OUR_LOADER(ota.id) && !opts.product) {   // (the return to stock: the official loader's own image)
+      ota.link.close();
+      throw fail("foreign", `the device is in the update mode of another firmware (${ota.id.text}): finish that update with its own updater`, ota.id.text);
+    }
+    const lm = ota.id.model.replace(/^ota-/i, "");
+    if (!want || (lm !== model && !(opts.anyModel && sameKeyboard(lm, model)))) {
+      ota.link.close();
+      throw fail("model", `the device is in the update mode of ${ota.id.text}, the package is for ${want || "an unknown model"}`, ota.id.text);
+    }
     const step = onStep || (() => {});
     const result = await this.write(ota, image, step);
     if (!result.finished) return false;
-    if (product) {
+    {                                             // (the firmware back with the identity written, as before)
+      const product = want;
       step("reboot");
       await sleep(3000);
-      const back = await this.waitFor((id) => id.model === model, 40000);
+      const back = await this.waitFor((id) => !IS_OTA(id) && sameKeyboard(id.model, model), 40000);
       if (!back) throw fail("noreturn", "The FM-1 did not return after resuming the write.");
       back.link.close();
       if (back.id.text !== product) throw fail("mismatch", "The FM-1 reports a different firmware after resuming.", back.id.text);

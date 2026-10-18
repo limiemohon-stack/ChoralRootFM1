@@ -1,0 +1,8 @@
+# test_persist.sh, the move to the FM-1 chord keys (0.25.1), run 4: the relaunch after Classic was chosen: Classic (the
+# record holds the mark, so it is not moved again); LOCK on B3 (lit), SUS + 9 shown on C#4 and C4 (dump 1)
+wait 800
+expect led B3 on
+expect led C#4 on
+expect led C4 on
+dump                          # 1: Classic, lock on, SUS + 9 latched
+quit

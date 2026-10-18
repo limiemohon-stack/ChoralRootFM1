@@ -269,3 +269,17 @@ samples bit for bit (the test checks it). The CPU lock is a no-op (`web/compat/o
 file is the page's IndexedDB copy (loaded before power-on, saved a second after the last erase / program). The page
 (`index.html`, `emu.js`): the LCD, the panel with its LEDs (pointer, multi-touch, right-click latches, wheel / drag
 on the knobs), the key map of `keymap.c` (`web/keymap.js`), Web MIDI in and out, Reset flash, a load meter.
+
+**The SMK-37** (SMK37.md): the same script also builds `build/emu-web-smk37/` (`choralroot-smk37.wasm`, the page of
+`web/smk/`): `emu_web.c` with `EMU_SMK37=1 BOARD_SMK37=1`, the BOARD_SMK37 firmware on `emu_smk_hal.h`. There the
+firmware's own SMK input layer, `firmware/hal/smk_input.h`, runs unchanged on a modelled panel (its register side left
+out with `SMK_INPUT_HOST`): every 1.6 ms the matrix the scan would read (a key's contact 1 at once, contact 2 after the
+time the factory curve reads as the velocity asked; the buttons; the knobs as quadrature states), every 100 us one of
+the 24 analog slots (the pads' readings for their velocity, the faders, the wheels). The page's input comes in through
+`web_smk_*`, the button LEDs and the pads' colours go out through `web_smk_leds` / `web_smk_pads`. `EMU_SMK37` is unset
+for the FM-1 module and the native emulator: their bytes are what they were. The page (`web/smk/index.html`,
+`smk.js`, `worklet.js`) is laid out after genkigenki's Vector37 simulator for the SMK-37 Pro.
+
+```sh
+node tools/emu/web/test_web_emu_smk.mjs   # boots it in node: MAJ's pad + C4, the sound, "C M" on the screen, velocity
+```

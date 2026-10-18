@@ -1,4 +1,5 @@
 # test_persist.sh, run 2 (the same flash file): the tempo came back. SELECT +1 -1 shows the BPM meter at 137.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 dump
 knob SELECT +1

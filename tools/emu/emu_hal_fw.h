@@ -57,6 +57,9 @@ static void fm1_irq_on(void)
 }
 
 /* --------------------------------------------- keys, LEDs, knobs --- */
+#if EMU_SMK37                                     /* the SMK-37: its own input layer on a modelled panel */
+#include "emu_smk_hal.h"
+#else
 #define FM1_NCOL 11u
 #define FM1_KEYMAP emu_keymap
 #define fm1_led (emu_hal.led)
@@ -93,6 +96,7 @@ static int emu_pump_begin(void)
 #define CU_PUMP_BEGIN() emu_pump_begin()
 #define CU_PUMP_END() fm1_irq_on()
 #define CR_HOOK_STRIP() do { if (emu_hal.strip_done) emu_hal.strip_done(); } while (0)
+#endif /* EMU_SMK37 */
 
 /* ----------------------------------------------------- display --- */
 /* src/lcd.c's fill and blit on the panel's RAM (emu_hal.lcd): the panel is on and lit from power-on, as on the device

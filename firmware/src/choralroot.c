@@ -38,7 +38,15 @@
                                   * master, CHORD and BASS (six channels) */
 #endif
 #ifndef FELUCCA_UART
+#if BOARD_SMK37
+#define FELUCCA_UART 0           /* SMK-37: the TRS jack is a MIDI OUT (UART1 TX, PC7), there is no MIDI IN; PH8 is a
+                                  * key-matrix row there and must never become UART RX */
+#else
 #define FELUCCA_UART 1           /* TRS MIDI IN on UART1 / PH8 */
+#endif
+#endif
+#if BOARD_SMK37 && FELUCCA_UART
+#error "BOARD_SMK37: midi_uart.c is the FM-1 MIDI IN driver (RX on PH8, a key-matrix row on the SMK)"
 #endif
 #ifndef FELUCCA_SLICE
 #define FELUCCA_SLICE 0          /* no SLICE engine (ChoralRoot: melodic engines only) */
@@ -52,8 +60,16 @@
 #ifndef FELUCCA_SAMPLE
 #define FELUCCA_SAMPLE 0         /* no SAMPLE engine, no sample sets in the image (engine 4: a retired slot) */
 #endif
+#if BOARD_SMK37 && (FELUCCA_SAMPLE || FELUCCA_SLICE)
+#error "BOARD_SMK37: no user sample flash (eng_sample.c's slots at 0xA0000.. are the SMK's store, storage.c)"
+#endif
 #ifndef FELUCCA_GRAIN
-#define FELUCCA_GRAIN 0          /* no GRAIN engine (engine 8: a retired slot; frees its 27 KB POOL) */
+#define FELUCCA_GRAIN 1          /* the GRAIN engine (engine 8), 0.22: grains over material it renders itself from four
+                                  * knobs (eng_grain.c, grain_src.c, docs/GRAIN.md); two 32 KB buffers of POOL. Retired
+                                  * with SAMPLE from 2026-10-07 until then */
+#endif
+#ifndef GRAIN_ASYNC
+#define GRAIN_ASYNC 1            /* GRAIN renders its buffers in slices from main.c's idle loop (grain_poll) */
 #endif
 #ifndef FELUCCA_DRUM
 #define FELUCCA_DRUM 0           /* no DRUM engine (engine 10: a retired slot; frees its kit's POOL) */
@@ -128,10 +144,14 @@
 #define FELUCCA_KEYCAPS 0        /* no Felucca keycaps (gfx.c's key hints, ui_keycaps.h): no cr_*.c draws one */
 #endif
 #ifndef FELUCCA_ID
+#if BOARD_SMK37
+#define FELUCCA_ID "SMK-37 Pro_920"   /* package identity (build.py: the .fwsc marker string) */
+#else
 #define FELUCCA_ID "FM-1_920"    /* package identity (build.py: the .fwsc marker string) */
 #endif
+#endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.23"   /* the dev build reads as the next tag; --release X.Y sets it */
+#define FELUCCA_VERSION "ChoralRoot 0.25.1"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -147,6 +167,9 @@
 #include "fm1_sys.h"
 #include "fm1_irq.h"
 #include "fm1_guard.h"
+#if BOARD_SMK37
+#include "smk_input.h"           /* SMK-37: keys, buttons, encoders, LEDs, pads, faders, wheels, battery */
+#else
 /* the key sensing's hooks into the scan (cr_sense.c, below): velocity from the analog rows (docs/VELOCITY.md) */
 static void cr_sense_hook(uint32_t col, uint32_t rowbit, uint32_t v, uint32_t driven);
 static int cr_sense_drive_hook(uint32_t col, uint32_t rowbit);
@@ -157,9 +180,12 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define FM1_INPUT_DRIVE(c, r) cr_sense_drive_hook(c, r)
 #define FM1_INPUT_LED_OK(c, r) cr_sense_led_ok_hook(c, r)
 #include "fm1_input.h"
+#endif
 #include "fm1_timer.h"
 #include "fm1_audio.h"
+#if !BOARD_SMK37
 #include "fm1_adc.h"
+#endif
 #include "fm1_lcd_hw.h"
 #if CR_CPU1
 #include "fm1_cpu1.h"            /* the second core (docs/DUALCORE.md) */
@@ -176,7 +202,9 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #include "engines.c"             /* dsp.c, the eng_*.c files */
 #include "params.c"
 #include "mod.c"
+#if !BOARD_SMK37                 /* (SMK-37: the keys' two contacts give the velocity, hal/smk_input.h) */
 #include "cr_sense.c"             /* the keys' velocity and pressure from their contact resistance (Velo's sensing) */
+#endif
 #include "voice.c"
 #include "slicer.c"
 #define mix_block fx_mix_block   /* fx.c's mix; audio.c gets ChoralRoot's (below) */

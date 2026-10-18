@@ -179,6 +179,7 @@ typedef struct {
     uint8_t snapn_n;                 /* .. how many */
     uint8_t mods_down, qstack[CR_NMOD], qn;
     uint8_t lock, mods_touch;                      /* LOCK (cr_mod_lock): the chord keys physically held (cr_mod_touch) */
+    uint8_t full_chords;                           /* cr_set_full_chords 0 / 1 / 2 (0.24; in the padding before v[]) */
     cr_voice_t v[CR_NVOICE];         /* [0, CR_MAX_VOICES): keyed voices; then one per pad */
     cr_ev_t ev[CR_MAX_EV];
     uint16_t nev;
@@ -227,7 +228,14 @@ void cr_mod(cr_t *c, cr_mod_t m, int down);        /* the chord block */
  *   Free      as Advanced, and while a chord key is physically held with no root held (cr_mod_touch) the last root
  *             sounds again as the set's chord; it stops when the last chord key is let go, latched or not
  * cr_mod_ex(quiet 1): one change of several (the UI replacing the set: the ups, then the down): the voices follow
- * at the last one, once. cr_mod_touch after the press's cr_mod, before the release's. Lock off: cr_mod as it was. */
+ * at the last one, once. cr_mod_touch after the press's cr_mod, before the release's. Lock off: cr_mod as it was.
+ * down (docs/CHORD-LAYOUT.md, the FM-1 chord keys, where the UI resolves a SET of keys into chord types):
+ *   CR_MOD_UP 0, CR_MOD_DOWN 1 (a press: as cr_mod),
+ *   CR_MOD_HELD 2   down with no press: in the set and the type stack, nothing re-typed or sounded (a type left
+ *                   held when its partner is let go: the next root takes it, what sounds is left alone),
+ *   CR_MOD_PRESS 3  a press of a mod already down (posted HELD first): what a down would do now (Advanced and
+ *                   Free re-type, Free sounds the last root, LOCK syncs with a re-strike for a type) */
+enum { CR_MOD_UP, CR_MOD_DOWN, CR_MOD_HELD, CR_MOD_PRESS };
 void cr_mod_ex(cr_t *c, cr_mod_t m, int down, int quiet);
 void cr_mod_lock(cr_t *c, int on);
 void cr_mod_touch(cr_t *c, uint8_t held);          /* bit cr_mod_t: the chord keys physically held */
@@ -264,6 +272,11 @@ void cr_set_key_plays(cr_t *c, int notes);
  * streams alone; Bass on / off and the Bass Behaviour are ignored while it is on (no bass follows anything: it is
  * played by hand). New gestures only. */
 void cr_set_keyboard(cr_t *c, int full, int split_note);
+/* The Full keyboard's G5 (Options > Full K Shorts; docs/CHORD-LAYOUT.md): 0 as before (no shortcuts: Key plays
+ * Chords gives Key Mode's chords); 1 chords on every key: a key takes the chord keys down (LOCK's latch) as a root
+ * does, with the voicing, and with none down Key Mode's chord (Key plays Chords) or a single note; 2 single notes
+ * only (no Key Mode chord). A bass-side key stays a note. New gestures only. */
+void cr_set_full_chords(cr_t *c, int mode);
 typedef enum { CR_KEYSNAP_OFF, CR_KEYSNAP_SCALE, CR_KEYSNAP_CHORD } cr_keysnap_t;
 void cr_set_key_snap(cr_t *c, cr_keysnap_t mode);   /* 0.22: Snap (new presses only) */
 int  cr_snap_note(const cr_t *c, uint8_t note);  /* the note a key out of the scale plays with Snap: the nearest of

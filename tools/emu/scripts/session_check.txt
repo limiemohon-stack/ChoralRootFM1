@@ -2,6 +2,7 @@
 # at power-on (nothing touched): both edited sounds, Bass on and its Level, the delay's settings, Perform on with
 # Arpeggiate, the voicing, the octave, LOCK with MAJ + M7 latched, slot 3 loaded and STOPPED; nothing sounds. D4 held:
 # Dmaj7 (the latch), arpeggiated, with the bass: dump 2. Let go, 4 s: nothing was written (the state is the stored one).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 800
 expect silence
 dump                          # 1: as left

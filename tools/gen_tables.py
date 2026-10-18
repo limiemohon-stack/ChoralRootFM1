@@ -154,6 +154,9 @@ def p5_tables(fc):
     return L
 
 
+FM6_SIN_REF = []
+
+
 def fm6_tables():
     """FM6 (eng_fm6.c; Melodee's, Modifications Copyright (C) 2026 Kerem Kilic (Ellic Studio)): Dexed's lookup tables, computed as Dexed computes them at 44.1 kHz with its
     64-sample blocks (MSFA sin.cc, exp2.cc, freqlut.cc, lfo.cc, pitchenv.cc, porta.cpp, dx7note.cc,
@@ -169,7 +172,16 @@ def fm6_tables():
         sin_t[i] = (v + 32) >> 6
         sin_t[i + 512] = -((v + 32) >> 6)
         u, v = (u * c - v * s + (1 << 29)) >> 30, (u * s + v * c + (1 << 29)) >> 30
-    L += arr("FM6_SIN", "int32_t", sin_t, 8, ram=True)
+        assert abs(u * c - v * s) < 1 << 62 and abs(u * s + v * c) < 1 << 62 and abs(u) < 1 << 31 and abs(v) < 1 << 31
+    # FM6_SIN is not stored: the rotation above is integer arithmetic, so fm6_tables_init (below, run at power-on and by
+    # the host programs' set-up) rebuilds it bit for bit in RAM (.bss; it was .data: the same RAM, 4.1 KB of flash less,
+    # HISTORY 3y127). The table here is what it must produce (tests/fm6_test.c compares)
+    L += ["/* FM6_SIN: 1025 points of a Q24 sine (sin.cc's rotation), built by fm6_tables_init; FM6_SIN_C / _S its step */",
+          f"#define FM6_SIN_C {c}", f"#define FM6_SIN_S {s}",
+          # a checksum of the table it must produce: sum of (i + 1) x FM6_SIN[i] in 32 bits (tests/fm6_test.c)
+          f"#define FM6_SIN_CHECK {sum((i + 1) * v for i, v in enumerate(sin_t)) & 0xFFFFFFFF}u",
+          "static int32_t FM6_SIN[1025];"]
+    FM6_SIN_REF[:] = sin_t
     # 2^x: 1024 points of one octave in Q30 (exp2.cc), then 2^31
     y, inc, e = float(1 << 30), math.exp2(1.0 / 1024), []
     for i in range(1024):
@@ -186,7 +198,9 @@ def fm6_tables():
     lg = [int(round(f32(-1024 * f32(math.log2(f32(math.sin(((0.5 + i) / 1024.0) * math.pi / 2.0)))))))
           for i in range(1024)]
     ex = [int(round(f32((math.pow(2, f32(i / 1024.0)) - 1) * 4096))) for i in range(1024)]
-    L += arr("FM6_MKI_LOG", "uint16_t", lg + lg[::-1], 16, ram=True)    # half a cycle (the sign: the phase)
+    # stored once, mirrored into RAM by fm6_tables_init (it was stored twice over, in .data: the same RAM, 2 KB of flash less)
+    L += arr("FM6_MKI_LOG_H", "uint16_t", lg, 16)                     # a quarter cycle; the half is it and its mirror
+    L += ["static uint16_t FM6_MKI_LOG[2048];                /* half a cycle (the sign: the phase): fm6_tables_init */"]
     L += arr("FM6_MKI_EXP", "uint16_t", [4096 + ex[i ^ 1023] for i in range(1024)], 16, ram=True)   # 4096 + exp, reversed
     # OPL (EngineOpl.cpp): the OPL's quarter-wave log sine and exponent ROMs
     opl_log = [
@@ -206,7 +220,8 @@ def fm6_tables():
         16, 15, 15, 14, 13, 13, 12, 12, 11, 10, 10, 9, 9, 8, 8, 7,
         7, 7, 6, 6, 5, 5, 5, 4, 4, 4, 3, 3, 3, 2, 2, 2,
         2, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0]
-    L += arr("FM6_OPL_LOG", "uint16_t", opl_log + opl_log[::-1], 16, ram=True)  # half a cycle
+    L += arr("FM6_OPL_LOG_H", "uint16_t", opl_log, 16)                # the ROM's quarter; the half is it and its mirror
+    L += ["static uint16_t FM6_OPL_LOG[512];                 /* half a cycle: fm6_tables_init */"]
     opl_exp = [
         0, 3, 6, 8, 11, 14, 17, 20, 22, 25, 28, 31, 34, 37, 40, 42,
         45, 48, 51, 54, 57, 60, 63, 66, 69, 72, 75, 78, 81, 84, 87, 90,
@@ -225,6 +240,26 @@ def fm6_tables():
         854, 859, 864, 869, 874, 880, 885, 890, 895, 900, 906, 911, 916, 921, 927, 932,
         937, 942, 948, 953, 959, 964, 969, 975, 980, 986, 991, 996, 1002, 1007, 1013, 1018]
     L += arr("FM6_OPL_EXP", "uint16_t", [(0x400 + opl_exp[i ^ 0xFF]) << 1 for i in range(256)], 16, ram=True)
+    L += ["/* the RAM tables above, at power-on (main.c fm6_init) and in every host program before a render: FM6_SIN by",
+          " * sin.cc's rotation in integers (bit for bit the table gen_tables.py computes; its u, v stay within 2^30 and the",
+          " * products within 2^61), the log-sine halves from their stored quarters */",
+          "static void fm6_tables_init(void)",
+          "{",
+          "    int32_t u = 1 << 30, v = 0, nu;",
+          "    uint32_t i;",
+          "    for (i = 0; i < 512u; i++) {",
+          "        FM6_SIN[i] = (v + 32) >> 6;",
+          "        FM6_SIN[i + 512u] = -((v + 32) >> 6);",
+          "        nu = (int32_t)(((int64_t)u * FM6_SIN_C - (int64_t)v * FM6_SIN_S + (1 << 29)) >> 30);",
+          "        v = (int32_t)(((int64_t)u * FM6_SIN_S + (int64_t)v * FM6_SIN_C + (1 << 29)) >> 30);",
+          "        u = nu;",
+          "    }",
+          "    FM6_SIN[1024] = 0;",
+          "    for (i = 0; i < 1024u; i++)",
+          "        FM6_MKI_LOG[i] = FM6_MKI_LOG[2047u - i] = FM6_MKI_LOG_H[i];",
+          "    for (i = 0; i < 256u; i++)",
+          "        FM6_OPL_LOG[i] = FM6_OPL_LOG[511u - i] = FM6_OPL_LOG_H[i];",
+          "}"]
     # frequency: coarse ratios, fine (dx7note.cc osc_freq), detune per note x (DET - 7) in Q24 fractions
     L += arr("FM6_COARSE", "int32_t", [-(1 << 24)] + [int(round((1 << 24) * math.log2(k))) for k in range(1, 32)], 8)
     L += arr("FM6_FINE", "int32_t", [math.floor(24204406.323123 * math.log(1 + 0.01 * f) + 0.5) for f in range(128)], 8)

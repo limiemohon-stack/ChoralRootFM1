@@ -1520,6 +1520,10 @@ static void mix_block(int32_t *out, uint32_t n)
     for (i = 0; i < n; i++)
         send_c[i] = send_d[i] = send_r[i] = mix_l[i] = mix_r[i] = 0;
     events_block(n);
+#if FELUCCA_GRAIN
+    grain_tick();                                       /* GRAIN's render requests and fades, on core 0 before any part
+                                                         * renders (eng_grain.c, docs/GRAIN.md) */
+#endif
 #if FELUCCA_PERFORM
     perf = perf_begin(n);                               /* the FX hold layer at work (perform.c) */
 #endif

@@ -100,7 +100,7 @@ Engines (`ENGINES[]`, append-only; the retired ones are never produced by this f
 
 | engine | name | patch kind | engine | name | patch kind |
 | --- | --- | --- | --- | --- | --- |
-| 0 | ANALOG (retired in 0.14: loads on the VA) | – | 8 | GRAIN (retired) | – |
+| 0 | ANALOG (retired in 0.14: loads on the VA) | – | 8 | GRAIN (0.22: over its own material; the pool only) | `grain` (64 bytes; version 1, 20 bytes, loads) |
 | 1 | DIGITAL (retired: loads as FM6) | – | 9 | PHYS (retired in 0.18) | – |
 | 2 | PHASE (retired in 0.18) | – | 10 | DRUM (retired) | – |
 | 3 | LOFI (retired in 0.18) | – | 11 | NOISE (retired in 0.18) | – |

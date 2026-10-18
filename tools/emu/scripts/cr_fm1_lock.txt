@@ -1,0 +1,68 @@
+# ChoralRoot 0.24: the FM-1 chord keys with LOCK on (the owner, 2026-10-16: "With lock on, the top row ... is not always
+# reseting when I push them"): every type key pushed alone replaces the latch (Type key: Clears). F#3 alone (it cannot
+# combine with Secret Chords off) was added to the latch until 3y164. tools/emu/test_cr.sh reads the latch of each dump:
+#   1 G#3: MIN (02)   2 F#3: DIM (01)   3 A#3: MAJ (04)   4 G#3 + A#3: SUS (08)   5 F#3: DIM (01)   6 G#3: MIN (02)
+#   7 A#3: MAJ (04)   8 F#3: DIM (01)   9 F#3 again alone: off (00)
+wait 500
+btn GLO 80                    # Chord Keys FM-1
+wait 300
+knob SELECT +3
+wait 200
+knob KNOB1 +1
+wait 200
+btn GLO 80
+wait 300
+btn LFO 80                    # LOCK on
+wait 300
+btn G#3 down
+wait 60
+btn G#3 up
+wait 300
+dump
+btn F#3 down
+wait 60
+btn F#3 up
+wait 300
+dump
+btn A#3 down
+wait 60
+btn A#3 up
+wait 300
+dump
+btn G#3 down
+wait 20
+btn A#3 down
+wait 60
+btn G#3 up
+btn A#3 up
+wait 300
+dump
+btn F#3 down
+wait 60
+btn F#3 up
+wait 300
+dump
+btn G#3 down
+wait 60
+btn G#3 up
+wait 300
+dump
+btn A#3 down
+wait 60
+btn A#3 up
+wait 300
+dump
+btn F#3 down
+wait 60
+btn F#3 up
+wait 300
+dump
+btn F#3 down
+wait 60
+btn F#3 up
+wait 300
+dump
+btn LFO 80
+wait 1500
+dump
+quit

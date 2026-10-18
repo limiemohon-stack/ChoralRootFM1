@@ -319,15 +319,17 @@ int main(void)
                    "a SAMPLE record (a Felucca slot): the VA's plain init sound, as before (the part's sends stay)");
             }
 #if FELUCCA_PROPHET
-            OK(NENG_SHOWN == 6 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
-               eng_vis(3) == ENGI_CZ && eng_vis(4) == ENGI_PROPHET && eng_vis(5) == 7u && !eng_ok(ENGI_PHYS) &&
-               eng_step(7u, 1) == ENGI_FM6 && eng_rank(ENGI_PHYS) == 0u && ENGINES[ENGI_PHYS]->npresets == 0u,
-               "six engines shown: FM6, FM TONE, VA, CZ-1, P5, WHEEL (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
-#else
-            OK(NENG_SHOWN == 5 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
-               eng_vis(3) == ENGI_CZ && eng_vis(4) == 7u && !eng_ok(ENGI_PHYS) && eng_step(7u, 1) == ENGI_FM6 &&
+            OK(NENG_SHOWN == 7 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
+               eng_vis(3) == ENGI_CZ && eng_vis(4) == ENGI_PROPHET && eng_vis(5) == 7u && eng_vis(6) == ENGI_GRAIN &&
+               !eng_ok(ENGI_PHYS) && eng_step(7u, 1) == ENGI_GRAIN && eng_step(ENGI_GRAIN, 1) == ENGI_FM6 &&
                eng_rank(ENGI_PHYS) == 0u && ENGINES[ENGI_PHYS]->npresets == 0u,
-               "five engines shown: FM6, FM TONE, VA, CZ-1, WHEEL (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
+               "seven engines shown: FM6, FM TONE, VA, CZ-1, P5, WHEEL, GRAIN (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
+#else
+            OK(NENG_SHOWN == 6 && eng_vis(0) == ENGI_FM6 && eng_vis(1) == ENGI_QUAD && eng_vis(2) == ENGI_VA &&
+               eng_vis(3) == ENGI_CZ && eng_vis(4) == 7u && eng_vis(5) == ENGI_GRAIN && !eng_ok(ENGI_PHYS) &&
+               eng_step(7u, 1) == ENGI_GRAIN && eng_step(ENGI_GRAIN, 1) == ENGI_FM6 &&
+               eng_rank(ENGI_PHYS) == 0u && ENGINES[ENGI_PHYS]->npresets == 0u,
+               "six engines shown: FM6, FM TONE, VA, CZ-1, WHEEL, GRAIN (PHYS, engine 9, retired: a silent slot without presets, FM6's place)");
 #endif
             {   /* the message a PHYS record's load shows, as the five's */
                 up_rec_t pr = *up_rec(slot);

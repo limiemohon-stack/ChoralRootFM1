@@ -414,8 +414,8 @@ const FX = {
   const bind = (r, f) => { r = r.slice(); r[175] = 0xA6; r[191] = f; return r; };
   ok(FACTORY_PRESETS[12][1] === "FM BELL" && FACTORY_PRESETS[12].length === 25 && FACTORY_PRESETS[14][0] === "INIT TONE" &&
      FACTORY_PRESETS[14].length === 65 && FACTORY_FIRST[14] === 1 && FACTORY_FIRST[12] === 0 &&
-     ["0", "1", "4", "8", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(0) === 13 &&
-     poolOf(4) === 13 && poolOf(13) === 13,
+     ["0", "1", "4", "10"].every((e) => !(e in FACTORY_PRESETS)) && poolOf(1) === 12 && poolOf(0) === 13 &&
+     poolOf(4) === 13 && poolOf(13) === 13 && poolOf(8) === 8 && FACTORY_PRESETS[8].length === 8,
      "binding: the factory table (the firmware's, --check), the pools of retired engines (ANALOG's: the VA's)");
   // the table both clients embed is one string (tests/sound_templates.c --check looks for it in each)
   const line = (f, re) => (readFileSync(new URL(f, import.meta.url), "utf8").match(re) || [])[1];
@@ -451,9 +451,9 @@ const FX = {
      T[9].bound.name === "SHIMMER", "binding: DIGITAL binds in FM6's pool, a grid record never, VA 25 SHIMMER");
   ok(T[10].used && T[10].bound === null && T[10].added && T[10].engineName === "ANALOG" && T[10].retired,
      "binding: an ANALOG record (retired) binds nothing: an added preset of the VA's pool");
-  ok(Object.keys(FACTORY_PRESETS).join() === "7,12,13,14,15,16" && [2, 3, 5, 6, 9, 11].every((e) => poolOf(e) === 13 && engineRetired(e)) &&
-     [7, 12, 13, 14, 15, 16].every((e) => !engineRetired(e)) && ENGINE_NAMES[2] === "PHASE" && ENGINE_NAMES[11] === "NOISE" && ENGINE_NAMES[9] === "PHYS",
-     "0.18: five engines with a pool, 0.22 six (P5); PHASE, LOFI, VOICE, TRIO, NOISE, PHYS retired (the VA's pool), their names kept");
+  ok(Object.keys(FACTORY_PRESETS).join() === "7,8,12,13,14,15,16" && [2, 3, 5, 6, 9, 11].every((e) => poolOf(e) === 13 && engineRetired(e)) &&
+     [7, 8, 12, 13, 14, 15, 16].every((e) => !engineRetired(e)) && ENGINE_NAMES[2] === "PHASE" && ENGINE_NAMES[11] === "NOISE" && ENGINE_NAMES[9] === "PHYS",
+     "0.18: five engines with a pool, 0.22 seven (P5, GRAIN); PHASE, LOFI, VOICE, TRIO, NOISE, PHYS retired (the VA's pool), their names kept");
   { // 3y80: P5's pool (engine 16): INIT P5, then the shipped programs (the firmware's names, sound_templates --check),
     // each with its Sequential number (FACTORY_IDS, the favourites' key); a P5 record binds over a program as any
     // engine's (cr_bank.c cb_bind_of: pool_f0 1, below npresets)

@@ -1824,16 +1824,49 @@ static void t_harm(void)
     CHECK(HSAME(8, -64, 0, 26, (p[QP_ALEV] = 0, p[QP_BLEV] = 127, p[QP_BEND] = 127)), "HARM +26: B2 shaped");
     CHECK(HSAME(3, -64, 0, 20, (p[QP_ALEV] = 0)), "HARM +20: algo 3's X (C + B2) shaped");
 #undef HSAME
-    /* the tables: the fundamental first, each wave its own, a step between two is between them */
+    /* the tables (the first half of a cycle stored, read with a mirror by quad_hw; w the whole, as quad_init built it
+     * into POOL until 3y150: the stored half, then the half reversed and negated, then the first point): the
+     * fundamental first, each wave its own, a step between two is between them, the stored ends are the odd
+     * symmetry's zeros */
+    static int16_t w[QUAD_NHARM][QUAD_HN + 1];
+    for (k = 0; k < QUAD_NHARM; k++) {
+        uint32_t i;
+        for (i = 0; i <= QUAD_HN / 2u; i++)
+            w[k][i] = QUAD_HARM[k][i];
+        for (i = 1; i < QUAD_HN / 2u; i++)
+            w[k][QUAD_HN - i] = (int16_t)-QUAD_HARM[k][i];
+        w[k][QUAD_HN] = w[k][0];
+    }
     for (k = 1; k < QUAD_NHARM; k++) {
         double a1 = 0, d = 0;
         uint32_t i;
         for (i = 0; i < QUAD_HN; i++) {
-            a1 += QUAD_HARM[k][i] * sin(2.0 * M_PI * i / QUAD_HN);
-            d += fabs((double)QUAD_HARM[k][i] - QUAD_HARM[k - 1][i]);
+            a1 += w[k][i] * sin(2.0 * M_PI * i / QUAD_HN);
+            d += fabs((double)w[k][i] - w[k - 1][i]);
         }
-        CHECK(a1 > 0.3 * 32767 * QUAD_HN / 2 && d / QUAD_HN > 100.0 && QUAD_HARM[k][QUAD_HN] == QUAD_HARM[k][0],
+        CHECK(a1 > 0.3 * 32767 * QUAD_HN / 2 && d / QUAD_HN > 100.0 && QUAD_HARM[k][0] == 0 && QUAD_HARM[k][QUAD_HN / 2u] == 0,
               "HARM wave %u: fundamental %.2f, apart %.0f", k, a1 / (32767.0 * QUAD_HN / 2), d / QUAD_HN);
+    }
+    {   /* the mirror read: every point of every wave, at fractions across the step and with its neighbour's share, is
+         * bit for bit the whole cycle's interpolation (the read before 3y150) */
+        static const int32_t FR[] = {0, 1, 2, 255, 256, 8191, 16384, 24575, 32766, 32767};
+        static const int32_t SH[] = {0, 1, 128, 16384, 32640, 32767};
+        uint32_t i, j, q, bad = 0, n = 0;
+        for (k = 0; k < QUAD_NHARM; k++) {
+            uint32_t k1 = k < QUAD_NHARM - 1u ? k + 1u : k;
+            for (i = 0; i < QUAD_HN; i++)
+                for (j = 0; j < sizeof FR / sizeof FR[0]; j++)
+                    for (q = 0; q < sizeof SH / sizeof SH[0]; q++) {
+                        uint32_t ph = (i << 23) | ((uint32_t)FR[j] << 8) | ((i * 37u + j * 11u + q) & 255u);
+                        int32_t fr = FR[j], f = SH[q], x0 = w[k][i], y0 = w[k1][i], x, y, r;
+                        x = x0 + (((w[k][i + 1u] - x0) * fr) >> 15);
+                        y = y0 + (((w[k1][i + 1u] - y0) * fr) >> 15);
+                        r = f ? x + (((y - x) * f) >> 15) : x;
+                        bad += quad_hw(QUAD_HARM[k], QUAD_HARM[k1], f, ph) != r;
+                        n++;
+                    }
+        }
+        CHECK(!bad, "HARM mirror read: %u of %u points differ from the whole cycles", bad, n);
     }
     {
         int32_t x = quad_hw(QUAD_HARM[19], QUAD_HARM[20], 16384, 0x10000000u), a = quad_hw(QUAD_HARM[19], QUAD_HARM[19], 0, 0x10000000u),

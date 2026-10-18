@@ -3,6 +3,7 @@
 # raised it, and no key sounded or woke the screen). The firmware never raises it any more, so the script does, by
 # hand, what that screen off did: the panel black, no LED lit, a chord and a knob turn not read; low again: all back.
 # This is what makes tools/emu/test_cr.sh's screen off checks fail on a firmware that switches the backlight off.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 key F3 down
 wait 60

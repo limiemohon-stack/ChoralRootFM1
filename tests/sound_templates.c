@@ -206,6 +206,7 @@ int main(int argc, char **argv)
     b64(qb, QUAD_BLOB, f_quad);
     /* the fixtures: factory voice F1 on part 0 */
     trk[0].eng_req = ENGI_FM6;
+    fm6_tables_init();                               /* FM6's RAM tables (fm6_init) */
     memcpy(fm6_fn[0], FM6_FNDEF, FM6_NFN);           /* the part's function settings at Dexed's defaults (fm6_init) */
     fm6_load_slot(0, 0);
     fm6_blob_get(&trk[0], blob);

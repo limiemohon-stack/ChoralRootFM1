@@ -1,0 +1,14 @@
+# test_persist.sh, the move to the FM-1 chord keys (0.25.1), run 3 (run 2's flash, moved): Options > Chord Keys back to
+# Classic (the 4th entry), closed; quiet for 4 s: the Option written by itself (dump 1), with the record's mark. The
+# relaunch (keys_classic_check.txt) is Classic: the move never runs twice
+wait 800
+btn GLO 80
+wait 300
+knob SELECT +3
+wait 200
+knob KNOB1 -1                 # FM-1 -> Classic
+wait 300
+btn GLO 80
+wait 4500
+dump                          # 1: Classic, the automatic write done
+quit

@@ -131,6 +131,12 @@ static uint8_t crb_favram[CRF_PACK_MAX];             /* .. their packed bytes at
 #define CRB_OUT st_buf                               /* the reply (<= 400 bytes, written after any storage call) .. */
 #define CRB_DATA (st_buf + 2048u)                    /* .. and GET's flash data */
 static uint32_t crb_n;
+#if BOARD_SMK37
+#define CRB_VER_MAX 40u                              /* INFO's version: SMK-37 test builds' are longer (ChoralRoot
+                                                      * 0.24-beta2-smk37 1-core: 34) */
+#else
+#define CRB_VER_MAX 32u
+#endif
 static void crb_b(uint32_t v)
 {
     if (crb_n < 1024u - 1u)
@@ -584,7 +590,8 @@ static int crb_bank_ok(const uint8_t *raw)
         e = s[UPP_HDR] - 1u;
         n = s[UPP_HDR + 1u];
         if (e >= NENGINES || !n || n > UPP_MAX ||
-            (up_patch_len(e) && n != up_patch_len(e) && !(e == ENGI_QUAD && n == QUAD_BLOB_V3)))
+            (up_patch_len(e) && n != up_patch_len(e) && !(e == ENGI_QUAD && n == QUAD_BLOB_V3) &&
+             !(FELUCCA_GRAIN && e == ENGI_GRAIN && n == GRAIN_BLOB_V1)))   /* (GRAIN's 20-byte version 1 too, 3y139) */
             return 0;
     }
     return 1;
@@ -1334,7 +1341,7 @@ static int crb_handle(const uint8_t *f, uint32_t n)
         uint32_t i;
         if (na)
             return 0;
-        for (i = 0; v[i] && i < 32u; i++)            /* a beta single-core string is 28 (hosts read to the NUL) */
+        for (i = 0; v[i] && i < CRB_VER_MAX; i++)    /* a beta single-core string is 28 (hosts read to the NUL) */
             crb_b((uint8_t)v[i]);
         crb_b(0);
         for (i = 0; i < 7u; i++)

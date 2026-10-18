@@ -3,6 +3,12 @@
 # (choralroot-X.Y-1core.fwsc, docs/DUALCORE.md "Two packages"), both from one ./build.sh --release.
 #   push of a tag vX.Y  -> build, create or update the GitHub release vX.Y with the assets, then run pages.yml
 #   workflow_dispatch   -> build only; the package is a workflow artifact (choralroot-X.Y)
+# An SMK-37 test build (SMK37.md) has a version that ends in -smk37 (tag vX.Y[-suffix]-smk37, e.g. v0.24-beta2-smk37;
+# -smk37.N for a respin of the SMK build on the same FM-1 base, e.g. v0.24-beta3-smk37.1):
+# the three models (BOARD=smk37 MODEL=pro|elite|mke ./build.sh --release X.Y-smk37 into build/release-smk37/), always a
+# pre-release, and the site rebuilt from that tag for the FM-1's current version (web/releases.json's first entry,
+# unchanged) so that the SMK-37 test installer (webapp/smk37/, web/releases-smk37.json) offers the new build; only when
+# web/releases-smk37.json at the tag lists it.
 # On ubuntu (x86-64) tools/build.py runs the JieLi toolchain natively, no Docker.
 name: release
 
@@ -12,7 +18,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to build, e.g. 0.1 (X.Y, X.Y.Z or X.Y-suffix). Builds an artifact; no release."
+        description: "Version to build, e.g. 0.1 (X.Y, X.Y.Z or X.Y-suffix; X.Y[-suffix]-smk37: the SMK-37 test build). Builds an artifact; no release."
         required: true
         type: string
 
@@ -41,6 +47,7 @@ jobs:
     timeout-minutes: 45
     outputs:
       version: ${{ steps.version.outputs.version }}
+      board: ${{ steps.version.outputs.board }}
     steps:
       - name: Version
         id: version
@@ -49,13 +56,20 @@ jobs:
         run: |
           set -euo pipefail
           if [ "$GITHUB_EVENT_NAME" = push ]; then v="${GITHUB_REF_NAME#v}"; else v="$INPUT_VERSION"; fi
-          if [[ ! "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]]; then
-            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix; tags are vX.Y"
+          if [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?-smk37(\.[0-9]+)?$ ]]; then
+            board=smk37                 # the SMK-37 test build (SMK37.md); -smk37.N: a respin on the same FM-1 base
+          elif [[ "$v" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.]+)?$ ]] && [[ "$v" != *smk* ]]; then
+            board=fm1
+          else
+            echo "::error::version '$v' is not X.Y, X.Y.Z or X.Y-suffix (FM-1), nor X.Y[-suffix]-smk37[.N] (SMK-37); tags are vX.Y"
             exit 1
           fi
           echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "board=$board" >> "$GITHUB_OUTPUT"
           {
             echo "VERSION=$v"
+            echo "REL_BOARD=$board"
+            if [ "$board" = smk37 ]; then echo "REL_DIR=build/release-smk37"; else echo "REL_DIR=build/release-$v"; fi
             echo "JIELI_TOOLCHAIN=$HOME/.jieli/toolchain"
             echo "AC79_SDK=$GITHUB_WORKSPACE/tools/sdk"
           } >> "$GITHUB_ENV"
@@ -105,6 +119,7 @@ jobs:
           PY
 
       - name: Build (./build.sh --release)
+        if: env.REL_BOARD == 'fm1'
         run: |
           set -euo pipefail
           ulimit -n 8192 || true          # the JieLi linker opens many files (the toolchain's README)
@@ -129,10 +144,61 @@ jobs:
           (cd "$rel" && sha256sum -c SHA256SUMS && zip -q -r LICENSES.zip LICENSES)
           ls -l "$rel"
 
+      - name: Build the SMK-37 test packages (BOARD=smk37, the three models)
+        if: env.REL_BOARD == 'smk37'
+        run: |
+          set -euo pipefail
+          ulimit -n 8192 || true
+          for m in pro elite mke; do
+            BOARD=smk37 MODEL=$m ./build.sh --release "$VERSION"
+          done
+          rel=build/release-smk37
+          for sfx in "" -elite -mke; do
+            for f in "choralroot-$VERSION$sfx.fwsc" "choralroot-$VERSION$sfx-app.bin" \
+                     "choralroot-$VERSION$sfx-1core.fwsc" "choralroot-$VERSION$sfx-1core-app.bin"; do
+              if [ ! -s "$rel/$f" ]; then
+                echo "::error::$rel/$f is missing"
+                exit 1
+              fi
+            done
+          done
+          for f in SHA256SUMS LICENSE LICENSING.md SMK37.md; do
+            if [ ! -s "$rel/$f" ]; then
+              echo "::error::$rel/$f is missing"
+              exit 1
+            fi
+          done
+          if [ "$(grep -c . "$rel/SHA256SUMS")" != 12 ]; then
+            echo "::error::$rel/SHA256SUMS does not list the six packages and their apps"
+            exit 1
+          fi
+          (cd "$rel" && sha256sum -c SHA256SUMS && zip -q -r LICENSES.zip LICENSES)
+          # the sums web/releases-smk37.json lists for this version (the site checks them again): built here as there
+          python3 - "$VERSION" "$rel" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          v, rel = sys.argv[1], Path(sys.argv[2])
+          f = Path("web/releases-smk37.json")
+          entry = next((r for r in json.loads(f.read_text())["releases"] if r["version"] == v), None) if f.is_file() else None
+          if entry is None:
+              print(f"::notice::{v} is not in web/releases-smk37.json: the SMK-37 test installer will not offer it")
+              sys.exit(0)
+          bad = []
+          for key, sfx in (("pro", ""), ("elite", "-elite"), ("mke", "-mke")):
+              for one, field in (("", "sha256"), ("-1core", "sha256_1core")):
+                  name = f"choralroot-{v}{sfx}{one}.fwsc"
+                  if hashlib.sha256((rel / name).read_bytes()).hexdigest() != entry["packages"][key][field]:
+                      bad.append(name)
+          if bad:
+              sys.exit(f"::error::built here, {', '.join(bad)} differ from web/releases-smk37.json's sha256s for {v}")
+          print(f"web/releases-smk37.json: {v}'s six sha256s match")
+          PY
+          ls -l "$rel"
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: choralroot-${{ env.VERSION }}
-          path: build/release-${{ env.VERSION }}/
+          path: ${{ env.REL_DIR }}/
           if-no-files-found: error
 
   release:
@@ -145,10 +211,14 @@ jobs:
       actions: write                  # start pages.yml (a release made with GITHUB_TOKEN starts no workflow itself)
     env:
       VERSION: ${{ needs.build.outputs.version }}
+      REL_BOARD: ${{ needs.build.outputs.board }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: docs/releases
+          sparse-checkout: |
+            docs/releases
+            web/releases.json
+            web/releases-smk37.json
           sparse-checkout-cone-mode: false   # first: a checkout cleans the workspace (it wiped assets/ in the v0.14 run)
 
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
@@ -160,6 +230,12 @@ jobs:
         run: |
           set -euo pipefail
           mkdir assets
+          if [ "$REL_BOARD" = smk37 ]; then      # the six packages, their apps, the sums, the licences, SMK37.md
+            cp release/*.fwsc release/*-app.bin release/SHA256SUMS release/LICENSE release/LICENSING.md \
+               release/LICENSES.zip release/SMK37.md assets/
+            ls -l assets
+            exit 0
+          fi
           for f in "choralroot-$VERSION.fwsc" "choralroot-$VERSION-app.bin" "choralroot-$VERSION-1core.fwsc" \
                    "choralroot-$VERSION-1core-app.bin" SHA256SUMS LICENSE LICENSING.md LICENSES.zip; do
             cp "release/$f" assets/
@@ -172,6 +248,19 @@ jobs:
           VERSION: ${{ needs.build.outputs.version }}
         run: |
           set -euo pipefail
+          if [ "$REL_BOARD" = smk37 ]; then
+            {
+              if [ -f "docs/releases/$VERSION.md" ]; then cat "docs/releases/$VERSION.md"; echo; echo "---"; echo; fi
+              sed "s/@VERSION@/$VERSION/g" <<'EOT'
+          ChoralRoot @VERSION@: a community test build for the M-Vave SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play, which takes the Pro's package). Community-tested, not tested by the maintainer; genkigenki's port (https://github.com/genkigenki/fm1-to-smk37). Read SMK37.md first.
+
+          One package per model: `choralroot-@VERSION@.fwsc` (SMK-37 Pro, Starrykey 37 Play), `-elite`, `-mke`; each has a `-1core` twin for a keyboard that crashes or freezes with the standard one. Install with the SMK-37 test installer (the link testers were given) or `python3 tools/fm1_install.py FILE`. The way back: M-VAVE's package for your model with M-UPGRADE.
+
+          `SHA256SUMS` lists every package and app. The packages hold three JieLi AC79 SDK files (Apache-2.0); `LICENSE`, `LICENSING.md` and `LICENSES.zip` carry every licence. Installing firmware is at your own risk.
+          EOT
+            } > release-body.md
+            exit 0
+          fi
           {
             if [ -f "docs/releases/$VERSION.md" ]; then cat "docs/releases/$VERSION.md"; echo; echo "---"; echo; fi
             sed "s/@VERSION@/$VERSION/g" <<'EOT'
@@ -189,10 +278,10 @@ jobs:
         uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           tag_name: ${{ github.ref_name }}
-          name: ChoralRoot ${{ needs.build.outputs.version }}
+          name: ${{ needs.build.outputs.board == 'smk37' && format('ChoralRoot {0} for the SMK-37 (community test)', needs.build.outputs.version) || format('ChoralRoot {0}', needs.build.outputs.version) }}
           # a pre-release for X.Y-suffix only (a beta among them); vX.Y is a full release, 0.x too (0.21 and 0.22 are
           # the stable releases the installer offers by default)
-          prerelease: ${{ contains(needs.build.outputs.version, '-') }}
+          prerelease: ${{ needs.build.outputs.board == 'smk37' || contains(needs.build.outputs.version, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: assets/*
@@ -201,7 +290,7 @@ jobs:
       - name: Publish the site (pages.yml)
         # a final release, or a beta (X.Y-betaN: web/releases.json lists it first with "beta": true; the installer
         # offers it only to who ticks "Show beta releases"). Other suffixes (-rc1, ...) do not publish the site
-        if: ${{ !contains(env.VERSION, '-') || contains(env.VERSION, '-beta') }}
+        if: ${{ env.REL_BOARD == 'fm1' && (!contains(env.VERSION, '-') || contains(env.VERSION, '-beta')) }}
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -211,3 +300,22 @@ jobs:
           gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
               -f version="$VERSION" -f ref="$GITHUB_REF_NAME"
           echo "::notice::pages.yml started for $VERSION (Actions tab); the site follows in a minute or two"
+
+      - name: Publish the site with the SMK-37 test build (pages.yml)
+        # the site rebuilt from the SMK tag for the FM-1's current version (web/releases.json's first entry at the
+        # tag: the FM-1's pages and packages as they are), so that webapp/smk37/ offers this build; only when
+        # web/releases-smk37.json at the tag lists it
+        if: ${{ env.REL_BOARD == 'smk37' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if ! python3 -c 'import json,sys; sys.exit(0 if any(r["version"]==sys.argv[1] for r in json.load(open("web/releases-smk37.json"))["releases"]) else 1)' "$VERSION" 2>/dev/null; then
+            echo "::notice::$VERSION is not in web/releases-smk37.json at $GITHUB_REF_NAME: the release is made, the site stays as it is"
+            exit 0
+          fi
+          fm1=$(python3 -c 'import json; print(json.load(open("web/releases.json"))["releases"][0]["version"])')
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref "$DEFAULT_BRANCH" \
+              -f version="$fm1" -f ref="$GITHUB_REF_NAME"
+          echo "::notice::pages.yml started for $fm1 from $GITHUB_REF_NAME (the SMK-37 test installer offers $VERSION)"

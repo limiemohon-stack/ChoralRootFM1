@@ -1,0 +1,22 @@
+# test_persist.sh, the move to the FM-1 chord keys (0.25.1), run 2: power-on on a flash whose settings block an older
+# firmware wrote (tools/emu/seed_keys.py: 0.25 with Classic or FM-1, or 0.23) and whose session holds LOCK on with
+# SUS + 9 latched. The unit comes up on the FM-1 chord keys (dump 1): LOCK on, on LFO (lit); the latch, a set of chord
+# types and not of keys, kept and shown on the FM-1 keys: SUS on G#3 + A#3, the 9 on B3; C4 and C#4 are roots now
+# (dark). D4: Dsus 9 (dump 2). Let go, 3 s: nothing written (the move is the import's; the record is written by the
+# next save)
+wait 800
+expect led LFO on
+expect led G#3 on
+expect led A#3 on
+expect led B3 on
+expect led C#4 off
+expect led C4 off
+dump                          # 1: FM-1, lock on, SUS + 9 latched
+btn D4 down
+wait 600
+expect sound
+dump                          # 2: Dsus 9
+btn D4 up
+wait 3000
+dump                          # 3: nothing written
+quit

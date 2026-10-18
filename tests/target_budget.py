@@ -16,7 +16,8 @@ import sys
 
 FUNCS = ["analog_render", "digital_render", "digital_render_legacy", "digital_render_custom", "phase_render", "lofi_render", "sample_render", "formant_render",
          "trio_render", "trio_pass", "wheel_render", "wheel_block",
-         "grain_render", "grain_block", "phys_render", "drum_render", "noise_render", "fm6_render", "px_modal_block", "px_modal_run", "px_memb_block",
+         "grain_render", "grain_block", "grain_tick",     # GRAIN (eng_grain.c, ChoralRoot 0.22): the voice, the part, the ISR's tick
+         "phys_render", "drum_render", "noise_render", "fm6_render", "px_modal_block", "px_modal_run", "px_memb_block",
          "px_string_excite", "px_string_run", "px_symp_run",
          "dv_metal_run", "dv_kick_run", "dv_snare_run", "dv_clap_run", "dv_hat_run", "dv_tom_run",   # drum_voice.c
          "dv_rim_run", "dv_bell_run", "dv_cym_run", "dv_out",
@@ -73,7 +74,7 @@ OPTIONAL = {"digital_render": 12, "digital_render_legacy": 333, "digital_render_
             "px_string_run": 264, "px_symp_run": 252,
             # .. and since 0.18 without the FX hold layer (choralroot.c FELUCCA_PERFORM 0): their budget lines until then
             "perf_begin": 34, "perf_mute": 19, "perf_pre": 27, "perf_block": 813, "perf_master": 31,
-            "sample_render": 126, "grain_render": 1731, "grain_block": 139, "drum_render": 86, "dv_metal_run": 26,
+            "sample_render": 126, "grain_render": 1394, "grain_block": 139, "grain_tick": 35, "drum_render": 86, "dv_metal_run": 26,
             "dv_kick_run": 153, "dv_snare_run": 158, "dv_clap_run": 74, "dv_hat_run": 61, "dv_tom_run": 75,
             "dv_rim_run": 61, "dv_bell_run": 52, "dv_cym_run": 67, "dv_out": 35}
 TOL = 0.10                      # exact (no noise): small edits pass, a grown render loop does not

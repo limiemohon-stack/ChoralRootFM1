@@ -128,7 +128,7 @@ extern void isr_timer5(void);
 
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
-#ifdef CR_SENSE_KEYS
+#if defined(CR_SENSE_KEYS) && !BOARD_SMK37         /* (SMK-37: cr_ui.c's stand-in CR_SENSE_KEYS 0, no analog rows) */
     fm1_an.drive = SN_DRIVE;                       /* the analog rows (docs/VELOCITY.md): the tick owns the converter */
     fm1_an.con = FM1_ADC_CON_SCAN;
 #endif
@@ -174,7 +174,7 @@ static void felucca_init(void)
     for (i = 0; i < G_COUNT; i++)
         song.g[i] = GP[i].def;
     undo_depth++;                             /* (no undo copy of the power-on loads) */
-    fm6_init();                               /* every track's FM6 patch: the init voice */
+    fm6_init();                               /* every track's FM6 patch: the init voice (and the engines' tables) */
     for (i = 0; i < NTRK; i++) {
         track_t *t = &trk[i];
         track_defaults(t);
@@ -236,7 +236,9 @@ static void dbg_boot(void)
 
 /* the pot: the scan's sample once TIMER5 owns the converter (hal/fm1_input.h fm1_an; -1 until its first), the
  * blocking read before (master_boot, under the splash) */
+#if !BOARD_SMK37                 /* (SMK-37: K1, a virtual pot: hal/smk_input.h fm1_adc_read) */
 #define MASTER_POT_READ() (fm1_an.con ? (fm1_an.mvalid ? (int32_t)fm1_an.master : -1) : fm1_adc_read(FM1_ADC_MASTER))
+#endif
 #include "master.c"              /* the MASTER pot: read before the audio starts (0.19; Felucca 1.1.5, #137) */
 
 static void fm1_main(void)
@@ -258,6 +260,10 @@ static void fm1_main(void)
     CR_STAGE(BS_INPUT);
     fm1_input_init();
     fm1_adc_init();
+#if BOARD_SMK37 && FELUCCA_FLASH
+    if (flash_ok)                                   /* the factory key / pad velocity curves (USRTRIM, read only) */
+        smk_trim_load(fm1_xip_ptr(SMK_TRIM_FLASH));
+#endif
     panel_init();
     CR_STAGE(BS_SOUNDS);
     felucca_init();
@@ -287,7 +293,7 @@ static void fm1_main(void)
     fm1_irq_enable_all();
     fm1_delay_ms(30);
     CR_STAGE(BS_CALIB);
-    if ((fm1_in.buttons & 3u) == 3u) {
+    if ((fm1_in.buttons & FM1_OCT_BOTH) == FM1_OCT_BOTH) {
         panel_setup();                        /* OCT- + OCT+ held at power-on */
         settings_save();
     }
@@ -309,7 +315,11 @@ static void fm1_main(void)
         if (fm1_ms > BG_SETTLE_MS && bootguard.pending)  /* a crash or hang in the first 30 s counts */
             bootguard_settled(&bootguard);              /* (SAFE MODE stays for this session: cr_safe) */
         {
+#if BOARD_SMK37
+            int32_t b = fm1_adc_read(FM1_ADC_BATT);     /* battery (SMK-37: mux C, hal/smk_input.h): slow IIR */
+#else
             int32_t b = fm1_an.bvalid ? (int32_t)fm1_an.batt : -1;   /* battery (the scan's sample): slow IIR */
+#endif
             if (b > 0)
                 song.batt_raw = song.batt_raw ? song.batt_raw + (b - song.batt_raw) / 32 : b;
         }
@@ -381,13 +391,28 @@ static void fm1_main(void)
         settings_poll();                              /* queued settings save: only while stopped */
         felucca_dbg.stage = BS_LOOP_DRAW;
         ui_leds();
+#if BOARD_SMK37
+        cr_smk_frame();                                 /* the faders, the wheels (cr_ui.c) */
+        padled_flush();                                 /* the pads' colours, between LCD transfers */
+#endif
         ui_draw();
         ui_ft_add(ft0);
+#if FELUCCA_GRAIN
+        grain_poll();                           /* GRAIN's render: a slice every frame whatever the frame cost (a frame
+                                                 * that fills its 15 ms, the wave band's, leaves the idle loop below no
+                                                 * turn: 3y138), and a slice a turn of the idle loop */
+#endif
         felucca_dbg.stage = BS_LOOP_IDLE;
         while (fm1_ms - m < 15u) {                               /* ~60 UI frames/s at most */
             ui_input();
+#if BOARD_SMK37
+            cr_smk_wheels();                    /* (bends follow the wheel, not the screen) */
+#endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */
+#endif
+#if FELUCCA_GRAIN
+            grain_poll();                       /* GRAIN's render, a slice a turn (eng_grain.c, docs/GRAIN.md) */
 #endif
         }
     }

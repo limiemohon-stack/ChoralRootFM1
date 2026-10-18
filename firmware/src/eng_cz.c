@@ -110,7 +110,13 @@ static void cz_note_on(track_t *t, voice_t *v)        /* Melodee's phase_note_on
 }
 
 #include "cz_native.c"
-#include "melodee_cz1.h"            /* Casio's 64 CZ-1 preset tones (tools/gen_cz1_factory.py) */
+#include "melodee_cz1.h"            /* Casio's 64 CZ-1 preset tones (tools/gen_cz1_factory.py), packed a bank an LZ4 block */
+/* factory bank k's 16 tones (k 0..3: A-1 .. B-8, C .. D, E .. F, G .. H), 16 x CZ_BYTES, unpacked into dst */
+static void cz_factory_bank(uint32_t k, uint8_t *dst)
+{
+    if (k >= CZ_FACTORY_BANKS) { memset(dst, 0, 16u * CZ_BYTES); return; }
+    cz_lz4_block(CZ_FACTORY_LZ4 + CZ_FACTORY_OFF[k], (uint32_t)(CZ_FACTORY_OFF[k + 1u] - CZ_FACTORY_OFF[k]), dst, 16u * CZ_BYTES);
+}
 #include "cz_edit.h"                /* the panel values of a tone (Melodee's on-device editing) */
 
 static int (*cz_user_bank_read)(uint32_t,uint32_t,uint8_t *);
@@ -152,10 +158,13 @@ static void cz_tone_put(uint32_t tr, const uint8_t *raw)    /* a whole tone into
 /* factory preset k's tone (0 INIT TONE, 1..64 Casio's A-1 .. H-8) */
 static void cz_factory_tone(uint32_t k, uint8_t *raw)
 {
-    if (k && k - 1u < CZ_FACTORY_N)
-        memcpy(raw, CZ_FACTORY[k - 1u], CZ_BYTES);
-    else
+    if (k && k - 1u < CZ_FACTORY_N) {
+        uint8_t bank[16u * CZ_BYTES];                /* (its bank unpacked, 2.3 KB of the main loop's stack) */
+        cz_factory_bank((k - 1u) / 16u, bank);
+        memcpy(raw, bank + ((k - 1u) % 16u) * CZ_BYTES, CZ_BYTES);
+    } else {
         cz_patch_init(raw);
+    }
 }
 
 /* a sound load put CZ-1 into track t (eng_fm6.c fm6_track_loaded calls it on every load path: a factory preset, a

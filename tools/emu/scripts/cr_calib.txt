@@ -2,10 +2,11 @@
 # OPT tap, SELECT to Calibrate (entry 23, the one before Reset Settings), OCT+ starts; press each printed button in Felucca's order, turn each knob
 # right, OCT+ keeps the table (the trace: "calib: ..."). The MASTER pot is not part of Felucca's calibration: moving
 # it mid-way changes nothing. Then a chord still plays (the table taught = the emulator's).
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 500
 btn GLO
 wait 100
-knob SELECT +28
+knob SELECT +31
 wait 100
 shot build/emu/test/cr_calib_opt.ppm
 btn OCT+

@@ -4,6 +4,7 @@
 # with Key plays Notes it blocks the notes out of the scale); Single: Split Bass:
 # F3..E4 play the bass part alone, F4..G5 the chord part alone (the split at the second F, fixed); Split Oct: F3..E4
 # an octave lower. The LOCK latch made before is untouched when the mode is left.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn B3                        # LOCK on, MAJ + M7 latched: the state the mode must give back
 wait 200
@@ -151,16 +152,16 @@ shot build/emu/test/cr_fullkbd_two.ppm
 btn A3 up
 btn F3 up
 wait 300
-knob KNOB1 +1                 # KNOB 1: the octave (the voicing stays 0)
+knob KNOB1 +1                 # KNOB 1: the voicing since 0.24 (docs/CHORD-LAYOUT.md); the octave stays 0
 wait 200
 shot build/emu/test/cr_fullkbd_octave.ppm
 btn F3 down
 wait 200
-dump                          # 31: octave 1, voicing 0, notes 65
+dump                          # 31: voicing 1, octave 0, a single note: 53 (no voicing for a note)
 btn F3 up
 knob KNOB1 -1
 wait 300
-dump                          # 32: octave 0
+dump                          # 32: voicing 0
 btn SEL                       # Key Mode on: C major
 wait 300
 expect led C4 mid             # the scale on all 27 keys: the tonic's keys (C4, C5),

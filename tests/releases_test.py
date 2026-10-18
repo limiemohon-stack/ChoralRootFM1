@@ -9,6 +9,10 @@ newest first without doubles; nothing older than the minimum (0.16: the boot stu
 the newest says what going back to it means; a version with a single-core package (sha256_1core, optional: 0.16 ..
 0.21 have none) lists a well-formed sha256 of its own for it; the firmware's own version (firmware/src/choralroot.c) is in the list
 once it is tagged. A package found in build/scratch/packages (or CR_PACKAGES_DIR) must have the listed sha256.
+web/releases-smk37.json, the SMK-37 test builds (SMK37.md): X.Y[-suffix]-smk37 newest first, each on a version of
+web/releases.json (its base), tag vVERSION, the three models' packages with a sha256 (and the single-core one's)
+each of their own; every SMK tag in it; a package found in build/release-smk37 (or CR_SMK_PACKAGES_DIR) must have the
+listed sha256. The FM-1's list never names the SMK.
 """
 import hashlib
 import json
@@ -70,6 +74,54 @@ def fetch_check():
         shutil.rmtree(tmp)
 
 
+SMK_FILES = {"pro": "", "elite": "-elite", "mke": "-mke"}   # (tools/build.py: choralroot-X.Y-smk37[-elite|-mke][-1core].fwsc)
+
+
+def smk_check(fm1_versions, smk_tags):
+    f = Path(os.environ.get("CR_SMK_RELEASES_JSON") or ROOT / "web" / "releases-smk37.json")
+    if not f.is_file():
+        print(f"note: {f} missing: no SMK-37 test builds listed")
+        return
+    data = json.loads(f.read_text(encoding="utf-8"))
+    rel = data["releases"]
+    vers = [r["version"] for r in rel]
+    ok(all(re.fullmatch(r"\d+\.\d+(\.\d+)?(-[A-Za-z0-9.]+)?-smk37(\.\d+)?", v) for v in vers) and len(set(vers)) == len(vers),
+       f"SMK: versions X.Y[-suffix]-smk37[.N] (.N: a respin on the same base), none twice: {', '.join(vers) or 'none'}")
+    ok(re.match(r"https://github\.com/[\w-]+/[\w-]+$", data.get("repo", "")) is not None and len(data.get("about", "")) > 40,
+       "SMK: the repository, the about text")
+    sums = []
+    for i, r in enumerate(rel):
+        v = r["version"]
+        ok(r.get("base") in fm1_versions and v.startswith(r["base"] + "-"), f"SMK {v}: on {r.get('base')}, a version of web/releases.json")
+        ok(r.get("tag") == "v" + v, f"SMK {v}: tag v{v}")
+        try:
+            d = date.fromisoformat(r["date"])
+        except (KeyError, ValueError):
+            d = None
+        ok(d is not None and (i == 0 or d <= date.fromisoformat(rel[i - 1]["date"])), f"SMK {v}: a date, not after the newer one's")
+        b = r.get("bullets", [])
+        ok(bool(r.get("title")) and 2 <= len(b) <= 12 and all(isinstance(x, str) and 20 <= len(x) <= 240 for x in b) and
+           all(isinstance(x, str) and x for x in r.get("notes", [])), f"SMK {v}: a title, {len(b)} bullets, notes as text")
+        pk = r.get("packages", {})
+        ok(set(pk) == set(SMK_FILES) and all(re.fullmatch(r"[0-9a-f]{64}", m.get("sha256", "")) and
+                                             re.fullmatch(r"[0-9a-f]{64}", m.get("sha256_1core", "")) and set(m) <= {"sha256", "sha256_1core"}
+                                             for m in pk.values()),
+           f"SMK {v}: the three models (pro, elite, mke), each with a sha256 and a single-core sha256")
+        sums += [m.get(k) for m in pk.values() for k in ("sha256", "sha256_1core")]
+        ok(set(r) <= {"version", "base", "date", "tag", "title", "bullets", "notes", "packages"}, f"SMK {v}: no key the site does not know")
+        d = Path(os.environ.get("CR_SMK_PACKAGES_DIR") or ROOT / "build" / "release-smk37")
+        for key, sfx in SMK_FILES.items():
+            for one, field in ((False, "sha256"), (True, "sha256_1core")):
+                name = f"choralroot-{v}{sfx}{'-1core' if one else ''}.fwsc"
+                if (d / name).is_file():
+                    ok(hashlib.sha256((d / name).read_bytes()).hexdigest() == pk.get(key, {}).get(field), f"SMK {v}: {name} has the listed {field}")
+                else:
+                    print(f"skipped: {name} not in {d}: its sha256 is not compared")
+    ok(len(set(sums)) == len(sums), "SMK: every package's sha256 is its own")
+    for t in smk_tags:
+        ok(t[1:] in vers, f"the SMK tag {t} is in web/releases-smk37.json")
+
+
 def main():
     data = json.loads(Path(os.environ.get("CR_RELEASES_JSON") or ROOT / "web" / "releases.json").read_text(encoding="utf-8"))
     rel = data["releases"]
@@ -121,6 +173,8 @@ def main():
         ok(cur in vers, f"the firmware's version {cur} is tagged: it is in the list")
     else:
         print(f"note: the firmware reads {cur}, not tagged here: it need not be in the list yet (docs/HANDOFF.md, 'Release steps')")
+    smk_tags = [t for t in tags if re.search(r"-smk37(\.\d+)?$", t)]   # (the SMK-37 test builds: their own list, below)
+    tags = [t for t in tags if t not in smk_tags]
     for t in [t for t in tags if num(t[1:]) >= num(minimum)]:
         ok(t[1:] in vers, f"the tag {t} is in the list")
     pk = Path(os.environ.get("CR_PACKAGES_DIR") or ROOT / "build" / "scratch" / "packages")
@@ -135,6 +189,8 @@ def main():
                 print(f"skipped: {f.name} not in {pk}: its sha256 is not compared (python3 tools/fetch_packages.py)")
     ok(all(set(r) <= {"version", "date", "tag", "sha256", "sha256_1core", "title", "bullets", "notes", "going_back", "beta"} for r in rel),
        "no entry has a key the site does not know (sha256_1core: optional)")
+    ok(not any("smk" in v.lower() for v in vers), "the FM-1's list names no SMK-37 build")
+    smk_check(vers, smk_tags)
     fetch_check()
     print("releases: ALL OK" if not failed else f"releases: {failed} FAILED")
     return 1 if failed else 0

@@ -182,13 +182,16 @@ def write_header():
     arr("QUAD_DT_DN", "int16_t", DT_DN, 16)
     L.append("/* HARM: 0 the sine, 1..26 the Digitone's series (docs/QUAD.md \"HARM\": saw build-up 1..7, saw reduction")
     L.append(" * 8..13, odd/even 14, square build-up 15..19, square reduction 20..23, bell 24..26), additive, peak 32767;")
-    L.append(" * %d points and the first again (no wrap in the interpolation). Flash (XIP): %.1f KB */" %
-             (HN, len(HARM) * (HN + 1) * 2 / 1024.0))
-    L.append("static const int16_t QUAD_HARM[%d][%d] = {" % (len(HARM), HN + 1))
+    L.append(" * %d points a cycle, of which the first half and its end point, 0 .. %d, are stored: every wave is a sum of" % (HN, HN // 2))
+    L.append(" * sines, so f(%d - i) = -f(i) exactly (quad_ref.py checks every point), and eng_quad.c quad_hw reads the second" % HN)
+    L.append(" * half as the first, reversed and negated. Flash (XIP): %.1f KB (the whole cycle was %.1f) */" %
+             (len(HARM) * (HN // 2 + 1) * 2 / 1024.0, len(HARM) * (HN + 1) * 2 / 1024.0))
+    L.append("static const int16_t QUAD_HARM[%d][%d] = {" % (len(HARM), HN // 2 + 1))
     for t in HARM:
+        assert all(t[HN - i] == -t[i] for i in range(1, HN)) and t[0] == 0 and t[HN // 2] == 0, "a HARM wave is not odd-symmetric"
         L.append("    {")
-        for i in range(0, HN + 1, 16):
-            L.append("        " + ", ".join(str(v) for v in t[i:i + 16]) + ",")
+        for i in range(0, HN // 2 + 1, 16):
+            L.append("        " + ", ".join(str(v) for v in t[i:min(i + 16, HN // 2 + 1)]) + ",")
         L.append("    },")
     L.append("};")
     with open(OUT_H, "w") as f:

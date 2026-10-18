@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # The sound pool's migration and downgrade (0.22, docs/PRESETS.md "The pool"):
 #   1. 377264f's firmware (the last of the 0.21 format: 32 slots, the engine stores), built from that commit by
-#      `git archive` into build/scratch/pool/old377 (its emulator; build/gen copied from this tree), writes an image:
+#      `git archive` into build/scratch/pool/old377 (its emulator; its own build/gen, generated there), writes an image:
 #      32 user sounds of the four engines with a store, each with its deep patch edited, favourites on slots 1, 6, 14
 #      (typed Bass), 32 and on a factory preset (tools/emu/pool_legacy.c make); it lists what it sees (show)
 #   2. this firmware's emulator powers on from a copy: the migration; tools/emu/pool_image.py compares the pool's slots
@@ -31,7 +31,10 @@ if [ ! -f "$OLD/firmware/src/upreset.c" ]; then
     mkdir -p "$OLD" && git archive 377264f | tar -x -C "$OLD" || { echo "377264f: git archive failed"; exit 1; }
 fi
 mkdir -p "$OLD/build"
-[ -d "$OLD/build/gen" ] || cp -R build/gen "$OLD/build/" || exit 1
+# 377264f's generated headers from ITS OWN generators (this tree's build/gen no longer has the shapes its sources
+# read: the flash diet, HISTORY 3y126 .. 3y132, changed the fonts' kerning tables and packed CZ-1's factory tones)
+export DYLD_FALLBACK_LIBRARY_PATH="${DYLD_FALLBACK_LIBRARY_PATH:-/opt/homebrew/lib}"   # (Pillow's Raqm; /bin/sh drops it)
+[ -d "$OLD/build/gen" ] || (cd "$OLD" && python3 -c 'import sys; sys.path.insert(0, "tools"); import build; build.generate()') >/dev/null || exit 1
 OABS=$(cd "$OLD" && pwd)
 ${CC:-cc} -std=gnu11 -O1 -w -I"$OLD/build/gen" -I"$OLD/firmware/src" -I"$OLD/tests" "-DEMU_TREE=$OABS" \
     -o "$D/pool_legacy" tools/emu/pool_legacy.c -lm || { echo "pool_legacy (377264f) build failed"; exit 1; }

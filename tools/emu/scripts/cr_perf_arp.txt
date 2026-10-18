@@ -6,6 +6,7 @@
 # picker. LATCH + a chord tapped: the arp after the 2 s, hands off. OCT- and PERF held again: the picker first, the arp
 # 2 s later. Options > Motion Off: the same (as the Chord view's arp screen). Strum: the picker stays.
 # test_cr.sh reads the frames (EMU_UI_LOG=0) between the dumps.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn ARP down
 wait 500
@@ -66,7 +67,7 @@ btn OCT-
 wait 200
 btn GLO 80                    # Options > Motion Off
 wait 300
-knob SELECT +18
+knob SELECT +21
 wait 300
 knob KNOB1 +2
 wait 300

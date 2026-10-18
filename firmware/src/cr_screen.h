@@ -115,7 +115,11 @@ enum { CR_LW_TRI, CR_LW_SINE, CR_LW_SQUARE, CR_LW_SAW, CR_LW_RAMP, CR_LW_EXP, CR
 enum { CR_W_NONE, CR_W_ENV, CR_W_FILTER, CR_W_DX, CR_W_CZ,     /* CR_W_DX: a DX7 envelope (FM6), 4 rates / 4 levels;
                                                                 * CR_W_CZ: a CZ-1 envelope, 8 steps, SUS, END */
        CR_W_ALGO,                   /* QUAD: the algorithm diagram (operators C A B1 B2, the arrows, feedback, X / Y) */
-       CR_W_ADE2 };                 /* QUAD: the operator envelopes A and B side by side, each with its level bar */
+       CR_W_ADE2,                   /* QUAD: the operator envelopes A and B side by side, each with its level bar */
+       CR_W_WAVE };                 /* GRAIN: the source buffers' envelopes with the grains moving over them (wv[0]: 0 A,
+                                     * 1 B, 2 both morphed; wv[1] the part; wv[2] a frame count: it redraws every frame);
+                                     * the data from cr_wave_src (core.h cr_wave_t), 0: an empty band */
+static const cr_wave_t *(*cr_wave_src)(uint32_t part);   /* set by cr_edit.c (eng_grain.c grain_wave) */
 #define CR_ED_ROWS 8u               /* a stack's rows at most (the mod matrix) */
 #define CR_CF_ON 1u                 /* a cell: shown (an empty cell draws nothing) */
 #define CR_CF_PCT 2u                /* .. pct is shown (a text cell: a small bar) */

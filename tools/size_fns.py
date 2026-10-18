@@ -21,7 +21,19 @@ SIZE_FILES = ["ui.c", "favorites.c", "icons.c", "ui_graph.c", "ui_draw.c", "ui_m
               "editor.c", "editor_preferences.c", "editor_backup.c", "console.c",
               # ChoralRoot's UI, screens and stores (not cr_engine.c, cr_out.c, cr_loop.c: they tick in the audio ISR)
               "cr_ui.c", "cr_edit.c", "cr_draw.c", "cr_gfx.c", "cr_pages.c", "cr_bank.c", "cr_name.c", "cr_settings.c",
-              "cr_anim.c", "cr_shim.c", "cr_favs.c"]
+              "cr_anim.c", "cr_shim.c", "cr_favs.c",
+              # the flash diet (HISTORY 3y131): the stores, the backup, the pool, the layouts: main loop too
+              "cr_backup.c", "cr_layout.c", "upool.c", "fm6_store.c", "fm6_bank.c", "fm6_ustore.c", "cz_store.c", "cz_bank.c",
+              "cz_ustore.c", "cz_legacy.h", "quad_store.c", "va_store.c", "prophet_patch.c", "fm4_convert.c"]
+# .. and these functions of files whose other functions render or tick in the ISR: the main loop's (a sound load, a
+# blob, the deep pages' get / set, which the engine picks up in its block), and the main loop itself
+SIZE_FUNCS = ["fm1_main", "felucca_init",
+              "fm6_track_loaded", "fm6_load_slot", "fm6_put_patch", "fm6_set_patch", "fm6_init", "fm6_pack", "fm6_unpack",
+              "fm6_dset", "fm6_dref", "fm6_dget", "fm6_blob_read", "fm6_blob_set", "fm6_rom_patch",
+              "cz_track_loaded", "cz_factory_tone", "cz_factory_bank", "cz_ed_decode", "cz_dset", "cz_dref", "cz_dget",
+              "quad_unpack", "quad_blob_ok", "quad_set", "quad_blob_set", "quad_blob_get", "quad_blob_preset",
+              "va_unpack", "va_blob_ok", "va_set", "va_get", "va_desc",
+              "p5_patch_valid", "p5_preset_patch"]
 DEF = re.compile(r"^(?:static|void|int|uint\w*|int\w*|const)\b[^;=(]*?\b([A-Za-z_]\w*)\s*\(", re.M)
 IR_DEF = re.compile(r"^(define [^\n]*?@\"?([\w.]+)\"?\([^\n]*\)(?: unnamed_addr| local_unnamed_addr)?)( #\d+[^\n]*\{)$",
                     re.M)
@@ -45,7 +57,7 @@ def definitions(text):
 
 
 def size_names():
-    names = set()
+    names = set(SIZE_FUNCS)
     for f in SIZE_FILES:
         if (SRC / f).is_file():
             names.update(definitions((SRC / f).read_text()))

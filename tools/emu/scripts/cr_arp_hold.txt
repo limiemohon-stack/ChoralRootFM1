@@ -1,6 +1,7 @@
 # ChoralRoot: the arp's Hold defaults off. Arpeggiate picked (PERF held, SELECT +3), OCT- closes; MAJ + D4 played and
 # released: the notes out stop (dumps 2 and 3 equal). LATCH (LFO) on + the chord released: the arp keeps going (4 < 5).
 # PANIC (OCT- + OCT+): stops (6 = 7). Then the view: HOME tap -> Keyboard, PERF on, a chord: the keyboard view stays.
+keys classic                  # (0.25.1: FM-1 is the default; this script was written for the Classic chord keys)
 wait 300
 btn ARP down
 wait 500

@@ -107,7 +107,42 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
 #define CRS_LOOP_MODE(s) ((unsigned)(s)->loop_rec & 15u)
 #define CRS_LOOP_KEYS(s) (((unsigned)(s)->loop_rec >> 4) & 1u)
 #define CRS_KEY_KEYS(s) (((unsigned)(s)->loop_rec & CRS_KEY_PLAY) ? 1u : 0u)
-#define CRS_LOOP_REC(mode, keys) ((uint8_t)(((mode) & 15u) | ((keys) & 1u) << 4))  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
+#define CRS_LOOP_REC(mode, keys) ((uint8_t)(((mode) & 15u) | ((keys) & 1u) << 4))
+
+/* The chord layouts (docs/CHORD-LAYOUT.md, 0.24): three Options in the spare bits of `sticky` (bit 0 stays LATCH, the
+ * manual one): bit 1 Options > Chord Keys FM-1 (0 Classic), bit 2 Full K Shorts On, bits 3 .. 6 the SUS Window as
+ * (ms - 30) / 5, 0 .. 10 (30 .. 80 ms; 0 = 30 ms, the owner's default). In 0.24 / 0.25 zero was every default: no
+ * version, no migration (0.25.1: FM-1 is the default, bit 1 set; the move of older records: CRS_KEYS_MOVED below). Every older firmware checks the byte with CRS_FIX(sticky, 0, 1): a byte with a new bit set
+ * reads as its default (LATCH off), nothing else touched, so it ignores the layout and starts in Classic.
+ * MIDI Keys rides in `raw_sound` the same way: bit 0 stays Raw Chord Sound, bits 1 .. 5 the channel (0 Off, 1 .. 16);
+ * an older firmware reads a byte with a channel as Raw Chord Sound Off. Both bytes are the engine's too
+ * (cr_settings_apply / capture): it takes bit 0 alone */
+#define CRS_LAYOUT_FM1 0x02u
+#define CRS_FULL_SHORT 0x04u
+#define CRS_STICKY_AUTO 0x7Eu                /* bits 1 .. 6: Options (automatic); bit 0, LATCH, manual */
+#define CRS_LATCH(s) ((unsigned)(s)->sticky & 1u)
+#define CRS_LAYOUT(s) (((unsigned)(s)->sticky & CRS_LAYOUT_FM1) ? 1u : 0u)
+#define CRS_FULLSHORT(s) (((unsigned)(s)->sticky & CRS_FULL_SHORT) ? 1u : 0u)
+#define CRS_SUSWIN_CODE(s) ((int)(((unsigned)(s)->sticky >> 3) & 15u))
+#define CRS_SUSWIN_MS(s) ((unsigned)(30 + 5 * CRS_SUSWIN_CODE(s)))
+#define CRS_STICKY_BYTE(latch, layout, fshort, ms) ((uint8_t)(((latch) ? 1u : 0u) | ((layout) ? CRS_LAYOUT_FM1 : 0u) | \
+    ((fshort) ? CRS_FULL_SHORT : 0u) | (((unsigned)(((int)(ms) - 30) / 5) & 15u) << 3)))
+/* 0.25.1: FM-1 is the default Chord Keys (the owner, 2026-10-16: "the new FM-1 chord key layout is significantly better
+ * on this device than the classic, let's make it the default"; "Units from old should get put on the new chord key
+ * layout"). A record with no bit 1 in `leds` (every writer before 0.25.1: the byte is LEDs Glow 0 / Stock 1) has not been
+ * moved yet: cr_settings_import sets FM-1 in it and the mark, once; a record with the mark keeps the layout it holds
+ * (a player's Classic, chosen after the move). No version: a version bump would make every 0.18 .. 0.25 firmware, and
+ * this one on its first start, read the block as migrated and so drop the session unless the object is still the one
+ * it was saved beside (css_read). An older firmware checks `leds` with CRS_FIX(leds, 0, 1): with the mark it reads
+ * LEDs Glow (Stock is lost until set again there) and reads the layout bit as it is (0.24, 0.25); its next write of
+ * the block has no mark, so this firmware moves that record to FM-1 again (it comes from an older firmware). The
+ * SMK-37 (Chord Keys hidden, Classic) neither sets the mark nor moves a record: its block is 0.25's */
+#define CRS_LEDS_STOCK 0x01u
+#define CRS_KEYS_MOVED 0x02u
+#define CRS_LEDS(s) ((unsigned)(s)->leds & CRS_LEDS_STOCK)
+#define CRS_RAW(s) ((unsigned)(s)->raw_sound & 1u)
+#define CRS_MIDI_KEYS(s) (((unsigned)(s)->raw_sound >> 1) & 31u)
+#define CRS_RAW_BYTE(raw, keys) ((uint8_t)(((raw) ? 1u : 0u) | (((keys) & 31u) << 1)))  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
 
 /* Options > Output (0.19, docs/AUDIO-QUALITY.md) rides in bit 1 of pick_roots (bit 0: the retired picker option): set =
  * Classic (0.18's master), clear = Clean, so every older record reads as the default and no version is needed. A
@@ -173,7 +208,8 @@ typedef struct {
     uint8_t clock_mode, raw_sound, view, motion;     /* CRS_CLOCK_*, RAW also plays part 0, View 0..5 (bits 0..2; v9:
                                                       * bit 7 the view lock, CRS_VIEW / CRS_VIEW_LOCK; v12: bit 6
                                                       * Dual Core On, CRS_DUALCORE), Motion 0..2 */
-    uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock, FX on; v6: the
+    uint8_t palette, leds, fx_on, pool_pos10_bass;   /* palette index (CRS_PALETTE_MOD), LEDs Glow / Stock (bit 0; 0.25.1:
+                                                      * bit 1 the record moved to FM-1, CRS_KEYS_MOVED), FX on; v6: the
                                                       * bass part's pool_pos of engine rank 10 (was rsv1) */
     uint16_t chord_sound, bass_sound;                /* v6: the chord part's sound and the bass part's (what BASS tap
                                                       * brings) as (engine << 8) | pool position (docs/PRESETS.md);
