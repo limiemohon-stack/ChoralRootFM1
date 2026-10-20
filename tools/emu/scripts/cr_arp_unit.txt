@@ -2,7 +2,7 @@
 # by test_cr.sh through tools/emu/seed_settings.py): Key Mode on (E minor), Split, Arpeggiate picked (Division 1/16,
 # Gate 10 %), the view Chord, Options > Motion Off, perform off as stored. PERF tap: on. One root alone (D4: the
 # scale's chord): the arp screen, the note hopping, with Motion Off too (the hop is the arpeggio's state, not an
-# animation). Released: the chord view. LATCH (GLO held + LFO: the record is moved to the FM-1 chord keys) + a root tapped: it keeps hopping. PERF tap: off, the chord view.
+# animation). Released: the chord view. LATCH (LFO tapped: this fork keeps the seeded record on Classic chord keys, where LFO is LATCH) + a root tapped: it keeps hopping. PERF tap: off, the chord view.
 wait 500
 dump                          # 1: as stored: key 1 tonic 4 scale 1, perform 0 mode 2, view 0
 btn ARP
@@ -15,11 +15,8 @@ dump                          # 3: a root alone held: the arp screen, hopping
 btn D4 up
 wait 500
 dump                          # 4: released: the chord view
-btn GLO down                  # LATCH: GLO held, then LFO (0.25.1: the seeded record, older than 0.25.1, is moved to the
-wait 60                       # FM-1 chord keys, where LFO alone is LOCK)
-btn LFO 80
-btn GLO up
-wait 60
+btn LFO 80                    # LATCH: LFO tapped (this fork: the seeded record stays on the Classic chord keys)
+wait 120
 btn E4 down
 wait 300
 btn E4 up
@@ -28,9 +25,6 @@ dump                          # 5: LATCH, the root let go: the arp screen, hoppi
 btn ARP
 wait 400
 dump                          # 6: perform off: the chord view
-btn GLO down                  # LATCH off
-wait 60
-btn LFO 80
-btn GLO up
-wait 2360
+btn LFO 80                    # LATCH off
+wait 2420
 dump                          # 7: silent

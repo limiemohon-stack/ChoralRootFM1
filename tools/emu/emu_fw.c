@@ -142,6 +142,8 @@ void emu_fw_init(int demo)
                                                     * defaults with Chord Keys Classic, as if chosen in the Options and
                                                     * saved (no write here: flash still holds no record) */
         crs_rec.cr.sticky = (uint8_t)(crs_rec.cr.sticky & ~CRS_LAYOUT_FM1);
+        if (emu_hal.keys_classic == 2u)           /* "keys fm1" (this fork's default is Classic): FM-1, as chosen */
+            crs_rec.cr.sticky = (uint8_t)(crs_rec.cr.sticky | CRS_LAYOUT_FM1);
         cr_settings_seal(&crs_rec.cr);
     }
     crs_ahead_boot();                             /* .. and the spare copies erased ahead (cr_shim.c persist_boot) */

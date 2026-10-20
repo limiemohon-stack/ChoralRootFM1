@@ -1114,9 +1114,9 @@ int main(void)
 #undef NRET
     }
 
-    /* ---- 0.25.1: FM-1 is the default Chord Keys, and a restored older settings object moves to it once (cr_settings.h
-     * CRS_KEYS_MOVED). A 0.25 backup with Classic, LATCH, the SUS Window at 60 ms and LEDs Stock (leds 1: no mark):
-     * after the restart FM-1, the rest as the backup had it. A 0.25.1 backup with Classic chosen (the mark): Classic, and
+    /* ---- this fork: Classic is the default Chord Keys, and a restored settings object it has not written is put on Classic
+     * once (cr_settings.h CRS_KEYS_CLASSIC). A 0.25 backup with Classic, LATCH, the SUS Window at 60 ms and LEDs Stock (leds
+     * 1: no mark): after the restart Classic, the rest as the backup had it. A 0.25.1 backup with Classic chosen (the mark): Classic, and
      * Classic again after a power cycle ---- */
     {
         static persist_t pv;
@@ -1124,8 +1124,8 @@ int main(void)
         memset(emu_flash, 0xFF, sizeof emu_flash);   /* a fresh device: the defaults */
         power_on();
         cr_ui_init();
-        CHECK(cs.layout == 1u && (crs_rec.cr.leds & CRS_KEYS_MOVED) && !cs.leds,
-              "a fresh unit: Chord Keys FM-1, the record marked moved, LEDs Glow (%u %02X)", (unsigned)cs.layout, (unsigned)crs_rec.cr.leds);
+        CHECK(cs.layout == 0u && (crs_rec.cr.leds & CRS_KEYS_CLASSIC) && !cs.leds,
+              "a fresh unit: Chord Keys Classic (this fork), the record marked, LEDs Glow (%u %02X)", (unsigned)cs.layout, (unsigned)crs_rec.cr.leds);
         crs_capture(&crs_rec.cr);
         memcpy(&pv, &crs_rec, sizeof pv);
         pv.cr.sticky = CRS_STICKY_BYTE(1, 0, 0, 60);   /* as 0.25 wrote it: Classic, LATCH, 60 ms */
@@ -1136,8 +1136,8 @@ int main(void)
         cr_restore_lock = 0;
         power_on();
         cr_ui_init();
-        CHECK(cs.layout == 1u && cs.sticky == 1u && cs.suswin == 60u && cs.leds == 1u && (crs_rec.cr.leds & CRS_KEYS_MOVED),
-              "0.25 backup with Classic: after the restart FM-1, LATCH, 60 ms and LEDs Stock kept, the record marked (%u %u %u %u)",
+        CHECK(cs.layout == 0u && cs.sticky == 1u && cs.suswin == 60u && cs.leds == 1u && (crs_rec.cr.leds & CRS_KEYS_CLASSIC),
+              "0.25 backup with Classic: after the restart Classic (this fork), LATCH, 60 ms and LEDs Stock kept, the record marked (%u %u %u %u)",
               (unsigned)cs.layout, (unsigned)cs.sticky, (unsigned)cs.suswin, (unsigned)cs.leds);
         pv.cr.leds = CRS_LEDS_STOCK | CRS_KEYS_MOVED;   /* a 0.25.1 backup: Classic chosen after the move */
         cr_settings_seal(&pv.cr);

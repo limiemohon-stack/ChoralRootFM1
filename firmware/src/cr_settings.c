@@ -115,11 +115,12 @@ void cr_settings_defaults(cr_settings_t *s)
                                                     * told from 0.16 .. 0.21's default (docs/DUALCORE.md) */
     s->fx_on = 1;
 #if !BOARD_SMK37
-    s->sticky = CRS_LAYOUT_FM1;                    /* Options > Chord Keys FM-1 (0.25.1, the owner, 2026-10-16: "let's
-                                                    * make it the default"): a unit with no record, Flash Data, Reset
-                                                    * Settings. Moved already (CRS_KEYS_MOVED): the layout a record of
+    s->sticky = 0;                                 /* Options > Chord Keys Classic (this fork, 2026-10-20: Harmony mode
+                                                    * was made on Classic, LATCH on LFO, C4 the 9; upstream's default since
+                                                    * 0.25.1 is FM-1): a unit with no record, Flash Data, Reset Settings.
+                                                    * Marked (CRS_KEYS_MOVED, CRS_KEYS_CLASSIC): the layout a record of
                                                     * this firmware holds is the player's (the SMK-37: Classic, hidden) */
-    s->leds = CRS_KEYS_MOVED;
+    s->leds = CRS_KEYS_MOVED | CRS_KEYS_CLASSIC;
 #endif
     s->chord_sound = CRS_SOUND_DEFAULT;
     s->bass_sound = CRS_SOUND_DEFAULT;
@@ -241,7 +242,8 @@ static void crs_sanitize(cr_settings_t *s)
                                                     * and a record's Off is never turned On for it) */
         s->view = (uint8_t)(s->view & CRS_DC_ON);
     CRS_FIX(motion, 0, 2);
-    CRS_FIX(leds, 0, (int)(CRS_LEDS_STOCK | CRS_KEYS_MOVED));   /* (0.25.1: bit 1 the move to FM-1, CRS_KEYS_MOVED) */
+    CRS_FIX(leds, 0, (int)(CRS_LEDS_STOCK | CRS_KEYS_MOVED | CRS_KEYS_CLASSIC));   /* (0.25.1: bit 1 the move to FM-1,
+                                                    * CRS_KEYS_MOVED; this fork: bit 2, CRS_KEYS_CLASSIC) */
     CRS_FIX(fx_on, 0, 1);
     CRS_FIX(metro_on, 0, 1);
     CRS_FIX(metro_sig, 0, 2);
@@ -376,14 +378,14 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
     }
     crs_sanitize(s);
 #if !BOARD_SMK37
-    if (!(s->leds & CRS_KEYS_MOVED))               /* 0.25.1: a record no firmware since 0.25.1 has written (any version: 0.23
-                                                    * and older have no Chord Keys, 0.24 / 0.25 Classic or FM-1): FM-1,
-                                                    * once; the mark keeps a later Classic (cr_settings.h CRS_KEYS_MOVED).
-                                                    * The rest of the byte and the record as they were; rc unchanged (a
-                                                    * current record stays current: the session beside it is applied) */
+    if (!(s->leds & CRS_KEYS_CLASSIC))             /* this fork: a record this firmware has not written yet (upstream's
+                                                    * 0.25.1 / 0.26 moved it to FM-1, older ones never had Chord Keys):
+                                                    * Classic, once, and both marks; the player's choice after that
+                                                    * stands, FM-1 included (cr_settings.h CRS_KEYS_CLASSIC). The rest of
+                                                    * the byte and the record as they were; rc unchanged */
     {
-        s->sticky = (uint8_t)(s->sticky | CRS_LAYOUT_FM1);
-        s->leds = (uint8_t)(s->leds | CRS_KEYS_MOVED);
+        s->sticky = (uint8_t)(s->sticky & ~CRS_LAYOUT_FM1);
+        s->leds = (uint8_t)(s->leds | CRS_KEYS_MOVED | CRS_KEYS_CLASSIC);
     }
 #endif
     cr_settings_seal(s);
@@ -815,7 +817,7 @@ static void crs_capture(cr_settings_t *s)
     s->split_pc = cs.split;
     s->view = (uint8_t)(CRS_VIEW_BYTE(cs.view, cs.view_lock) | (cs.dualcore ? CRS_DC_ON : 0u));
     s->motion = cr_motion;
-    s->leds = (uint8_t)((cs.leds ? CRS_LEDS_STOCK : 0u) | (s->leds & CRS_KEYS_MOVED));   /* (the record's mark, as
+    s->leds = (uint8_t)((cs.leds ? CRS_LEDS_STOCK : 0u) | (s->leds & (CRS_KEYS_MOVED | CRS_KEYS_CLASSIC)));   /* (the record's marks, as
                                                     * the import left it: set, but on the SMK-37) */
     s->fx_on = cs.fx_on;
     s->chord_sound = (uint16_t)((trk[CR_PART_CHORD].eng_req % NENGINES) << 8 | (cs.sound & 0xFFu));

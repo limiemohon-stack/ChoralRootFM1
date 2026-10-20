@@ -5,6 +5,7 @@
 #  B. D4 tapped: Cmaj9 latched (dump 3); G#3 + A#3 down together: Upper (dump 4); up
 #  C. B3 held + A4: the tritone sub's lead-in (dump 5); up; C4 tapped (a root in FM-1, off the map): nothing (dump 6)
 #  D. LFO tapped: LATCH off; OCT-: out; SEQ held, KNOB 2 +1, KNOB 3 +1: LOCK keeps / pushed (dump 7); OCT-, PANIC
+keys fm1                      # (this fork's default is Classic: the FM-1 layout as chosen in Options)
 wait 500
 btn A#3 down
 wait 40

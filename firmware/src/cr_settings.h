@@ -139,6 +139,10 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
  * SMK-37 (Chord Keys hidden, Classic) neither sets the mark nor moves a record: its block is 0.25's */
 #define CRS_LEDS_STOCK 0x01u
 #define CRS_KEYS_MOVED 0x02u
+#define CRS_KEYS_CLASSIC 0x04u          /* this fork (Harmony mode, 2026-10-20): the record put back to Classic once, as this
+                                         * firmware's default is (upstream 0.25.1 / 0.26 move every unit to FM-1); a record
+                                         * with it keeps the layout it holds. Upstream's firmware reads a byte with bit 2 as
+                                         * out of range: LEDs Glow, not moved (its next start moves it to FM-1 again) */
 #define CRS_LEDS(s) ((unsigned)(s)->leds & CRS_LEDS_STOCK)
 #define CRS_RAW(s) ((unsigned)(s)->raw_sound & 1u)
 #define CRS_MIDI_KEYS(s) (((unsigned)(s)->raw_sound >> 1) & 31u)

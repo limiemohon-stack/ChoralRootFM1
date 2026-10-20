@@ -1025,7 +1025,7 @@ static void load_script(const char *path)
         if (!strcmp(cmd, "wait")) { cur += parse_dur(arg, 0); continue; }
         if (!strcmp(cmd, "keys")) {               /* keys classic | fm1: the Chord Keys of a unit with no settings record */
             if (!strcmp(arg, "classic") || !strcmp(arg, "fm1"))
-                emu_hal.keys_classic = !strcmp(arg, "classic");
+                emu_hal.keys_classic = !strcmp(arg, "classic") ? 1u : 2u;   /* (this fork: Classic the default; fm1 forces FM-1) */
             else
                 BAD("keys: classic or fm1, not '%s'", arg);
             continue;

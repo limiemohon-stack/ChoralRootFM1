@@ -213,7 +213,7 @@ static void t_roundtrip(void)
     s.perform_on = 1; s.perform_mode = CR_PM_ARP; s.sticky = 1; s.bpm = 97;
     s.par[CR_PM_ARP][CR_P_DIV] = CR_DIV_1_16T; s.par[CR_PM_HARP][CR_P_RANGE] = 4; s.par[CR_PM_PATTERN][CR_P_ROTATE] = -3;
     s.midi_en[2] = 1; s.midi_ch[2] = 9; s.clock_mode = CRS_CLOCK_OFF; s.raw_sound = 1;
-    s.view = 2; s.motion = 1; s.leds = CRS_LEDS_STOCK | CRS_KEYS_MOVED; s.palette = 3; s.chord_sound = 17; s.bass_sound = 4; s.vel = 64;
+    s.view = 2; s.motion = 1; s.leds = CRS_LEDS_STOCK | CRS_KEYS_MOVED | CRS_KEYS_CLASSIC; s.palette = 3; s.chord_sound = 17; s.bass_sound = 4; s.vel = 64;
     s.loop_sync = 3; s.loop_quant = 2; s.loop_count_in = 1; s.loop_level = 80;
     cr_settings_seal(&s);
     cr_init(&C, &OUT);
@@ -1576,8 +1576,8 @@ static void t_layout(void)
     cr_settings_t d, s, r, m2, o2;
     cr_settings_out_t o;
     cr_settings_defaults(&d);
-    ok(d.sticky == CRS_LAYOUT_FM1 && CRS_LAYOUT(&d) == 1u && CRS_FULLSHORT(&d) == 0u && CRS_SUSWIN_MS(&d) == 30u &&
-       !CRS_LATCH(&d), "defaults: FM-1 (0.25.1), Full K Shorts Off, the SUS Window 30 ms, LATCH off");
+    ok(d.sticky == 0 && CRS_LAYOUT(&d) == 0u && CRS_FULLSHORT(&d) == 0u && CRS_SUSWIN_MS(&d) == 30u &&
+       !CRS_LATCH(&d), "defaults: Classic (this fork), Full K Shorts Off, the SUS Window 30 ms, LATCH off");
     ok(d.raw_sound == 0 && CRS_MIDI_KEYS(&d) == 0u, "defaults: MIDI Keys Off (the byte 0)");
     s = d;
     s.sticky = CRS_STICKY_BYTE(1, 1, 1, 30);
@@ -1629,8 +1629,10 @@ static void t_layout(void)
        "an older firmware: a byte with a new bit is out of its range (LATCH off, Raw Chord Sound off there); with the defaults it is one it knows");
 }
 
-/* 0.25.1: FM-1 is the default Chord Keys; every record no 0.25.1 firmware wrote moves to FM-1 once, marked in bit 1 of
- * `leds` (cr_settings.h CRS_KEYS_MOVED); a marked record keeps its layout */
+/* This fork (2026-10-20): Classic is the default Chord Keys (upstream's since 0.25.1 is FM-1); every record this
+ * firmware has not written yet (upstream 0.25.1 / 0.26 moved it to FM-1; older ones never had Chord Keys) is put on
+ * Classic once, marked in bit 2 of `leds` (cr_settings.h CRS_KEYS_CLASSIC) beside upstream's bit 1; a record with the
+ * mark keeps its layout, FM-1 included */
 static cr_settings_t keys_rec(unsigned version, uint8_t sticky, uint8_t leds)
 {
     cr_settings_t s;
@@ -1648,63 +1650,58 @@ static cr_settings_t keys_rec(unsigned version, uint8_t sticky, uint8_t leds)
     }
     return s;
 }
+#define CRS_MARKS (CRS_KEYS_MOVED | CRS_KEYS_CLASSIC)
 static void t_keys_default(void)
 {
     cr_settings_t d, s, r, r2, m;
     unsigned v, good;
     cr_settings_defaults(&d);
-    ok(CRS_LAYOUT(&d) == 1u && (d.leds & CRS_KEYS_MOVED) && CRS_LEDS(&d) == 0u && !CRS_LATCH(&d),
-       "a fresh unit: FM-1, the record marked moved, LEDs Glow");
-    ok(cr_settings_import(&r, NULL, 0) == 0 && CRS_LAYOUT(&r) == 1u && (r.leds & CRS_KEYS_MOVED),
-       "no record (a new unit, Flash Data): FM-1");
+    ok(CRS_LAYOUT(&d) == 0u && (d.leds & CRS_MARKS) == CRS_MARKS && CRS_LEDS(&d) == 0u && !CRS_LATCH(&d),
+       "a fresh unit: Classic, the record marked, LEDs Glow");
+    ok(cr_settings_import(&r, NULL, 0) == 0 && CRS_LAYOUT(&r) == 0u && (r.leds & CRS_MARKS) == CRS_MARKS,
+       "no record (a new unit, Flash Data): Classic");
     cr_settings_factory(&r);
-    ok(CRS_LAYOUT(&r) == 1u && (r.leds & CRS_KEYS_MOVED), "Reset Settings: FM-1");
-    /* 0.25 (v15, no mark) with Classic stored, LATCH, Full K Shorts, 60 ms, LEDs Stock: FM-1, the rest kept */
+    ok(CRS_LAYOUT(&r) == 0u && (r.leds & CRS_MARKS) == CRS_MARKS, "Reset Settings: Classic");
+    /* 0.25 (v15, no marks) with Classic stored, LATCH, Full K Shorts, 60 ms, LEDs Stock: Classic, the rest kept */
     s = keys_rec(15, CRS_STICKY_BYTE(1, 0, 1, 60), CRS_LEDS_STOCK);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 1u && CRS_LATCH(&r) == 1u && CRS_FULLSHORT(&r) == 1u &&
-       CRS_SUSWIN_MS(&r) == 60u && CRS_LEDS(&r) == 1u && (r.leds & CRS_KEYS_MOVED) && r.bpm == 111,
-       "0.25 with Classic: FM-1 at the first start (current, rc 1: the session stays), LATCH / Full K Shorts / 60 ms / Stock kept");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 0u && CRS_LATCH(&r) == 1u && CRS_FULLSHORT(&r) == 1u &&
+       CRS_SUSWIN_MS(&r) == 60u && CRS_LEDS(&r) == 1u && (r.leds & CRS_MARKS) == CRS_MARKS && r.bpm == 111,
+       "0.25 with Classic: Classic (current, rc 1), LATCH / Full K Shorts / 60 ms / Stock kept");
     s = keys_rec(15, CRS_STICKY_BYTE(0, 1, 0, 45), 0);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 1u && CRS_SUSWIN_MS(&r) == 45u && CRS_LEDS(&r) == 0u &&
-       (r.leds & CRS_KEYS_MOVED), "0.25 with FM-1: FM-1, marked, 45 ms kept");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 0u && CRS_SUSWIN_MS(&r) == 45u && CRS_LEDS(&r) == 0u &&
+       (r.leds & CRS_MARKS) == CRS_MARKS, "0.25 with FM-1: Classic once, marked, 45 ms kept");
+    s = keys_rec(15, CRS_STICKY_BYTE(0, 1, 0, 30), CRS_KEYS_MOVED | CRS_LEDS_STOCK);   /* upstream 0.25.1 / 0.26 */
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 0u && CRS_LEDS(&r) == 1u && (r.leds & CRS_MARKS) == CRS_MARKS,
+       "upstream 0.25.1 / 0.26 (moved to FM-1): Classic at this firmware's first start, Stock kept");
     s = keys_rec(15, 1, CRS_LEDS_STOCK);           /* 0.23: LATCH only (no Chord Keys), Stock */
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 1u && CRS_LATCH(&r) == 1u && CRS_SUSWIN_MS(&r) == 30u &&
-       CRS_LEDS(&r) == 1u && (r.leds & CRS_KEYS_MOVED), "0.23 (no Chord Keys): FM-1, LATCH and Stock kept, 30 ms");
-    for (v = 1, good = 0; v < 15u; v++) {          /* every older version: FM-1 */
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 0u && CRS_LATCH(&r) == 1u && CRS_SUSWIN_MS(&r) == 30u &&
+       CRS_LEDS(&r) == 1u && (r.leds & CRS_MARKS) == CRS_MARKS, "0.23 (no Chord Keys): Classic, LATCH and Stock kept, 30 ms");
+    for (v = 1, good = 0; v < 15u; v++) {          /* every older version: Classic */
         s = keys_rec(v, 0, 0);
-        good += cr_settings_import(&r, &s, sizeof s) == 2 && CRS_LAYOUT(&r) == 1u && (r.leds & CRS_KEYS_MOVED);
+        good += cr_settings_import(&r, &s, sizeof s) == 2 && CRS_LAYOUT(&r) == 0u && (r.leds & CRS_MARKS) == CRS_MARKS;
     }
-    ok(good == 14u, "records of versions 1..14: FM-1, marked");
-    /* Classic chosen after the move: kept by every later start (the move never runs twice) */
-    s = keys_rec(15, CRS_STICKY_BYTE(0, 0, 0, 30), CRS_KEYS_MOVED);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 0u && (r.leds & CRS_KEYS_MOVED),
-       "Classic chosen after the move (marked): Classic at the next start");
-    ok(cr_settings_import(&r2, &r, sizeof r) == 1 && cr_settings_equal(&r2, &r) && CRS_LAYOUT(&r2) == 0u,
-       ".. and the start after that (a power cycle): Classic, the record unchanged");
-    s = keys_rec(15, CRS_STICKY_BYTE(0, 0, 0, 30), 0);
+    ok(good == 14u, "records of versions 1..14: Classic, marked");
+    /* FM-1 chosen in Options after that: kept by every later start (the put-back never runs twice) */
+    s = keys_rec(15, CRS_STICKY_BYTE(0, 1, 0, 30), CRS_MARKS);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 1u && (r.leds & CRS_MARKS) == CRS_MARKS,
+       "FM-1 chosen in Options (marked): FM-1 at the next start");
+    ok(cr_settings_import(&r2, &r, sizeof r) == 1 && cr_settings_equal(&r2, &r) && CRS_LAYOUT(&r2) == 1u,
+       ".. and the start after that (a power cycle): FM-1, the record unchanged");
+    s = keys_rec(15, CRS_STICKY_BYTE(0, 1, 0, 30), 0);
     cr_settings_import(&r, &s, sizeof s);
-    ok(cr_settings_import(&r2, &r, sizeof r) == 1 && cr_settings_equal(&r2, &r), "the move is idempotent: import(import(x)) == import(x)");
-    /* the mark is automatic: an Options save (cr_settings_auto) carries it with the layout */
+    ok(cr_settings_import(&r2, &r, sizeof r) == 1 && cr_settings_equal(&r2, &r), "the put-back is idempotent: import(import(x)) == import(x)");
+    /* the marks are automatic: an Options save (cr_settings_auto) carries them with the layout */
     cr_settings_defaults(&m);
     m.leds = 0;
     m.sticky = 0;
     s = d;
-    s.sticky = 0;                                  /* (Classic chosen in Options, the mark from the import) */
+    s.sticky = CRS_LAYOUT_FM1;                     /* (FM-1 chosen in Options, the marks from the import) */
     cr_settings_auto(&m, &s);
-    ok(CRS_LAYOUT(&m) == 0u && (m.leds & CRS_KEYS_MOVED), "an Options save writes the layout and the mark together");
-    /* out of range: leds 4 .. 255 -> the default byte (Glow, marked) */
+    ok(CRS_LAYOUT(&m) == 1u && (m.leds & CRS_MARKS) == CRS_MARKS, "an Options save writes the layout and the marks together");
+    /* out of range: leds 8 .. 255 -> the default byte (Glow, marked) */
     s = keys_rec(15, 0, 0x80);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.leds == d.leds && CRS_LAYOUT(&r) == 0u,
        "leds out of range (0x80): the default byte (Glow, marked), so Classic stays");
-    /* what an older firmware reads (modelled from its ranges: the old binaries were not run): 0.18 .. 0.25 check leds
-     * 0 .. 1, so a marked byte reads as their default, Glow; 0.24 / 0.25 read sticky 0 .. 0x7F (the layout as stored),
-     * 0.23 and older sticky 0 .. 1 (a byte with FM-1 out of range: LATCH off). Their next write has no mark */
-    s = d;
-    ok(s.leds > 1u && CRS_LAYOUT(&s) == 1u && s.sticky <= 0x7Fu && s.sticky > 1u,
-       "an older firmware on a 0.25.1 record: LEDs Glow (out of 0 .. 1), 0.24 / 0.25 the layout stored, 0.23 LATCH off");
-    s = keys_rec(15, CRS_STICKY_BYTE(0, 0, 0, 30), CRS_LEDS_STOCK);   /* 0.25 saved Classic after a downgrade */
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_LAYOUT(&r) == 1u,
-       "a downgrade that saved, then 0.25.1 again: the record comes from an older firmware and moves to FM-1 again");
 }
 
 int main(void)
