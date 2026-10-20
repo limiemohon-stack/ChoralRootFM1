@@ -26,6 +26,8 @@
 #endif
 #define VA_NPART 2u              /* parts with a VA patch (ChoralRoot: chord, bass) */
 #define VA_POLY 8                /* engine_t.poly (docs/VA.md: CPU) */
+#define VA_VOICE_US 280u         /* a voice at the peak: MORPH PAD, 8 notes, 2293 us on one core (the unit,
+                                  * docs/INTEGRATION.md): engine_t.split, fx.c p5x_assign */
 #define VA_BLOB 110u             /* packed patch: 2 bytes magic / version, VA_NP values (version 4: 106 and 2 zero
                                   * bytes, where version 5 keeps the matrix's fine flags) */
 #define VA_MAGIC 0x56u           /* 'V' */
@@ -1367,4 +1369,5 @@ static const engine_t ENG_VA = {
     .ownenv = 1,
     .done = va_done,
     .deep = &VA_DEEP,
+    .split = VA_VOICE_US / 10u,  /* the chord's voices on both cores (3y177, fx.c p5x_run; docs/VA.md "Two cores") */
 };

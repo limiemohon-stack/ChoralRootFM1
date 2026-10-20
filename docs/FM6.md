@@ -60,6 +60,48 @@ Device estimates from `tools/emu/perf.sh` (avg / worst block of the 2.9 ms budge
 
 A voice still takes one budget unit at 8 (`fm6_units`): 8 FM6 voices and the bass (2 units) leave 6 units.
 
+### Two cores (3y187)
+
+With Dual Core On the chord part's FM6 voices are shared out between the cores, as P5's (3y46) and the VA's (3y177)
+are (`engine_t.split` 20: a voice weighs 200 us, the unit's TINE EP; docs/DUALCORE.md "What each core runs"): core 0
+prepares every voice, core 1 renders its share after the bass part into `p5x_buf`, core 0 renders the rest, waits
+and adds. Integer sums: the part is one core's render, bit for bit. Dexed's DC filter (`fm6_post`) runs after the
+sum, on core 0.
+
+**What a voice's render touches** (`fm6_render`, `fm6_control`, `fm6_run`; the audit). Writes: the voice's own
+`fm6_voice_t` (envelopes, pitch envelope, phases, frequencies, levels, the plan, `sub`, `quiet`), the buffer it is
+given, and the render's scratch (`fm6_scr`: the modulator buses and the voice's sum). Two things were shared and are
+not any more:
+
+- **The scratch is the core's** (`cr_cpu1.h CR_C1_IDX`: `CR_C1_SELF()`, the `cnum` register on the device, a
+  thread-local on the host's test thread). It was the part's: core 1's chord voices would have used core 0's. Core 1
+  renders the bass and then its chord voices one after the other, so its one scratch serves both: **no third
+  `fm6_scr`, 0 B of RAM.** Without it ThreadSanitizer reports the buses (10 reports, `fm6_op`).
+- **The AMS shares** (`P->pt.amd`, `pok`, `pt[]`): `fm6_control` figured them lazily, the first voice of a block to
+  need one. Every voice of a block has the part's one `amd` (`fm6_amd`: the LFO, its delay, the controllers), so
+  `fm6_block` now figures them on core 0 before the hand-over (`fm6_ams_share`, for the operators that sound) and
+  the voices only read them: the same values, so the same samples. Without it ThreadSanitizer reports the cache (4
+  reports, `fm6_ams_share`), and a core could have read a share the other was rewriting.
+
+Reads: the part's effective patch (`fm6_eff`, made in `fm6_block` / `fm6_sync`), the operator switches, the
+function data, the part's LFO and controllers (`fm6_ctl_block`, before), `song.g[G_TUNE]`, the tables. What stays on
+core 0: `fm6_block` (the patch sync, the controllers, the LFO, and the released voices' "ghost" control ticks, which
+Dexed runs on: after a chord change eight of them), `fm6_post`. Core 1's stack: `fm6_render` under `c1_part1_job`,
+shallower than an FM6 bass's path through `track_render_x`.
+
+The split (core 0 + core 1) over a sounding MONO bass of 2 units: 8 voices 4 + 4, 7 4 + 3, 6 3 + 3, 5 3 + 2.
+
+**The estimate** (not measured on the unit). The unit with package B (HISTORY 3y177): TINE EP 8 notes over DEEP SUB,
+block 2468 dry / 2565 recording, part0 1524 / 1627, part1 249 / 257, no late half, no shed. The emulator
+(`tools/emu/scripts/cr_fm6_eight.txt`, the same chord, device us a half, avg / max): part0 249 / 684 and part1 28 / 113
+before, 146 / 578 and 145 / 418 after (a second run: 146 / 461, 145 / 392; the host's maxima vary from run to run):
+the longer side 41 % lower on average, only 16 .. 33 % at its peak (the peak blocks have core 0's own part: the
+ghosts, the patch sync). On the unit: four voices on each core would take the longer side
+from 1524 to about 950 .. 1000 (the bass and four voices on core 1); with the emulator's peaks, about 250 us of the
+worst half. So the worst half about 250 .. 550 us lower: dry 2468 -> about 1900 .. 2200 (66 .. 76 %), recording 2565
+-> about 2000 .. 2300 (69 .. 79 %). **Headroom, not a fix**: under B the rows already have no late half and no shed;
+this takes the recording row's spare from 12 % of the half to about 20 .. 30 %.
+
 ## The patch, its blob and the user slots
 
 Every part has its patch (`fm6_patch`: the 155-byte DX7 single voice) and its function settings (`fm6_fn`: bend up /

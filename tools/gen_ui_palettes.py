@@ -41,8 +41,9 @@ PALETTES = [
     # ChoralRoot FM-1's mod palette (PLAN.md section 5): white on black, its red as THEME, its yellow as ACCENT. The
     # red asked for, (224, 58, 47), misses ink/sel (3.44 < 4.5: BG text on a SEL row) and theme/surf (4.05 < 4.5);
     # THEME is the nearest red that passes every check. ChoralRoot's screens draw the named red itself
-    # (firmware/src/cr_draw.c CR_RED = (224, 58, 47)); THEME here serves Felucca's pages in this palette.
-    ("MOD",    (10, 10, 12),    (28, 28, 32),    (246, 243, 234), (248, 96, 48),   (242, 183, 5)),
+    # (firmware/src/cr_draw.c CR_RED = (224, 58, 47)); THEME here serves Felucca's pages in this palette. BG is pure
+    # black (3y185; through 0.25.1 it was (10, 10, 12), which the backlight showed as a dark grey).
+    ("MOD",    (0, 0, 0),       (28, 28, 32),    (246, 243, 234), (248, 96, 48),   (242, 183, 5)),
 ]
 # the 20 palettes of the earlier firmware (index order) -> the new palette
 OLD = ["GREEN", "AMBER", "CYAN", "RED", "MONO", "VIOLET", "PINK", "ICE", "WARM", "OCEAN", "DUSK", "HI-CON",

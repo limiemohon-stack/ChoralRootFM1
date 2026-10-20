@@ -877,6 +877,8 @@ static int probe_frames;                         /* script `probe N`: the next N
  *                           "midi F8 xN MS": N clock pulses MS apart (MS may be fractional: 20.833), the clock moves on
  *   pa2 high|low            drive the PA2 line by hand (emu_hooks.h pa2): high = the backlight off, the key matrix,
  *                           the knobs and the LEDs dead, as on the unit (the firmware itself never raises it)
+ *   lcdfill                 paint the panel's RAM magenta (255 0 255), a colour no view draws: a pixel the firmware
+ *                           does not write afterwards keeps it (MOD's background is black, so black cannot mark one)
  *   strike KEY [MS]         (headless) a note key pressed at the worst moment for its latency: as the next UI frame
  *                           begins, after the timer's tick (so the frame's own scan does not see it: the first tick
  *                           inside the redraw does), let go MS later (default 100); prints the strips that frame's
@@ -890,7 +892,7 @@ static int probe_frames;                         /* script `probe N`: the next N
  * for btn; "note:F3" names the note F3. */
 enum { OP_LEAN = 100 };                  /* a held key's lean (aftertouch), n = 0..100 % */
 enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI, OP_PROBE,
-       OP_PA2, OP_STRIKE, OP_KNOBS };
+       OP_PA2, OP_STRIKE, OP_KNOBS, OP_LCDFILL };
 typedef struct { uint32_t ms, seq; int op, kind, idx, n; const keymap_t *km; char name[96]; } sev_t;
 static sev_t *sev;
 static int sev_n, sev_cap, sev_i, quit_req;
@@ -1093,6 +1095,7 @@ static void load_script(const char *path)
             sev_add(cur, OP_PA2, NULL, 0, 0, !strcmp(arg, "high"), NULL);
             continue;
         }
+        if (!strcmp(cmd, "lcdfill")) { sev_add(cur, OP_LCDFILL, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "expect")) {
             if (!strcmp(arg, "sound") || !strcmp(arg, "silence")) {
                 sev_add(cur, OP_EXPECT_SND, NULL, 0, 0, !strcmp(arg, "sound"), NULL);
@@ -1237,6 +1240,11 @@ static void run_script(uint32_t ms)
             emu_hal.pa2 = (uint8_t)e->n;
             printf("script: pa2 %s at %u ms\n", e->n ? "high" : "low", (unsigned)ms);
             break;
+        case OP_LCDFILL: {                /* magenta, 0xF81F, stored as sent (big-endian) */
+            uint32_t i;
+            for (i = 0; i < EMU_LCD_W * EMU_LCD_H; i++) emu_hal.lcd[i] = 0x1FF8u;
+            break;
+        }
         case OP_MIDI:
             if (!emu_fw_midi_in((uint32_t)e->n))
                 printf("script: midi in full at %u ms\n", (unsigned)ms);

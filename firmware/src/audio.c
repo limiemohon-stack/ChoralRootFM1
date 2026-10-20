@@ -142,8 +142,8 @@ static void audio_block(int32_t *out, uint32_t n)       /* mix (fx.c), then Q15 
  * lowest POLY note and MONO / LEGATO / UNISON lead, as the shared budget does.
  * P5 ON TWO CORES (3y46). The half the shed times is core 0's, and core 0 waits in it for core 1's job: it is the
  * tick + the LONGER of the two cores' renders + the effects + the master, so a half is over when either core is. And
- * the chord part's P5 voices are shared out between the cores again every block (fx.c p5x_assign), so a voice given
- * up shortens the longer side whichever part it was. The order with P5 on the bass part: (1) a released voice, the
+ * the chord part's P5 voices (and since 3y177 the VA's) are shared out between the cores again every block (fx.c
+ * p5x_assign), so a voice given up shortens the longer side whichever part it was. The order with P5 on the bass part: (1) a released voice, the
  * quietest, as before; (2) a voice of the BASS part's P5 stack, from the top (never its last: the lead stays);
  * (3) as before, the oldest held voice that is not its part's lowest note or lead: a chord voice. Without P5 on the
  * bass part: (1) and (3), today's rule */

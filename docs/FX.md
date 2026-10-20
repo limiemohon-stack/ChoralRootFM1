@@ -487,10 +487,19 @@ functions are the same 1149 and 155 instructions in both builds). Melodee's note
 run, and ChoralRoot's own count for CZ-1 has an unexplained gap of the same kind (1066 us measured, 630 counted:
 docs/CZ1.md). The effects' four loops in RAM changed nothing in 0.18 (`CR_FX_RAM`, above): small loops that run many
 passes stay in the cache; a 3.3 KB loop body that runs once a sample apparently does not. **That is a hypothesis.**
-What follows is the means to measure it, stage by stage; nothing but `P5_RAM` is on by default.
+What follows is the means to measure it, stage by stage; nothing but `P5_RAM` and (since 3y177) `CR_RAM_VA` is on by
+default.
 
 **`P5_RAM` is 1 in a device build since 3y41** (`tools/build.py`; `P5_RAM=0 ./build.sh` is the all-flash build, byte
 for byte 40acb01's default). The host and the emulator never see the flag.
+
+**`CR_RAM_VA` is 1 in a device build since 3y177** (`tools/build.py RAM_DEFAULT_ON`; `CR_RAM_VA=0 ./build.sh` is the
+VA from flash). The unit, with the VA chord shared between the cores (docs/DUALCORE.md "The VA's chord on both
+cores"), MORPH PAD 8 notes + PUNCH BASS: the block 2389 -> 2103 us dry and 2574 -> 2287 recording, part0 1498 ->
+1289, part1 1342 -> 1159, no late half and no shed in either; FM6 TINE EP over the VA's DEEP SUB on core 1: part1 576
+-> 249, the block 2917 -> 2565 recording and its 10 late halves / 31 sheds gone. So for the VA the flash WAS the cost
+(two cores running `va_render` from XIP at once, or one: the bass alone gains 57 %). RAMTEXT 16 120 of 24 576 with it
+(8456 B left); another CR_RAM_* switch beside it must fit there too, or be built with `CR_RAM_VA=0`.
 
 ### The switches
 
@@ -504,7 +513,7 @@ second core's loop 128). Environment variables of `./build.sh`, all off unless s
 | `CR_RAM_MASTER` | `master_block` 3534 (Classic), `clean_block` 948 (Clean's look-ahead limiter), `clean_post` 110, `clean_post17` 90, `clean_split` 36, `usb_fixed_dac` 46 | 4764 | 11 572 |
 | `CR_RAM_CORE` | `track_render_x` 1432 (the voice loop, the envelopes, the calls of the engine), `mix_part_out` 960 (drive, level, pan, the choice of mix loop), `mod_begin` 640, `mod_voice` 390, `mod_voice_add` 122, `mod_tsrc` 82, `mod_end` 70 (the matrix), `track_lfo_tick` 272, `c1_part1_job` 100 | 4068 | 10 876 |
 | `CR_RAM_CZ` | `cz_native_line_mv` 7340, `cz_native_line` 6098, `cz_native_render` 1464, `cz_native_noise` 554, `cz_native_defs` 218, `cz_env_tick` 206, `cz_native_vibrato` 134, `cz_native_pd` 122, `cz_native_krate` 106, `cz_native_amp` 90, `cz_hw_rate` 58 | 16 390 | 23 200 |
-| `CR_RAM_VA` | `va_render` 8406 (the oscillators and the filter are inlined in it), `va_morph` 582, `va_render_mono` 22, `memset` 12 | 9022 | 15 832 |
+| `CR_RAM_VA` (default 1 since 3y177) | `va_render` 8378 (the oscillators and the filter are inlined in it), `va_morph` 582, `va_render_mono` 24, `memset` 12, the veneer `cr_v_va_fweights` 8 | 9046 | 16 120 |
 | `CR_RAM_FM6` | `fm6_render` 3518 (the operators' kernel is inlined in it), `fm6_control` 2476, `fm6_eg_step` 138, `fm6_mulhi` 74 | 6206 + 28 B of veneers | 13 044 |
 | `CR_RAM_TABLES_P5` | not code: `P5_TANH_Q15` 4098, `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256, the tables `p5_samples` reads every sample | 5376 B of RAM `.data` | RAM 86 820 of 98 304 |
 

@@ -3,6 +3,39 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.26-smk37",
+      "base": "0.26",
+      "date": "2026-10-19",
+      "tag": "v0.26-smk37",
+      "title": "ChoralRoot 0.26 on the SMK-37: VA and FM6 chords on both cores",
+      "bullets": [
+        "ChoralRoot 0.26 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play, with everything of 0.25-smk37.",
+        "With Dual Core On, VA and FM6 chords are now shared between the two processor cores, as P5's are, and the VA's sound code runs from fast memory: dense VA and FM6 chords have much more room before they run late.",
+        "The same sound, bit for bit: a chord played on two cores is the same samples as on one.",
+        "The screen's background is pure black instead of a very dark grey.",
+        "genkigenki's port (the fm1-to-smk37 guide), built from the FM-1's 0.26."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub.",
+        "Updating from 0.25-smk37 or an older SMK-37 build keeps your settings, sounds, loops and favourites.",
+        "Going back: M-Vave's package for your model with M-UPGRADE. Going back to 0.25-smk37 keeps everything; VA and FM6 chords render on one core there again."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "143660c3158f6fdee26c058c6bab9329f5a50a38d94453447332cd7a773df0ce",
+          "sha256_1core": "f8f840fc1ddf7210b0a02545327f3a54050f663b6b3fc618deea3334d85ef249"
+        },
+        "elite": {
+          "sha256": "c8403cced2270e615f1910c630dd053e0dd9add3174275c181fdee1a02460a0c",
+          "sha256_1core": "b73e9a8abd37f38426e30de43fefad84bf3a20d4c6e76e246e6ad1cf0abdfc36"
+        },
+        "mke": {
+          "sha256": "0d1d53300e2106a6498fdfe55b7c31a58b1fe10c735252d9816ffa10078962be",
+          "sha256_1core": "807461f72bd4fe47a2b1408ce037fcbcd9e0a5fc33466dadfb0b743b44696fd6"
+        }
+      }
+    },
+    {
       "version": "0.25-smk37",
       "base": "0.25",
       "date": "2026-10-16",

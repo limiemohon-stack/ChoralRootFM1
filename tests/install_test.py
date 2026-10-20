@@ -297,21 +297,35 @@ GUARD_CASES = [
     ("SMK-37 Pro_500", None, "refuse", "unknown"),
     ("ota-SMK-37 Pro_900", None, "loader", "loader"),
 ]
+# with the MIDI port's name: Bubba Machine answers FM-1_003 on the port "FM-1 Bubba Machine" (its updater refuses
+# every package without M-VAVE's own loader); the same identity on the FM-1's own port is the old official firmware
+PORT_CASES = [
+    ("FM-1_003", None, "FM-1 Bubba Machine", "refuse", "bubba"),
+    ("FM-1_003", None, "FM-1 Bubba Machine:FM-1 Bubba Machine MIDI 1 20:0", "refuse", "bubba"),   # (Linux ALSA)
+    ("FM-1_003", None, "FM-1", "allow", "stock"),
+    ("FM-1_015", None, "FM-1", "allow", "stock"),
+    ("FM-1_003", None, None, "allow", "stock"),
+    ("FM-1_920", "ChoralRoot 0.25.1", "FM-1", "allow", "choralroot"),
+    ("ota-FM-1_015", None, "ota-FM-1", "loader", "loader"),     # update mode (the official loader Bubba starts)
+]
 
 
 def guard():
     bad = [(i, v, I.classify_firmware(i, v)[:2]) for i, v, verdict, kind in GUARD_CASES
            if I.classify_firmware(i, v)[:2] != (verdict, kind)]
     ok(not bad, f"classify_firmware: {len(GUARD_CASES)} identity / version cases{'; wrong: ' + repr(bad) if bad else ''}")
+    bad = [(i, v, n, I.classify_firmware(i, v, n)[:2]) for i, v, n, verdict, kind in PORT_CASES
+           if I.classify_firmware(i, v, n)[:2] != (verdict, kind)]
+    ok(not bad, f"classify_firmware with the port's name: {len(PORT_CASES)} cases (Bubba Machine){'; wrong: ' + repr(bad) if bad else ''}")
     ok(I.family("ChoralRoot 0.22 1-core") == "choralroot" and I.backup_name("ChoralRoot 0.22 1-core").startswith("choralroot-backup-"),
        "the single-core package's version (ChoralRoot 0.22 1-core): family choralroot, its backup file named as ChoralRoot's")
     raw = package("FM-1_920")
     image = I.logical_image(raw)
     p = pkgfile("cr_guard.fwsc", raw)
 
-    def over(identity, version, *extra, answer=True):
+    def over(identity, version, *extra, answer=True, name="FM-1"):
         side = BackupSide(version, I.FELUCCA_IDS) if version else None
-        dev = FakeFM1(image, identity=identity, after_write="FM-1_920", bk=lambda i: side if i == identity else None)
+        dev = FakeFM1(image, identity=identity, name=name, after_write="FM-1_920", bk=lambda i: side if i == identity else None)
         return (*cli([p, "--yes", *extra], dev, answer), dev)
 
     rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2")
@@ -331,6 +345,16 @@ def guard():
         rc, out, err, dev = over(ident, ver)
         ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and (not ver or ver in out),
            f"over {ver or 'the stock ' + ident}: installed")
+    for extra in ((), ("--force",)):              # Bubba Machine: its updater refuses our loader, so never
+        rc, out, err, dev = over("FM-1_003", None, *extra, name="FM-1 Bubba Machine")
+        ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "official V15" in err
+           and "FM-1.fwsc" in err and "--force does not" in err,
+           f"over Bubba Machine{' with --force' if extra else ''}: refused (exit 8), nothing sent, the way back to V15")
+    rc, out, err, dev = over("FM-1_003", None)
+    ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0, "over FM-1_003 on the FM-1's own port (the old stock): installed")
+    rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_003", name="FM-1 Bubba Machine"))
+    ok(rc == 0 and "not installed over Bubba Machine (FM-1_003)" in out and "FM-1.fwsc" in out,
+       "--info on Bubba Machine: named, not installed over, the way back to V15")
     side = BackupSide("FELUCCA SLOOP 2.2", I.FELUCCA_IDS)
     rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_900", bk=lambda _i: side))
     ok(rc == 0 and "FELUCCA SLOOP 2.2" in out and "not installed over Sloop" in out, "--info: version and the verdict")
@@ -441,6 +465,12 @@ def against_js_guard():
     got = [tuple(x) for x in json.loads(r.stdout)]
     want = [I.classify_firmware(i, v) for i, v, _, _ in GUARD_CASES]
     ok(got == want, "classify_firmware == fm1ota.js classifyFirmware (verdict, kind, name)")
+    js_port = js.replace("c.map(([i, v]) => { const r = classifyFirmware(i, v);", "c.map(([i, v, n]) => { const r = classifyFirmware(i, v, n);")
+    r = subprocess.run(["node", "--input-type=module", "-e", js_port, json.dumps([[i, v, n] for i, v, n, _, _ in PORT_CASES])],
+                       capture_output=True, check=True)
+    got = [tuple(x) for x in json.loads(r.stdout)]
+    want = [I.classify_firmware(i, v, n) for i, v, n, _, _ in PORT_CASES]
+    ok(got == want, "classify_firmware == fm1ota.js classifyFirmware with the port's name (Bubba Machine)")
     r = subprocess.run(["node", "--input-type=module", "-e",
                         "import { refusalText } from %r; process.stdout.write(refusalText('Sloop'));" % str(ROOT / "web/fm1ota.js")],
                        capture_output=True, check=True)

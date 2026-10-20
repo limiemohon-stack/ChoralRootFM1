@@ -148,6 +148,7 @@
 #define P5_CORE 4u                      /* -DP5_CORE=3: three a core, six with two cores: what the unit's readings say
                                          * fits with three effects up (docs/PROPHET.md "Will it fit?"); not the default */
 #endif
+#define P5_VOICE_US 440u                /* a voice at the peak (the unit: four are 1533 .. 1760): fx.c p5x_assign */
 #define P5_POLY (2u * P5_CORE)
 #define P5_STACK (P5_CORE < 4u ? P5_CORE : 4u)
 #ifndef P5_ONE_POOL
@@ -1207,5 +1208,6 @@ static const engine_t ENG_P5_TEST = {
 #if P5_STEAL_BLOCKS
     .steal=p5_steal,.fade=p5_fade,
 #endif
+    .split=P5_VOICE_US/10u,
     .knob={P_E0,P_E1,P_CHOR,P_REV}
 };

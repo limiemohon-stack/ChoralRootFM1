@@ -86,6 +86,14 @@ SMK_DATA_UNTAGGED_OK = 0            # an untagged SMK store is another firmware'
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/choralroot.c)
 RAMTEXT_LEN, RAMTEXT_SPARE = 0x6000, 512            # firmware/app.ld RAMTEXT; what a build must leave of it
 RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6")
+# on in a device build unless set to 0: CR_RAM_VA since 3y177 (the unit, the VA chord shared between the cores: the
+# block 2389 -> 2103 us, no late half and no shed while recording; docs/VA.md "Two cores")
+RAM_DEFAULT_ON = ("CR_RAM_VA",)
+
+
+def ram_on(flag):
+    v = os.environ.get(flag)
+    return v == "1" or (flag in RAM_DEFAULT_ON and v != "0")
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
 
 
@@ -299,7 +307,7 @@ def build_app(stub, single=False):
     # host and the emulator never see these flags: there the source's default (0) holds
     flags.append("-DP5_RAM=" + ("0" if os.environ.get("P5_RAM") == "0" else "1"))
     for flag in RAM_SWITCHES:       # each 1 moves one stage's functions to RAMTEXT (firmware/src/cr_ram.h); unset: 0
-        if os.environ.get(flag) == "1":
+        if ram_on(flag):            # (but RAM_DEFAULT_ON's: 1; CR_RAM_VA=0 is the all-flash VA to measure against)
             flags.append(f"-D{flag}=1")
     if os.environ.get("CR_RAM_TABLES_P5") == "1":   # the four tables the P5 engine reads every sample in RAM .data,
         flags.append("-DCR_RAM_TABLES_P5=1")        # 6.7 KB (build/gen/felucca_tables.h P5_TABLE)
@@ -349,11 +357,11 @@ def build_app(stub, single=False):
     # their sections renamed in the object, .text.NAME -> .rhot.NAME, and app.ld links .rhot.* at RAMTEXT; the
     # direct calls across are pointed at the veneers the switch compiled in (cr_ram.c). Nothing else is compiled
     # differently. No switch: the object is not touched
-    hot = [n for names in ram_code.marks([f for f in RAM_SWITCHES if os.environ.get(f) == "1"]).values() for n in names]
+    hot = [n for names in ram_code.marks([f for f in RAM_SWITCHES if ram_on(f)]).values() for n in names]
     if hot:
         sizes, calls = ram_code.place(OUT / f"{UNIT}.o", hot)
         print(f"ram: {len(sizes)} functions, {sum(sizes.values())} B, to RAMTEXT ("
-              + ", ".join(f for f in RAM_SWITCHES if os.environ.get(f) == "1") + "); calls across through a veneer: "
+              + ", ".join(f for f in RAM_SWITCHES if ram_on(f)) + "); calls across through a veneer: "
               + (", ".join(f"{n} x{c}" for n, c in calls.items()) or "none"))
     elf = OUT / f"{UNIT}.elf"
     # --gc-sections (as the loader and the stub): the functions nothing refers to stay out (-ffunction-sections: the

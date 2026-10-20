@@ -1,4 +1,4 @@
-# The second core: the bass part on core 1 (2026-10-09), and P5's chord voices (2026-10-13)
+# The second core: the bass part on core 1 (2026-10-09), P5's chord voices (2026-10-13), the VA's (2026-10-17)
 
 **Status: the owner's unit has run with Dual Core On since 0.16** (the readings of docs/PROPHET.md and docs/FX.md
 are from it). 0.22's changes (the default, P5's chord voices on core 1) are built and host-verified, not on a unit.
@@ -109,7 +109,8 @@ XIP 429140 B of 581564 (73.8%), RAM 84176 B of 98304 (85.6%), POOL 327000 B of 3
 
 Added: RAMTEXT 60 B (`.c1_text`); RAM ~3.9 KB (core 1's stacks 2816 + 256 B, FM6's second scratch 384 B, the
 matrix per part ~150 B, `cr_dbg` ~200 B, the job's state); POOL 256 B (the bass part's block and stereo side,
-`c1_buf` / `c1_side`); XIP ~3 KB.
+`c1_buf` / `c1_side`); XIP ~3 KB. 3y46 added `p5x_buf` (128 B of POOL) and the list; 3y177 `p5x_side` (128 B of POOL),
+424 B of XIP and, with `CR_RAM_VA` on, 9048 B of RAMTEXT (16 120 of 24 576); 3y187 (FM6) 944 B of XIP.
 
 ## The job protocol (`fx.c mix_parts_split`, `cr_cpu1.h`)
 
@@ -154,7 +155,7 @@ in a fixed order on core 0:
 | core 0 (the audio ISR) | core 1 |
 | --- | --- |
 | the tick, events, voice allocation; both parts' matrix + LFO tick | idle |
-| (P5 chord) its share of the chord's voices; (else) part 0's render | **job 1**: part 1's render (+ its share of the P5 chord's voices) |
+| (P5 or VA chord) its share of the chord's voices; (else) part 0's render | **job 1**: part 1's render (+ its share of the P5 or VA chord's voices) |
 | join 1 (`CRP_WAIT`) | idle |
 | DIST, level, pan, sends of parts 0 and 1 (the sends are whole from here) | idle |
 | `xf_prep` (the coefficients, what runs), then hands over job 2 | |
@@ -185,13 +186,74 @@ pieces in a row, as before.
 Job 2 refused, stalled or faulted: core 1 held for good (C1_GAVE_UP) and core 0 runs the reverb itself in that block,
 as it reruns job 1.
 
-**The split of the P5 chord's voices** (3y46's rule, kept in 3y50): core 1 takes the k voices that make the longer of
-the two sides (core 1: the bass part + k voices; core 0: the rest) shortest, at most four a core, the odd one to core
-1. 3y50 looked at weighing them (the survey's item 2): every chord voice plays the part's one program, so they all
-weigh the same, and the bass part is already weighed (P5 voices as voices, another engine by its units); core 0's own
-fixed work (the tick, the sends, its effects, the master) lies **outside** the window in which the voices overlap
-(before the hand-over or after join 1), so it cannot be balanced against voices. With the measured costs the
-weighted rule gives today's 4 + 4 for 8, 3 + 3 for 6, 2 + 2 for 4 (an odd one to core 1); it was not changed.
+**The split of the chord's voices** (3y46's rule for P5, kept in 3y50; weighed per engine and opened to the VA in
+3y177, below): core 1 takes the k voices that make the longer of the two sides (core 1: the bass part + k voices;
+core 0: the rest) shortest, at most four a core for P5, a tie to core 1. 3y50 looked at weighing them (the survey's
+item 2): every chord voice plays the part's one program, so they all weigh the same, and the bass part is already
+weighed (P5 voices as voices, another engine by its units); core 0's own fixed work (the tick, the sends, its
+effects, the master) lies **outside** the window in which the voices overlap (before the hand-over or after join 1),
+so it cannot be balanced against voices. With the measured costs the weighted rule gives today's 4 + 4 for 8, 3 + 3
+for 6, 2 + 2 for 4 (an odd one to core 1); it was not changed then.
+
+### The VA's chord on both cores (3y177)
+
+The unit's heaviest case was a VA chord on core 0 alone: MORPH PAD, 8 notes, over PUNCH BASS, part0 2293 us and a
+block of 3121 of 2902 (108 %, 26 voices shed in 20 s), while core 1 waited after its 355 us bass (docs/INTEGRATION.md
+"Measured on the unit"); on 0.25 (2026-10-17, the reading before this change) part0 2397, block 3256 (112 %), late
+36, while core 1's bass took 375. The review of Melodee's dual-core scheduling (docs/notes/melodee-p5-dualcore-review.md, item
+1) found this the largest gain available. What changed, and what did not:
+
+- **Which engines split**: `engine_t.split`, a voice's weight in 10 us (P5 44, the VA 28; 0 = the part renders whole
+  on core 0), replaces `P5_IS(trk[0])` in `mix_parts_split`. The list (`voice.c` `p5x`), the hand-over, the job and the
+  fallback are 3y46's: core 0 prepares every voice before the ONE hand-over, `c1_part1_job` renders the bass part and
+  then core 1's share of the list, core 0 renders the rest, waits, adds. Core 1 not answering, refusing or given up:
+  core 0 runs the same job itself, in this block ("Reliability" and "The persistent fallback" are unchanged).
+  Melodee's streaming queue is not taken.
+- **The side**: the VA renders a stereo side (`render2`: SPREAD, USPREAD). Core 1's voices add theirs into
+  `p5x_side` (128 B of POOL, beside `p5x_buf`) and say so in `p5x_side_on`; core 0 adds it into the part's side after
+  the wait, as it adds `p5x_buf` into the mid, and the part is stereo when either core's voices made a side. Integer
+  sums again: the part is the unsplit render's, bit for bit.
+- **The weights** (`fx.c p5x_assign`): a chord voice weighs its engine's `split`, the bass as before (a P5 voice 440,
+  another engine 75 a budget unit), and **core 0's side x 1.07** (`P5X_C0_PCT`): TIMER5 nests in core 0's audio ISR,
+  about 7 % of it dry (Melodee's "CPU0 service allowance", the idea alone). The four a core stay P5's. For the VA chord
+  (core 0 + core 1) over a sounding MONO bass: 8 voices 4 + 4, 7 4 + 3, 6 3 + 3, 5 3 + 2; with no bass note the odd
+  voice goes to core 1 (7: 3 + 4); over a P5 stack of four (1760 us on core 1): 8 voices 7 + 1. For P5 the factor changes no split with a MONO or a P5 bass (the review's
+  simulation, again here); it does with a POLY bass of another engine of three voices, or of six or seven voices of 1
+  unit (one more voice to core 1 for a 2-, 4- or 6-voice chord): the samples are the same, only the balance moves.
+- **What a VA voice's render touches** (`eng_va.c va_render`; the audit, docs/VA.md "Two cores"): its own
+  `va_vs[part][voice]` and `voice_t` (phases, filter, noise seeds, ramps), the buffers it is given, and, from the
+  latest note's voice only, the part's `va_pan_off` / `va_rate_off` (one writer, read on core 0 after the join).
+  It reads the part's `va_lfo` and patch, written by `va_block` on core 0 before the hand-over.
+- **Core 1's stack**: `c1_part1_job` (68 B) -> `va_render` (844 B) is shallower than the path a VA bass already took
+  (`c1_part1_job` -> `track_render_x` 212 -> `va_render`), and than FM TONE's (`quad_render` 856 under
+  `track_render_x`): nothing new for the 2816 B.
+- **The flash**: with both cores running `va_render` from XIP they share the cache. `CR_RAM_VA` puts it in RAMTEXT
+  (16 120 of 24 576 with it; `ram_code.py cmp`: 4 moved, 0 differ, veneers `memset` and, since GRAIN shares the
+  filter's weights, `va_fweights`, which the switch had lacked and failed to link without), **on in a device build
+  since 3y177**: on the unit the split alone took MORPH PAD's worst half from 3263 to 2389 us, and the VA in RAM to
+  2103, with no late half and no shed dry or recording (docs/VA.md "Two cores").
+
+Proof on the host: `tests/cr_c1_thread_test.c` (inline = thread = unsplit = all to core 1 = none to core 1, every
+sample, for six VA-chord pairs: a VA, P5, FM6, CZ-1 bass, MORPH PAD over PUNCH BASS with its SPREAD side on core 1,
+a UNISON chord with USPREAD; ThreadSanitizer clean), test_cr.sh `cr_va_eight` (eight MORPH PAD voices and the bass:
+inline = `EMU_C1=thread` bit for bit, core 1's average job about core 0's; `EMU_C1=nostart` seven under the bass, one
+core's budget; `EMU_C1=hang` one core's WAV, Dual Core Off). The goldens did not change.
+
+### FM6's chord on both cores (3y187)
+
+`ENG_FM6.split` 20 (a voice 200 us, the unit's TINE EP). The audit (docs/FM6.md "Two cores") found two shared
+things in a voice's render, both fixed without new RAM: **the render's scratch is now the core's, not the part's**
+(`CR_C1_IDX`: `CR_C1_SELF()`, the `cnum` register; core 1 renders the bass and its chord voices one after the other
+with its one `fm6_scr`, so the third scratch the review expected, 384 B, is not needed), and **the part's AMS shares
+are figured in `fm6_block`** on core 0 before the hand-over, so the voices only read them. ThreadSanitizer without
+either: 10 / 4 reports; with both: none. XIP +944 B (94.9 %), RAM and POOL +0. Proof: `tests/cr_c1_thread_test.c`
+six FM6-chord pairs (an FM6, VA, P5, CZ-1 bass; TINE EP over DEEP SUB; a patch with AMS on every operator and the
+LFO's AMD: its shares in use in 2948 of 3000 blocks), test_cr.sh `cr_fm6_eight` (inline = `EMU_C1=thread` =
+`EMU_C1=nostart`, one core's WAV, bit for bit); the goldens, one core and two, unchanged.
+
+CZ-1, FM TONE and GRAIN would each need their audit first (docs/notes/melodee-p5-dualcore-review.md "The other
+engines").
+
 Publishing job 1 before core 0 has prepared all of the chord's voices (Melodee's per-job publishing) needs a mailbox
 deeper than `fm1_c1_post`'s one job (core 1's voices are prepared by core 0 in `track_render_x`): not done.
 

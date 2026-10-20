@@ -23,7 +23,7 @@ name as `cr_name_t {root, quality, sup, col_root, col_quality, col_sup}`; up to 
 window of 8 items with `n_items`, `item0`, `sel`; 4 params columns; 27 keys as a `lit` bitmask + `lit_col[]` +
 `key_label[]`). Colours are `cr_col_t`: ChoralRoot's seven + black (fixed RGB565 in `cr_draw.c`, not per palette:
 white 246,243,234, red 224,58,47, blue 43,80,200, yellow 242,183,5, orange 240,122,26, green 47,179,122, grey
-110,110,118, black 10,10,12) and the palette tokens (BG SURF TEXT THEME ACCENT MID DIM LINE REC); `CR_COL_NONE` takes
+110,110,118, black 0,0,0) and the palette tokens (BG SURF TEXT THEME ACCENT MID DIM LINE REC); `CR_COL_NONE` takes
 the designer's default for that field. Fractions are Q8 (`CR_ONE` = 256).
 
 The producer must start from `cr_screen_clear()` each frame: the cache hashes the struct's bytes.
@@ -149,12 +149,13 @@ all in / out without the samples' angles. Both are pixel for pixel the exhaustiv
 
 ## The MOD palette
 
-Added to `tools/gen_ui_palettes.py` as the ninth palette: bg 10,10,12, surf 28,28,32, text 246,243,234, accent
-242,183,5 as asked; **theme 248,96,48 instead of 224,58,47**: the red fails the generator's WCAG checks ink/sel
-(3.44 < 4.5: background-coloured text on a selection row) and theme/surf (4.05 < 4.5), and 248,96,48 is the nearest
-colour that passes all of them. ChoralRoot's screens never use the THEME token for red — they use the named red,
-exact — so the mock-ups are unaffected; THEME serves Felucca's own pages when MOD is picked. `tests/theme_test.c` and
-`tests/ui_test.c` now expect nine palettes (MOD last; saved palette ids unchanged).
+Added to `tools/gen_ui_palettes.py` as the ninth palette: bg 0,0,0 (10,10,12 through 0.25.1: the backlight showed it
+as a dark grey; 3y185), surf 28,28,32, text 246,243,234, accent 242,183,5 as asked; **theme 248,96,48 instead of
+224,58,47**: the red fails the generator's WCAG checks ink/sel (3.44 < 4.5: background-coloured text on a selection
+row) and theme/surf (4.05 < 4.5), and 248,96,48 is the nearest colour that passes all of them. ChoralRoot's screens
+never use the THEME token for red — they use the named red, exact — so the mock-ups are unaffected; THEME serves
+Felucca's own pages when MOD is picked. `tests/theme_test.c` and `tests/ui_test.c` now expect nine palettes (MOD
+last; saved palette ids unchanged).
 
 ## What differs from the mock-ups, and why
 

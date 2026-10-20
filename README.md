@@ -71,6 +71,8 @@ user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralR
 Sloop, the Felucca 0.x betas and firmwares they cannot identify: an FM-1 has been bricked by an install over Sloop,
 and Felucca 0.9-beta to 1.0 bricked several (the loader wrote correctly both times; the cause is still open;
 [docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). Return to the official V15 with that firmware's installer first.
+**Bubba Machine** takes only M-VAVE's own package, so ChoralRoot cannot go over it directly: return to V15 with the web
+installer's "Return to official V15" (or `tools/fm1_install.py FM-1.fwsc`), then install ChoralRoot.
 
 **SAFE MODE.** If ChoralRoot crashes twice in a row within 30 s of starting (switching it off and on does not count),
 it starts in SAFE MODE (a yellow screen, "Safe mode" on the top line): it plays its factory sounds and ignores what is
@@ -137,6 +139,12 @@ each part:
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.26.1** ([docs/releases/0.26.1.md](docs/releases/0.26.1.md)): 0.26's firmware, the first release GitHub
+  built from source and signed through The Firmware Hub's shared workflow (`gh attestation verify`, BUILDING.md
+  "Checking a package").
+- **New in 0.26** ([docs/releases/0.26.md](docs/releases/0.26.md)): with Dual Core On, VA and FM6 chords are shared
+  between the two cores and the VA's code runs from RAM: an 8-note VA pad over a bass no longer runs late, the same
+  sound bit for bit; the screen's background is pure black; the installers recognise Bubba Machine.
 - **New in 0.25.1** ([docs/releases/0.25.1.md](docs/releases/0.25.1.md)): the FM-1 chord keys are the default
   (SUS = G#3 + A#3, the 9 on B3, roots from C4, LOCK on LFO); every FM-1 switches to them once at the update, LOCK
   and the latched chord carried over; Classic is in Options > Chord Keys.

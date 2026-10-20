@@ -273,10 +273,59 @@ Device estimate = host instructions / 100 x 1.7 % of the 2.9 ms half (docs/INTEG
   ./build.sh` links `va_render` (8406 B: the oscillators and the filter are inlined in it), `va_morph`,
   `va_render_mono` and `memset` at RAM instead of flash, the same instructions (docs/FX.md "Code in RAM", package
   F): what executing from the flash costs a VA chord is `pk_part0_us` on F against A. `SINE` and `TANH_Q15`, which it
-  reads every sample, stay in flash. Not measured.
+  reads every sample, stay in flash. **On by default since 3y177** (measured: below, "Two cores"). Since GRAIN shares the filter's type weights (3y118) `va_fweights`
+  is no longer inlined into `va_render`, and the switch failed to link ("relocation truncated to fit") until 3y177
+  gave it a veneer (`cr_ram.c`): 5 functions, 9046 B, `ram_code.py cmp` 0 functions differ.
 - `tests/target_budget.txt`: `va_render` (now the stereo body, `render2`; `va_render_mono` is `render`'s wrapper),
   `va_block`. The static cost grew with the new loops (MORPH, BROWN, VINYL, the general filter loop): 72014 against
   32669; they are alternatives, one voice runs one of each.
+
+## Two cores (3y177)
+
+With Dual Core On the chord part's VA voices are shared out between the cores, as P5's are since 3y46
+(`engine_t.split` 28: a voice weighs 280 us, the unit's MORPH PAD; docs/DUALCORE.md "The VA's chord on both cores"):
+core 0 prepares every voice (the envelope tick, the pitch, the matrix of `voice.c`), core 1 renders its share after
+the bass part into `p5x_buf` and its stereo side into `p5x_side`, core 0 renders the rest into the part's buffers,
+waits and adds both. Integer sums: the part is one core's render, bit for bit. A VA bass is core 1's as before.
+
+**What a voice's render touches** (`eng_va.c va_render`, the audit; as docs/PROPHET.md "What a voice's render
+touches" did for P5). Writes:
+
+| what | whose | note |
+| --- | --- | --- |
+| `va_vs[part][voice]` | the voice's own | envelopes, HOLD, ramps' ends, `ph4`, SYNC's DC, NOISE's `nz` (BROWN's integrator, VINYL's crackle and hiss), SPREAD's right SVF, `ticks`, `stage`, `live` |
+| `voice_t` `ph[0..2]`, `s[0..7]` | the voice's own | phases, the left SVF, the noise seed (`s[2]`: each voice its own xorshift, no shared generator), the increments, the last amplitude |
+| `out`, `side` | the buffers it is given | core 1: `p5x_buf` / `p5x_side`; core 0: the part's |
+| `va_pan_off[part]`, `va_rate_off[part][4]` | the latest note's voice alone (`v - t->v == t->m_vi`) | one writer whichever core renders it; read by `fx.c mix_part` (the pan) and the next block's `va_block` (the rates), both on core 0 after the join. Bytes beside the bass part's, which core 1 wrote while core 0 rendered the chord since 0.16: no word is both cores' |
+
+Reads: the part's patch (`va_patch`, written by `va_block` and the main loop: the main loop does not run while the
+audio ISR renders), the part's LFOs (`va_lfo[part]`: `va_block`'s, on core 0 before the hand-over), `t->p`, `t->mw`,
+`t->m_vi`, the voice's note, velocities and RAND (the events' and the matrix's, before), `song.g[G_BPM]`, the
+constant tables. Everything it calls is pure (the oscillators, `va_morph`, `va_brown`, `va_vinyl`, `tsvf_coef_k`,
+`va_fweights`, `va_svf`, `softclip`, `soft_knee`). Its scratch (`acc`, `r3`, `sph`: 384 B) is on the stack: the
+frame is 844 B, under core 1's 2816 B with `c1_part1_job`'s 68 (a VA bass went deeper already, through
+`track_render_x`).
+
+A voice given up for another note (stage 4) renders its fade as a whole voice and is shared out like the others; a
+voice that ended (`va_done`) returns at once. The flash: `CR_RAM_VA` (on in a device build since 3y177) keeps both
+cores' VA code off XIP (above).
+
+**On the unit** (5BD75BE3, 2026-10-17, `perf_unit.py va fm6 --seconds 20`, 8 notes + bass, us of the 2902 us half;
+shed: its rise in the run):
+
+| va: MORPH PAD + PUNCH BASS | block | part0 | part1 | wait | c0busy | c1busy | late | shed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| before (13b0adb), dry | 3263 | 2385 | 365 | 176 | 3319 | 706 | 32 | +30 |
+| the split, VA from flash, dry | 2389 | 1498 | 1342 | 266 | 2339 | 1650 | 0 | 0 |
+| the split, `CR_RAM_VA`, dry | **2103** | 1289 | 1159 | 229 | 2040 | 1454 | 0 | 0 |
+| before, recording | 3384 | 2509 | 387 | 221 | 3527 | 717 | 51 | +50 |
+| the split, VA from flash, recording | 2574 | 1593 | 1318 | 278 | 2633 | 1640 | 1 | +20 |
+| the split, `CR_RAM_VA`, recording | **2287** | 1389 | 1159 | 243 | 2270 | 1449 | 0 | 0 |
+
+The pad is 72 % of the half at its worst (was 112 %): no late half, no shed, dry or recording. A 6-note chord: 2098.
+
+Proof: `tests/cr_c1_thread_test.c` (inline = thread = unsplit = every voice on core 1 = none, six VA-chord pairs, a
+UNISON chord with USPREAD and MORPH PAD's SPREAD among them; ThreadSanitizer clean), test_cr.sh `cr_va_eight`.
 
 ## Memory
 
@@ -297,6 +346,8 @@ Device estimate = host instructions / 100 x 1.7 % of the 2.9 ms half (docs/INTEG
 | `tests/cr_va_test.c`, `t_dst2` | the appended destinations' names and numbers (FTYPE 22, 30 in all); `mod_dst` for every page and column (OSC n / n+, MORPH's WAVE column, FILTER, FILTER+, LFO n, none on ENV / LFO SYN / VOICE / MOD, the track parameters); VEL -> DRIVE / SPRD / FENV / DEP1 each changes the sound (DEP1: LFO 1 at DEPTH 0 onto PITCH, opened by the matrix); their extremes (LFOs and ENVs at +-64 / 63 onto all of them, render2): no overflow, voices end |
 | `tests/cr_va_test.c`, version 4 (`t_hires`, `t_lfo_sync`) | FENV in hundredths: set / get (-64.00 clamps, 0.04 = whole 0 + 4, -0.01 = -1 + 99, 63.99, the macro P_E2 the whole number and a macro move clears the hundredths), the page's F_FIX2 range = the patch's x 100; one note at FENV 0.00 / 0.04 / 1.00 renders three different sounds (0.04 nearer 0.00); the blob carries -12.34, hundredths 100 and version 5 refused; every factory preset as a version-3 blob = the same patch, and sounds. The sync list: 42 names (<= 5 characters), every item's period at 60 / 120 / 300 BPM within 0.1 % (the ms ones in ms), the cycles in 8 bars at 120 BPM, the phase after 8 bars through `va_block` (1/4: back at 0; 8BARD: 2/3 on), the matrix's RATE1 to both ends, version 3's 14 divisions to the same lengths and a version-3 blob's synced RATE (all 128 values) converted, a free RATE kept; `desc` (synced: the list, F_ENUM; free: the column), SYNC on / off moving RATE (70 -> 22 -> 67), the clamp, the text `1/16T` |
 | `tests/cr_va_test.c`, version 5 (`t_fine`, `t_coarse_golden`) | the AMT column's turns (from 0 a slow detent 0.10; 5.90 -> 6.00 -> 7.00 and back; a quick one from 0 6.00, from 6 12.00, from 12 down 5.70; the clamps), each slot's own flag (MFINE0 bits 0..6, MFINE1 bit 0) and its AMT; the flags through the blob (version 5) and back; a whole slot clears only its flag; a sound without a fine amount packs as version 4 and reads back as it is; the pitch at a full source (VEL 127 -> PITCH, OSC 1's increment): 0.10 1.9 ct .. 63 1181 ct, within 1 ct (the render's 1/256 st), rising; AMP closed by 0.5 / 5.9 / 6 (the level 1 - a / 64); every destination from 8 tenths slots at a blob's -6.4 / +6.3 (no overflow, the voices end). The whole amounts bit for bit: a render hash of every preset and 64 random patches with 8 random whole slots (render2's mid and side) = 5e1e8a7's (0.22-beta4) |
+| `tests/cr_c1_thread_test.c` (3y177) | six pairs with the VA on the chord part: the job inline = on a thread = the unsplit render = every chord voice on core 1 = none, every sample (mid and side); each core rendered chord voices; ThreadSanitizer: no report |
+| `tools/emu/scripts/cr_va_eight.txt` (`test_cr.sh`, 3y177) | MORPH PAD, eight MIDI notes, PUNCH BASS under them, a chord change: eight voices and the bass on two cores; inline = `EMU_C1=thread` bit for bit; core 1's average job at least half core 0's; `EMU_C1=nostart` the chord seven under the bass; `EMU_C1=hang` one core's WAV, Dual Core Off |
 | `tools/emu/scripts/cr_va_mod_fine.txt` (`test_cr.sh`) | LUSH PAD's MOD 2 (LFO2 -> PITCH 3): KNOB 3 slow detents 2.90 .. 2.60, a reversal's first two a tenth, quick ones 9 and 15, a slow one above 6 a whole (14), GLO held whole (13); LFO held + KNOB 2 on FILT: `mod: LFO1 -> RES +0.1 slot 3` |
 | `tools/emu/scripts/cr_va_sync_list.txt` (`test_cr.sh`) | LUSH PAD in the editor: LFO 1 SYNC on (RATE 50 -> 1/2), the RATE list down and up one item a detent slow and quick, GLO held the straight ones (2BAR 3BAR 4BAR, 3BAR); FENV 9.99 9.98, GLO 10.00 |
 | `tests/cr_trans_test.c` (`run_cr_tests.sh`) | TRANSPOSE through `cr_out.c`'s stream callbacks: +12 / -5 / clamps at 0 and 127, MIDI out as played, a change while held keeps the held notes and their note-offs end them, the parts' own values, panic, a re-route while held |

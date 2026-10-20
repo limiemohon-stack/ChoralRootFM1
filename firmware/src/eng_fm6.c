@@ -813,13 +813,39 @@ static void fm6_legato(track_t *t, voice_t *v)
  * only its control path running (fm6_ghost) */
 static int fm6_done(track_t *t, voice_t *v) { return !FM6P(t) || fm6_state(t, v)->quiet >= 2u; }  /* (no state: over) */
 
+/* the part's amplitude modulation this block (Dx7Note::compute): the LFO (AMD, after the delay) or a controller's, at
+ * least the EG bias. The part's alone (its LFO, its controllers, the patch): every voice of a block has the same */
+static inline __attribute__((always_inline)) uint32_t fm6_amd(const fm6_part_t *P, const uint8_t *ed)
+{
+    int32_t lfo = (1 << 24) - P->lfo.val, dly = P->lfo.depth, a1, a2, amd;
+    a1 = (int32_t)(((int64_t)((((uint32_t)ed[FP_LAMD] * 165u) >> 6) * (uint32_t)dly) >> 8) * lfo >> 24);
+    a2 = (int32_t)(((int64_t)P->pt.amod * lfo) >> 7);
+    amd = a1 > a2 ? a1 : a2;
+    a1 = (1 << 24) - ((P->pt.emod + 1) << 17);
+    return (uint32_t)((uint32_t)a1 > (uint32_t)amd ? a1 : amd);
+}
+/* AMS a's share of the modulation amd: one modulation a block for the part, its 3 shares figured once (pok) */
+static inline __attribute__((always_inline)) uint32_t fm6_ams_share(fm6_part_t *P, uint32_t amd, uint32_t a)
+{
+    if (P->pt.amd != amd) {
+        P->pt.amd = amd;
+        P->pt.pok = 0;
+    }
+    if (!((P->pt.pok >> a) & 1u)) {
+        uint32_t sa = (uint32_t)(((uint64_t)amd * FM6_AMS[a]) >> 24);
+        P->pt.pt[a] = sa ? fm6_ams_pt(sa) : 198789u;     /* exp(12.2) */
+        P->pt.pok |= (uint8_t)(1u << a);
+    }
+    return P->pt.pt[a];
+}
+
 /* a new Dexed block: key-up, the envelopes, pitch and gains (Dx7Note::compute), the routing */
 CR_HOT_FM6 static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const vmod_t *m)
 {
     fm6_part_t *P = FM6P(t);
     uint32_t tr = (uint32_t)(t - trk) % NTRK, alg, k, dead = 1;
     const uint8_t *ed = fm6_ed(t);
-    int32_t lv[6], lfo = P->lfo.val, dly = P->lfo.depth, pm, sens, pbase, amd, a1, a2, tune, fbv;
+    int32_t lv[6], lfo = P->lfo.val, dly = P->lfo.depth, pm, sens, pbase, amd, tune, fbv;
     /* MLVL and FLT: the modulators' level, 0.75 dB / 32 steps (microsteps, as the output levels), Q24 */
     int32_t mod = (clamp(t->p[P_E2], -64, 63) * 24 + clamp(m->cutoff >> 8, -150, 150) * 16) * (1 << 16);
     uint32_t pmd = ((uint32_t)ed[FP_LPMD] * 165u) >> 6;
@@ -843,13 +869,7 @@ CR_HOT_FM6 static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const
     tune = song.g[G_TUNE] * 13981;                       /* cents, Q24 */
     pbase = P->pt.pb + tune;
     pm += pbase + m->plog;                               /* + Melodee's glide, LFO / ENV pitch, unison */
-    /* amplitude: the LFO (AMD, after the delay) or a controller's, at least the EG bias */
-    lfo = (1 << 24) - lfo;
-    a1 = (int32_t)(((int64_t)((((uint32_t)ed[FP_LAMD] * 165u) >> 6) * (uint32_t)dly) >> 8) * lfo >> 24);
-    a2 = (int32_t)(((int64_t)P->pt.amod * lfo) >> 7);
-    amd = a1 > a2 ? a1 : a2;
-    a1 = (1 << 24) - ((P->pt.emod + 1) << 17);
-    amd = (uint32_t)a1 > (uint32_t)amd ? a1 : amd;
+    amd = (int32_t)fm6_amd(P, ed);
     for (k = 0; k < 6u; k++) {
         const uint8_t *op = &ed[k * FP_OP];
         int car = fm6_carrier(alg, 6u - k);
@@ -876,17 +896,7 @@ CR_HOT_FM6 static void fm6_control(track_t *t, voice_t *v, fm6_voice_t *s, const
         }
         level = fm6_eg_step(&s->eg[k], op, s->ol[k], rs, s->down);
         if (FM6_AMS[op[FP_AMS]]) {                       /* AMS: the modulation takes a part of the level */
-            uint32_t a = (uint32_t)op[FP_AMS], pt;
-            if (P->pt.amd != (uint32_t)amd) {            /* one modulation a block for the part: 3 shares */
-                P->pt.amd = (uint32_t)amd;
-                P->pt.pok = 0;
-            }
-            if (!((P->pt.pok >> a) & 1u)) {
-                uint32_t sa = (uint32_t)(((uint64_t)(uint32_t)amd * FM6_AMS[a]) >> 24);
-                P->pt.pt[a] = sa ? fm6_ams_pt(sa) : 198789u;   /* exp(12.2) */
-                P->pt.pok |= (uint8_t)(1u << a);
-            }
-            pt = P->pt.pt[a];
+            uint32_t pt = fm6_ams_share(P, (uint32_t)amd, (uint32_t)op[FP_AMS]);
             level -= (int32_t)(((uint64_t)(uint32_t)level * ((uint64_t)pt << 4)) >> 28);
         }
         if (!car && mod)
@@ -951,6 +961,8 @@ static void fm6_ghost(track_t *t, voice_t *v, fm6_voice_t *s)
 }
 
 static uint32_t fm6_units(const track_t *t) { (void)t; return 1u; }   /* a voice: one budget unit, whatever the cap */
+#define FM6_VOICE_US 200u        /* a chord voice at the peak: TINE EP, 8 notes, part0 1524 .. 1627 us on one core (the
+                                  * unit, HISTORY 3y177's B rows): engine_t.split, fx.c p5x_assign */
 
 CR_HOT_FM6 static void fm6_render(track_t *t, voice_t *v, int32_t *out, uint32_t n, const vmod_t *m)
 {
@@ -1022,10 +1034,24 @@ static void fm6_sync(track_t *t, const voice_t *self)
 
 static void fm6_block(track_t *t)                        /* per part and block: the patch, controllers, LFO */
 {
-    if (!FM6P(t))
+    fm6_part_t *P = FM6P(t);
+    const uint8_t *ed;
+    uint32_t k;
+    if (!P)
         return;
     fm6_sync(t, 0);
-    fm6_ctl_block(t, fm6_ed(t));
+    ed = fm6_ed(t);
+    fm6_ctl_block(t, ed);
+    /* 3y187 (the chord's voices on both cores, fx.c p5x_run): the AMS shares the voices' control ticks will read,
+     * figured here, on core 0 before the hand-over, so that a voice's render only reads the part's state. The same
+     * values fm6_control would figure (the part's amd, every voice's), so the same samples; only the ones of
+     * operators that sound, as there */
+    for (k = 0; k < NVOICE && !t->v[k].active; k++)
+        ;
+    if (k < NVOICE)
+        for (k = 0; k < 6u; k++)
+            if (FM6_AMS[ed[k * FP_OP + FP_AMS]] && fm6_op_on(t, k))
+                (void)fm6_ams_share(P, fm6_amd(P, ed), (uint32_t)ed[k * FP_OP + FP_AMS]);
 }
 
 /* the part after its voices: Dexed's DC filter on the voices' sum (PluginFx: y = x - x' + (1 - 126 / FS) y',
@@ -1479,4 +1505,5 @@ static const engine_t ENG_FM6 = {
     .post = fm6_post,
     .units = fm6_units,
     .deep = &FM6_DEEP,
+    .split = FM6_VOICE_US / 10u,  /* the chord's voices on both cores (3y187, fx.c p5x_run; docs/FM6.md "Two cores") */
 };

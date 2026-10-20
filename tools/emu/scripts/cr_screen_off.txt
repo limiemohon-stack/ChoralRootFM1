@@ -29,6 +29,7 @@ dump
 expect led C4 faint                          # the LEDs while off: a chord key's faint glow,
 expect led FX on                             # a lit button (FX is on)
 expect silence
+lcdfill                                      # (the panel magenta: a pixel the wake does not draw stays so)
 key F3 down
 wait 60
 btn D4 down
@@ -42,6 +43,7 @@ key F3 up
 wait 602000
 shot build/emu/test/cr_off_again.ppm        # off again
 dump
+lcdfill
 knob KNOB1 +2
 wait 150
 shot build/emu/test/cr_off_knob.ppm         # a knob: on, and it turned (voicing 2)
@@ -66,6 +68,7 @@ shot build/emu/test/cr_off_loop.ppm         # 10 min of the loop alone: the scre
 dump
 expect sound                                 # the loop still sounds
 expect led GREEN on                          # PLAY's green LED: the loop, the screen off
+lcdfill
 midi 90 3C 64                                # MIDI in (a note): the idle screen off ends
 wait 150
 shot build/emu/test/cr_off_midi.ppm
@@ -88,6 +91,7 @@ shot build/emu/test/cr_off_sx_midi.ppm      # still black, no LCD write
 dump
 expect sound                                 # the MIDI note sounded (the mark for the key below)
 expect led C4 faint
+lcdfill
 key F3 down
 wait 60
 btn D4 down
@@ -103,6 +107,7 @@ sysex F07D464C4A00F7                         # SCREEN 0 again
 wait 100
 shot build/emu/test/cr_off_sx2.ppm
 dump
+lcdfill
 sysex F07D464C4A01F7                         # SCREEN 1: on
 wait 100
 shot build/emu/test/cr_off_sx_on.ppm

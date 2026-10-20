@@ -185,11 +185,11 @@ function runPage({ navigator = {}, fetch, confirm = () => true, prompt = () => n
 const HS = [0xF0, 0x00, 0x32, 0x45, 0x00, 0x00, 0x00, 0x40, 0x7F, 0xF7];
 const UPGRADE = [0xF0, 0x22, 0x24, 0x35, 0x7F, 0xF7];
 class FakeFM1 {
-  constructor(image, { identity = "FM-1_015", loader = "ota-FM-1_920", final = "FM-1_920", onServe = null, bk = null } = {}) {
+  constructor(image, { identity = "FM-1_015", loader = "ota-FM-1_920", final = "FM-1_920", onServe = null, bk = null, name = null } = {}) {
     this.image = image; this.served = 0; this.bad = 0; this.upgrades = 0; this.bkFrames = 0;
     this.loader = loader; this.final = final; this.onServe = onServe; this.bk = bk;   // bk(identity): its backup side, or null
     this.access = { inputs: new Map(), outputs: new Map() };
-    this.boot(identity, identity.startsWith("ota-") ? "Felucca Update" : "FM-1");
+    this.boot(identity, name || (identity.startsWith("ota-") ? "Felucca Update" : "FM-1"));   // name: the MIDI port's
   }
   boot(identity, name) {
     this.identity = identity; this.waiting = null; this.queue = [];
@@ -428,9 +428,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
    /from 0\.16 on; 0\.15 and older do not have it/.test(en.darkRescue), "help: the rescue key (OCT- at power-on), marked as true only from the boot stub on (0.16)");
 {
   const refusal = (name) => new Function(`${lib}\nreturn refusalText(${JSON.stringify(name)});`)();
-  const over = async (identity, version, { force = false, answer = true, skip = false } = {}) => {
+  const over = async (identity, version, { force = false, answer = true, skip = false, name = null } = {}) => {
     const side = version ? backupSide(version, BACKUP_IDS, feluccaData()) : null, cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS);
-    const dev = new FakeFM1(image, { identity, bk: (id) => (id === identity ? side : id === "FM-1_920" ? cr : null) });
+    const dev = new FakeFM1(image, { identity, name, bk: (id) => (id === identity ? side : id === "FM-1_920" ? cr : null) });
     const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => answer });
     await settle();
     p.$["skip-backup"].checked = skip;
@@ -457,7 +457,24 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     ({ p, dev } = await over(identity, version));
     ok(p.$.status.textContent === refusal(name) && dev.upgrades === 0, `guard: over ${identity} ${version || "(no INFO)"} -> refused`);
   }
-  for (const [identity, version] of [["FM-1_910", "FELUCCA v1.0.1"], ["FM-1_90111", "MELODEE v0.11.1"], ["FM-1_920", "ChoralRoot 0.12"], ["FM-1_015", null]]) {
+  // Bubba Machine (FM-1_003 on the port "FM-1 Bubba Machine"): its updater refuses our loader, so no override is offered
+  const bubbaText = en.bubba.replace("{name}", "Bubba Machine (FM-1_003)");
+  ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine" }));
+  ok(p.$.status.textContent === bubbaText && bubbaText.includes("Return to official V15") && bubbaText.includes("FM-1.fwsc") &&
+     dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden !== false && !p.$.go.disabled,
+     "guard: over Bubba Machine -> refused, the way back to V15 said; nothing written, no backup, no override box");
+  ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine", force: true }));
+  ok(p.$.status.textContent === bubbaText && dev.upgrades === 0 && !p.confirms.length,
+     "guard: over Bubba Machine with the override ticked -> still refused, nothing written");
+  {
+    const bd = new FakeFM1(image, { identity: "FM-1_003", name: "FM-1 Bubba Machine" });
+    const bp = runPage({ navigator: midiOf(bd), fetch: pkgFetch(raw) });
+    await settle();
+    await bp.$["check-go"].fire("click");
+    ok(bp.$.unit.textContent === bubbaText && bp.$.unit.className === "unit bad" && bd.upgrades === 0,
+       'check: "What is on my FM-1?" on Bubba Machine names it and says the way back to V15, writes nothing');
+  }
+  for (const [identity, version] of [["FM-1_910", "FELUCCA v1.0.1"], ["FM-1_90111", "MELODEE v0.11.1"], ["FM-1_920", "ChoralRoot 0.12"], ["FM-1_015", null], ["FM-1_003", null]]) {
     ({ p, dev } = await over(identity, version, { skip: true }));
     ok(dev.identity === "FM-1_920" && p.$.status.textContent === en.done && p.$["force-box"].hidden !== false,
       `guard: over ${version || "the stock " + identity} -> installed, no override shown`);

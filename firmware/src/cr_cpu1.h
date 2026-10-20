@@ -133,6 +133,7 @@ static const char *const CRX_NAME[CRX_N] = {"down", "delay", "reverb", "up"};
 static inline uint32_t cr_prof_now(void) { return fm1_ticks(); }
 static int cr_c1_run(void (*fn)(uint32_t), uint32_t arg) { return fm1_cpu1_run(fn, arg); }
 static int cr_c1_wait_core(void) { return fm1_cpu1_wait(); }
+#define CR_C1_SELF() (fm1_cnum() != 0u)      /* 1: this code runs on core 1 (the cnum register, hal/fm1_cpu1.h) */
 static void cr_c1_hold(void) { fm1_cpu1_hold(); }
 static inline uint32_t cr_c1_rejected(void) { return fm1_c1_rejected; }
 static inline uint32_t cr_c1_faults(void) { return fm1_c1_fault.count; }
@@ -176,9 +177,10 @@ static uint8_t cr_c1_test_hang;      /* tests: the next jobs never answer (cr_c1
 static uint8_t cr_c1_test_nostart;   /* tests: core 1 does not answer at start */
 static uint8_t cr_c1_test_late;      /* tests: the job runs at the wait (after part 0), not when handed (before it) */
 static uint32_t cr_c1_test_rejected; /* tests: core 1's misread count (the device's fm1_c1_rejected) */
-static uint8_t cr_c1_test_nosplit;   /* tests (3y46): P5's chord voices are not shared out: all in track_render_x, in
-                                      * their order, on core 0 (the reference the split's sum must equal) */
-static uint8_t cr_c1_test_share;     /* tests: k + 1: core 1 takes k of the chord part's P5 voices (all there are, if
+static uint8_t cr_c1_test_nosplit;   /* tests (3y46, 3y177): the chord voices of P5 or the VA are not shared out: all
+                                      * in track_render_x, in their order, on core 0 (the reference the split's sum
+                                      * must equal) */
+static uint8_t cr_c1_test_share;     /* tests: k + 1: core 1 takes k of the chord part's voices (all there are, if
                                       * fewer), whatever the balance says: any split gives the same samples */
 #define CR_C1_TEST_NOSPLIT cr_c1_test_nosplit
 #define CR_C1_TEST_SHARE cr_c1_test_share
@@ -206,9 +208,12 @@ static pthread_mutex_t cr_c1_mx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cr_c1_cv = PTHREAD_COND_INITIALIZER;
 static uint32_t cr_c1_th_posted, cr_c1_th_done;
 static uint8_t cr_c1_th_on;
+static _Thread_local uint8_t cr_c1_th_self;        /* 1 on the job's thread: the device's cnum */
+#define CR_C1_SELF() (cr_c1_th_self != 0u)
 static void *cr_c1_th_main(void *x)
 {
     (void)x;
+    cr_c1_th_self = 1;
     for (;;) {
         void (*fn)(uint32_t);
         uint32_t arg;
@@ -256,6 +261,7 @@ static void cr_c1_th_wait(void)
 }
 #else
 #define CR_C1_THREAD 0
+#define CR_C1_SELF() 0
 #endif
 static inline uint32_t cr_prof_now(void)
 {
@@ -400,9 +406,12 @@ static int cr_c1_wait(void)
     }
     return rc;
 }
-/* this block: part 1 renders as core 1's job (its own scratch where an engine has shared scratch: fm6_core.c) */
+/* this block: part 1 renders as core 1's job (its own scratch where an engine has shared scratch: fm6_core.c). The
+ * scratch is the core's: core 1 (CR_C1_SELF, 3y187) renders the bass part and then its share of the chord's voices
+ * one after the other, so one scratch serves both; core 0 renders the chord's other voices with its own. (The part's
+ * test is 3y45's: the host's stub runs the job inline, on core 0's thread.) */
 static volatile uint8_t cr_c1_split;
-#define CR_C1_IDX(t) (cr_c1_split && (t) == &trk[1])
+#define CR_C1_IDX(t) (CR_C1_SELF() || (cr_c1_split && (t) == &trk[1]))
 #define CR_PROF_START() do { if (cr_dbg.prof_on) cr_dbg.mark = cr_prof_now(); } while (0)
 #define CR_PROF_SKIP() do { if (cr_dbg.prof_on) cr_dbg.mark = cr_prof_now(); } while (0)   /* (not counted) */
 #define CR_PROF(k) do { if (cr_dbg.prof_on) { uint32_t t_ = cr_prof_now(); cr_dbg.cur[k] += cr_prof_less(t_ - cr_dbg.mark); \

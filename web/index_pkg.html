@@ -384,6 +384,7 @@ const TEXT = {
     flTitle: "The files",
     flText: "For the command-line tool (python3 tools/fm1_install.py FILE) and for checking: every version this page installs, its SHA-256, its notes and its source. The page checks the SHA-256 itself before it writes.",
     licAll: "Every package offered here is under the same licences (GPL-3.0; the parts listed below), and the source of each version is the repository at that version's tag: the links are with the files above.",
+    bubba: "Your FM-1 runs {name}. Its updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it directly; nothing was written. Return to the official V15 first (\"Return to official V15\", far down this page, with M-VAVE's FM-1.fwsc), then install ChoralRoot.",
     stockTitle: "Return to official V15", stockFile: "Official FM-1.fwsc", stockGo: "Back up and return to official V15",
     stockWarn: "The stock firmware cannot use ChoralRoot's user sounds, loops or settings. They are saved to a backup file first; to bring them back, reinstall ChoralRoot and press Restore.",
     stockRecovery: "Resume an interrupted update: I already saved a backup to this computer",
@@ -543,7 +544,7 @@ async function identify(up) {
   const link = new BackupConnection(input, output);
   let info = null;
   try { info = await deviceInfo((r, o) => link.request(r, o)); } finally { link.close(); }
-  return { ...classifyFirmware(id.text, info && info.version), identity: id.text, version: info && info.version, unitId: info && info.unitId };
+  return { ...classifyFirmware(id.text, info && info.version, dev.name), identity: id.text, version: info && info.version, unitId: info && info.unitId };
 }
 // several FM-1s (docs/INSTALL-COMPAT.md "Several FM-1s"): every FM-1 that answers, with its INFO (version, unit ID)
 async function fm1Units(up) {
@@ -767,6 +768,7 @@ function showUnit() {                            // the answer of "What is on my
   if (unit && unit.several) text = unit.several;  // (several FM-1s: each with its unit ID; the writes refuse)
   else if (!unit) { bad = true; text = t("notfound"); }
   else if (unit.loader) text = tv("cnLoader", { identity: unit.identity });
+  else if (unit.kind === "bubba") { bad = true; text = tv("bubba", { name: unit.name }); }
   else if (unit.verdict === "refuse") { bad = true; text = refusalText(unit.name); }
   else if (installedV) {
     bad = unitVersion() !== installedV || unitOne() !== installedOne;
@@ -953,6 +955,9 @@ $("go").addEventListener("click", async () => {
       const fw = await identify(up);              // which firmware runs: Sloop, the 0.x betas, unknown ones are refused
       if (fw) {
         log(`running: ${fw.identity}${fw.version ? " " + fw.version : ""} -> ${fw.verdict} (${fw.kind})`);
+        if (fw.kind === "bubba") {                // (its updater refuses our loader: no override)
+          say(tv("bubba", { name: fw.name })); lockInstaller(false); return;
+        }
         if (fw.verdict === "refuse") {
           if (!$("force-risk").checked) {         // the override shows only after a refusal
             $("force-box").hidden = false; say(refusalText(fw.name)); lockInstaller(false); return;

@@ -852,16 +852,19 @@ int main(int argc, char **argv)
         cr_draw(&s, 0);
         check("cr_draw_invalidate: all six again", cr_dc.blits == CR_NSTRIP);
         {   /* the screen off (cr_ui.c): the whole panel black; the wake's draw, of the very same screen, puts every
-             * pixel back (a strip or a tile left to the cache would stay black) */
+             * pixel back (a strip or a tile left to the cache would keep what the panel had). MOD's background is
+             * black too, so the host panel is then filled with a word the screen does not hold (counted in it as
+             * well): a pixel the draw did not write keeps it */
             static uint16_t before[240 * 240];
             uint32_t i, ink = 0, left = 0;
             memcpy(before, host_screen, sizeof before);
             cr_draw_black();
             for (i = 0; i < 240u * 240u; i++) ink += host_screen[i] != 0;
             check("cr_draw_black: every pixel of the panel black", ink == 0);
+            for (i = 0; i < 240u * 240u; i++) left += before[i] == 0xF81Fu, host_screen[i] = 0xF81Fu;
             cr_draw(&s, 0);
-            for (i = 0; i < 240u * 240u; i++) left += host_screen[i] == 0;
-            check("the draw after it: all six strips whole (115200 bytes), the screen as before, no pixel left black",
+            for (i = 0; i < 240u * 240u; i++) left += host_screen[i] == 0xF81Fu;
+            check("the draw after it: all six strips whole (115200 bytes), the screen as before, no pixel left unwritten",
                   cr_dc.blits == CR_NSTRIP && cr_dc.drawn == CR_NSTRIP && cr_dc.bytes == 240u * 240u * 2u &&
                   !memcmp(before, host_screen, sizeof before) && left == 0);
         }

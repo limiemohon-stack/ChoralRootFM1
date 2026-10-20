@@ -246,7 +246,10 @@ prints the guard, the reset reason and the stage the crash reached. Emulator: `b
 
 ## Releasing
 
-A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
+A release is a tag `vX.Y`; GitHub Actions builds and signs it in The Firmware Hub's shared build workflow and
+publishes the site. The packages a release carries are the ones GitHub built from the tag and signed: they are never
+rebuilt, replaced or uploaded by hand afterwards (the hub compares each package's SHA-256 with the signed one, and
+the installer with the one in `web/releases.json`).
 
 1. Check the release build locally: `./build.sh --release X.Y` (it makes `build/release-X.Y/`: **two packages**,
    `choralroot-X.Y.fwsc` and the single-core `choralroot-X.Y-1core.fwsc` (`CR_SINGLE_CORE=1`, docs/DUALCORE.md "Two
@@ -254,7 +257,7 @@ A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
    and one size line each). Add the version to `web/releases.json`, as the first entry: its date, tag, 4 to 8
    bullets a player understands (from `docs/releases/X.Y.md`), the sha256 of `build/release-X.Y/choralroot-X.Y.fwsc`
    as `sha256` and of `choralroot-X.Y-1core.fwsc` as `sha256_1core` (the installer offers Single core only for a
-   release that has it; the build is reproducible: CI makes the same files), and give the entry that was first a `going_back` note (from the new notes' "Going back"
+   release that has it; the build is reproducible: CI makes the same files, "Signed builds" below), and give the entry that was first a `going_back` note (from the new notes' "Going back"
    section). `python3 tests/releases_test.py` checks the file. Commit this before the tag: the site is built from
    the tag's tree, and the installer offers what the file lists.
 2. Tag the commit and push the tag:
@@ -263,12 +266,21 @@ A release is a tag `vX.Y`; GitHub Actions builds it and publishes the site.
    git tag vX.Y && git push origin vX.Y
    ```
 
-   `.github/workflows/release.yml` builds the package on ubuntu (the JieLi toolchain runs natively there; it is
-   fetched with `tools/get_toolchain.sh`, and the three SDK files with a sparse clone of the AC79 SDK; both are
-   cached), creates the GitHub release `vX.Y` (a full release, 0.x too since 0.22; a pre-release for `X.Y-suffix`) and attaches
-   `choralroot-X.Y.fwsc`, `choralroot-X.Y-app.bin`, `choralroot-X.Y-1core.fwsc`, `choralroot-X.Y-1core-app.bin`,
-   `SHA256SUMS`, `LICENSE`, `LICENSING.md`, `ATTRIBUTION.txt` and `LICENSES.zip`. Run from the Actions tab (Run workflow, with a version) it only builds, and the package is
-   a workflow artifact.
+   `.github/workflows/release.yml` makes the release in three jobs. **draft**: a draft release `vX.Y` with the
+   notes, `LICENSE`, `LICENSING.md` and `LICENSES.zip` (it stops first when X.Y, or X.Y-betaN, is not the first
+   entry of `web/releases.json`, and when the release is already published). **build**:
+   [`zvenson/fm1-build`](https://github.com/zvenson/fm1-build)'s workflow at `@v1` (ubuntu 24.04, JieLi's Linux
+   toolchain from `pkgman.jieliapp.com`; `sdk: false`, the three SDK files are vendored in `tools/sdk`) runs
+   `tools/hub_build.sh`: the pinned Pillow and fontTools with Raqm, `./build.sh --release X.Y`, the checks, and the
+   sha256s against `web/releases.json` (a package that is not the listed one stops the release before anything is
+   signed); the workflow then signs a build attestation for `choralroot-X.Y.fwsc`, `choralroot-X.Y-app.bin`,
+   `choralroot-X.Y-1core.fwsc` and `choralroot-X.Y-1core-app.bin` and uploads them with its `SHA256SUMS` into the
+   draft. **publish**: downloads the draft's files and checks `SHA256SUMS`, each file's attestation (signed by
+   fm1-build's `v1` as it was reviewed, `FM1_BUILD_V1_SHA` in release.yml: the annotated tag's own SHA, which
+   the attestation records as its signer digest, not the commit's; for this tag and commit) and `web/releases.json` again, then publishes the release (a full release, 0.x too since 0.22; a
+   pre-release for `X.Y-suffix`). A failure in any job leaves a draft nobody sees: re-run the failed jobs, or
+   delete the draft (and the tag, to release another commit) on the Releases page. Run from the Actions tab (Run
+   workflow, with a version) it only builds and signs, and the packages are the run's artifact `packages`.
 3. Then it starts `.github/workflows/pages.yml`, which downloads `choralroot-X.Y.fwsc` from the release and the
    package of every other version in `web/releases.json` from that version's release (the installer offers them
    all, and a browser cannot fetch a release asset itself: the download has no CORS headers, so the site hosts
@@ -316,9 +328,10 @@ A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-
    `choralroot-X.Y-smk37.fwsc`, `elite` the `-elite` one, `mke` the `-mke` one). `python3 tests/releases_test.py`
    checks it and the files. Commit on main before the tag (pages.yml runs from main and builds the site from the
    tag's tree).
-2. `git tag vX.Y-smk37 && git push origin vX.Y-smk37`. release.yml builds the three models on ubuntu, checks their
-   sha256s against `web/releases-smk37.json`, creates the **pre-release** `vX.Y-smk37` ("ChoralRoot X.Y-smk37 for the
-   SMK-37 (community test)") with the six packages, their apps, `SHA256SUMS`, the licences and `SMK37.md`, and starts
+2. `git tag vX.Y-smk37 && git push origin vX.Y-smk37`. release.yml builds the three models in fm1-build as above
+   (`tools/hub_build.sh` checks their sha256s against `web/releases-smk37.json` when it lists the version), signs
+   the six packages and their apps, creates the **pre-release** `vX.Y-smk37` ("ChoralRoot X.Y-smk37 for the
+   SMK-37 (community test)") with them, `SHA256SUMS`, the licences and `SMK37.md`, and starts
    pages.yml for the FM-1's current version (the first entry of `web/releases.json`, as it is) from the SMK tag: the
    FM-1 site stays as it was, and `webapp/smk37/` offers the new build. A pre-release never becomes the latest
    release, and the FM-1 installer never lists an SMK build.
@@ -329,7 +342,43 @@ A respin of the SMK build on the same FM-1 base adds `.N` after `-smk37` (`0.24-
 
 Once, before the first release: Settings → Pages → Build and deployment → Source: **GitHub Actions**.
 
-When CI cannot fetch the toolchain (pkgman.jieliapp.com) or the SDK (gitee.com): build locally with
-`./build.sh --release X.Y`, create the release `vX.Y` on GitHub by hand and upload every file of
-`build/release-X.Y/` (zip `LICENSES/` as `LICENSES.zip`), publish it, and the site follows; or run pages.yml from
-the Actions tab (Run workflow, version `X.Y`).
+When CI cannot fetch the toolchain (pkgman.jieliapp.com): re-run the failed jobs once JieLi's server answers (the
+draft waits). Only if it stays down: build locally with `./build.sh --release X.Y`, upload every file of
+`build/release-X.Y/` to the draft `vX.Y` by hand (zip `LICENSES/` as `LICENSES.zip`), publish it, and run pages.yml
+from the Actions tab (Run workflow, version `X.Y`). The packages are the same bytes, but they carry no attestation:
+the hub lists that release without "Built from source on GitHub", and `gh attestation verify` finds nothing.
+
+### Signed builds
+
+The Firmware Hub (<https://thefirmwarehub.com/kb/#sign>) shows **Built from source on GitHub** on a firmware's card
+when its package was built and attested by its shared workflow `zvenson/fm1-build/.github/workflows/build.yml` at
+`refs/tags/v1`, from the project's own repository, for a release tag. A package built by our own workflow, or
+uploaded or rebuilt by hand afterwards, does not get it. The workflow is one short file with every action pinned
+([v1](https://github.com/zvenson/fm1-build/blob/v1/.github/workflows/build.yml)): it checks the tag out, sets up
+Python 3.12 with the newest Pillow, fetches JieLi's Linux toolchain from `pkgman.jieliapp.com`, runs our build
+command, attests the files our `packages` glob names (`choralroot-*`), keeps them as the run's artifact `packages`
+and uploads them to the tag's release with a `SHA256SUMS` of its own. For that run it holds `contents: write` on
+this repository (release.yml's `build` job). A new tag of it (`v2`) means a review and a change of release.yml and
+`FM1_BUILD_V1_SHA`.
+
+The signed packages are byte-identical to the owner's build (`./build.sh --release` on the Mac, the toolchain in
+Docker), so the sha256s committed in `web/releases.json` before the tag are the signed packages' too.
+`tools/hub_build.sh` replaces the workflow's Pillow with the pinned 11.1.0 and adds fontTools 4.66.1 and Raqm: the
+newest Pillow 13.0 and fontTools 4.67 draw the UI fonts and icons differently, and without FriBiDi the font build
+stops. The Python version (3.12 there, 3.11 on the Mac) and the toolchain download (`20260730.1` from JieLi's
+server since October 2026, `20250324.1` on the Mac) make no difference (HISTORY 3y190). To move to a new Pillow or
+fontTools, pin it in `tools/hub_build.sh`, install the same version on the Mac, and take the release's sums from that
+build.
+
+### Checking a package
+
+Anyone can check that a package is the one GitHub built from the tag's source, with the GitHub CLI:
+
+```
+gh attestation verify choralroot-X.Y.fwsc --repo Quixotic7/ChoralRootFM1 \
+  --signer-workflow zvenson/fm1-build/.github/workflows/build.yml
+```
+
+It prints the tag, the commit and the build run. Add `--source-ref refs/tags/vX.Y` to require that tag. The same
+works for the single-core package, the apps and the SMK-37 packages. Releases before the first signed one (0.26,
+0.26-smk37 and older) have no attestation; their sha256s are in `SHA256SUMS` and `web/releases.json`.

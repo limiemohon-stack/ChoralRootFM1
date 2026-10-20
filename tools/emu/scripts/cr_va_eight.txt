@@ -1,0 +1,62 @@
+# ChoralRoot, the VA chord's voices on two cores (HISTORY 3y177; docs/VA.md "Two cores"): tools/emu/test_cr.sh runs
+# this on a fresh unit (Options > Dual Core On: the emulator's core 1 runs its job inline), again with EMU_C1=thread
+# (the job, core 1's share of the chord's voices with it, on a second thread: the same WAV), EMU_C1=nostart (one
+# core: the same WAV, every voice on core 0) and EMU_C1=hang (core 1 given up in the first block: one core's WAV).
+# The unit's heaviest VA pair (tools/perf_unit.py va): the chord part on 21 MORPH PAD (two MORPH oscillators,
+# SPREAD: a stereo side), the bass part on 18 PUNCH BASS; eight notes over MIDI (perf_unit.py's maj13 voicing), a bass
+# note under them, the chord moved up a semitone (eight steals), released.
+wait 300
+btn GLO down
+wait 100
+knob PRESETS +2               # OPT + PRESETS: the chord part (FM6 -> FM TONE) to the VA (01 LUSH PAD), on OPT's release
+wait 100
+btn GLO up
+wait 50
+knob PRESETS +20              # VA 21 MORPH PAD
+wait 300
+knob ALGORITHM +19            # the bass part (the VA, DEEP SUB): OFF -> VA 18 PUNCH BASS
+wait 300
+dump                          # 1: MORPH PAD, PUNCH BASS, no voice
+midi 90 30 64                 # channel 1 (CHORD): C3 E3 G3 B3 D4 F#4 A4 C5
+midi 90 34 64
+midi 90 37 64
+midi 90 3B 64
+midi 90 3E 64
+midi 90 42 64
+midi 90 45 64
+midi 90 48 64
+wait 1200
+dump                          # 2: eight voices
+midi 91 24 64                 # channel 2 (BASS): C2
+wait 1200
+dump                          # 3: the chord eight, the bass one
+midi 80 30 00                 # the chord a semitone up: every voice taken for a new note
+midi 80 34 00
+midi 80 37 00
+midi 80 3B 00
+midi 80 3E 00
+midi 80 42 00
+midi 80 45 00
+midi 80 48 00
+midi 90 31 64
+midi 90 35 64
+midi 90 38 64
+midi 90 3C 64
+midi 90 3F 64
+midi 90 43 64
+midi 90 46 64
+midi 90 49 64
+wait 1500
+dump                          # 4: eight voices still, the bass one
+midi 80 31 00
+midi 80 35 00
+midi 80 38 00
+midi 80 3C 00
+midi 80 3F 00
+midi 80 43 00
+midi 80 46 00
+midi 80 49 00
+midi 81 24 00
+wait 6000
+dump                          # 5: none
+quit

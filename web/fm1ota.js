@@ -87,7 +87,11 @@ function parseIdentity(pkt) {
 // firmware (FM-1_9XY from the release number: Felucca 0.9-beta FM-1_909, Felucca 1.0 FM-1_910, Sloop 2.0 FM-1_920 =
 // ChoralRoot's), so they are told apart by the INFO text only.
 export const RECOVERY_URL = "https://github.com/Quixotic7/MvaveFM1Unbricker";
-export function classifyFirmware(identity, info) {
+// port: the MIDI port's name, when known. Bubba Machine (github.com/Erbubar23/bubba-machine) answers FM-1_003, as an
+// old official firmware would; its USB product name "FM-1 Bubba Machine" tells it apart. Its updater takes only a
+// package with M-VAVE's own update loader, so it refuses ChoralRoot's (docs/INSTALL-COMPAT.md "Bubba Machine").
+export const BUBBA_PORT = /bubba/i;
+export function classifyFirmware(identity, info, port) {
   const m = /^(ota-)?([^_]+)_(\d+)$/i.exec(identity || "");
   const v = (info || "").trim();
   if (!m) return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity || "no identity"})` };
@@ -95,6 +99,7 @@ export function classifyFirmware(identity, info) {
   const num = parseInt(m[3], 10);
   if (SMK_FAMILY.test(m[2])) return classifySmk(identity, m[2], num, v);   // the M-Vave SMK-37 (SMK37.md)
   if (m[2] !== "FM-1") return { verdict: "refuse", kind: "unknown", name: identity };
+  if (BUBBA_PORT.test(port || "")) return { verdict: "refuse", kind: "bubba", name: `Bubba Machine (${identity})` };
   if (num >= 1 && num < 100) return { verdict: "allow", kind: "stock", name: `the official M-VAVE firmware (${identity})` };
   if (num === 0) return { verdict: "refuse", kind: "sloop", name: "Sloop's rescue mode (FM-1_000)" };
   if (num < 900) return { verdict: "refuse", kind: "unknown", name: `an unknown firmware (${identity})` };

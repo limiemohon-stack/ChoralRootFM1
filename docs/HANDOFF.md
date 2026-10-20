@@ -5,25 +5,29 @@ The current state only. What was done, when and why (the lettered items 3b .. 3y
 
 ## State in three sentences
 
-Released: v0.1 and v0.11 .. v0.25 and v0.25.1 (`git tag`; **v0.25.1 is the latest stable release**, HISTORY 3y175, on
-the site as the installer's default, notes in `docs/releases/`), the betas v0.22-beta1 .. v0.22-beta4 and v0.24-beta1
-.. v0.24-beta3, GitHub pre-releases listed by the installer behind "Show beta releases"; and the SMK-37 community test
-builds v0.24-beta2-smk37, v0.24-beta3-smk37, v0.24-beta3-smk37.1 and v0.25-smk37 (their own list
-`web/releases-smk37.json` and the unlinked page `webapp/smk37/`, SMK37.md). 0.25.1 over 0.25: the FM-1 chord keys
-are the default, and every unit is moved to them once at its first start, marked in the settings block's `leds` bit 1
-with no version (HISTORY 3y172 .. 3y173, docs/SETTINGS.md "0.25.1: FM-1 the default"); LOCK and its latch are kept,
-Classic is in Options > Chord Keys; the sound is 0.25's (GRAIN's MORPH a mix of A and B, 3y167 .. 3y169). No SMK-37
-build of 0.25.1 (Chord Keys and the move are compiled out there): `web/releases-smk37.json` lists 0.25-smk37 first
-(base 0.25). `web/releases.json` lists 0.25.1 first (sha256 ef57eacc..., single-core 1dcac28c...), 0.25 with its
-going-back note. The tree's `FELUCCA_VERSION` is "ChoralRoot 0.25.1" (`firmware/src/choralroot.c`): the next release
-bumps it. The owner's unit runs 0.25, the release package (flashed 3y174; unit ID 5BD75BE3):
+Released: v0.1 and v0.11 .. v0.25, v0.25.1, v0.26 and v0.26.1 (`git tag`; **v0.26.1 is the latest stable release**,
+HISTORY 3y191, on the site as the installer's default, notes in `docs/releases/`), the betas v0.22-beta1 ..
+v0.22-beta4 and v0.24-beta1 .. v0.24-beta3, GitHub pre-releases listed by the installer behind "Show beta releases";
+and the SMK-37 community test builds v0.24-beta2-smk37, v0.24-beta3-smk37, v0.24-beta3-smk37.1, v0.25-smk37 and
+v0.26-smk37 (their own list `web/releases-smk37.json` and the unlinked page `webapp/smk37/`, SMK37.md). **0.26.1 is
+0.26's firmware (`FELUCCA_VERSION` the one change), the first release built and signed by The Firmware Hub's shared
+workflow** (release.yml's draft, build and publish, `tools/hub_build.sh`, 3y190; BUILDING.md "Signed builds"); 0.26
+and older are unsigned. 0.26 over 0.25.1: with Dual Core On the VA's and FM6's chord voices are shared between the
+cores as P5's are (`engine_t.split`, HISTORY 3y177, 3y187; docs/DUALCORE.md, docs/VA.md and docs/FM6.md "Two cores")
+and `CR_RAM_VA` is on in a device build, bit for bit the one-core render; MOD's background is (0, 0, 0) (3y185); the
+installers recognise Bubba Machine and refuse an install over it with the way back to V15 (3y176,
+docs/INSTALL-COMPAT.md). The stored format is 0.25.1's. `web/releases.json` lists 0.26.1 first (sha256 f118c4e7...,
+single-core 7fec6a72...), 0.26 with its going-back note; `web/releases-smk37.json` lists 0.26-smk37 first (base 0.26:
+no SMK-37 build of 0.26.1, nothing changed for it). The tree's `FELUCCA_VERSION` is "ChoralRoot 0.26.1"
+(`firmware/src/choralroot.c`): the next release bumps it. The owner's unit runs package C (3y187: 0.26's firmware
+built as a dev build of 0.25.1, sha256 21307657...; its version line reads ChoralRoot 0.25.1; unit ID 5BD75BE3):
 check with `python3 tools/fm1_install.py --info`.
 
 ## Repos and folders (all under `/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/`)
 
 | folder | what | remote |
 | --- | --- | --- |
-| `ChoralRootFM1/` | the firmware, the Mac emulator, the web installer, manager and site | github.com/Quixotic7/ChoralRootFM1, main, tags v0.1, v0.11 .. v0.25, v0.25.1, v0.22-beta1 .. beta4, v0.24-beta1 .. beta3, v0.24-beta2-smk37, v0.24-beta3-smk37, v0.24-beta3-smk37.1 and v0.25-smk37 |
+| `ChoralRootFM1/` | the firmware, the Mac emulator, the web installer, manager and site | github.com/Quixotic7/ChoralRootFM1, main, tags v0.1, v0.11 .. v0.25, v0.25.1, v0.26, v0.26.1, v0.22-beta1 .. beta4, v0.24-beta1 .. beta3, v0.24-beta2-smk37, v0.24-beta3-smk37, v0.24-beta3-smk37.1, v0.25-smk37 and v0.26-smk37 |
 | `ChoralRootFM1Designer/` | the mock-up designer (MIT); PNG sheets in Git LFS | github.com/Quixotic7/MvaveFM1-Designer |
 | `MvaveFM1Unbricker/` | the recovery tools, `TRANSPORTER-GUIDE.md` | github.com/Quixotic7/MvaveFM1Unbricker |
 | `FM-1-transporter/`, `jl-uboot-tool/`, `MVaveOfficial/`, `Felucca/`, `melodee/`, `sloop-fm1/`, `fm1-x0x/` | upstream tools and references | read-only |
@@ -144,12 +148,13 @@ sh tools/emu/classic_exact.sh build/scratch/ref18 # Output Classic against a 0.1
 POOL was the tight resource until 2026-10-14 (the delay at the half rate gave 65 KB back), again with GRAIN (97.0 %
 on eb223df, beside the flash diet's 27.7 KB of FM TONE HARM cycles), and less so since 3y150: FM TONE reads its HARM
 waves from the halves in flash with a mirror (the owner's choice, docs/FLASH.md; the HARM presets about +9 % of the
-render). The size line is XIP 542 828 B of 573 440 (94.7 %), RAM 80 544 (81.9 %), POOL 308 508 of 344 064 (89.7 %:
-GRAIN's two 32 KB source buffers the largest part, its render scratch 2.3 KB since 3y168), 0.25.1's release build the
-same; 0.25's XIP 542 764 (before 3y172's move); 0.24's XIP 541 948, POOL 306 196; 0.24-beta2's (eb223df) XIP 537 084,
-POOL 333 900.
+render). The size line is XIP 544 196 B of 573 440 (94.9 %), RAM 80 544 (81.9 %), RAMTEXT 16 120 of 24 576 (the
+VA's render in RAM since 3y177), POOL 308 636 of 344 064 (89.7 %: GRAIN's two 32 KB source buffers the largest part,
+its render scratch 2.3 KB since 3y168), 0.26's and 0.26.1's release builds the same; 0.25.1's XIP 542 828, POOL
+308 508; 0.25's XIP 542 764 (before 3y172's move); 0.24's XIP 541 948, POOL 306 196; 0.24-beta2's (eb223df) XIP
+537 084, POOL 333 900.
 POOL is laid out by the linker, so a full POOL cannot fail in use, but tools/build.py refuses a build with under 8 KB
-spare: about 29 KB can still be added. Read them off the size line.
+spare: about 27 KB can still be added. Read them off the size line.
 
 ## Release steps
 
@@ -163,7 +168,11 @@ BUILDING.md "Releasing" has them in full. The ones that are easy to forget, in o
    entry that was first gets a `going_back` note). The web installer's button, notes and "Other versions", the landing page's "New in X.Y" and the packages the
    site hosts all come from this file; `python3 tests/releases_test.py` checks it, and the Pages job refuses to
    publish a version that is not its first entry.
-3. The browser emulator's test (Verification, above), then the tag when the owner says so.
+3. The browser emulator's test (Verification, above), then the tag when the owner says so. release.yml builds and
+   signs the packages in The Firmware Hub's shared workflow (`zvenson/fm1-build@v1`, running `tools/hub_build.sh`;
+   BUILDING.md "Signed builds"): the release starts as a draft and is published only when the signed packages are
+   the ones `web/releases.json` lists. Never upload or replace a package on a release by hand: the hub's "Built from
+   source on GitHub" holds only for the signed files.
 
 A beta (`X.Y-betaN`, opt-in in the installer): the same steps with `"beta": true` on its entry; BUILDING.md "A beta
 release".

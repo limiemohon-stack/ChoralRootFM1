@@ -1,9 +1,9 @@
 # tests/cr_draw_test.c p5cell_screens: a hash of each P5 cell-glyph picture (CR_P5CELL_GOLDEN=1 rewrites)
-p5cell_full_a b97d1552
-p5cell_full_b d475aec7
-p5cell_band1 425c5f63
-p5cell_band1_env f38bee21
-p5cell_band2_a 076c992e
-p5cell_band2_b b887276d
-p5cell_switch_0 46b4e59f
-p5cell_switch_2 5570cae7
+p5cell_full_a 3ae28551
+p5cell_full_b 35616327
+p5cell_band1 07b48f1c
+p5cell_band1_env 5473d7f7
+p5cell_band2_a 067d6b0c
+p5cell_band2_b bb002750
+p5cell_switch_0 035680d7
+p5cell_switch_2 513a337f

@@ -925,12 +925,14 @@ static uint8_t part_side_on;
 /* side / side_on: the part's stereo side (part_side, or core 1's own: fx.c); lfo_pre: 0 = tick the LFO here, else the
  * caller ticked it (before the hand-off to core 1, so the shared generator's draws keep one core's order: cr_cpu1.h)
  * and this is the value it had before, the one the block renders with */
-/* P5's CHORD VOICES ON TWO CORES (3y46, fx.c p5x_run, docs/PROPHET.md "Two cores"). While p5x.on (fx.c
- * mix_parts_split: two cores, P5 on the chord part) this function, for part 0, does everything of a voice but its
- * samples (the envelope's tick, the pitch, the matrix: the voice's vmod_t) and puts the voice on a list; p5x_run then
- * gives a part of the list to core 1 (in the bass part's job), renders the rest here, waits and adds the two sums.
- * A voice's render (eng_prophet_test.c p5_render) writes its own p5_voice_t and the buffer it is given, and reads the
- * part's block (p5_block: before the voices, on core 0) and its parameters: no word is both cores' */
+/* THE CHORD PART'S VOICES ON TWO CORES (P5 3y46, the VA 3y177; fx.c p5x_run, docs/DUALCORE.md "What each core runs").
+ * While p5x.on (fx.c mix_parts_split: two cores, an engine with engine_t.split on the chord part) this function, for
+ * part 0, does everything of a voice but its samples (the envelope's tick, the pitch, the matrix: the voice's vmod_t)
+ * and puts the voice on a list; p5x_run then gives a part of the list to core 1 (in the bass part's job), renders the
+ * rest here, waits and adds the two sums (the mid and, for render2, the side). A voice's render writes its own state
+ * and the buffers it is given, and reads the part's block (engine_t.block: before the voices, on core 0) and its
+ * parameters: no word is both cores' (P5: eng_prophet_test.c p5_render, docs/PROPHET.md "What a voice's render
+ * touches"; the VA: eng_va.c va_render, docs/VA.md "Two cores"). (The names are 3y46's, when P5 alone was split.) */
 #if FELUCCA_PROPHET && CR_CPU1
 #define P5_SPLIT 1
 typedef struct { voice_t *v; vmod_t m; uint8_t c1; } p5x_item_t;   /* c1: core 1 renders it */
@@ -939,7 +941,7 @@ static struct {
     uint8_t n, n1;                      /* voices on the list; how many of them are core 1's */
     p5x_item_t it[NVOICE];
 } p5x __attribute__((section(".pool")));              /* (cleared at power-on with the pool; RAM is the tight region) */
-static void p5x_run(track_t *t, int32_t *out, uint32_t n);
+static void p5x_run(track_t *t, int32_t *out, int32_t *side, uint8_t *side_on, uint32_t n);
 #else
 #define P5_SPLIT 0
 #endif
@@ -1056,7 +1058,7 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
         /* 1/16 st and 1/4096 -> Q24 octaves: the voice's own offset (the matrix's pitch too), without TUNE and bend */
         m.plog = (m.pitch16 - tune - bend16 - v->pitch16) * 87381 + (m.fine - tune_fine - bend_fine) * 5909;
 #if P5_SPLIT
-        if (t == &trk[0] && p5x.on) {                   /* (P5 on two cores: its samples later, p5x_run) */
+        if (t == &trk[0] && p5x.on) {                   /* (on two cores: its samples later, p5x_run) */
             p5x.it[p5x.n].v = v;
             p5x.it[p5x.n++].m = m;
         } else
@@ -1069,7 +1071,7 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
     }
 #if P5_SPLIT
     if (t == &trk[0] && p5x.on)
-        p5x_run(t, out, n);
+        p5x_run(t, out, side, side_on, n);
 #endif
     if (e->post)
         e->post(t, out, n, nr);

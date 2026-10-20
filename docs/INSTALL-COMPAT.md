@@ -12,6 +12,7 @@ host checks found, and the policy the installers follow (`web/fm1ota.js` `classi
 | running firmware | how it is recognised (handshake identity / INFO version) | install ChoralRoot? |
 |---|---|---|
 | official M-VAVE firmware (V15 and older) | `FM-1_001`..`FM-1_099` (V15: `FM-1_015`); no INFO | **allowed** |
+| Bubba Machine | the MIDI port "FM-1 Bubba Machine" (its handshake: `FM-1_003`); no INFO | **refused**, also with `--force` / the override ("Bubba Machine" below) |
 | Felucca 1.0 or later | `FM-1_9XY`, INFO `FELUCCA v1.0`, `v1.0.1`, `v1.1-rc1` ... | **allowed** |
 | Melodee | `FM-1_9...`, INFO `MELODEE v0.11.1` ... | **allowed** |
 | ChoralRoot | `FM-1_920`, INFO `ChoralRoot 0.12` ... | **allowed** |
@@ -36,6 +37,30 @@ A refusal says:
 Overrides: `tools/fm1_install.py --force` (exit code 8 without it); on the page an "I understand the risk" box that
 appears only after a refusal, then a second confirm. The return to the official V15 (the page's "Return to official
 V15", or `fm1_install.py FM-1.fwsc`) is never refused: it is the way out.
+
+## Bubba Machine (2026-10-17, HISTORY 3y176)
+
+[Bubba Machine](https://github.com/Erbubar23/bubba-machine) (a groovebox firmware, GPL-3.0) answers the handshake as
+`FM-1_003`, which on its own reads as an old official firmware, and calls its USB device "FM-1 Bubba Machine". The
+installers tell it apart by that port name (`classify_firmware(identity, info, port)` / `classifyFirmware(identity,
+info, port)`); the same identity on the FM-1's own port "FM-1" is still the stock firmware. Its updater
+(`hal/fm1/fm1_update.c` there) speaks M-VAVE's protocol, but it takes only a package whose update loader is
+M-VAVE's own (`usb_hid_ota.bin`, header CRC 0xEBAA, data CRC 0x5881, 0x4DE1 bytes) and whose `flash.bin` head
+0x0000..0x3FFF is the unit's: ChoralRoot's, Felucca's and every Felucca-family package carry the Felucca loader, so it
+refuses them after the first reads, erases its staging area and writes nothing. That is the "no way back to any other
+firmware" a player meets. So the installers refuse an install over it at once, also with `--force` or the override
+(exit 8), and say the way out:
+
+- **the official V15 goes through**: `python3 tools/fm1_install.py FM-1.fwsc` (M-VAVE's file, sha256 `db1642b2...`),
+  the page's "Return to official V15", or Bubba Machine's own installer ("Firmware de fabrica"). On the owner's unit
+  (Bubba Machine 0.8.0-beta, 2026-10-17): 74 reads (the package's header, the loader, the head), Bubba restarts into
+  M-VAVE's loader `ota-FM-1_015`, which writes V15; "done: the FM-1 runs FM-1_015", the port "FM-1" again. Then
+  ChoralRoot installs over V15 as usual.
+- Bubba Machine keeps its own data in the settings area, which no installer rewrites: back on V15 the presets may
+  read garbled, as after Felucca (System > Reset Patches; MvaveFM1Unbricker `repair-settings`).
+- If Bubba no longer starts: holding OCT- and OCT+ for 5 s (or four failed starts) puts the chip in its ROM boot mode,
+  `WL82 UBOOT1.00`, where MvaveFM1Unbricker's `fm1_unbrick.py restore` works (Windows or Linux); the Transporter
+  otherwise.
 
 ## Diagnosis
 

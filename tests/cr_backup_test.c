@@ -902,12 +902,15 @@ int main(void)
         CHECK(cu.screen_off && emu_hal.lcd_writes == w && !ink, "SCREEN 0: MIDI in keeps it off, nothing drawn");
         fm1_ms += 20u;
         cu_activity();                               /* a key, button or knob */
+        /* MOD's background is black, so the panel's RAM (the firmware only writes it) is filled with a word no view
+         * holds: a pixel the wake did not write keeps it */
+        for (i = 0; i < 240u * 240u; i++) emu_hal.lcd[i] = 0xF81Fu;
         cr_ui_draw();
         for (i = 0, ink = 0; i < 240u * 240u; i++)
-            ink += emu_hal.lcd[i] == 0;              /* (a pixel the wake left black: no view has one) */
+            ink += emu_hal.lcd[i] == 0xF81Fu;
         CHECK(!cu.screen_off && emu_hal.lcd_writes == w + CR_NSTRIP && cr_dc.blits == CR_NSTRIP &&
               cr_dc.drawn == CR_NSTRIP && cr_dc.bytes == 240u * 240u * 2u && !ink,
-              "SCREEN 0, then a knob: on, every strip redrawn whole (%u blits, %u bytes, %u pixels left black)",
+              "SCREEN 0, then a knob: on, every strip redrawn whole (%u blits, %u bytes, %u pixels left unwritten)",
               (unsigned)cr_dc.blits, (unsigned)cr_dc.bytes, (unsigned)ink);
         t_begin(74);
         t_b(0);

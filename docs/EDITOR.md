@@ -490,7 +490,7 @@ editor's greys (rim line, face surf, ticks dim, the bright tick and the pointer 
   LEDs: the owner, "the knob glyphs are vertically too high and not aligned with the button glyphs"); centre-zero
   parameters have their zero at 12 o'clock; no value inside;
 - **LED button** (`CR_G_P5LED`, B1a): a 22 x 20 cap, its 2 px rim in the row colour, the face surf, the LED window (the
-  top 8 px inside the rim) near-black; the LED a 6 px red disc in a 2 px dark-red halo when on, a 4 px dark-red dot
+  top 8 px inside the rim) black; the LED a 6 px red disc in a 2 px dark-red halo when on, a 4 px dark-red dot
   off; `pct2` the one-cycle wave (saw, triangle, pulse: CR_P5I_*) as a 2 px line, 14 x 8, 4 px over the cap, **white
   when on, grey (dim) when off** (mid / line on a dim row); without a wave the cap stays where it is;
 - **lever** (`CR_G_P5SWITCH`, S5): a 30 x 20 cap, the rim in the row colour, two LEDs 14 px apart counting the position

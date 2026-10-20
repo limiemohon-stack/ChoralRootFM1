@@ -331,8 +331,8 @@ RECOVERY_URL = "https://github.com/Quixotic7/MvaveFM1Unbricker"
 REFUSE_REASON = "An install over it has left an FM-1 that no longer starts, and the data it leaves in the flash is not known to be safe for ChoralRoot."
 
 
-def classify_firmware(identity, info):
-    """-> (verdict "allow" | "refuse" | "loader", kind, name)"""
+def classify_firmware(identity, info, port=None):
+    """-> (verdict "allow" | "refuse" | "loader", kind, name). port: the MIDI port's name, when known"""
     m = re.fullmatch(r"(ota-)?([^_]+)_(\d+)", identity or "", re.I)
     v = (info or "").strip()
     if not m:
@@ -344,6 +344,8 @@ def classify_firmware(identity, info):
         return classify_smk(identity, m[2], num, v)
     if m[2] != "FM-1":
         return "refuse", "unknown", identity
+    if BUBBA_PORT.search(port or ""):             # Bubba Machine answers FM-1_003, as an old official firmware would
+        return "refuse", "bubba", f"Bubba Machine ({identity})"
     if 1 <= num < 100:
         return "allow", "stock", f"the official M-VAVE firmware ({identity})"
     if num == 0:
@@ -380,6 +382,17 @@ def classify_smk(identity, model, num, v):
     if 700 <= num < 1000:
         return "allow", "smk", f"an SMK-37 port ({identity}{', ' + v if v else ''})"
     return "refuse", "unknown", f"an unknown firmware ({identity})"
+
+
+# Bubba Machine (github.com/Erbubar23/bubba-machine): its USB product name is "FM-1 Bubba Machine", its handshake
+# FM-1_003. Its updater speaks M-VAVE's protocol but takes only a package with M-VAVE's own update loader and the
+# unit's boot head (hal/fm1/fm1_update.c), so it refuses every Felucca-family package, ChoralRoot's included, before
+# it writes anything; the official V15 goes through (docs/INSTALL-COMPAT.md "Bubba Machine")
+BUBBA_PORT = re.compile(r"bubba", re.I)
+BUBBA_TEXT = ("Bubba Machine's updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it "
+              "directly. Return to the official V15 first: this tool "
+              "with M-VAVE's FM-1.fwsc (python3 tools/fm1_install.py FM-1.fwsc), the web installer's \"Return to "
+              "official V15\" or Bubba Machine's own installer; then install ChoralRoot.")
 
 
 def refusal_text(name):
@@ -3045,9 +3058,11 @@ def info_lines(p, out):
     print(f"{p.ident.text}  [{mode}]  port: {p.name}" + (f"  version: {p.version}" if p.info else ""), file=out)
     print(f"unit ID: {id_text(p)}", file=out)
     if not p.ident.loader:
-        verdict, _kind, name = classify_firmware(p.ident.text, p.version)
+        verdict, kind, name = classify_firmware(p.ident.text, p.version, p.name)
         print(f"ChoralRoot can be installed over {name}" if verdict == "allow" else
               f"ChoralRoot is not installed over {name} (docs/INSTALL-COMPAT.md)", file=out)
+        if kind == "bubba":
+            print(BUBBA_TEXT, file=out)
 
 
 def run_info(up, out):
@@ -3163,7 +3178,11 @@ def run(a, backend, out, ask):
     print(f"device:  {dev.id.text}  ({dev.name})" + (f"  {version}" if version else "") +
           ("  in update mode: the write will be finished" if dev.id.loader else ""), file=out)
     if not dev.id.loader and not official and same_keyboard(dev.id.text, product):
-        verdict, kind, name = classify_firmware(dev.id.text, version)   # (the return to V15 is always allowed)
+        verdict, kind, name = classify_firmware(dev.id.text, version, dev.name)   # (the return to V15 is always allowed)
+        if kind == "bubba":                       # (its updater refuses our loader: never, not with --force)
+            dev.link.close()
+            raise InstallError("unsupported", f"the keyboard runs {name}: nothing was written, and --force does not "
+                                              "change that. " + BUBBA_TEXT)
         if kind == "other":                       # (its own updater and package format: never, not with --force)
             dev.link.close()
             raise InstallError("unsupported", f"the keyboard runs {name}: ChoralRoot is not installed over it from "

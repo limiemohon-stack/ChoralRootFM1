@@ -24,7 +24,7 @@
 #define CR_RGB(r, g, b) ((uint16_t)((((r) >> 3) << 11) | (((g) >> 2) << 5) | ((b) >> 3)))
 static const uint16_t CR_NAMED[9] = {
     0, CR_RGB(246, 243, 234), CR_RGB(224, 58, 47), CR_RGB(43, 80, 200), CR_RGB(242, 183, 5),
-    CR_RGB(240, 122, 26), CR_RGB(47, 179, 122), CR_RGB(110, 110, 118), CR_RGB(10, 10, 12)};
+    CR_RGB(240, 122, 26), CR_RGB(47, 179, 122), CR_RGB(110, 110, 118), CR_RGB(0, 0, 0)};
 #define CR_RED CR_NAMED[CR_COL_RED]
 #define CR_WHITE CR_NAMED[CR_COL_WHITE]
 #define CR_YELLOW CR_NAMED[CR_COL_YELLOW]
@@ -1159,7 +1159,7 @@ static void cr_p5led(int32_t x, int32_t y, int on)
     cr_disc(x * 16, y * 16, on ? 48 : 32, on ? CR_RED : CR_RGB(110, 24, 16));
 }
 /* a P5 cell's button cap, w x 20 from (cx - w / 2, y): the 2 px rim, the face (surf), the LEDs' window (its top 8 px
- * inside the rim, near-black) */
+ * inside the rim, black) */
 static void cr_p5cap(int32_t cx, int32_t y, int32_t w, uint16_t rim)
 {
     int32_t x = cx - w / 2;

@@ -204,9 +204,11 @@ echo "the screen off: the logo at 3 min, a black frame at 10 min (the backlight 
 run cr_screen_off
 SO="$OUT/cr_screen_off.log"
 lit() { od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' | awk '$1 > 24 { c++ } END { print c + 0 }'; }   # bytes > 24
-ink() { od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' | awk '$1 > 0 { c++ } END { print c + 0 }'; }    # bytes > 0 (0: the black frame; a view's background is 8 8 8)
-blk() {          # blk FILE: pixels 0 0 0, what the black frame leaves where the wake did not redraw (a view has none)
-    od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' | awk '{ s += $1; if (NR % 3 == 0) { if (!s) c++; s = 0 } } END { print c + 0 }'
+ink() { od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' | awk '$1 > 0 { c++ } END { print c + 0 }'; }    # bytes > 0 (0: the black frame)
+blk() {          # blk FILE: pixels 255 0 255, the script's lcdfill before each wake, where the wake did not redraw (no
+                 # view draws magenta; MOD's background is black, so the black frame itself cannot mark them)
+    od -An -tu1 -v -j 15 "$1" | tr -s ' \n' '\n\n' | grep -v '^$' |
+        awk '{ v[NR % 3] = $1; if (NR % 3 == 0) { if (v[1] == 255 && v[2] == 0 && v[0] == 255) c++ } } END { print c + 0 }'
 }
 dmp() {          # dmp SHOT PATTERN: log $DL's first line matching PATTERN after the shot $DP SHOT (its dump, its expects)
     awk -v s="screenshot: build/emu/test/$DP$1.ppm" -v p="$2" 'f && $0 ~ p { print; exit } $0 == s { f = 1 }' "$DL"
@@ -224,7 +226,7 @@ nd=$(grep -c '^  pa2: ' "$SO")
 p=$(pixel "$OUT/cr_off_logo.ppm" 120 150); set -- $p
 [ "${1:-0}" -gt 180 ] && [ "${2:-255}" -lt 90 ] && ok "3 min: the logo ($p): $OUT/cr_off_logo.ppm" || bad "no logo at 3 min ($p)"
 [ "$(scr dark)" = off ] && [ "$(ink "$OUT/cr_off_dark.ppm")" = 0 ] && [ "$(lit "$OUT/cr_off_view.ppm")" -gt 1000 ] &&
-    [ "$(blk "$OUT/cr_off_view.ppm")" = 0 ] && has '^screen: off (idle)' "$SO" &&
+    has '^screen: off (idle)' "$SO" &&
     ok "10 min: the screen off: every pixel of the panel black: $OUT/cr_off_dark.ppm" ||
     bad "10 min: screen $(scr dark), the panel not black ($(ink "$OUT/cr_off_dark.ppm") bytes above 0)"
 [ "$(scr dark2)" = off ] && [ -n "$(wrs dark)" ] && [ "$(wrs dark)" = "$(wrs dark2)" ] && [ "$(ink "$OUT/cr_off_dark2.ppm")" = 0 ] &&
@@ -946,7 +948,7 @@ L="$OUT/cr_editor_map.log"
 has '^mod: ENV2 -> CUT +12 slot 1$' "$L" && ok "ENV held + KNOB 1 +2 on FILTER: mod: ENV2 -> CUT +12 slot 1 (ENV 2 by default): $OUT/cr_map_hot.ppm" || bad "ENV mapping: $(grep -m1 '^mod:' "$L")"
 yel() { set -- "$(pixel "$OUT/$1.ppm" $2 $3)" "$4"; set -- "$(echo $1)" "$2"; [ "$1" = "$2" ]; }   # yel SHOT X Y "R G B"
 yel cr_map_mark 55 126 "247 182 0" && ok "the Cutoff cell's mark: a yellow square (ENV): $OUT/cr_map_mark.ppm" || bad "no yellow mark on Cutoff: $(pixel "$OUT/cr_map_mark.ppm" 55 126)"
-yel cr_map_filt 55 126 "8 8 8" && ok "no mark before the mapping" || bad "a mark before: $(pixel "$OUT/cr_map_filt.ppm" 55 126)"
+yel cr_map_filt 55 126 "0 0 0" && ok "no mark before the mapping" || bad "a mark before: $(pixel "$OUT/cr_map_filt.ppm" 55 126)"
 has '^mod: LFO1 -> RES +6 slot 2$' "$L" && yel cr_map_mark2 115 126 "231 56 41" && ok "LFO held + KNOB 2: LFO1 -> RES slot 2, a red mark on Reso: $OUT/cr_map_mark2.ppm" || bad "LFO mapping: $(grep '^mod: LFO1 -> RES' "$L") $(pixel "$OUT/cr_map_mark2.ppm" 115 126)"
 has '^mod: LFO1 -> CUT -6 slot 3$' "$L" && yel cr_map_white 55 126 "247 243 239" && ok "LFO1 -> CUT too: two sources, a white mark: $OUT/cr_map_white.ppm" || bad "white mark: $(pixel "$OUT/cr_map_white.ppm" 55 126)"
 differ cr_map_hot cr_map_mark "the hot cell showed \"ENV2 +12\" in yellow ($OUT/cr_map_hot.ppm), then the cutoff again"
@@ -2508,6 +2510,64 @@ rj=$(LC_ALL=C grep -a '^cpu: stages' "${FX8}_inline.log" | sed -n 's/.*reverb jo
     ok "eight P5 voices, three sends up: the reverb on core 1 ($rj blocks), the WAV inline and with EMU_C1=thread the same, bit for bit" ||
     bad "the reverb on core 1: ${rj:-no} reverb jobs, or the inline and the thread WAVs differ (${FX8}_*.log)"
 silent_end cr_p5_eight_fx_inline
+
+echo "the VA chord's voices on two cores (3y177, docs/VA.md \"Two cores\"): eight MORPH PAD voices over PUNCH BASS, shared out between the cores; one core: the chord seven under the bass"
+VA8="$OUT/cr_va_eight"
+vv() { grep -a "^  part $2: VA" "$1" | sed -n 's/.*voices \([0-9]*\),.*/\1/p' | tr '\n' ' '; }
+EMU_STAGES=1 "$EMU" --headless --script "$S/cr_va_eight.txt" --wav "${VA8}_inline.wav" >"${VA8}_inline.log" 2>&1 &&
+    ok "cr_va_eight: exit 0" || bad "cr_va_eight: see ${VA8}_inline.log"
+st=$(LC_ALL=C grep -a '^cpu: stages' "${VA8}_inline.log")
+p0=$(echo "$st" | sed -n 's/.* part0 \([0-9]*\) .*/\1/p'); p1=$(echo "$st" | sed -n 's/.* part1 \([0-9]*\) .*/\1/p')
+[ "$(vv "${VA8}_inline.log" 0)" = "0 8 8 8 0 " ] && [ "$(vv "${VA8}_inline.log" 1)" = "0 0 1 1 0 " ] &&
+    echo "$st" | grep -q 'c1 ok, jobs [1-9]' && [ "${p0:-0}" -ge 1 ] && [ "$((2 * ${p1:-0}))" -ge "${p0:-0}" ] &&
+    ok "two cores: eight VA voices and the bass; core 1's job (the bass and its share of the chord) averages $p1 us a half against core 0's $p0 (at least half of it: the chord is shared)" ||
+    bad "the VA chord on two cores: the chord's voices $(vv "${VA8}_inline.log" 0)/ the bass's $(vv "${VA8}_inline.log" 1)/ part0 ${p0:-?} part1 ${p1:-?} ($st)"
+echo "$st" | cut -c6- | sed 's/^/      /'
+silent_end cr_va_eight_inline
+EMU_C1=thread "$EMU" --headless --script "$S/cr_va_eight.txt" --wav "${VA8}_thread.wav" >"${VA8}_thread.log" 2>&1
+[ -s "${VA8}_inline.wav" ] && cmp -s "${VA8}_inline.wav" "${VA8}_thread.wav" && [ "$(vv "${VA8}_thread.log" 0)" = "0 8 8 8 0 " ] &&
+    ok "EMU_C1=thread: core 1's share of the VA chord (its mid and its SPREAD side) and the bass part on a second thread: the WAV is the inline job's, bit for bit" ||
+    bad "EMU_C1=thread, the VA chord's voices on two threads: the WAV differs from the inline job's"
+EMU_C1=nostart "$EMU" --headless --script "$S/cr_va_eight.txt" --wav "${VA8}_one.wav" >"${VA8}_one.log" 2>&1
+[ "$(vv "${VA8}_one.log" 0)" = "0 8 7 7 0 " ] && [ "$(vv "${VA8}_one.log" 1)" = "0 0 1 1 0 " ] &&
+    ok "one core (EMU_C1=nostart): the chord eight alone, seven under the bass (one core's shared budget), every voice on core 0" ||
+    bad "the VA chord on one core: the chord part's voices $(vv "${VA8}_one.log" 0)/ the bass part's $(vv "${VA8}_one.log" 1)"
+EMU_STAGES=1 EMU_C1=hang "$EMU" --headless --script "$S/cr_va_eight.txt" --wav "${VA8}_hang.wav" >"${VA8}_hang.log" 2>&1
+# (the give-up's Dual Core Off is saved once the unit is quiet after the release: its erase, played as silence, is
+# about 7.95 s in: the WAVs are compared up to 7.9 s)
+cmp -s -n 1393604 "${VA8}_hang.wav" "${VA8}_one.wav" && LC_ALL=C grep -aq 'c1 gave up' "${VA8}_hang.log" &&
+    LC_ALL=C grep -aq '^  settings: .* dualcore 0 ' "${VA8}_hang.log" &&
+    ok "core 1 never answering a job under the VA chord (EMU_C1=hang): given up in the first block, core 0 renders the job itself, one core's WAV (the first 7.9 s), Dual Core Off" ||
+    bad "EMU_C1=hang on the VA chord: the WAV differs from one core's in the first 7.9 s, or core 1 was not given up"
+
+echo "FM6's chord voices on two cores (3y187, docs/FM6.md \"Two cores\"): eight TINE EP voices over DEEP SUB (the power-on sounds), shared out between the cores; one core: the same, bit for bit"
+F8="$OUT/cr_fm6_eight"
+fv() { grep -a "^  part $2: " "$1" | sed -n 's/.*voices \([0-9]*\),.*/\1/p' | tr '\n' ' '; }
+EMU_STAGES=1 "$EMU" --headless --script "$S/cr_fm6_eight.txt" --wav "${F8}_inline.wav" >"${F8}_inline.log" 2>&1 &&
+    ok "cr_fm6_eight: exit 0" || bad "cr_fm6_eight: see ${F8}_inline.log"
+st=$(LC_ALL=C grep -a '^cpu: stages' "${F8}_inline.log")
+p0=$(echo "$st" | sed -n 's/.* part0 \([0-9]*\) .*/\1/p'); p1=$(echo "$st" | sed -n 's/.* part1 \([0-9]*\) .*/\1/p')
+grep -aq '^  part 0: FM6 / TINE EP' "${F8}_inline.log" && grep -aq '^  part 1: VA / DEEP SUB' "${F8}_inline.log" &&
+    [ "$(fv "${F8}_inline.log" 0)" = "0 8 8 8 0 " ] && [ "$(fv "${F8}_inline.log" 1)" = "0 0 1 1 0 " ] &&
+    echo "$st" | grep -q 'c1 ok, jobs [1-9]' && [ "${p0:-0}" -ge 1 ] && [ "$((2 * ${p1:-0}))" -ge "${p0:-0}" ] &&
+    ok "two cores: eight FM6 voices and the bass; core 1's job (the bass and its share of the chord) averages $p1 us a half against core 0's $p0 (at least half of it: the chord is shared)" ||
+    bad "FM6's chord on two cores: the chord's voices $(fv "${F8}_inline.log" 0)/ the bass's $(fv "${F8}_inline.log" 1)/ part0 ${p0:-?} part1 ${p1:-?} ($st)"
+echo "$st" | cut -c6- | sed 's/^/      /'
+silent_end cr_fm6_eight_inline
+EMU_C1=thread "$EMU" --headless --script "$S/cr_fm6_eight.txt" --wav "${F8}_thread.wav" >"${F8}_thread.log" 2>&1
+[ -s "${F8}_inline.wav" ] && cmp -s "${F8}_inline.wav" "${F8}_thread.wav" &&
+    ok "EMU_C1=thread: core 1's share of the FM6 chord (its own scratch) and the bass part on a second thread: the WAV is the inline job's, bit for bit" ||
+    bad "EMU_C1=thread, FM6's chord voices on two threads: the WAV differs from the inline job's"
+EMU_C1=nostart "$EMU" --headless --script "$S/cr_fm6_eight.txt" --wav "${F8}_one.wav" >"${F8}_one.log" 2>&1
+[ "$(fv "${F8}_one.log" 0)" = "0 8 8 8 0 " ] && cmp -s "${F8}_inline.wav" "${F8}_one.wav" &&
+    ok "one core (EMU_C1=nostart): the same eight voices and the bass (an FM6 voice is one budget unit), the WAV the two cores' bit for bit" ||
+    bad "FM6's chord on one core: the voices $(fv "${F8}_one.log" 0)/ or the WAV differs from the two cores'"
+EMU_STAGES=1 EMU_C1=hang "$EMU" --headless --script "$S/cr_fm6_eight.txt" --wav "${F8}_hang.wav" >"${F8}_hang.log" 2>&1
+# (the give-up's Dual Core Off is saved once the unit is quiet: its erase, played as silence, about 6.5 s in)
+cmp -s -n 1128964 "${F8}_hang.wav" "${F8}_one.wav" && LC_ALL=C grep -aq 'c1 gave up' "${F8}_hang.log" &&
+    LC_ALL=C grep -aq '^  settings: .* dualcore 0 ' "${F8}_hang.log" &&
+    ok "core 1 never answering a job under the FM6 chord (EMU_C1=hang): given up in the first block, one core's WAV (the first 6.4 s), Dual Core Off" ||
+    bad "EMU_C1=hang on the FM6 chord: the WAV differs from one core's in the first 6.4 s, or core 1 was not given up"
 
 echo "P5, the click at a short release's end (3y44): the part's DC blocker discharges after the last voice, it is not cut"
 p5pos=$(python3 tools/gen_prophet_factory.py --pos 168)          # PERC ORGAN: a release of 20 ms, in the tree's list

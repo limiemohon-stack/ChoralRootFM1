@@ -1171,22 +1171,34 @@ static uint8_t c1_side_on;
 static uint32_t c1_nr;
 static int32_t c1_lfo[2];                               /* the parts' LFO values before this block's tick */
 #if P5_SPLIT
-static int32_t p5x_buf[CTL] __attribute__((section(".pool")));   /* core 1's sum of the chord part's P5 voices it renders */
+static int32_t p5x_buf[CTL] __attribute__((section(".pool")));   /* core 1's sum of the chord part's voices it renders */
+static int32_t p5x_side[CTL] __attribute__((section(".pool")));  /* .. their stereo side (render2: the VA's SPREAD /
+                                                                  * USPREAD, 3y177) */
+static uint8_t p5x_side_on;                                      /* .. one of them added to it */
 #endif
-/* core 1's job of a block: the bass part, then (3y46) the chord part's P5 voices that p5x_run gave it (p5x.it[0 ..
- * n1 - 1]: each its own p5_voice_t, into p5x_buf). CRP_PART1 is the whole job's time */
+/* core 1's job of a block: the bass part, then (3y46, 3y177) the chord part's voices that p5x_run gave it (p5x.it[]
+ * with c1: each its own state, into p5x_buf and, with render2, p5x_side). CRP_PART1 is the whole job's time */
 CR_HOT_CORE static void c1_part1_job(uint32_t n)
 {
     uint32_t t0 = cr_dbg.prof_on ? cr_prof_now() : 0u;
     c1_nr = track_render_x(&trk[1], c1_buf, c1_side, &c1_side_on, n, &c1_lfo[1]);
 #if P5_SPLIT
+    p5x_side_on = 0;
     if (p5x.n1) {
+        const engine_t *e = ENGINES[trk[0].engine];
         uint32_t i;
         for (i = 0; i < n; i++)
             p5x_buf[i] = 0;
+        if (e->render2)
+            for (i = 0; i < n; i++)
+                p5x_side[i] = 0;
         for (i = 0; i < p5x.n; i++)
-            if (p5x.it[i].c1)
-                p5_render(&trk[0], p5x.it[i].v, p5x_buf, n, &p5x.it[i].m);
+            if (p5x.it[i].c1) {
+                if (e->render2)
+                    p5x_side_on |= (uint8_t)e->render2(&trk[0], p5x.it[i].v, p5x_buf, p5x_side, n, &p5x.it[i].m);
+                else
+                    e->render(&trk[0], p5x.it[i].v, p5x_buf, n, &p5x.it[i].m);
+            }
     }
 #endif
     if (cr_dbg.prof_on) {
@@ -1309,22 +1321,30 @@ static __attribute__((noinline)) void mix_fx_split(uint32_t n)
 }
 #endif
 #if P5_SPLIT
-/* WHICH CORE RENDERS WHICH OF THE CHORD PART'S P5 VOICES (3y46; docs/PROPHET.md "Two cores"). Core 0 WAITS for core 1
- * before the effects and the master, so the half's time is the tick + the LONGER of the two cores' renders + the
- * effects + the master: what counts is the longer render, and the split that makes it shortest is the even one. The
- * bass part is core 1's (its job, as before): its P5 voices count there as voices, a bass of another engine as
- * P5X_UNIT_US a budget unit. So: of nc voices core 1 takes the k that makes the longer side shortest, at most P5_CORE
- * P5 voices a core (the owner's "4 per core"), an equal split's odd voice to core 1 (core 0 has the rest of the half).
- * -DP5_FILL_C1_FIRST=1: core 1 takes voices until it has four, core 0 the rest (the first plan: for a four-note chord
- * that is one core's time again, core 0 waiting for it) */
+/* WHICH CORE RENDERS WHICH OF THE CHORD PART'S VOICES (3y46 for P5, weighed per engine since 3y177; docs/DUALCORE.md
+ * "What each core runs"). Core 0 WAITS for core 1 before the effects and the master, so the half's time is the tick +
+ * the LONGER of the two cores' renders + the effects + the master: what counts is the longer render. A chord voice
+ * weighs its engine's engine_t.split x 10 us (P5 440, the VA 280: the unit's worst). The bass part is core 1's (its
+ * job, as before): its P5 voices count there as P5X_VOICE_US each, a bass of another engine as P5X_UNIT_US a budget
+ * unit. Core 0's side counts x P5X_C0_PCT / 100: TIMER5 nests in its audio ISR, about 7 % of core 0 (Melodee's "CPU0
+ * service allowance", 5fca0a4 / 6ca918d, the idea alone; docs/notes/melodee-p5-dualcore-review.md). So: of nc voices
+ * core 1 takes the k that makes the longer side shortest, a tie to core 1 (core 0 has the rest of the half), and for
+ * P5 at most P5_CORE P5 voices a core (the owner's "4 per core"). -DP5_FILL_C1_FIRST=1 (P5): core 1 takes voices
+ * until it has four, core 0 the rest (the first plan: for a four-note chord that is one core's time again, core 0
+ * waiting for it) */
 #ifndef P5_FILL_C1_FIRST
 #define P5_FILL_C1_FIRST 0
 #endif
-#define P5X_VOICE_US 440u               /* a P5 voice at the peak (the unit: four are 1533 .. 1760) */
+#define P5X_VOICE_US P5_VOICE_US        /* a P5 voice at the peak (the unit: four are 1533 .. 1760) */
 #define P5X_UNIT_US 75u                 /* a budget unit of another engine (16 units: 1070 .. 1230) */
-static uint32_t p5x_assign(uint32_t nc, uint32_t *nbp)
+#ifndef P5X_C0_PCT
+#define P5X_C0_PCT 107u                 /* core 0's side, in % of its voices' time: TIMER5's ticks (6.6 .. 7.3 us at
+                                         * 10 kHz dry, docs/INTEGRATION.md "TIMER5"); -DP5X_C0_PCT=100: 3y46's */
+#endif
+static uint32_t p5x_assign(const track_t *t0, uint32_t nc, uint32_t *nbp)
 {
     const track_t *bt = &trk[P5_PART_BASS];
+    uint32_t vu = ENGINES[t0->engine]->split * 10u, p5 = P5_IS(t0);
     uint32_t nb = p5_sounding(bt), bl, cap1, k, best = 0, bm = 0xFFFFFFFFu;   /* (a voice given up fades on its
                                                          * last sample's line: no voice's work) */
     if (P5_IS(bt)) {
@@ -1338,14 +1358,14 @@ static uint32_t p5x_assign(uint32_t nc, uint32_t *nbp)
     }
     if (CR_C1_TEST_SHARE)                               /* (the host's tests: a share of their own) */
         return CR_C1_TEST_SHARE - 1u < nc ? CR_C1_TEST_SHARE - 1u : nc;
-    cap1 = k < P5_CORE ? P5_CORE - k : 0u;
+    cap1 = !p5 ? nc : k < P5_CORE ? P5_CORE - k : 0u;  /* (the four a core are P5's) */
     if (cap1 > nc)
         cap1 = nc;
-    if (P5_FILL_C1_FIRST)
+    if (P5_FILL_C1_FIRST && p5)
         return cap1;
     for (k = 0; k <= cap1; k++) {
-        uint32_t l1 = bl + k * P5X_VOICE_US, l0 = (nc - k) * P5X_VOICE_US, m = l1 > l0 ? l1 : l0;
-        if (nc - k > P5_CORE && k < cap1)
+        uint32_t l1 = (bl + k * vu) * 100u, l0 = (nc - k) * vu * P5X_C0_PCT, m = l1 > l0 ? l1 : l0;
+        if (p5 && nc - k > P5_CORE && k < cap1)
             continue;                                   /* (core 0 above its four while core 1 has room) */
         if (m <= bm) {
             bm = m;
@@ -1373,21 +1393,24 @@ static __attribute__((noinline)) void p5x_bass_count(void)   /* two cores, a P5 
 }
 /* voice.c track_render_x(trk[0]) calls it when every voice of the chord part is on the list (p5x.it): the hand-over
  * (the bass part and core 1's share of the list: ONE job a block, as before), core 0's share, the wait, the two sums
- * added. Sums of 32-bit integers: whatever the split, out[] is what one core's render of the voices in their order
- * gives, bit for bit (tests/cr_c1_thread_test.c). The part's DC blocker runs after this, on core 0 (track_render_x).
- * Core 1 not answering, refusing or given up: core 0 runs the same job itself, in this block */
-static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, uint32_t n)
+ * added (the mid into out, and with render2 the side into side). Sums of 32-bit integers: whatever the split, out[]
+ * and side[] are what one core's render of the voices in their order gives, bit for bit (tests/cr_c1_thread_test.c).
+ * The part's DC blocker runs after this, on core 0 (track_render_x). Core 1 not answering, refusing or given up: core
+ * 0 runs the same job itself, in this block */
+static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, int32_t *side, uint8_t *side_on, uint32_t n)
 {
-    uint32_t i, nb = 0, nc = 0, k;
+    const engine_t *e = ENGINES[t0->engine];
+    uint32_t i, nb = 0, nc = 0, k, p5 = P5_IS(t0);
     int ran;
-    /* a whole voice's work, or (a voice given up, in its last block: p5_render) the line of its last sample to 0,
-     * which is no work to share out and stays here */
+    /* P5: a whole voice's work, or (a voice given up, in its last block: p5_render) the line of its last sample to 0,
+     * which is no work to share out and stays here. Another engine: every voice on the list (a VA voice given up
+     * renders its fade whole; one that ended returns at once: eng_va.c va_render) */
     for (i = 0; i < p5x.n; i++) {
-        const p5_voice_t *s = p5_voice(t0, p5x.it[i].v);
-        p5x.it[i].c1 = (uint8_t)(p5x.it[i].v->active || p5x.it[i].m.amp1 || (s && s->steal));
+        const p5_voice_t *s = p5 ? p5_voice(t0, p5x.it[i].v) : 0;
+        p5x.it[i].c1 = (uint8_t)(!p5 || p5x.it[i].v->active || p5x.it[i].m.amp1 || (s && s->steal));
         nc += p5x.it[i].c1;
     }
-    k = p5x_assign(nc, &nb);
+    k = p5x_assign(t0, nc, &nb);
     p5x.n1 = (uint8_t)k;
     for (i = 0; i < p5x.n; i++)                         /* core 1's: the first k whole voices of the list */
         if (p5x.it[i].c1) {
@@ -1396,18 +1419,26 @@ static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, uint32_
             else
                 p5x.it[i].c1 = 0;
         }
-    if (nc - p5x.n1 > cr_dbg.p5_c0)
-        cr_dbg.p5_c0 = nc - p5x.n1;
-    if (p5x.n1 + nb > cr_dbg.p5_c1)
-        cr_dbg.p5_c1 = p5x.n1 + nb;
-    if (nb > cr_dbg.p5_bass)
-        cr_dbg.p5_bass = nb;
+    if (p5) {                                           /* (78 PEAK's counts are P5 voices) */
+        if (nc - p5x.n1 > cr_dbg.p5_c0)
+            cr_dbg.p5_c0 = nc - p5x.n1;
+        if (p5x.n1 + nb > cr_dbg.p5_c1)
+            cr_dbg.p5_c1 = p5x.n1 + nb;
+        if (nb > cr_dbg.p5_bass)
+            cr_dbg.p5_bass = nb;
+    } else if (P5_IS(&trk[P5_PART_BASS])) {
+        p5x_bass_count();
+    }
     CR_PROF(CRP_PART0);
     ran = cr_c1_check() && cr_c1_run(c1_part1_job, n);   /* (a second misread, a fault: given up) */
     CR_PROF_SKIP();                                     /* (the host's stub ran it here: counted as part1) */
     for (i = 0; i < p5x.n; i++)
-        if (!p5x.it[i].c1)
-            p5_render(t0, p5x.it[i].v, out, n, &p5x.it[i].m);
+        if (!p5x.it[i].c1) {
+            if (e->render2)
+                *side_on |= (uint8_t)e->render2(t0, p5x.it[i].v, out, side, n, &p5x.it[i].m);
+            else
+                e->render(t0, p5x.it[i].v, out, n, &p5x.it[i].m);
+        }
     CR_PROF(CRP_PART0);
     if (ran && cr_c1_wait())                            /* 8 ms or a fault: core 1 held for good (C1_GAVE_UP) */
         ran = 0;
@@ -1421,6 +1452,12 @@ static __attribute__((noinline)) void p5x_run(track_t *t0, int32_t *out, uint32_
     if (p5x.n1)
         for (i = 0; i < n; i++)
             out[i] += p5x_buf[i];
+    if (p5x_side_on) {                                  /* (render2: the side only when a voice of core 1's added to
+                                                         * it, as track_render_x's side_on) */
+        for (i = 0; i < n; i++)
+            side[i] += p5x_side[i];
+        *side_on = 1;
+    }
     p5x.on = 0;
 }
 #endif
@@ -1454,9 +1491,9 @@ static void mix_parts_split(uint32_t n)
     cr_c1_split = 1;
 #if P5_SPLIT
     p5x.n = p5x.n1 = 0;
-    if (P5_IS(t0) && !CR_C1_TEST_NOSPLIT) {             /* P5 on the chord part: its voices on both cores. The job
-                                                         * (the bass part and core 1's voices) is handed over and
-                                                         * waited for inside the render: p5x_run */
+    if (ENGINES[t0->engine]->split && !CR_C1_TEST_NOSPLIT) {   /* P5 or the VA on the chord part: its voices on
+                                                         * both cores. The job (the bass part and core 1's voices) is
+                                                         * handed over and waited for inside the render: p5x_run */
         p5x.on = 1;
         nr0 = track_render_x(t0, part_buf, part_side, &part_side_on, n, &c1_lfo[0]);
         CR_PROF(CRP_PART0);

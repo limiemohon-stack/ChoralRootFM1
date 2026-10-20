@@ -55,6 +55,9 @@ CR_VENEER(void, c1_part1_job, (uint32_t n), (n))
  * block (the compiler's own call: `dosc[3][4] = {{0}}`); the callers that stay in flash (the stores, the settings)
  * reach it through this */
 CR_VENEER(void *, memset, (void *d, int c, unsigned n), (d, c, n))
+/* va_render (RAM) -> the filter's type weights (va_common.c, flash: GRAIN calls it too, so since 3y118 it is no longer
+ * inlined into va_render; once a voice and block, between two types, SPREAD or USPREAD) */
+CR_VENEER(va_fw_t, va_fweights, (uint32_t ty, int32_t ff), (ty, ff))
 #endif
 #if CR_RAM_FM6
 /* fm6_block (flash: the at-rest voice's control tick, inlined there) -> fm6_control */
@@ -62,4 +65,6 @@ CR_VENEER(void, fm6_control, (track_t *t, voice_t *v, fm6_voice_t *s, const vmod
 /* fm6_control, fm6_eg_step (RAM) -> an envelope's next segment (flash: note-on and the patch sync use them too) */
 CR_VENEER(void, fm6_eg_go, (fm6_eg_t *e, const uint8_t *op, int32_t ol, int32_t rs, uint32_t ix), (e, op, ol, rs, ix))
 CR_VENEER(void, fm6_peg_go, (fm6_peg_t *e, uint32_t ix), (e, ix))
+/* fm6_block (flash: the AMS shares figured before the hand-over since 3y187, fm6_ams_pt inlined there) -> fm6_mulhi */
+CR_VENEER(uint64_t, fm6_mulhi, (uint64_t a, uint64_t b), (a, b))
 #endif

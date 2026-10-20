@@ -32,6 +32,12 @@ the stage's average (fxavg: 73 DEBUG's st_fx_us) and rest the difference (the mi
 parts, xf_block's bookkeeping, TIMER5's nested ticks: docs/INTEGRATION.md "The fx stage's parts and TIMER5"); 4max
 the four largest against the stage's largest half (fxmax: not the same half). CC 123 All Notes Off goes to both
 parts before the first scenario and after the last: a run stopped half way leaves its chord held otherwise.
+
+The third table, "cores" (78 PEAK 55..61, docs/FX.md "Each core's half"; 3y177): the largest busy time of core 0 in a
+half (its stages but its waits: c0busy) and of core 1 (its voices' job and the reverb's: c1busy), core 0's waits in
+one half (both joins: c0wait), the effects' join alone (fxjoin), core 1 idle between its two jobs (c1idle). With the
+VA's or P5's chord shared out between the cores (docs/DUALCORE.md "What each core runs") c0busy and c1busy are the two
+sides the split balances; with the chord on core 0 alone c1busy is the bass and the reverb.
 """
 import argparse
 import os
@@ -149,6 +155,14 @@ FX_HEAD = ['busy', 'down', 'dnmax', 'delay', 'dlmax', 'reverb', 'rvmax', 'up', '
            '4max', 'fxmax']
 
 
+CORE_COLS = ['pk_c0_busy_us', 'pk_c1_busy_us', 'pk_c0_wait_us', 'pk_fx_join_us', 'pk_c1_idle_us']
+CORE_HEAD = ['c0busy', 'c1busy', 'c0wait', 'fxjoin', 'c1idle']
+
+
+def core_row(name, d):
+    return f"{name:<10}" + ''.join(f"{d.get(k, 0):>7}" for k in CORE_COLS)
+
+
 def fx_row(name, d):
     avg = sum(d.get(k, 0) for k in FX_COLS[1::2])
     mx = sum(d.get(k, 0) for k in FX_COLS[2::2])
@@ -205,6 +219,10 @@ def main():
           + "  (us a half inside the fx stage, avg / max over the halves the effects ran; rest = fxavg - 4avg)")
     for n, d in rows:
         print(fx_row(n, d))
+    print(f"\n{'cores':<10}" + ''.join(f"{h:>7}" for h in CORE_HEAD)
+          + "  (us of the worst half: each core's busy time, core 0's waits, the effects' join, core 1 idle between jobs)")
+    for n, d in rows:
+        print(core_row(n, d))
     notes.all_off()
     notes.close()
     if not a.no_restore:

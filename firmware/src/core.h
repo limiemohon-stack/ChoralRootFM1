@@ -410,6 +410,11 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
     void (*steal)(struct track *t, voice_t *v);
     int32_t (*fade)(struct track *t, voice_t *v);
 #endif
+    /* optional (P5 3y46, the VA 3y177; fx.c p5x_run, docs/DUALCORE.md "What each core runs"): with two cores the
+     * chord part's voices are shared out between them, one voice weighing split x 10 us (the unit's worst: P5 44, the
+     * VA 28). 0: the part renders whole on core 0. A voice's render must write only its own state and the buffers it
+     * is given (each engine's audit: docs/PROPHET.md, docs/VA.md "Two cores") */
+    uint8_t split;
 } engine_t;
 /* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
  * engine_t.note_on may read it */
