@@ -6668,6 +6668,16 @@ static void cr_ui_input(void)
         cu.combo = 1;                              /* (its release: no cancel) */
         cu_save_ask();
     }
+    if (cu.home_hold && cu_layer() == L_HARM && !cu.page && ((cu.bheld >> BT_HOME) & 1u) &&
+        now - cu.home_t0 >= CU_HOME_HOLD_MS) {
+        cu.home_hold = 0;                          /* Harmony mode, HOME held alone: the mode's next screen (Chord /
+                                                    * Piano view), not the view menu, which took the mode's place and
+                                                    * read the chord keys as its lines (the owner, 2026-10-27: "when I
+                                                    * hold onto home, it just takes me off completely"). Its release
+                                                    * does nothing: still in the mode. A chord sounding or not: the same */
+        cu.swallow |= CU_BIT(BT_HOME);
+        cu_hm_view_step(1);
+    }
     if (cu.home_hold && !cc.on && ((cu.bheld >> BT_HOME) & 1u) && now - cu.home_t0 >= CU_HOME_HOLD_MS) {
         cu.home_hold = 0;                          /* HOME held: the view menu; its release does nothing */
         cu.swallow |= CU_BIT(BT_HOME);

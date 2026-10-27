@@ -3623,6 +3623,19 @@ LC_ALL=C grep -aq '^harm: view Chord view' "$L" && [ "$(hl 5)" = 6 ] &&
     bad "back / the mode: layer '$(hl 5)'"
 silent_end cr_harm_piano
 
+echo "Harmony mode, HOME held alone: the mode's next screen (Piano / Chord view), never the view menu; a tap still leaves"
+run cr_harm_viewhold
+L="$OUT/cr_harm_viewhold.log"
+hl() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* layer \([0-9]*\) .*/\1/'; }
+! LC_ALL=C grep -aq '^view: menu' "$L" && LC_ALL=C grep -aq '^harm: view Piano view' "$L" && [ "$(hl 1)" = 6 ] &&
+    ok "HOME held 900 ms in the mode, nothing turned: the Piano view, no view menu, still in the mode (layer 6)" ||
+    bad "HOME held: layer '$(hl 1)', $(LC_ALL=C grep -ac '^view: menu' "$L") view menus"
+LC_ALL=C grep -aq '^harm: view Chord view' "$L" && [ "$(hl 2)" = 6 ] &&
+    ok "HOME held again with a chord sounding: the Chord view, still in the mode" ||
+    bad "HOME held over a chord: layer '$(hl 2)'"
+[ "$(hl 3)" = 0 ] && ok "HOME tapped: the mode left, as before (layer 0)" || bad "HOME tapped: layer '$(hl 3)'"
+silent_end cr_harm_viewhold
+
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0
 run cr_harm_motion

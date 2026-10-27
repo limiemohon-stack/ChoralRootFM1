@@ -1,0 +1,35 @@
+# Harmony mode, HOME held alone (cr_ui.c cu_scan): the mode's next screen, not the view menu (which took the mode's
+# place and read the chord keys as its lines: the owner, 2026-10-27). Home C major, Key Mode off.
+#  A. C major (MAJ + C5), LATCH held (the mode); HOME held 900 ms, nothing turned: the Piano view, still the mode (dump 1)
+#  B. D4 held (a chord sounding), HOME held 900 ms: the Chord view, still the mode (dump 2); D4 up
+#  C. HOME tapped: the mode left, as before (dump 3); then the end
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 300
+btn HOME down
+wait 900
+btn HOME up
+wait 300
+dump
+btn D4 down
+wait 300
+btn HOME down
+wait 900
+btn HOME up
+wait 300
+dump
+btn D4 up
+wait 300
+btn HOME
+wait 300
+dump
+key END 100
+wait 2000
+dump
