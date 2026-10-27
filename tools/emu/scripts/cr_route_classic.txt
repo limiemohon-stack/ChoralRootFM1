@@ -1,0 +1,31 @@
+# The FX layer's Routing page on the Classic chord keys (this fork's default): C#4, SUS everywhere else, is the Chorus
+# block's shortcut there, as in FM-1. FX held, SELECT to the last page (Routing), C#4 held + KNOB 1 +1: the Chorus moves
+# one place (Chain); OCT-: out; C#4 + D4 outside the layer: Dsus, C#4 is SUS again (dump 1)
+wait 500
+btn FX down
+wait 700
+btn FX up
+wait 200
+knob SELECT +12
+wait 300
+knob KNOB2 +1
+wait 200
+btn C#4 down
+wait 200
+knob KNOB1 +1
+wait 200
+btn C#4 up
+wait 300
+btn OCT-
+wait 300
+btn C#4 down
+wait 40
+btn D4 down
+wait 300
+dump
+btn D4 up
+btn C#4 up
+wait 300
+key END 100
+wait 2000
+dump

@@ -3546,6 +3546,15 @@ LC_ALL=C grep -a '^  cr: voices' "$OUT/cr_harm_buttons_classic.log" | sed 's/.*c
     bad "the layouts differ: $(diff "$OUT/hb_fm1.txt" "$OUT/hb_classic.txt" | head -3 | tr '\n' ' ')"
 silent_end cr_harm_buttons_classic
 
+echo "The Routing page on the Classic chord keys: C#4 is the Chorus block's shortcut there, SUS everywhere else"
+run cr_route_classic
+L="$OUT/cr_route_classic.log"
+LC_ALL=C grep -aq '^fx: routing hold Chorus' "$L" && LC_ALL=C grep -aq '^fx: routing chain Delay > Chorus > Reverb > Filter' "$L" &&
+    LC_ALL=C grep -aq 'chord Dsus sounding 1 notes 62 67 69' "$L" &&
+    ok "Classic, the Routing page: C#4 held + KNOB 1 moves the Chorus (Delay > Chorus > Reverb > Filter); out of the FX layer C#4 + D4 is Dsus" ||
+    bad "the Routing page in Classic: $(LC_ALL=C grep -a '^fx: routing' "$L" | tr '\n' '/')"
+silent_end cr_route_classic
+
 echo "Harmony mode in FM-1: LFO held opens it, LFO tapped in it is LATCH, G#3 + A#3 is SUS (Upper), B3 the 9; SEQ held: LOCK's settings"
 run cr_harm_fm1
 L="$OUT/cr_harm_fm1.log"
