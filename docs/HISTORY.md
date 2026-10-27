@@ -6343,3 +6343,113 @@ ALL OK, 64 sha256s compared, none skipped. `web/make_site.py build/choralroot.fw
 --packages build/scratch/packages --smk-packages .. --require-all`: the landing page says New in 0.26.1,
 `webapp/smk37/` offers 0.26-smk37 first; no FM-1 page links it. Not pushed, not tagged (the orchestrator pushes main
 and tags v0.26.1). No device.
+
+## 2026-10-25 (FX routing: the chain's order and feed, issue 21)
+
+3y192. **The FX layer's Routing page: the order of the chorus, the delay and the reverb, and a feed that chains them
+(GitHub issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order"; the
+owner on the issue: "adding a new FX page for routing would work. Shows the entire routing").** ChoralRoot has no
+serial chain to reorder: the drive is per part before the mix, the chorus, the delay and the reverb are three
+parallel send buses whose returns are added into the mix, the master filter is after them. So a reorder alone would
+change nothing, and the feature is two global parameters (`cr_fx.c XP_ORDER` 0..5, an index into `XF_ORD`'s six
+permutations, and `XP_FEED` 0..127): the effect at position k (1, 2) takes, besides the parts' sends, the previous
+block's return of the effect at position k-1, mono, times feed / 127. Feed 0, every unit's, is bit for bit 0.26 and
+the order a picture; the drive and the filter stay where they are and are not on the page. The audio side (the
+captures, the half-rate hooks, the glide, the dual-core split unchanged) is docs/FX.md "The routing".
+**The page** (`cr_ui.c`): `CU_NFXP` 9, `CU_FXPG_ROUTE` 4 (cs.fx_sel stays, as on Sends and Filter), the picker's last
+item "Routing", the row 1st / 2nd / 3rd / Feed. The three position cells (`FC_POS0` -12 .. -14, past the sends'
+codes) read the effect's name at that place (`cu_fx_posname`; "Chorus", "Reverb" fit the knob row's value text, no
+glyph: the row reads as the chain); a position's knob moves its effect one place a detent, clockwise right, clamped
+at the ends (`cu_fx_move`: the permutation searched in `XF_ORD`); Feed is an `xfp` cell read in per cent as a send
+(`cu_send_text`, the dry / wet glyph) at the knob's speed with OPT snap, and does not switch FX on. Traces "fx:
+routing Chorus > Delay > Reverb feed 0" on entering the page and on every change; the dump's "screen reads" and
+"session fx" show the page as any other. OPT + SELECT stays the click level.
+**The session** (`cr_settings.*`): tags 35 `XF_ORDER` and 36 `XF_FEED` in `CSS_FXG`, written only off their defaults
+as the filter's; `CSS_NFXP` 28 -> 29 by `rsv_fx`'s last four bytes (`css_fx_t` 128 bytes, `part[]` still at 196: a
+static assert); `sel` 8 `CSS_FXE_ROUTE` (past `amt[]`, never its index: only `CSS_FXE[]`'s four effects index it).
+An older firmware (0.22 .. 0.26) reads a record of up to 28 entries as before, skipping 35 / 36 (its chain is
+parallel anyway) and `sel` 8 (no page of its own: the layer opens on Sends); a record of 29 (Order, Feed and all four
+of the filter's off their defaults) makes it take the FX block's defaults, the precedent of 0.22's filter tags. The
+FX block has no free entry left now (docs/SETTINGS.md).
+**Checked**: `tools/emu/scripts/cr_fx_route.txt` with its block in `test_cr.sh` (the page's defaults, KNOB 1 +1 Delay
+Chorus Reverb with a different screen, KNOB 2 -1 back, KNOB 3 -1 Chorus Reverb Delay, KNOB 1 -1 clamped, KNOB 4 +10
+Feed 39 %, FX off / on: the page as it was); `test_persist.sh`'s session run sets Order 2 and Feed 14 on the Routing
+page and finds them back after the relaunch (35=2 36=14, Delay 2's page still the one kept); `tests/cr_settings_test.c`
+takes the new layout (29 entries, 128 bytes, 122 bytes of reserve); `tests/run_cr_draw.sh`. Not run on the device.
+## 2026-10-25 (FX routing, second design: the chain, the boxes, the black keys)
+
+3y193. **The Routing page redone as a signal flow (GitHub issue 21; the owner on 3y192: "I don't think this routing
+works or addresses what was asked in the issue. You can only route delay chorus reverb and it's also a bit
+confusing. I think the routing page should show a like route signal flow as boxes. Then on the routing page use the
+black keys for shortcuts ... You can change the routing of an FX by selecting it with the black key shortcut and while
+holding it down, it will raise up and you can use Knob 1 to move it around. We should be able to route and reorder
+the Chorus, Delay, Reverb, and Filter. Since the previous routing was parallel bus sends, there should be an option
+to change the routing to that.")** What changed from 3y192: the Feed is gone; the order is of FOUR blocks (Chorus,
+Delay, Reverb, Filter: `cr_fx.c XP_ORDER` 0..23, `XF_ORD[24][4]`) and a mode `XP_RMODE`, 0 Parallel (0.26 bit for
+bit, the default) or 1 Chain (a real serial path: the dry mix through the four in order, each effect's amount the
+chord part's send; docs/FX.md "The routing"). **The page** is its own screen kind, `CR_K_ROUTE` (`cr_draw.c
+cr_p_route`, modelled on FIZZ's MidiFX rail): Chain draws in, four coloured boxes numbered 1..4, out; Parallel the
+three buses stacked into a sum, the Filter after it; a held block lifts with a shadow and arrows, the others slide
+over (`CR_A_SLIDE`, the new `CR_A_LIFT`), it lands on release. The page owns the root keys (`cu_layer_keys`): C#4
+Chorus, D#4 Delay, F#4 Reverb, G#4 Filter held + KNOB 1 (a place a detent, insert, clamped; Chain only: in Parallel
+the order is not heard and KNOB 1 leaves it), A#4 tap and KNOB 2 the mode; the other keys are silent, the key LEDs
+show the shortcuts (the LEDs have one colour: the four glow, A#4 middle, the held one lit). Traces "fx: routing
+chain Chorus > Delay > Reverb > Filter", "fx: routing hold Delay" / "release Delay"; the emulator's dump prints
+"screen route:". **The session**: tag 35 `XF_ORDER` 0..23, tag 36 now `XF_RMODE` 0..1 (`CSS_FXP_XF_RMODE`; 3y192's
+two tags never shipped in a release, one dev unit; an old Feed above 1 is out of range and reads Parallel).
+**Checked**: `tools/emu/scripts/cr_fx_route.txt` rewritten with its block in `test_cr.sh`, `test_persist.sh` (Order
+2 and Chain set with the keys, back after the relaunch), four new states in `tests/run_cr_draw.sh`. Not run on the
+device.
+
+3y194. **In Parallel the Filter can go before the buses (GitHub issue 21, third pass; the owner, looking at the
+Parallel picture: "With them in parallel it looks like filter always comes after the other FX, it would be good if you
+could move the filter to put it before the FX which is probably the main reason people want to reorder.")** The
+Filter at position 0 of `XP_ORDER` in Parallel puts it before the buses: the dry mix and the three sends are filtered
+on core 0 before the effects stage (docs/FX.md "The routing", "The master filter"); anywhere else it is after the sum,
+as before. **The page**: G#4 held + KNOB 1 in Parallel moves the Filter between its two places (`cr_ui.c
+cu_fx_move`: anticlockwise to position 0, clockwise to position 3, the effects' order kept; a Filter already after
+stays), arrows pointing to the other place; a held effect lifts and does not move. `cr_draw.c cr_p_route` draws in,
+the Filter, then the fan, the stack and the sum 62 px to the right, and out; a move slides the whole picture between
+the two. **Checked**: `cr_fx_route.txt` and its block in `test_cr.sh` (Filter first F C R D = Order 19, back after =
+C R D F = Order 2, a held Delay moves nothing), the state "FX Routing (Parallel, Filter first)" in
+`tests/run_cr_draw.sh`. Not run on the device.
+
+3y195. **The Routing page's keys play (the owner, after playing it: "allow the rest of the keys to work when on this
+page. Since the black key shortcuts are not overlapping the chord keys, would be nice to be able to use the chord mod
+keys and also the white keys, thus I can play notes and hear the effect while on this page").** `cr_ui.c
+cu_layer_keys` no longer claims the root keys for the Routing page; `cu_rt_key` says whether a key is one of its
+five shortcuts (C#4 D#4 F#4 G#4 A#4) and `cu_key_press` hands only those to the page, before the layer test; every
+other key, the chord block's, the white roots and the second octave's black keys, plays as in the rest of the FX
+layer. The key LEDs stay the page's (the four blocks' keys glowing, the held one lit). `cr_fx_route.txt` dump 7: D4
+tapped now plays (`touch: key 9`) and the routing is untouched; the manual's Routing section says so.
+
+3y196. **The device manager finds an FM-1 the Mac calls "FM-1" (GitHub issue 32: "the installer page sees the FM-1
+and reads the sounds just fine, but the device manager page is unable to connect").** The firmware names its port
+"ChoralRoot FM-1", but CoreMIDI keeps the name it first saw for a USB device at that location, so a unit updated from
+the stock firmware (or another FM-1 on the same port) stays "FM-1": the installer's loose `PORT_RE` found it, the
+manager's exact match did not. `fm1manager.js MANAGER_PORT_RE` (choralroot, fm-1, felucca, sloop, melodee) is the
+manager's match now (`managerPorts` takes a RegExp or a string); the INFO answer still decides, as it did, and a port
+that is not ChoralRoot is refused. The page's hints name both. **Checked**: `node web/test_manager.mjs` (150 ok, the
+new managerPorts case); the page built by make_site.py's `manager_page()` served on 127.0.0.1 in Brave with the
+owner's unit E81CE2F7 on USB as "FM-1": connected, "ChoralRoot 0.26.1 · unit ID E81CE2F7", its pools read (0 user
+sounds, 0 loops). Not published: the site is built at the next release (web/make_site.py).
+
+## 2026-10-25 (0.27, the release tree)
+
+3y197. **0.27, the release tree (the owner: "merge to main and get the next release tagged"): the FX routing (3y192 ..
+3y195, issue 21) and the device manager's port match (3y196, issue 32), FM-1 only; the SMK-37 build stays
+v0.26-smk37.** From origin/main 7d97982 (v0.26.1): the five commits of claude/fx-routing, fast-forwarded.
+`FELUCCA_VERSION` "ChoralRoot 0.27"; `docs/releases/0.27.md` for players (the routing page, the two modes and the
+filter's places, the manager, Installing, "Going back to 0.26.1": the two new session tags are skipped, the one case
+where 0.26.1 takes the FX block's defaults named); README's "New in 0.27"; the manual's first line. `web/releases.json`:
+0.27 first, dated 2026-10-25, sha256 a09f9e19b66a91351de37c532e0d15cdc03ff9e9c82a0b152cdb66ca3fdc0326, 1-core
+1b810633ff9a17a339d3a11a04847cbe27f575a12c482ab58f92e70e6dffe148, six bullets; 0.26.1's entry gets its `going_back`.
+**Built** twice, `./build.sh --release 0.27` and then `tools/hub_build.sh 0.27` (the hub's command, Docker): the same
+`SHA256SUMS` (the four files), "web/releases.json: 0.27's 2 sha256s match". Size: XIP 549 076 B of 573 440 (95.8 %),
+RAM 80 560, RAMTEXT 16 120, POOL 310 336 of 344 064 (90.2 %).
+**Checked**: `CR_VERSION=0.27 sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 96 s; test_cr 1106 ok, test_persist
+119; 317 golden renders, 0 changed; 0 lint; the browser emulators built and their tests PASS; site_test "New in
+0.27"); `python3 tests/releases_test.py` releases ALL OK; the dev build `build/choralroot.fwsc` is the release
+package's bytes (a09f9e19..). On the owner's unit E81CE2F7: f3d63cd's build (the same firmware, read as 0.26.1).
+Pushed to main and tagged v0.27: release.yml builds, signs and publishes, then pages.yml the site.
+

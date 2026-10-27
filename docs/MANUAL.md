@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.26.1 on the M-VAVE FM-1 (what is new since 0.22 is marked so; 0.26.1 is 0.26 signed, [releases/0.26.1.md](releases/0.26.1.md); what 0.26 brought: [releases/0.26.md](releases/0.26.md)). It is written for someone who owns an
+For ChoralRoot 0.27 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md); 0.26.1 is 0.26 signed, [releases/0.26.1.md](releases/0.26.1.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -795,9 +795,9 @@ On the panel:
 - **KNOB 4** is the chord part's send into the selected effect (turning it switches the effects on). The selected
   effect is the one whose page the FX layer showed last; the reverb until you pick another. The screen shows the
   send in per cent, 0 to 100.
-- Hold FX for the **FX layer**. SELECT steps through eight pages; the name of the page is big, an effect's page
+- Hold FX for the **FX layer**. SELECT steps through nine pages; the name of the page is big, an effect's page
   number is in the small line above it (`fx · on · 1/2`). KNOB 1 to KNOB 4 turn the four cells, a FX tap is still
-  on / off, and the root keys play. OCT-, OCT+, HOME or holding FX again closes the layer.
+  on / off, and the root keys play (but on Routing, below). OCT-, OCT+, HOME or holding FX again closes the layer.
 
 | Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- |
@@ -809,6 +809,7 @@ On the panel:
 | Delay 2 | Sync | Mode | Tone | Wow |
 | Drive | | | | **Send** (the amount of drive) |
 | Filter | Low cut | High cut | Slope | Filter (Off / On) |
+| Routing | (hold a black key) move | Mode | | |
 
 **Sends**, the first page, is the chord part's four sends side by side: its drive, and how much of it goes into the
 chorus, the delay and the reverb. They are the same four, in the same order and on the same knobs, as the FX group
@@ -846,6 +847,36 @@ the effects it is set once for the instrument, every sound plays through it, and
 A new FM-1 has the filter Off with both cuts at their `Off` ends, and with it Off nothing in the sound changes.
 Turning a cutoff while a chord plays is smooth, and switching the filter or the slope fades over a hundredth of a
 second: no click.
+
+### Routing
+
+The very last page, **Routing**, draws the effects as boxes on a wire, from `in` on the left to `out` on the right:
+**Chorus** blue, **Delay** orange, **Reverb** yellow and the master **Filter** white (hollow while the filter is Off;
+the whole picture grey with FX off). On this page five black keys are shortcuts; every other key plays as
+usual, so you hear the effects while you route them.
+
+- **C#4** Chorus, **D#4** Delay, **F#4** Reverb, **G#4** Filter: hold one and its box **lifts** above the row, with
+  arrows on the sides it can still move to. Turn **KNOB 1** while you hold it: one click, one place, the other boxes
+  sliding over to make room. Let go and it lands where it is.
+- **A#4** (a tap) or **KNOB 2** switches the mode, **Parallel** or **Chain** (KNOB 2 clockwise Chain, anticlockwise
+  Parallel). The mode is in the small line at the top: `fx · on · chain`.
+- Every other key is the keyboard's: the white keys and the chord keys play, the second octave's black keys too.
+  SELECT, FX, OCT- work as on every page.
+
+**Parallel**, where every FM-1 starts, is ChoralRoot as it always was: three buses side by side, each fed by the
+parts' sends, added back into the mix, the filter on the whole output after them. The effects' order you set is kept
+but not heard in this mode (holding an effect lifts it; KNOB 1 leaves it where it is). The **Filter** has two places
+in Parallel: hold **G#4** and turn KNOB 1 anticlockwise to put it **before** the buses, clockwise to put it back
+**after** them. Before, the effects hear the filtered signal: a high cut keeps the fizz out of the reverb, a low cut
+the bass out of the delay; the dry sound is filtered too.
+
+**Chain** is the original firmware's way: one path through the four blocks in the order on the screen. The dry mix
+goes into the first block; each effect adds its sound to everything before it and passes it all on, and the filter
+filters everything that reached it. In Chain each effect's amount is **the chord part's send** into it (Sends page,
+KNOB 4 of an effect's page): an effect at `0%` lets the signal through untouched. The bass part's own sends rest in
+Chain: the bass is in the mix and goes through the chain with the chords. The drive stays in each part's sound,
+before everything, in both modes. Mode and order are set once for the instrument and kept by SAVE held, like the
+other effect settings.
 
 ### FM TONE's Drive
 

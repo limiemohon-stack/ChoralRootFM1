@@ -1036,6 +1036,19 @@ is not built: it costs twice over for the same ear (both parts, every voice), ha
 issue's cases are all "the whole sound" cases; it stays an option if a player wants the bass full under a cut chord
 (the issue reply says so). Nothing of it is in the engines: every engine keeps its own filter.
 
+**The place before the buses** (3y194, the routing's Parallel with the Filter first, "The routing" below): the same
+two cuts, slope, fades and eases run on core 0 once the parts are mixed (after `perf_pre`), before the effects stage
+(`fx.c mix_block`: `xq_pre` before `mix_fx_split` / `xc_block` / `xf_block`), on five channels: the dry pair
+(`mix_l`, `mix_r`) and each mono send (`send_c`, `send_d`, `send_r`); nothing runs on the mix afterwards. The sends'
+clamp is `XQ_MAX`, the same as the mix's: one loop, and the products' bound (the second stage's difference at 4 x
+the clamp) holds only there; the down-sampler's +-131068 would overflow 32 bits in the 12 dB low cut's second
+stage, and a send above 3 x full scale is already over every limiter. Each place is its own state (`xq.pl[0]` after,
+`xq.pl[1]` before: k in use, w, a stage pair per channel); the coefficients and the knobs' hash are shared. A move
+between the places fades the old place's cuts out over their 16 blocks, as Off does, while the new place's fade in
+from rest: both run only while both are fading (the test: the Filter moved every 100 ms under a held 440 Hz tone,
+no sample step above the tone's own). Each place keeps an idle flag: out and at rest, it returns before it reads a
+sample (the host's off count fell from 132 to 66 with it).
+
 **The arithmetic** (`cr_fx.c xq_*`): a cut is one stage (6 dB) or two in a row (12 dB) of a one-pole, `y += k (x -
 y)` with k in Q12, the low cut's stage `x` minus its low-pass. The knob reads the cut's -3 dB corner: two identical
 poles are 3 dB down at 0.6436 of their own corner, so at 12 dB the poles sit at 1.554 x the knob. Every product keeps
@@ -1072,8 +1085,11 @@ the master):
 One cut at 12 dB, the issue's case, is 27 .. 30 us of the half's 2902 (1 %); the band-pass at 12 dB is 57, the
 "under 40" asked for only at 6 dB. The remainder is 2 of a stage's 6 instructions and the clamp 3 of a loop's: no
 cheaper loop keeps the project's arithmetic. A fade's block costs the loop plus a copy and a mix (18 a sample).
-The host's count (`cr_fx_test.c`, a guard): off 132 instructions a half, one 12 dB cut 1280, both 2560. XIP +1712 B
-(the four loops, the fade, the block, the page), POOL +240 B (`xq`: the states and a fade's block of 32).
+The host's count (`cr_fx_test.c`, a guard): off 132 instructions a half, one 12 dB cut 1280, both 2560 (3y194: off
+66, one 1416, both 2756). XIP +1712 B (the four loops, the fade, the block, the page), POOL +240 B (`xq`: the states
+and a fade's block of 32; 3y194: 528 B, two places, five channels' states before the buses). Before the buses, five
+channels, both cuts at 12 dB cost 2.5 x the two channels' figure: ~143 us a half on the unit by the table (5 x
+5888 instructions / 205), unmeasured there.
 
 **Tests**: `tests/cr_fx_test.c t_filter` (above: Off bit-exact four ways and after a cut was in; each cut at three
 corners x two slopes x three frequencies against the one-pole's own formula within 0.3 dB, both sides the same; both
@@ -1082,6 +1098,84 @@ silence; the sweep and the toggles under a tone; the cost); `tools/emu/scripts/c
 knobs, the cells, the session's four tags, and the WAV: a D major chord with the filter Off, then through the 200 Hz
 high cut, its D4, F#4 and A4 at the formula's 53, 41 and 33 % of themselves, falling with the pitch);
 `tests/cr_settings_test.c` (the block's four new entries took `rsv_fx`'s bytes, every other field where it was).
+
+## The routing (0.27, GitHub issue 21)
+
+Issue 21: "re-orderable FX ... like how in the original OEM firmware you could re-arrange the FX order". The FX
+layer's last page, **Routing**, draws the signal flow as boxes and holds two settings: the **mode** (`XP_RMODE`: 0
+Parallel, the default; 1 Chain) and the **order** of four blocks (`XP_ORDER`, 0 .. 23: `XF_ORD`'s permutations of
+`XFE_CHORUS`, `XFE_DELAY`, `XFE_REVERB`, `XFE_FILTER`, lexicographic; 0 is Chorus, Delay, Reverb, Filter). MANUAL.md
+section 8 has the black keys that move the boxes. The first design (b1e1222: an order of the three effects and a
+Feed of each return into the next) never shipped; its session tags 35 and 36 are the order and the mode now, and a
+Feed above 1 left on the one dev unit that had it is out of range and falls to Parallel.
+
+**Parallel is 0.26**, bit for bit, whatever the order of the effects says: the three buses fed by the parts' sends,
+their returns added into the mix, the master filter after everything, **unless the Filter is first** (XF_ORD[o][0]
+is XFE_FILTER, 3y194): then it runs BEFORE the buses, on the dry mix and on each send (`cr_fx.c xq_pre`, "The
+master filter" above), so the effects hear the cut signal (a high cut keeps the fizz out of the reverb, a low cut
+the bass out of the delay) and the dry is cut the same; nothing runs on the mix after. Filter Off, first is after's
+every sample. `fx.c mix_block` runs exactly what it ran (one store a block,
+`xg.key = 0`, touches no sample); the order is kept for Chain and the page draws the buses side by side.
+
+**Chain** is a serial path, the OEM way. C_0 is the dry mix (the parts mixed: their levels, pans and drives); the
+block at position k makes C_{k+1} of C_k:
+
+- the filter: C_{k+1} = F(C_k), the master filter's two cuts as set (Filter Off: C_k itself);
+- an effect: its input is amt x mono(C_k), mono = (l + r) / 2, its stereo wet W_k, and C_{k+1} = C_k + W_k.
+
+The output is C_4. **amt is the chord part's send** for that effect (what `cr_ui.c cu_fx_apply` writes from the FX
+layer's amounts; Q15 as `fx.c` scales a send, x 258), ramped across the block as `fx_sg` ramps the sends, so a detent
+never steps. The bass part's own sends rest in Chain: the bass is in the dry mix and goes through the chain with the
+chords. The drive stays per part, before the mix, in both modes. **FX off**: the amounts go to 0 and the filter is out,
+so the output is the dry mix (the tails ring out, as a closed send's do in Parallel).
+
+**The previous block**: an effect at position k >= 1 takes mono C_k of the **last** block (`xg.sn`; 32 samples, 0.73
+ms, not heard as a delay); the one at position 0 takes this block's dry. So every effect's input is whole before any
+effect runs (`cr_fx.c xg_in`, core 0, written into the sends' buffers, which is what `xf_prep` already counts: "nothing
+sent, tails over: nothing runs" stays right), and the three run as in Parallel and on the same cores (`fx.c
+mix_fx_chain`: the reverb on core 1 when it has work, the chorus and the delay on core 0), each into its **own** stereo
+wet (`xg.w`). At the half rate the delay and the reverb each have their own half-rate pair and up-sampler (the
+delay's `xg.ud`, the reverb's `xf.up` as in Parallel; in Parallel the two share one, which a filter between them
+would not allow). After the join core 0 assembles (`xg_join`): acc = dry, then each position in order, the filter on
+acc in place (`xq_block`) or the effect's wet added, and mono acc after a position an effect follows is that
+effect's input for the next block. Integer sums in a fixed order: one core's samples and two cores' are the same
+(`tests/cr_c1_thread_test.c` "routing": Chain on a thread and all on core 0, every one of the 24 orders run by some
+pair, the same digest, and not Parallel's).
+
+A mode or order change takes effect at a block's start: the snapshots, the delay's up-sampler and the amounts start
+from 0 (`xg.key`; the amounts then ramp in). A one-block seam is possible; no click was measured for.
+
+**Measured** (`tests/cr_fx_test.c` t_route, the default build; the full-rate build and the two mixed ones the same):
+
+- Parallel at each of the 24 orders renders a chord through the three effects and the filter as the build without
+  the routing, every sample.
+- Chain Chorus > Delay > Reverb > Filter, the chord part's sends Chorus 100, Delay 100, Reverb 0: the delay's wet is
+  alive and differs from the same with Chorus 0 (it carries the chorus); the reverb's wet is exactly 0.
+- The filter's place: the High cut at its lowest (200 Hz), a 9 kHz tone, Reverb 127: the reverb's wet energy is 55 dB
+  under with the filter before the reverb than after it (56 dB in the full-rate build).
+- A full-scale square at full sends, five orders, the Low cut in: bounded (peak ~299 000 at the default build, 2.3 x
+  full scale of the mix, inside the master's clamp, no wrap), exact zeros and every effect off after the tail.
+- FX off in Chain, the sends up and the filter on: the output is the dry mix, every sample.
+- Parallel, the Filter first, Filter Off with both cuts set: the render with the Filter after, every sample.
+- Parallel, the High cut at 200 Hz, a 9 kHz tone in the dry and sent to the reverb: the reverb's wet 53.5 dB under
+  with the Filter first than after; the dry alone (nothing sent) the same in both, every sample.
+- Parallel, the Filter moved first <-> after every 100 ms under a held 440 Hz tone, the High cut at ~500 Hz: the
+  largest sample step 1013 against the tone's own 1253.
+- **Cost of the place before** (Parallel, the three effects on, both 12 dB cuts): the filter off 59 711, after
+  70 472 (+10 761), first, five channels, 85 059 (+25 348, 2.4 x); full rate 82 112, 92 830 (+10 718), 107 414
+  (+25 302). `tests/cr_c1_thread_test.c` "routing": 22 pairs in Parallel with the Filter first, both cuts in, the
+  reverb on a thread and all on core 0 the same digest.
+- **Cost**, host instructions a 128-frame half with all three running: no routing 59 049, Parallel 59 046 (noise),
+  Chain 71 609 (+12 560, 21 %: the delay's second up-sampler pair is most of it, then the inputs, the wets' clearing,
+  the assembly and the snapshots). The full-rate build: 81 425, 81 458, 88 932 (+7 507, no up-sampler added). The
+  test does not render parts, which still compute their sends in Chain (unused there, kept so that Parallel's ramps
+  are where they should be on a switch back). On the unit unmeasured (`tools/emu/perf.sh` with Chain on is the
+  measurement to take).
+- **Memory**: POOL 1 396 bytes (`xg`: the three wets 768, the snapshots 384, the reverb's half-rate pair 128, the
+  delay's up-sampler 96, the amounts and two words 20; the full-rate build 1 172). b1e1222's 560 are gone with it.
+
+**The session**: the order and the mode are the instrument's, as every effect parameter: tags 35 and 36 of the FX
+block, written only off their defaults (SETTINGS.md).
 
 ## The FX layer
 

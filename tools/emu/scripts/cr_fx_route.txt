@@ -1,0 +1,80 @@
+# ChoralRoot: the FX layer's Routing page, second design (GitHub issue 21; docs/FX.md "The routing", docs/MANUAL.md
+# section 8, cr_draw.c cr_p_route): the signal flow as boxes, the black keys its shortcuts (FM-1's layout).
+# FX held and released: the layer on Sends; SELECT +8: Routing, the last page: Parallel, C D R F (dump 1).
+# A#4 tapped: Chain (dump 2). D#4 held: Delay lifts (dump 3); KNOB 1 +1: C R D F (dump 4, the lifted box mid-move in
+# the screenshot); D#4 up: it lands (dump 5). G#4 held, KNOB 1 -2: C F R D (dump 6); G#4 up. D4 (a white key) tapped:
+# it plays (the keys are the keyboard's but the five shortcuts), nothing in the routing changes (dump 7). KNOB 2 -1: Parallel (dump 8). FX off (dump 9) and on (dump 10).
+# The third pass: G#4 held, KNOB 1 -1: the Filter before the buses, F C R D (dump 11); KNOB 1 +1: after, C R D F
+# (dump 12); G#4 up; D#4 held, KNOB 1 +1 in Parallel: nothing moves (dump 13).
+# (The session's Order and Mode: tools/emu/test_persist.sh, session_set.txt)
+wait 300
+btn FX down
+wait 500
+btn FX up
+wait 400
+knob SELECT +8
+wait 900
+shot build/emu/test/cr_fx_route.ppm
+dump
+key A#4 down
+wait 100
+key A#4 up
+wait 900
+shot build/emu/test/cr_fx_route_chain.ppm
+dump
+key D#4 down
+wait 600
+shot build/emu/test/cr_fx_route_lift.ppm
+dump
+knob KNOB1 +1
+wait 70
+shot build/emu/test/cr_fx_route_moving.ppm
+wait 600
+dump
+key D#4 up
+wait 600
+dump
+key G#4 down
+wait 300
+knob KNOB1 -2
+wait 600
+dump
+key G#4 up
+wait 600
+shot build/emu/test/cr_fx_route_cfrd.ppm
+key D4 down
+wait 200
+key D4 up
+wait 600
+dump
+knob KNOB2 -1
+wait 900
+shot build/emu/test/cr_fx_route_parallel.ppm
+dump
+btn FX
+wait 400
+shot build/emu/test/cr_fx_route_off.ppm
+dump
+btn FX
+wait 400
+dump
+key G#4 down
+wait 300
+knob KNOB1 -1
+wait 600
+shot build/emu/test/cr_fx_route_par_first.ppm
+dump
+knob KNOB1 +1
+wait 600
+shot build/emu/test/cr_fx_route_par_after.ppm
+dump
+key G#4 up
+wait 600
+key D#4 down
+wait 300
+knob KNOB1 +1
+wait 600
+dump
+key D#4 up
+wait 600
+quit

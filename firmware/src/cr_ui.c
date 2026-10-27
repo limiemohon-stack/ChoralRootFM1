@@ -505,8 +505,10 @@ static const char *const CU_DIV[CR_DIV_COUNT] = {"2/1", "1/1", "1/2", "1/2T", "1
                                                  "1/16T", "1/32", "1/32T"};
 static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as played", "random"};
 
-/* FX (docs/FX.md): four effects on eight pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
- * Filter: the master filter of 0.22, cr_fx.c xq_block, whose four parameters are xfp[] too).
+/* FX (docs/FX.md): four effects on nine pages (SELECT: Sends, Reverb 1, Reverb 2, Chorus, Delay 1, Delay 2, Drive,
+ * Filter: the master filter of 0.22, cr_fx.c xq_block, whose four parameters are xfp[] too; Routing: GitHub issue
+ * 21's signal flow, cr_fx.c XP_RMODE (Parallel / Chain) and XP_ORDER (the four blocks' order), xfp[] as well: its
+ * own screen, CR_K_ROUTE, and the black keys as its shortcuts, "THE ROUTING PAGE" below).
  * A PART has its sends (P_REV, P_CHOR, P_DLY) and its drive (P_DIST), no sound load touches them (but FM TONE's Drive,
  * which is the sound's: "FM TONE'S DRIVE IS ITS PRESET'S" below): the chord part's are
  * cs.fx_amt[] (cu_send / cu_send_set below: the ONE value the Sends page, the "Send" cell on KNOB 4 of an effect's
@@ -515,9 +517,10 @@ static const char *const CU_DIR[6] = {"up", "down", "up-down", "down-up", "as pl
  * part's its track's. The effects' own parameters are GLOBAL: the delay's and the reverb's are cr_fx.c's xfp[], the
  * chorus's song.g; the session keeps them (cr_settings.c CSS_FXG) and no sound load touches them */
 #define CU_NFX 4u                         /* the effects (cs.fx_sel, cs.fx_amt) */
-#define CU_NFXP 8u                        /* SELECT's pages */
+#define CU_NFXP 9u                        /* SELECT's pages */
 #define CU_FXPG_SENDS 2u                  /* cs.fx_page: the Sends page (0, 1: cs.fx_sel's first and second page) */
 #define CU_FXPG_FILTER 3u                 /* .. the Filter page (as Sends: cs.fx_sel stays the effect last picked) */
+#define CU_FXPG_ROUTE 4u                  /* .. the Routing page (the same) */
 /* a cell: an xfp id (cr_fx.c XP_*), FC_G + a song.g id, or one of these */
 enum { FC_NONE = -1, FC_SEND = -2, FC_TIME = -3, FC_SPREAD = -4, FC_G = 64,     /* TIME, SPREAD: by Sync, the free or
                                                                                  * the synced parameter */
@@ -536,7 +539,12 @@ static const struct { uint8_t fx, page, of; int8_t c[4]; const char *label[4]; }
     {3, 0, 1, {FC_NONE, FC_NONE, FC_NONE, FC_SEND}, {"", "", "", "Send"}},
     /* the master filter (0.22, GitHub issue 16; cr_fx.c "The master filter"): the last page, as it is last in the
      * chain. Filter on KNOB 4 is its On / Off; a cutoff turned switches it (and FX) on, as a send does */
-    {0, CU_FXPG_FILTER, 1, {XP_FLOW, XP_FHIGH, XP_FSLOPE, XP_FON}, {"Low cut", "High cut", "Slope", "Filter"}}};
+    {0, CU_FXPG_FILTER, 1, {XP_FLOW, XP_FHIGH, XP_FSLOPE, XP_FON}, {"Low cut", "High cut", "Slope", "Filter"}},
+    /* the routing (GitHub issue 21, second design; cr_fx.c "The routing"): no knob cells, its own screen
+     * (CR_K_ROUTE): the black keys hold a block, KNOB 1 moves it, KNOB 2 the mode ("THE ROUTING PAGE" below) */
+    {0, CU_FXPG_ROUTE, 1, {FC_NONE, FC_NONE, FC_NONE, FC_NONE}, {"", "", "", ""}}};
+_Static_assert(XFE_CHORUS == 0 && XFE_DELAY == 1 && XFE_REVERB == 2 && XFE_FILTER == 3 && XFE_N == 4,
+               "cr_screen.h rt_order: 0 Chorus, 1 Delay, 2 Reverb, 3 Filter");
 static const char *const CU_XDIV[XF_NDIV] = {"1/32", "1/16T", "1/32.", "1/16", "1/8T", "1/16.", "1/8", "1/4T", "1/8.",
                                              "1/4", "1/2T", "1/4.", "1/2"};      /* cr_fx.c XF_DIV's order */
 static const char *const CU_BASSMODE[4] = {"Chords Only", "Unison Bass", "Bass Single Notes", "Solo"};
@@ -839,9 +847,11 @@ static uint32_t cu_fx_pg(void)
     uint32_t i, first = 1;
     if (cs.fx_page == CU_FXPG_SENDS)
         return 0;
-    if (cs.fx_page == CU_FXPG_FILTER)
+    if (cs.fx_page == CU_FXPG_ROUTE)
         return CU_NFXP - 1u;
-    for (i = 1; i + 1u < CU_NFXP; i++)
+    if (cs.fx_page == CU_FXPG_FILTER)
+        return CU_NFXP - 2u;
+    for (i = 1; i + 2u < CU_NFXP; i++)
         if (CU_FXP[i].fx == cs.fx_sel % CU_NFX) {
             if (CU_FXP[i].page == cs.fx_page)
                 return i;
@@ -850,9 +860,70 @@ static uint32_t cu_fx_pg(void)
         }
     return first;
 }
-static const char *cu_fx_pgname(void)             /* the page's name: the effect's, Sends, Filter (the traces, the dump) */
+static const char *cu_fx_pgname(void)             /* the page's name: the effect's, Sends, Filter, Routing (the traces,
+                                                   * the dump) */
 {
-    return cs.fx_page == CU_FXPG_SENDS ? "Sends" : cs.fx_page == CU_FXPG_FILTER ? "Filter" : CU_FX[cs.fx_sel % CU_NFX].name;
+    return cs.fx_page == CU_FXPG_SENDS ? "Sends" : cs.fx_page == CU_FXPG_FILTER ? "Filter"
+         : cs.fx_page == CU_FXPG_ROUTE ? "Routing" : CU_FX[cs.fx_sel % CU_NFX].name;
+}
+/* THE ROUTING PAGE (GitHub issue 21, second design; the owner: "the routing page should show a like route signal
+ * flow as boxes ... use the black keys for shortcuts ... while holding it down, it will raise up and you can use Knob
+ * 1 to move it around"; cr_fx.c "The routing"). The FX layer's last page draws CR_K_ROUTE (cr_draw.c cr_p_route) and
+ * owns the root keys while it shows (cu_layer_keys: nothing plays; the chord block keeps its job): C#4 Chorus, D#4
+ * Delay, F#4 Reverb, G#4 Filter held = that block lifted (cu_rt.held), KNOB 1 moves it a place a detent (insert: the
+ * others shift; clamped), its release lands it; A#4 tapped and KNOB 2 (one a detent: clockwise Chain) the mode. In
+ * Parallel the effects' order is not heard: a held effect lifts, KNOB 1 leaves it; the Filter held, KNOB 1 moves it
+ * between its two places, before the buses (left) and after them (right; cu_fx_move). The
+ * keys are FM-1's layout's (C4 = key 7); Classic's C#4 is a chord key there, so Chorus has no shortcut in Classic.
+ * The rest of the keys do nothing here. Both values are xfp[] (the session's tags 35 and 36) */
+static const char *const CU_RT_NAME[XFE_N] = {"Chorus", "Delay", "Reverb", "Filter"};
+static struct { uint8_t held, key; } cu_rt;       /* the block held + 1 (0: none), its key + 1 */
+static uint32_t cu_rt_ord(void) { return (uint32_t)xfp[XP_ORDER] < 24u ? (uint32_t)xfp[XP_ORDER] : 0u; }
+static const char *cu_fx_posname(uint32_t k)      /* the block at the chain's position k: "Chorus" .. "Filter" */
+{
+    return CU_RT_NAME[XF_ORD[cu_rt_ord()][k % XFE_N]];
+}
+static int32_t cu_rt_block_of(uint32_t k)         /* a root key's block on the Routing page (-1: none; XFE_N: A#4) */
+{
+    return k == 8u ? XFE_CHORUS : k == 10u ? XFE_DELAY : k == 13u ? XFE_REVERB : k == 15u ? XFE_FILTER
+         : k == 17u ? (int32_t)XFE_N : -1;
+}
+static int cu_rt_key(uint32_t l, uint32_t k)      /* key k is one of the Routing page's five shortcuts, the page showing */
+{
+    return l == L_FX && cs.fx_page == CU_FXPG_ROUTE && cu_rt_block_of(k) >= 0;
+}
+/* block b moves s places along the chain (insert: the ones it passes shift back; one place a detent, clamped at the
+ * ends); XP_ORDER becomes the permutation it makes (XF_ORD's index). 1: it moved. Parallel (the third pass, the
+ * owner: "move the filter to put it before the FX"): only the Filter moves, between its two places, before the buses
+ * (position 0: left) and after them (position 3: right); the effects keep their order (Chain's, not heard here) */
+static int cu_fx_move(uint32_t b, int32_t s)
+{
+    uint8_t o[XFE_N];
+    uint32_t i, j;
+    int32_t p = 0, q;
+    for (i = 0; i < XFE_N; i++) {
+        o[i] = XF_ORD[cu_rt_ord()][i];
+        if (o[i] == b)
+            p = (int32_t)i;
+    }
+    if (xfp[XP_RMODE] != 1 && b != XFE_FILTER)
+        return 0;
+    q = xfp[XP_RMODE] != 1 ? (s < 0 ? 0 : p ? p : (int32_t)XFE_N - 1) : p + s;   /* (Parallel: already after stays) */
+    q = q < 0 ? 0 : q > (int32_t)XFE_N - 1 ? (int32_t)XFE_N - 1 : q;
+    if (q == p)
+        return 0;
+    for (; p < q; p++)
+        o[p] = o[p + 1];
+    for (; p > q; p--)
+        o[p] = o[p - 1];
+    o[q] = (uint8_t)b;
+    for (i = 0; i < 24u; i++) {
+        for (j = 0; j < XFE_N && XF_ORD[i][j] == o[j]; j++)
+            ;
+        if (j == XFE_N)
+            xfp[XP_ORDER] = (int16_t)i;
+    }
+    return 1;
 }
 /* a cell's parameter: the delay's Time and Spread are the synced or the free one (both kept: Sync changes which) */
 static int32_t cu_fx_id(int32_t c)
@@ -875,6 +946,7 @@ static void cu_fx_hz(char *out, uint32_t hz, uint32_t n)   /* "130 Hz", "2.1 kHz
     cu_int(out + (hz >= 10000u ? 3u : 2u), (int32_t)(hz % 1000u / 100u), 0, n - 3u);
     cu_cat(out, " kHz", n);
 }
+static void cu_send_text(int32_t v, char *out, uint32_t n);
 /* a parameter's value as the knob row shows it: its unit where it has one ("250 ms", "1/8.", "2.4 s", "130 Hz",
  * "0.80 Hz"), a name ("Stereo"), else the number 0..127 */
 static void cu_fx_val(int32_t id, char *out, uint32_t n)
@@ -1502,6 +1574,23 @@ static struct {
 #else
 #define cu_trace(...) ((void)0)
 #endif
+static void cu_fx_route_trace(void)               /* the routing as it is (the emulator's tests) */
+{
+    cu_trace("fx: routing %s %s > %s > %s > %s\n", xfp[XP_RMODE] == 1 ? "chain" : "parallel", cu_fx_posname(0),
+             cu_fx_posname(1), cu_fx_posname(2), cu_fx_posname(3));
+}
+static void cu_rt_mode(int32_t m)                 /* the mode: 0 Parallel, 1 Chain (a routing setting: FX is not
+                                                   * switched on) */
+{
+    xfp[XP_RMODE] = (int16_t)(m ? 1 : 0);
+    cu_fx_route_trace();
+}
+static void cu_rt_release(void)                   /* the held block's key let go: it lands */
+{
+    if (cu_rt.held)
+        cu_trace("fx: routing release %s\n", CU_RT_NAME[(cu_rt.held - 1u) % XFE_N]);
+    cu_rt.held = cu_rt.key = 0;
+}
 static void cu_message(const char *t, uint32_t col);
 static void cu_flash_erase(void);
 static uint32_t cu_batt(void);
@@ -4272,6 +4361,10 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
                 cu_trace("fx: filter\n");
                 break;
             }
+            if (cs.fx_page == CU_FXPG_ROUTE) {    /* (the Routing page: the same) */
+                cu_fx_route_trace();
+                break;
+            }
             cs.fx_sel = CU_FXP[i].fx;
             cu_trace("fx: effect %s %u/%u\n", CU_FX[cs.fx_sel].name, (unsigned)cs.fx_page + 1u, (unsigned)CU_FXP[i].of);
         }
@@ -4367,6 +4460,17 @@ static void cu_key_scale(uint32_t k)               /* a chord key pressed in the
 static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l is open */
 {
     int32_t wi = cu_white_idx(k);
+    if (l == L_FX) {                               /* (only the Routing page owns them: cu_layer_keys) */
+        int32_t b = cu_rt_block_of(k);
+        if (b == (int32_t)XFE_N)                   /* A#4: the mode */
+            cu_rt_mode(xfp[XP_RMODE] != 1);
+        else if (b >= 0 && !cu_rt.held) {          /* a block's key: held, it lifts (one at a time) */
+            cu_rt.held = (uint8_t)(b + 1);
+            cu_rt.key = (uint8_t)(k + 1u);
+            cu_trace("fx: routing hold %s\n", CU_RT_NAME[b]);
+        }
+        return;
+    }
     if (k < CU_PICK0)                              /* (FM-1's C4, C#4: no job in the pick maps, the owner 2026-10-16) */
         return;
     if (l == L_KEY) {                              /* the tonic, Key Mode on; MIN / MAJ held with it: that scale too
@@ -4482,6 +4586,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         char lb[14];
         cu_cpy(lb, CU_FXP[pg].label[knob & 3u], sizeof lb);
         lb[0] = (char)(lb[0] | 0x20);
+        if (cs.fx_page == CU_FXPG_ROUTE) {        /* the Routing page: KNOB 1 moves the held block, KNOB 2 the mode */
+            if (knob == 1u && ((s > 0) != (xfp[XP_RMODE] == 1)))
+                cu_rt_mode(s > 0);
+            else if (knob == 0u && cu_rt.held && cu_fx_move(cu_rt.held - 1u, s))
+                cu_fx_route_trace();
+            break;
+        }
         if (c0 == FC_NONE)
             break;
         if (e >= 0) {                             /* a send: an effect's "Send" cell, a cell of the Sends page: the
@@ -5090,7 +5201,8 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
  * heard at once (SELECT picks there: docs/PRESETS.md "Also in this pass"), the engine picker plays the preview
  * (always, since 0.18: its roots chose engines until then) */
 static int cu_layer_keys(uint32_t l)
-{
+{                                                  /* (the Routing page owns only its five black keys, cu_rt_key:
+                                                    * the rest play, so an effect is heard while it is routed) */
     return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT && l != L_HARM &&
            !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
@@ -5168,6 +5280,14 @@ static void cu_key_press(uint32_t k)
         cu_hm_button(k, 1);                        /* Harmony mode: the chord keys are its world / approach buttons */
         return;
     }
+    if (CU_FN_KEYS && k < cu_cb_end() && cu_rt_key(cu_layer(), k)) {   /* Classic's C#4 (SUS) on the FX layer's Routing page:
+                                                    * the Chorus block's shortcut, as it is in FM-1 (this fork keeps
+                                                    * Classic the default; the owner, 2026-10-27). Only there, only while
+                                                    * the page shows: everywhere else it is SUS */
+        cu_layer_key(cu_layer(), k);
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
     if (CU_FN_KEYS && k < cu_cb_end() && (!cu_full() || cu_key_pick())) {   /* the chord block keeps its job in every layer but KEY's, where */
         if (cu_key_pick()) {                       /* MAJ / MIN pick the scale (cu_key_scale); B3 is LOCK everywhere */
             uint32_t other = (k == CU_KEY_MIN ? 1u << CU_KEY_MAJ : k == CU_KEY_MAJ ? 1u << CU_KEY_MIN : 0u);
@@ -5187,6 +5307,13 @@ static void cu_key_press(uint32_t k)
         return;
     }
     l = cu_layer();
+    if (cu_rt_key(l, k)) {                         /* the Routing page's shortcuts (the owner, 2026-10-25: "allow the
+                                                    * rest of the keys to work when on this page ... I can play notes
+                                                    * and hear the effect"): C#4 D#4 F#4 G#4 A#4 alone are its */
+        cu_layer_key(l, k);
+        cu.key_note[k] = 0xFFu;
+        return;
+    }
     if (cu_layer_keys(l)) {                        /* (PERF, FX, the picker with its roots off: they play) */
         cu_layer_key(l, k);
         cu.key_note[k] = 0xFFu;
@@ -5245,6 +5372,8 @@ static void cu_key_release(uint32_t k)
 {
     cu.kheld &= ~(1u << k);
     cr_sense_land[k] = 0;
+    if (cu_rt.key == k + 1u)                       /* the Routing page's held block (whatever page shows now) */
+        cu_rt_release();
     if (k >= 25u && cu.fsc_t0[k - 25u]) {          /* Full K Shorts' switch let go */
         cu_fsc_release(k - 25u);
         cu.key_note[k] = 0;
@@ -6879,6 +7008,16 @@ static void cr_leds(void)
             if ((uint32_t)wi == sel ? blink : (cs.loop_used >> wi) & 1u)
                 cu_led(own, CU_LK(k), 1);
         }
+    } else if (l == L_FX && cs.fx_page == CU_FXPG_ROUTE) {   /* the Routing page: its shortcuts (the LEDs have
+                                                    * no colour: the four blocks' keys glow, A#4 at the middle level,
+                                                    * the held one lit) */
+        for (k = CU_ROOT0_FM1; k < CU_NKEY; k++) {
+            int32_t b = cu_rt_block_of(k);
+            if (b == (int32_t)XFE_N)
+                cu_led(nm, CU_LK(k), 1);
+            else if (b >= 0)
+                cu_led(cu_rt.key == k + 1u ? own : nd, CU_LK(k), 1);
+        }
     } else if (cu_layer_keys(l) && l != L_KEY) {
         int32_t sel = cu_layer_sel(l), n = cu_layer_count(l);
         for (k = CU_PICK0; k < CU_NKEY; k++) {
@@ -8013,7 +8152,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
     static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
                                               "Pattern", "Harp"};
-    static const char *const FX_ITEMS[CU_NFX + 2u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter"};
+    static const char *const FX_ITEMS[CU_NFX + 3u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter",
+                                                      "Routing"};
     const char *eng[NENGINES];
     uint32_t k, n;
     switch (l) {
@@ -8063,7 +8203,24 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_FX: {                                   /* the knob row: the effect over KNOB 1..4's cells */
         static char seen[48];                      /* (the trace: the row's labels when they change) */
-        cu_picker(s, FX_ITEMS, CU_NFX + 2u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_page == CU_FXPG_FILTER ? CU_NFX + 1u
+        if (cs.fx_page == CU_FXPG_ROUTE) {         /* the Routing page: the signal flow (cr_draw.c cr_p_route) */
+            uint32_t o = cu_rt_ord();
+            cu_picker(s, FX_ITEMS, CU_NFX + 3u, CU_NFX + 2u, CR_COL_GREEN, "", "hold C# D# F# G# + KNOB 1 \267 A#: mode");
+            s->kind = CR_K_ROUTE;
+            cu_cpy(s->label, cs.fx_on ? (xfp[XP_RMODE] == 1 ? "fx \267 on \267 chain" : "fx \267 on \267 parallel")
+                                      : (xfp[XP_RMODE] == 1 ? "fx \267 off \267 chain" : "fx \267 off \267 parallel"),
+                   sizeof s->label);
+            cu_cpy(s->title, "Routing", sizeof s->title);
+            for (k = 0; k < XFE_N; k++)
+                s->rt_order[k] = s->rt_from[k] = XF_ORD[o][k];
+            s->rt_mode = (uint8_t)(xfp[XP_RMODE] == 1);
+            s->rt_held = cu_rt.held;
+            s->rt_fx_on = cs.fx_on;
+            s->rt_filter_on = xfp[XP_FON] != 0;
+            break;
+        }
+        cu_picker(s, FX_ITEMS, CU_NFX + 3u, cs.fx_page == CU_FXPG_SENDS ? 0u : cs.fx_page == CU_FXPG_FILTER ? CU_NFX + 1u
+                                            : cs.fx_page == CU_FXPG_ROUTE ? CU_NFX + 2u
                                             : cs.fx_sel % CU_NFX + 1u, CR_COL_GREEN,
                   cs.fx_on ? "fx \267 on" : "fx \267 off", "SELECT: effect \267 FX: on/off \267 OCT-: back");
         if (CU_FXP[cu_fx_pg()].of > 1u)            /* the page, quietly (as the KEY layer's): SELECT steps through both */
@@ -8879,6 +9036,39 @@ static void cu_animate(cr_screen_t *s, uint32_t now)
         s->anim = ca.anim;
         ca.sel = s->sel;
         break;
+    case CR_K_ROUTE: {                             /* the Routing page: a move slides the blocks, a hold lifts, a
+                                                    * release lands (cr_draw.c cr_p_route) */
+        static uint8_t ord[4], from[4], held, drop;
+        uint32_t i, moved = 0;
+        for (i = 0; i < 4u; i++)
+            moved |= ord[i] != s->rt_order[i];
+        if (kind_changed || cr_motion == CR_MOTION_OFF) {
+            ca.anim = 0;
+            drop = 0;
+            for (i = 0; i < 4u; i++)
+                from[i] = s->rt_order[i];
+            cr_anim_mark(&cu_anim, now);
+        } else if (moved) {
+            for (i = 0; i < 4u; i++)
+                from[i] = ord[i];
+            ca.anim = CR_A_SLIDE;
+            drop = 0;
+            cr_anim_mark(&cu_anim, now);
+        } else if (s->rt_held != held) {
+            drop = s->rt_held ? 0 : held;
+            ca.anim = CR_A_LIFT;
+            cr_anim_mark(&cu_anim, now);
+        }
+        for (i = 0; i < 4u; i++) {
+            ord[i] = s->rt_order[i];
+            s->rt_from[i] = from[i];
+        }
+        held = s->rt_held;
+        s->rt_drop = drop;
+        s->slide = 1;
+        s->anim = ca.anim;
+        break;
+    }
     case CR_K_METER:
         pool = cu.pop.kind == PU_METER && (int32_t)(cu.pop.until - now) > 0 ? cu.pop.pool : 0u;
         if (pool) {                                /* a pool's read-out (cu_pool_popup): its label carries the place,
