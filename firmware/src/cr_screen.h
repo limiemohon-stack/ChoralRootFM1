@@ -40,6 +40,8 @@ enum { CR_K_NONE, CR_K_STRIPES, CR_K_CHORD, CR_K_PICKER, CR_K_METER, CR_K_KEYBOA
        CR_K_ROUTE,                  /* the FX layer's Routing page (GitHub issue 21, second design): the signal flow as
                                      * boxes, Chain (IN, four boxes in a row, OUT) or Parallel (the three buses stacked
                                      * into a sum, the Filter after it); a held block lifted (rt_*) */
+       CR_K_LUVLY,                  /* Harmony mode's LUVLY view: the owner's figure as points, moving with the music
+                                     * (lv_*; cr_luvly_fig.h), the chord in the footer */
        CR_K_N };
 
 /* CR_K_LOOPMENU's middle (lm_mid) */
@@ -162,6 +164,7 @@ enum { CR_PK_NEW = 1, CR_PK_KEPT, CR_PK_BASS, CR_PK_BASS_KEPT, CR_PK_LEFT, CR_PK
 #define CR_PK_DIM 1u                /* piano pk_flags: the chord ended (the last one, dimmed, to copy) */
 #define CR_PK_OVER_LO 2u            /* .. a note below the keyboard shown */
 #define CR_PK_OVER_HI 4u            /* .. above it */
+#define CR_LV_BIG 1u                /* luvly lv_flags: 2 x 2 px dots (calm: the picture), else 1 px sparks */
 
 typedef struct { char root[4], quality[6], sup[12]; uint8_t col_root, col_quality, col_sup; } cr_name_t;   /* (sup: the
                                                              * engine's CR_SUP_MAX, cr_ui.c asserts it: "add4 JAZZ",
@@ -319,6 +322,12 @@ typedef struct {
      * name, numeral and footer as the chord screen's */
     uint8_t pk_lo, pk_octs, pk_n, pk_flags;
     uint8_t pk_note[CR_PK_MAX], pk_role[CR_PK_MAX];
+
+    /* panel: luvly (CR_K_LUVLY, Harmony mode's LUVLY view; cr_ui.c cu_hm_luvly sets them a frame step at a time, so
+     * the hash moves, and the screen redraws, only that often): lv_seed the shimmer's frame, lv_ph the stride's phase
+     * (256: two beats), lv_amp its size, lv_burst a new chord's outward push, lv_jit the shimmer (1/16 px), lv_lift
+     * the brightness (128: the sticker's own), lv_spark the yellow sparks (0..255), lv_flags CR_LV_* */
+    uint8_t lv_seed, lv_ph, lv_amp, lv_burst, lv_jit, lv_lift, lv_spark, lv_flags;
 
     /* panel: loopmenu (CR_K_LOOPMENU, the PLAY menu, docs/LOOPER-MODES.md): the knobrow's picker band = the record mode
      * (items / sel / col as a knobrow; the slide), cell[0][0..3] = Quantize Count-in Level Keys (as a knobrow's; hot_r /

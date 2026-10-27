@@ -3623,18 +3623,39 @@ LC_ALL=C grep -aq '^harm: view Chord view' "$L" && [ "$(hl 5)" = 6 ] &&
     bad "back / the mode: layer '$(hl 5)'"
 silent_end cr_harm_piano
 
-echo "Harmony mode, HOME held alone: the mode's next screen (Piano / Chord view), never the view menu; a tap still leaves"
+echo "Harmony mode, HOME held alone: the mode's next screen (Chord, Piano, LUVLY view), never the view menu; a tap still leaves"
 run cr_harm_viewhold
 L="$OUT/cr_harm_viewhold.log"
 hl() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* layer \([0-9]*\) .*/\1/'; }
 ! LC_ALL=C grep -aq '^view: menu' "$L" && LC_ALL=C grep -aq '^harm: view Piano view' "$L" && [ "$(hl 1)" = 6 ] &&
     ok "HOME held 900 ms in the mode, nothing turned: the Piano view, no view menu, still in the mode (layer 6)" ||
     bad "HOME held: layer '$(hl 1)', $(LC_ALL=C grep -ac '^view: menu' "$L") view menus"
-LC_ALL=C grep -aq '^harm: view Chord view' "$L" && [ "$(hl 2)" = 6 ] &&
-    ok "HOME held again with a chord sounding: the Chord view, still in the mode" ||
+LC_ALL=C grep -aq '^harm: view LUVLY view' "$L" && [ "$(hl 2)" = 6 ] &&
+    ok "HOME held again with a chord sounding: the next screen (the LUVLY view), still in the mode" ||
     bad "HOME held over a chord: layer '$(hl 2)'"
 [ "$(hl 3)" = 0 ] && ok "HOME tapped: the mode left, as before (layer 0)" || bad "HOME tapped: layer '$(hl 3)'"
 silent_end cr_harm_viewhold
+
+echo "Harmony mode's LUVLY view: the owner's figure as points; a strike bursts it, calm settles it, pull shimmers it"
+run cr_harm_luvly
+L="$OUT/cr_harm_luvly.log"
+hl() { LC_ALL=C grep -a '^  cr: key' "$L" | sed -n "${1}p" | sed 's/.* layer \([0-9]*\) .*/\1/'; }
+ft() { LC_ALL=C grep -a '^  screen foot:' "$L" | sed -n "${1}p" | sed "s/^  screen foot: '\(.*\)'/\1/"; }
+lit() { od -An -tu1 -v -j15 "build/emu/test/$1.ppm" | tr -s ' ' '\n' | awk '$1 > 60' | wc -l | tr -d ' '; }
+LC_ALL=C grep -aq '^harm: view LUVLY view' "$L" && [ "$(hl 1)" = 6 ] &&
+    ok "HOME held twice in the mode: Piano, then the LUVLY view; still in the mode (layer 6)" ||
+    bad "to the LUVLY view: layer '$(hl 1)'"
+[ "$(ft 2)" = "I  CM7 9" ] && [ "$(ft 3)" = "bII  C#7 9" ] &&
+    ok "the footer: the chord and its numeral (I  CM7 9, then bII  C#7 9)" || bad "the footer: '$(ft 2)' / '$(ft 3)'"
+a=$(lit cr_luvly_calm); b=$(lit cr_luvly_burst); c=$(lit cr_luvly_pull)
+[ "$a" -gt 3000 ] && [ "$a" -gt "$b" ] && ! cmp -s build/emu/test/cr_luvly_burst.ppm build/emu/test/cr_luvly_calm.ppm &&
+    ok "calm: the picture in 2 x 2 dots ($a lit values; the burst's single pixels $b, moved):" \
+       "build/emu/test/cr_luvly_idle.ppm burst calm pull quiet" ||
+    bad "the picture: calm $a, burst $b, pull $c"
+cmp -s build/emu/test/cr_luvly_quiet.ppm build/emu/test/cr_luvly_quiet2.ppm && [ "$(lit cr_luvly_quiet)" -gt 1500 ] &&
+    ok "silence: the figure rests, dimmed and still (the same pixels 500 ms on: nothing redrawn)" ||
+    bad "silence: the figure still moves, or is gone ($(lit cr_luvly_quiet) lit)"
+silent_end cr_harm_luvly
 
 echo "Harmony mode's motion: turning it is never heard over the chord; the next chord has it"
 export EMU_UI_LOG=0

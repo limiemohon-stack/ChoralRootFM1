@@ -805,7 +805,7 @@ uint32_t emu_fw_layout(void) { return (uint32_t)cu_fm1(); }
 void emu_fw_ui_info(char *buf, uint32_t n)
 {
     static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
-                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu", "free", "piano", "route"};
+                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu", "free", "piano", "route", "luvly"};
     static const char *const DM[] = {"play", "armed", "rec", "od"};    /* cr_screen.h CR_DIAL_* */
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "

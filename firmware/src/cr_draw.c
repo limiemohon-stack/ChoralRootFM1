@@ -3208,6 +3208,77 @@ static void cr_p_piano(const cr_screen_t *s)
         cr_fill(x0 + octs * 7 * kw + 1, y, 2, h, CR_NAMED[CR_COL_YELLOW]);
 }
 
+/* Harmony mode's LUVLY view (CR_K_LUVLY; cr_ui.c cu_hm_luvly sets lv_*): the owner's figure, cr_luvly_fig.h's points,
+ * each carried by one of twelve bones. A frame: each bone's angle from the stride (lv_ph, lv_amp: the sticker's own
+ * mid-stride pose swinging round itself, thighs and arms opposite), its transform composed down the skeleton (Q12
+ * matrices, 1/16 px), then every point moved by its bone, pushed out from the centre by lv_burst, shimmered by a hash
+ * of (point, lv_seed) times lv_jit, and set as a 2 x 2 dot (CR_LV_BIG) or a pixel in its palette colour times
+ * lv_lift / 128 (lv_spark: some of them yellow). No table but the points (2.6 KB); the sine is Bhaskara's. Each strip
+ * computes the points that can reach its rows (CR_LV_REACH; cr_fill clips): no RAM held between frames */
+#include "cr_luvly_fig.h"
+static const struct { int16_t amp; int8_t half; } CR_LV_POSE[CR_LV_NB] = {   /* Q12 rad at lv_amp 255; half: only
+    * sin > 0 (+1) or sin < 0 (-1, by -sin) */
+    {123, 0}, {-123, 0}, {-1147, 0}, {-614, 0}, {1147, 0}, {819, 0},     /* torso head, back arm, front arm */
+    {-901, 0}, {737, 1}, {410, 0}, {901, 0}, {-1024, -1}, {-410, 0}};    /* front leg, back leg */
+#define CR_LV_REACH 72                              /* px a point can move from its place: the stride's swing (feet
+                                                     * ~25), the burst (a quarter of ~120 from the centre), the
+                                                     * shimmer (4), the bob (3), with room */
+static int32_t cr_lv_sin(uint32_t ph)                /* sin(2 pi ph / 256), Q12 (Bhaskara: 0.2 % off at worst) */
+{
+    int32_t x = (int32_t)(ph & 127u), p = x * (128 - x), v = 16 * 4096 * p / (5 * 128 * 128 - 4 * p);
+    return ph & 128u ? -v : v;
+}
+static void cr_p_luvly(const cr_screen_t *s)
+{
+    int32_t m[CR_LV_NB][6], sn = cr_lv_sin(s->lv_ph), bob, i, r0 = cr_row0(), r1 = cr_row1();
+    uint16_t pal[16];
+    for (i = 0; i < 16; i++) {                       /* the palette, lifted */
+        uint32_t c = CR_LV_PAL[i], r = (c >> 11) * s->lv_lift >> 7, g = ((c >> 5) & 63u) * s->lv_lift >> 7,
+                 b = (c & 31u) * s->lv_lift >> 7;
+        pal[i] = (uint16_t)((r > 31u ? 31u : r) << 11 | (g > 63u ? 63u : g) << 5 | (b > 31u ? 31u : b));
+    }
+    for (i = 0; i < (int32_t)CR_LV_NB; i++) {        /* the bones' transforms, parents first */
+        int32_t sw = CR_LV_POSE[i].half > 0 ? (sn > 0 ? sn : 0) : CR_LV_POSE[i].half < 0 ? (sn < 0 ? -sn : 0) : sn;
+        int32_t th = CR_LV_POSE[i].amp * sw / 4096 * s->lv_amp / 255;
+        int32_t sa = th - th * th / 4096 * th / (6 * 4096), ca = 4096 - th * th / (2 * 4096);
+        int32_t px = CR_LV_BONE[i].x * 16, py = CR_LV_BONE[i].y * 16;
+        int32_t r[6] = {ca, -sa, px - (ca * px - sa * py) / 4096, sa, ca, py - (sa * px + ca * py) / 4096};
+        int32_t p = CR_LV_BONE[i].parent;
+        if (p < 0) {
+            memcpy(m[i], r, sizeof r);
+        } else {                                      /* m = parent o r */
+            const int32_t *q = m[p];
+            m[i][0] = (q[0] * r[0] + q[1] * r[3]) / 4096;
+            m[i][1] = (q[0] * r[1] + q[1] * r[4]) / 4096;
+            m[i][2] = (q[0] * r[2] + q[1] * r[5]) / 4096 + q[2];
+            m[i][3] = (q[3] * r[0] + q[4] * r[3]) / 4096;
+            m[i][4] = (q[3] * r[1] + q[4] * r[4]) / 4096;
+            m[i][5] = (q[3] * r[2] + q[4] * r[5]) / 4096 + q[5];
+        }
+    }
+    bob = (sn < 0 ? -sn : sn) * 3 * 16 / 4096 * s->lv_amp / 255;    /* up to 3 px on each stride */
+    for (i = 0; i < (int32_t)CR_LV_N; i++) {
+        const uint8_t *pt = CR_LV_PT[i];
+        if ((int32_t)pt[1] + CR_LV_REACH < r0)       /* (above this strip, moved as far as a point moves: next) */
+            continue;
+        if ((int32_t)pt[1] - CR_LV_REACH >= r1)      /* (below it: so are the rest, top to bottom) */
+            break;
+        const int32_t *q = m[pt[2] >> 4];
+        int32_t x = pt[0] * 16, y = pt[1] * 16, wx = (q[0] * x + q[1] * y) / 4096 + q[2];
+        int32_t wy = (q[3] * x + q[4] * y) / 4096 + q[5] - bob, d = (s->lv_flags & CR_LV_BIG) ? 2 : 1;
+        uint32_t h = (uint32_t)i * 2654435761u ^ (uint32_t)s->lv_seed * 40503u;
+        uint16_t c = pal[pt[2] & 15u];
+        h ^= h >> 15;
+        h *= 2246822519u;
+        h ^= h >> 13;
+        wx += (wx - CR_LV_CX * 16) * s->lv_burst / 1024 + ((int32_t)(h & 255u) - 128) * s->lv_jit / 128;
+        wy += (wy - CR_LV_CY * 16) * s->lv_burst / 1024 + ((int32_t)((h >> 8) & 255u) - 128) * s->lv_jit / 128;
+        if (s->lv_spark && i % 11 == 0 && ((h >> 16) & 255u) < s->lv_spark)
+            c = CR_NAMED[CR_COL_YELLOW];
+        cr_fill(wx >> 4, wy >> 4, d, d, c);
+    }
+}
+
 /* the whole screen into the canvas (its rows only) */
 static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
 {
@@ -3233,6 +3304,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_BIG: cr_p_big(s, ph); break;
     case CR_K_SCOPE: cr_p_scope(s, ph); break;
     case CR_K_PIANO: cr_p_piano(s); break;
+    case CR_K_LUVLY: cr_p_luvly(s); break;
     default: break;
     }
     if (s->footer[0]) {

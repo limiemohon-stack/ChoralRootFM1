@@ -1690,10 +1690,14 @@ static struct {
     cr_hmap_t map;
 } cu_hm;
 
-enum { CU_HV_CHORD, CU_HV_PIANO, CU_HV_N };   /* Harmony mode's screens (HOME held + SELECT steps them) */
+enum { CU_HV_CHORD, CU_HV_PIANO, CU_HV_LUVLY, CU_HV_N };   /* Harmony mode's screens (HOME held, or HOME held +
+                                                   * SELECT, steps them) */
+static struct { uint32_t t; uint8_t vel, ten; } cu_lv;   /* the LUVLY view: the last chord the keys struck (when, how
+                                                   * hard, its pull: 0 restful .. 255) */
 static void cu_pv_reset(void);
 static void cu_hm_view_step(int32_t s);
 static void cu_hm_piano(cr_screen_t *s);
+static void cu_hm_luvly(cr_screen_t *s);
 static uint8_t cu_hm_pc(int32_t pc) { return (uint8_t)(((pc % 12) + 12) % 12); }
 static int cu_ci_same(const cr_chord_info_t *a, const cr_chord_info_t *b)
 {
@@ -2070,6 +2074,13 @@ static int cu_hm_play_ex(uint32_t k, uint32_t n, int legato)
             cu_trace("touch: key %u vel %u (harmony)\n", (unsigned)k, (unsigned)vel);
         }
         cr_post(CRE_HKEY, n, vel, legato ? 2 : 1);   /* (a key pressed again strikes again; a turn is legato) */
+        if (!legato) {                           /* the LUVLY view: a strike bursts the figure, its pull shimmers it
+                                                  * (the map's place, 0..10; an approach leans harder) */
+            int32_t t = d->tension * 255 / 10 + (cu_black(k) ? 64 : 0);
+            cu_lv.t = cu_now() | 1u;
+            cu_lv.vel = (uint8_t)vel;
+            cu_lv.ten = (uint8_t)(t < 0 ? 0 : t > 255 ? 255 : t);
+        }
     }
     cu_hm_set_cur(e.root_pc, lq, lx, notes, (uint32_t)nv);
     cu_cpy(cu_hm.cur.root, nm_r, sizeof cu_hm.cur.root);   /* (the world's own name: m11, 7 b9, D/C ..) */
@@ -6670,8 +6681,8 @@ static void cr_ui_input(void)
     }
     if (cu.home_hold && cu_layer() == L_HARM && !cu.page && ((cu.bheld >> BT_HOME) & 1u) &&
         now - cu.home_t0 >= CU_HOME_HOLD_MS) {
-        cu.home_hold = 0;                          /* Harmony mode, HOME held alone: the mode's next screen (Chord /
-                                                    * Piano view), not the view menu, which took the mode's place and
+        cu.home_hold = 0;                          /* Harmony mode, HOME held alone: the mode's next screen (Chord,
+                                                    * Piano, LUVLY view), not the view menu, which took the mode's place and
                                                     * read the chord keys as its lines (the owner, 2026-10-27: "when I
                                                     * hold onto home, it just takes me off completely"). Its release
                                                     * does nothing: still in the mode. A chord sounding or not: the same */
@@ -8150,9 +8161,63 @@ static void cu_hm_piano(cr_screen_t *s)
     cu_cat(s->footer, STY[cu_hm.style % CR_HSTYLE_N], sizeof s->footer);
     cu_cat(s->footer, cr_snap.bass_on ? " \267 bass on" : " \267 bass off", sizeof s->footer);
 }
+/* Harmony mode's LUVLY view (CR_K_LUVLY; the owner, 2026-10-27: "my lovely little animated figure ... moving whilst
+ * it's playing ... the particle thing ... reacting to the harmony"): the owner's figure as points (cr_luvly_fig.h),
+ * drawn by cr_draw.c cr_p_luvly from a few numbers set here a frame step (CU_LV_FRAME_MS) at a time -- the screen
+ * redraws only when they move. A chord sounding: the stride pumps on the beat (two beats a cycle), each strike bursts
+ * the points outward by its velocity and springs back, a yellow spark or two; the chord's pull (cu_lv.ten, home: none)
+ * shimmers it, and while calm (pull under half, the burst over) the points are 2 x 2 px dots: the picture. Nothing
+ * sounding: it dims and drifts for CU_LV_QUIET_MS, then rests as the picture, dimmed and still (no redraw). Options > Motion Off: still, whole.
+ * The chord and its numeral in the footer */
+#define CU_LV_FRAME_MS 66u
+#define CU_LV_QUIET_MS 2000u
+static void cu_hm_luvly(cr_screen_t *s)
+{
+    static uint32_t quiet_t;
+    static uint8_t seed;
+    uint32_t now = cu_now(), ft = now / CU_LV_FRAME_MS * CU_LV_FRAME_MS;
+    uint32_t dt = cu_lv.t ? ft - cu_lv.t : 0xFFFFu, ten = cu_hm_away() ? cu_lv.ten : 0u, q, k;
+    s->kind = CR_K_LUVLY;
+    s->lv_flags = 0;
+    s->lv_lift = 128;
+    if (cr_snap.pl_on)
+        quiet_t = ft;
+    q = ft - quiet_t;
+    if (cr_motion == CR_MOTION_OFF) {               /* still: the picture, whole */
+        s->lv_flags = CR_LV_BIG;
+    } else {
+        if (q < CU_LV_QUIET_MS)
+            seed = (uint8_t)(ft / CU_LV_FRAME_MS);
+        s->lv_seed = seed;
+        s->lv_ph = q < CU_LV_QUIET_MS ? (uint8_t)((ft % 60000u) * cs.bpm / 469u) : 0;   /* (256 per 2 beats) */
+        s->lv_amp = (uint8_t)(q < 800u ? 115u * (800u - q) / 800u : 0u);
+        if (dt < 400u) {
+            k = 400u - dt;
+            s->lv_burst = (uint8_t)(cu_lv.vel * 2u * k * k / 160000u);
+            s->lv_spark = (uint8_t)(255u * k / 400u);
+        }
+        if (q == 0) {
+            s->lv_jit = (uint8_t)(5u + ten * 56u / 255u);
+            s->lv_lift = (uint8_t)(128u + (dt < 600u ? 64u * (600u - dt) / 600u : 0u));
+            if (ten < 128u && dt > 250u)
+                s->lv_flags = CR_LV_BIG;
+        } else if (q < CU_LV_QUIET_MS) {            /* nothing sounding: it dims and drifts .. */
+            s->lv_jit = 24u;
+            s->lv_lift = (uint8_t)(128u - 40u * q / CU_LV_QUIET_MS);
+        } else {                                    /* .. then rests, the picture dimmed, still */
+            s->lv_lift = 88u;
+            s->lv_flags = CR_LV_BIG;
+        }
+    }
+    cu_cpy(s->footer, s->numeral, sizeof s->footer);
+    cu_cat(s->footer, s->numeral[0] ? "  " : "", sizeof s->footer);
+    cu_cat(s->footer, s->name.root, sizeof s->footer);
+    cu_cat(s->footer, s->name.quality, sizeof s->footer);
+    cu_cat(s->footer, s->name.sup, sizeof s->footer);
+}
 static void cu_hm_view_step(int32_t s)
 {
-    static const char *const NAME[CU_HV_N] = {"Chord view", "Piano view"};
+    static const char *const NAME[CU_HV_N] = {"Chord view", "Piano view", "LUVLY view"};
     cu_hm.view = (uint8_t)(((int32_t)cu_hm.view + (s > 0 ? 1 : -1) + CU_HV_N) % CU_HV_N);
     cu_message(NAME[cu_hm.view], CR_COL_YELLOW);
     cu_trace("harm: view %s\n", NAME[cu_hm.view]);
@@ -8323,6 +8388,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
         cr_chord_numeral(ci.root_pc, ci.quality, cu_hm.home_pc, cu_hm.home_scale, s->numeral);
         s->numeral_on = 1;
         s->line_col = CR_COL_MID;
+        if (cu_hm.view == CU_HV_LUVLY)
+            cu_hm_luvly(s);                        /* the LUVLY view: the figure, the chord in the footer */
         cu_cpy(s->mid, "Harmony \267 ", sizeof s->mid);
         cu_cat(s->mid, CU_NOTE[cu_hm.home_pc % 12u], sizeof s->mid);
         cu_cat(s->mid, " ", sizeof s->mid);

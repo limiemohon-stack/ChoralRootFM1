@@ -1,0 +1,50 @@
+# Harmony mode's LUVLY view (cr_ui.c cu_hm_luvly, cr_draw.c cr_p_luvly): HOME held twice from the Chord view; the
+# figure still before anything sounds, a strike bursts it, a calm chord settles into 2 x 2 px dots, a pulling one
+# shimmers in sparks, silence dims it and, after CU_LV_QUIET_MS, stops redrawing. Home C major, Key Mode off.
+#  A. C major (MAJ + C5), LATCH held (the mode); HOME held 900 ms twice: Piano, then LUVLY view (dump 1, shot 1)
+#  B. D4 held (Cmaj9, home): the burst 100 ms in (shot 2), settled 900 ms in (shot 3, dump 2); up
+#  C. G5 held (the pull's end, C#9): shimmer (shot 4, dump 3); up
+#  D. 3 s of silence: the picture dimmed (shot 5, dump 4); 500 ms on, the same pixels (shot 6); OCT-, the end
+wait 500
+btn A#3 down
+wait 40
+btn C5 down
+wait 400
+btn C5 up
+btn A#3 up
+wait 300
+btn LFO 600
+wait 300
+btn HOME down
+wait 900
+btn HOME up
+wait 200
+btn HOME down
+wait 900
+btn HOME up
+wait 1500
+dump
+shot build/emu/test/cr_luvly_idle.ppm
+btn D4 down
+wait 100
+shot build/emu/test/cr_luvly_burst.ppm
+wait 800
+shot build/emu/test/cr_luvly_calm.ppm
+dump
+btn D4 up
+wait 100
+btn G5 down
+wait 900
+shot build/emu/test/cr_luvly_pull.ppm
+dump
+btn G5 up
+wait 3000
+shot build/emu/test/cr_luvly_quiet.ppm
+dump
+wait 500
+shot build/emu/test/cr_luvly_quiet2.ppm
+btn OCT-
+wait 300
+key END 100
+wait 2000
+dump
