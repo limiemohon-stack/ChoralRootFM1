@@ -587,6 +587,9 @@ void emu_fw_dump(void)
                (unsigned)crl.rate, (unsigned)crl.rate_want, (unsigned)crl.dirty, (unsigned)cu.lpage + 1u, (unsigned)crl.ed,
                (unsigned)crl.ed_t0, (unsigned)(crl.ed ? cr_loop_ed_nlen(&crl) : 0u), (unsigned)crl.ed_g, (unsigned)crl.ed_len,
                (unsigned)cu.gsave_pend, (unsigned)crl.step_end, (unsigned)crl.step_len, (unsigned)crl.step_no);
+#if !CR_DRUMS                                          /* (a build without the drums, CR_DRUMS 0: the beat's line reads 0) */
+        static const unsigned crd_now = 0, crd_hitn[3] = {0, 0, 0};
+#endif
         /* the beat (the SEQ layer, cr_drum.c): the preset, the beat on, the drums on in the looper and running, the
          * kit, the layer's page, the step playing + 1, the hits so far (kick snare hats), the Beat page's knobs, the
          * level, each drum's Chorus/Delay/Reverb sends and Level (kick snare hats, 3y303), Filter and Drive (3y304), the chip's beat */

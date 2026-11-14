@@ -46,7 +46,7 @@
                                                          * stub core (firmware/src/cr_cpu1.h) runs it when handed */
 #endif
 #ifndef CR_DRUMS
-#define CR_DRUMS 1                                    /* as choralroot.c: the drums (cr_drum.c, through hostsim.c) */
+#define CR_DRUMS 0                                    /* as choralroot.c (this fork: no drums) */
 #endif
 static void fm1_irq_off(void);                        /* (emu_hal_fw.h's; cr_drum.c's copies take them) */
 static void fm1_irq_on(void);
@@ -90,12 +90,14 @@ static void mix_block(int32_t *out, uint32_t n)        /* the audio ISR's block:
 {
     CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
+#if CR_DRUMS
     if (crl.dstep) {                                   /* the drums' step (as choralroot.c's) */
         crd_beat_step(crl.dstep - 1u);
         crl.dstep = 0;
     } else if (!crl.drum_run) {
         crd_now = 0;
     }
+#endif
     fx_mix_block(out, n);
     cr_click_mix(out, n);                              /* the metronome / count-in click */
     CR_PROF(CRP_MASTER);         /* the master, the USB tap, the click */

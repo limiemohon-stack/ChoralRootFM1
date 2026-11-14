@@ -87,7 +87,9 @@
                                   * started at power-on; if it does not answer, single core with the shared budget */
 #endif
 #ifndef CR_DRUMS
-#define CR_DRUMS 1               /* the drums (cr_drum.c, docs/MANUAL.md "The beat"): the SEQ layer's Drums preset, a
+#define CR_DRUMS 0               /* (this fork, 2026-11-14: 0 -- the owner does not use the drums, and with Harmony mode
+                                  * 0.41's image does not fit with them; the beat is the metronome, as before 0.40)
+                                  * the drums (cr_drum.c, docs/MANUAL.md "The beat"): the SEQ layer's Drums preset, a
                                   * Grids beat on CoralFlower's morph drum synth, dry into the master */
 #endif
 #ifndef CV_ROWS
