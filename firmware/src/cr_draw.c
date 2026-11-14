@@ -3505,6 +3505,7 @@ static void cr_p_piano(const cr_screen_t *s)
  * of (point, lv_seed) times lv_jit, and set as a 2 x 2 dot (CR_LV_BIG) or a pixel in its palette colour times
  * lv_lift / 128 (lv_spark: some of them yellow). No table but the points (2.6 KB); the sine is Bhaskara's. Each strip
  * computes the points that can reach its rows (CR_LV_REACH; cr_fill clips): no RAM held between frames */
+#include "cr_res.h"                     /* (CR_RES2_GONE: the points' region) */
 #include "cr_luvly_fig.h"
 static const struct { int16_t amp; int8_t half; } CR_LV_POSE[CR_LV_NB] = {   /* Q12 rad at lv_amp 255; half: only
     * sin > 0 (+1) or sin < 0 (-1, by -sin) */
@@ -3522,6 +3523,9 @@ static void cr_p_luvly(const cr_screen_t *s)
 {
     int32_t m[CR_LV_NB][6], sn = cr_lv_sin(s->lv_ph), bob, i, r0 = cr_row0(), r1 = cr_row1();
     uint16_t pal[16];
+    if (CR_RES2_GONE(CR_LV_PT))                      /* (the points live in the second resource region: not there, no
+                                                      * figure -- the splash says PRESETS MISSING) */
+        return;
     for (i = 0; i < 16; i++) {                       /* the palette, lifted */
         uint32_t c = CR_LV_PAL[i], r = (c >> 11) * s->lv_lift >> 7, g = ((c >> 5) & 63u) * s->lv_lift >> 7,
                  b = (c & 31u) * s->lv_lift >> 7;

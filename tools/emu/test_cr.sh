@@ -945,6 +945,7 @@ differ cr_metro_row_hot cr_metro_row_cool "the hot block gone: $OUT/cr_metro_row
 differ cr_metro_row_cool cr_metro_row_34 "KNOB 2: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
 
+if LC_ALL=C grep -q '^#define CR_DRUMS 1' tools/emu/emu_firmware.h; then   # (this fork builds without them: CR_DRUMS 0)
 # the drums (the DRUMS plan; docs/MANUAL.md "The drums", docs/LOOPER.md "The drums"): the SEQ layer's preset page
 # (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Hats Mix, the keys playing there, the drums free with no
 # loop, on its grid while it plays, running on when it stops, GLO + SEQ off
@@ -998,6 +999,9 @@ PY
 )
 [ "$(echo "$r" | cut -d' ' -f1)" -lt 50 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
     ok "the WAV: silence before the beat, the drums alone with no loop (peaks $r)" || bad "the WAV: peaks $r"
+else
+    echo "the drums: not in this build (CR_DRUMS 0, this fork): their checks skipped"
+fi
 
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5

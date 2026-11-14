@@ -34,6 +34,8 @@
  *   .res2.preset  the factory presets' lists of FM6, VA, CZ-1 and PROPHET (engine_t.presets: RES2_PRESET)
  *   .res2.fm6     FM6's factory voices F1..F24 (FM6_FACTORY, FM6_ROM)
  *   .res2.drum    reserved for the drum kits that do not fit the first region (RES2_DRUM; 514 B a kit)
+ *   .res2.luvly   (this fork) Harmony mode's LUVLY figure's points (cr_luvly_fig.h CR_LV_PT, RES2_LUVLY; in the drum
+ *                 kits' room: this fork builds without the drums). When the region is refused the view draws none
  * The package carries it as the entry res2.bin (type CR_RES2_TYPE, tools/fm1pkg_make.py --res2), the whole 16 KB:
  * this header (cr_res_hdr_t with CR_RES2_MAGIC, its ble fields 0), the data from FL_RES2_DATA, erased bytes after.
  * The update loader writes its four sectors with the body, after the first region's and before the commit marker
@@ -64,6 +66,10 @@
 #endif
 #ifndef RES2_DRUM
 #define RES2_DRUM
+#endif
+#ifndef RES2_LUVLY
+#define RES2_LUVLY                          /* (this fork: Harmony mode's LUVLY figure, cr_luvly_fig.h, in the second
+                                             * region on the FM-1: the room the drum kits had, CR_DRUMS 0 here) */
 #endif
 #if CR_RES || CR_RES2
 #include "../hal/fm1_flash_map.h"

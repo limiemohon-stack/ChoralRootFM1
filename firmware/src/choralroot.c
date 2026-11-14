@@ -180,6 +180,7 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #define RES2_PRESET __attribute__((section(".res2.preset")))
 #define RES2_FM6 __attribute__((section(".res2.fm6")))
 #define RES2_DRUM __attribute__((section(".res2.drum")))
+#define RES2_LUVLY __attribute__((section(".res2.luvly")))   /* (this fork) the LUVLY view's points, cr_luvly_fig.h */
 #define CRD_RES RES2_DRUM        /* the drums' six kits (cr_drum_kits.h) */
 #endif
 

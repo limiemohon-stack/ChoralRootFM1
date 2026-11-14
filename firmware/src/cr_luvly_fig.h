@@ -2,12 +2,15 @@
  * do not edit. Harmony mode's LUVLY view (cr_draw.c cr_p_luvly). */
 #ifndef CR_LUVLY_FIG_H
 #define CR_LUVLY_FIG_H
+#ifndef RES2_LUVLY
+#define RES2_LUVLY                  /* (cr_res.h: the FM-1 puts the points in the second resource region) */
+#endif
 #define CR_LV_N 877u
 #define CR_LV_NB 12u
 #define CR_LV_CX 141
 #define CR_LV_CY 111
 /* the points, top to bottom: x, y (screen px), bone << 4 | palette index */
-static const uint8_t CR_LV_PT[CR_LV_N][3] = {
+static const uint8_t CR_LV_PT[CR_LV_N][3] RES2_LUVLY = {   /* (the FM-1: in the second resource region) */
     {173,39,22},{158,40,23},{159,40,16},{159,40,17},{166,40,16},{172,40,18},{173,40,17},{163,41,16},{170,42,16},{177,42,22},
     {179,42,16},{180,42,28},{157,43,16},{161,43,16},{177,43,16},{180,43,16},{153,44,25},{154,44,16},{155,44,16},{166,44,16},
     {180,44,16},{163,45,17},{169,45,16},{151,46,16},{153,46,31},{158,46,16},{172,46,16},{173,46,16},{178,46,27},{182,46,16},
