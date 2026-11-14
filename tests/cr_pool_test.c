@@ -4,8 +4,8 @@
  * it: every engine's sound (P5 included) saved into slot 128 and loaded back after a power cycle, its patch byte for
  * byte; the table; a full pool (128 slots) and "no free slot"; erase and rename; the favourites' section 0x81 (slots
  * 33..128) and what 377264f's reader keeps of the object; the quiet writes' spare (the pool's erase ahead); a cut
- * during a save on the firmware's own path. The migration from a real 0.21-format image and the downgrade are
- * tools/emu/test_pool.sh's; the floating banks' power cuts tests/pool_test.c's. */
+ * during a save on the firmware's own path. The floating banks' power cuts are tests/pool_test.c's. (0.21's slots
+ * are not read any more, HISTORY 3y231: no migration to test.) */
 #include <os/lock.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -61,7 +61,7 @@ int main(void)
     cr_settings_boot();
     cr_ui_init();
     uint32_t fm6_n0 = pool_count(ENGI_FM6);
-    OK(UP_POOL && UP_SLOTS == 128u && upool_boot_rc == 0 && !up_count(), "a fresh unit: 128 slots, none used, no migration");
+    OK(UP_POOL && UP_SLOTS == 128u && !up_count(), "a fresh unit: 128 slots, none used");
 
     /* ---- every engine into slot 128, back after a power cycle ---- */
     for (i = 0; i < NELEM(ENG); i++) {
@@ -110,7 +110,7 @@ int main(void)
         OK(cb_store(t, 0, 127, "QUAD V3", 0) == 0 && up_used(127), "FM TONE: saved into U128");
         memset(v3, 0, sizeof v3);
         v3[0] = 'Q', v3[1] = 3;
-        for (j = 0; j < QP_NP; j++)
+        for (j = 0; j < QP_NP5; j++)
             v3[2 + j] = (uint8_t)(quad_range_v3(j).def - quad_range_v3(j).min);
         v3[2 + QP_FREQ] = 42, v3[2 + QP_HARM] = (uint8_t)(-19 + 26), v3[2 + QP_FDBK] = 120, v3[2 + QP_LEVEL] = 100;
         v3[2 + QP_EREL] = 127, v3[2 + QP_LFO(0, QL_SPEED)] = (uint8_t)(-10 + 64);
@@ -139,6 +139,42 @@ int main(void)
         }
         OK(!tbad, "FM TONE: the two-decimal texts (\"42.01\" \"43.49\" \"+41.34\" \"126.85\" \"-64.00\" INF ..): %u wrong", tbad);
         OK(up_put(127, 0) == 0 && !up_used(127), "FM TONE: U128 erased");
+    }
+
+    /* ---- an FM TONE sound that carries its sends (3y203, version 6's SENDS: a Digitone import): its load sets the part's
+     * three sends (the chord part's cs.fx_amt with FX left as it is, the bass part's track values), Drive as ever; a
+     * sound without SENDS leaves them; a save of the chord part's stores the amounts, not FX off's zeros ---- */
+    {
+        track_t *bs = &trk[CR_PART_BASS];
+        uint32_t pos;
+        int16_t v[P_COUNT];
+        cu_pool_load(0, ENGI_QUAD, 1);
+        quad_patch[0][QP_SENDS] = 1;
+        cs.fx_on = 0;
+        cs.fx_amt[0] = 70, cs.fx_amt[1] = 50, cs.fx_amt[2] = 30;       /* (CU_FX: Reverb, Chorus, Delay) */
+        cu_fx_apply();
+        OK(cu_store(t, 0, 127, "SENDS", 0) == 0 && up_used(127), "sends: an FM TONE sound with SENDS saved into U128");
+        up_values(up_rec(127), v);
+        OK(v[P_REV] == 70 && v[P_CHOR] == 50 && v[P_DLY] == 30, "sends: the record holds the amounts (FX off: not 0) %d %d %d",
+           v[P_REV], v[P_CHOR], v[P_DLY]);
+        cs.fx_amt[0] = cs.fx_amt[1] = cs.fx_amt[2] = 5;
+        pos = pool_pos_slot(ENGI_QUAD, 127);
+        cu_pool_load(0, ENGI_QUAD, pos);
+        OK(quad_patch[0][QP_SENDS] == 1 && cs.fx_amt[0] == 70 && cs.fx_amt[1] == 50 && cs.fx_amt[2] == 30 && !cs.fx_on &&
+           t->p[P_REV] == 0, "sends: its load sets the chord part's sends (%u %u %u), FX off stays off",
+           cs.fx_amt[0], cs.fx_amt[1], cs.fx_amt[2]);
+        cs.fx_on = 1;
+        cu_fx_apply();
+        cu_pool_load(0, ENGI_QUAD, 1);                                  /* a factory preset: the 0.18 rule */
+        OK(cs.fx_amt[0] == 70 && t->p[P_REV] == 70 && !quad_patch[0][QP_SENDS], "sends: a sound without SENDS leaves them");
+        bs->p[P_REV] = bs->p[P_DLY] = bs->p[P_CHOR] = 1;
+        cu_pool_load(1, ENGI_QUAD, pos);
+        OK(bs->p[P_REV] == 70 && bs->p[P_CHOR] == 50 && bs->p[P_DLY] == 30, "sends: on the bass part, its track's (%d %d %d)",
+           bs->p[P_REV], bs->p[P_CHOR], bs->p[P_DLY]);
+        quad_patch[0][QP_SENDS] = 0;
+        cs.fx_amt[0] = 9;
+        cu_pool_load(0, ENGI_QUAD, 1);
+        OK(up_put(127, 0) == 0 && !up_used(127) && cs.fx_amt[0] == 9, "sends: U128 erased");
     }
 
     /* ---- GRAIN's first build (3y136) saved 20-byte version-1 records (the owner's U033 DARK HAZE): such a slot loads as
@@ -201,8 +237,8 @@ int main(void)
            (unsigned)len);
         OK(crf_unpack(pk, len) == 0 && crf_has(CRF_T_USER, 99) && crf_has(CRF_T_USER, 31) && crf_type(CRF_T_USER, 99) == CRF_BASS,
            "favourites: unpacked, both marks and U100's type back");
-        {   /* 377264f's reader (cr_favs.c of then: a section it does not know is skipped): built from that commit by
-             * tools/emu/test_pool.sh; here what the bytes say: 0x81 and its | 0x40 / | 0x20 forms are tags it lacks */
+        {   /* 377264f's reader (cr_favs.c of then: a section it does not know is skipped; tools/emu/test_pool.sh built it
+             * until 3y231): what the bytes say: 0x81 and its | 0x40 / | 0x20 forms are tags it lacks */
             OK(crf_off(CRF_T_USER2, &s) == 4u && s == 12u, "favourites: 0x81 is 12 bytes after 0x80's 4 (ids 32..127)");
         }
         OK(up_put(99, 0) == 0 && !crf_has(CRF_T_USER, 99) && crf_has(CRF_T_USER, 31), "favourites: U100 erased: its mark goes");

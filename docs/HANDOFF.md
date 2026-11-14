@@ -108,10 +108,10 @@ build). What is behind it, to know when a suite is run alone:
 - **`run_tests.sh` and `run_cr_tests.sh` run their sections side by side** (`tests/par.sh`) and print them in the
   file's order, so the output reads as before and the last line means what it meant. `PAR_JOBS=1` runs them one
   after another. `tests/install_test.py` runs its 20 phases in forks of itself (`INSTALL_TEST_JOBS=1`: in a row).
-- **Two tests read what another suite makes, and say "skip" when it is not there**: `web/test_web.mjs` compares the
-  editor's mock with `build/host/desc.json` (written by `run_tests.sh`), and `tests/site_test.py` (in
+- **A test reads what another suite makes, and says "skip" when it is not there**: `tests/site_test.py` (in
   `run_tests.sh`) checks the browser emulator in the site only when `build/emu-web` exists. `run_all.sh` orders
-  them; by hand, run `build_web.sh` before `run_tests.sh` and `run_tests.sh` before `test_web.mjs`.
+  them; by hand, run `build_web.sh` before `run_tests.sh`. (`web/test_web.mjs` compared the editor's mock with
+  `build/host/desc.json` until 3y232: `tests/descdump.c` built Felucca's tables, and left with them.)
 - **Tests that measure real time fail on a busy machine**: `tools/emu/web/test_web_emu.mjs` (the longest render
   quantum, so `run_all.sh` runs it last and alone), `tests/install_test.py` and the web tests (bounds of tenths of
   a second against simulated devices). Run a suite that failed beside a build again on a quiet machine before
@@ -131,6 +131,8 @@ python3 tests/install_test.py; for t in backup web sounds installer manager; do 
 python3 tests/releases_test.py                    # web/releases.json: the versions the installer offers
 sh tests/run_tests.sh       # ends ALL HOST TESTS PASSED
 sh tools/emu/test_retired.sh                      # the engines retired in 0.18: a unit that comes with sounds on them
+sh tools/emu/test_res.sh                          # the resource region beside 0.29.2's and 0.26.1's firmware (3y234)
+                                                  # (its pre-cut build: v0.29.2's tree, git archive, build/scratch/retired)
 CR_VERSION=0.22 sh tools/emu/web/build_web.sh && node tools/emu/web/test_web_emu.mjs    # the browser emulator
 sh tools/layout/build_layout.sh && node web/test_layout.mjs   # the layout viewer (docs/LAYOUT-TOOL.md; after build_web.sh:
                             # its frames are compared with the browser emulator's; HISTORY 3y47: step 2 of 5, a read-only viewer)
@@ -503,8 +505,8 @@ installed on the owner's Mac.
 - **Flash map**: the comment at the top of `storage.c` owns it. The FM TONE store is 0xB2000 / 0xB3000, the session
   0xB4000 / 0xB5000, **the favourites 0xB6000 / 0xB7000** (0.22, `OBJ_FAVS`); 0xB8000 .. 0xC7FFF **the sound pool** (0.22: 128 user
   slots shared by every engine, 13 banks floating over the 16 sectors, `storage.c sp_*`, `upool.c`, backup ids 50..62;
-  the legacy sound objects and backup ids 6, 7, 9..13, 22 read once by the migration, never written: docs/PRESETS.md
-  "The pool"); the loops
+  0.21's sound objects and backup ids 6, 7, 9..13, 22 retired in 3y231: not read, not taken, their sectors free;
+  docs/PRESETS.md "The pool", docs/FLASH.md "What the flash holds"); the loops
   are 0xC8000 .. 0xDBFFF.
 - **Favourites** (0.22, `cr_favs.c`, docs/PRESETS.md "Favourites"): a bit per sound. A factory sound's key is (the
   engine's index, the preset's index in the engine's table), P5's the Sequential number 1..200, a user sound's its
@@ -540,13 +542,12 @@ installed on the owner's Mac.
 
 ## The sound pool (0.22, branch pool-1; docs/PRESETS.md "The pool")
 
-Facts: user slots **128** (`UP_SLOTS`, `UP_POOL` 1 with VA, CZ-1 and FM TONE; `UP_LEGACY` 32), a slot = the record +
+Facts: user slots **128** (`UP_SLOTS`, `UP_POOL` 1 with VA, CZ-1 and FM TONE), a slot = the record +
 its engine's patch (384 bytes, `upool.c`); 13 banks of 10 floating over 0xB8000..0xC7FFF (`storage.c sp_*`); backup
-ids **50..62** (not 24..36: Felucca's 32..34), legacy ids 6, 7, 9..13, 22 import-only, **80 IMPORT** the legacy slots
-again; favourites section **0x81** (slots 33..128); P5 sounds save (138 bytes). Tests: `tests/pool_test.c` (power cuts
+ids **50..62** (not 24..36: Felucca's 32..34), legacy ids 6, 7, 9..13, 22 refused and 80 IMPORT gone since 3y231; favourites section **0x81** (slots 33..128); P5 sounds save (138 bytes). Tests: `tests/pool_test.c` (power cuts
 on the floating banks), `tests/cr_pool_test.c` (every engine into U128 and back, the full pool, a cut on the firmware's
-path, section 0x81), `tools/emu/test_pool.sh` (migration from a 377264f image, byte for byte; downgrade), the web and
-install tests' pool cases. Open items: nothing run on a unit (the migration's four bank writes at the first power-on,
-the save's 21 page programs: by reading, not measured); Sequential program SysEx import for P5 not done; the
+path, section 0x81), the web and install tests' pool cases (`tools/emu/test_pool.sh`, the migration from a 377264f
+image, went with the migration in 3y231). Open items: nothing run on a unit (the save's 21 page programs: by reading,
+not measured); Sequential program SysEx import for P5 not done; the
 favourites filter covers pool places 1..255 only (fine for the default build: 244); the emulator's SAVE scripts reach
 U033 (a mark on U100 is the host test's).

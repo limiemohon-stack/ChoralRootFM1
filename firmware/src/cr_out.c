@@ -14,13 +14,12 @@
  * midi_out_event, exactly as Felucca's seq.c key_on / key_off did. The UI never calls a note path of the engine.
  * Included after voice.c, fx.c, usb.c and cr_engine.c.
  *
- * FELUCCA_SEQ 0 (choralroot.c, the emulator, tests/cr_trans_test.c): Felucca's sequencer (seq.c with song_chain.c,
- * chord.c, motion.c, midi_control.c, midi_clock.c) is not in the unit. What the kept files called of it is here, under
+ * Felucca's sequencer (seq.c with song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c) is not in the unit (its
+ * sources left the tree in 3y232; core.h FELUCCA_SEQ 0). What the kept files called of it is here, under
  * the same names (docs/INTEGRATION.md section 1): events_block (fx.c, every block: the engine switches, the releases
  * a sound load asks for with panic_req), midi_event (the parts' MIDI in, below), and the few names upreset.c, main.c
- * and audio.c still use (transport_req, trk_index, drum_track, motion_guard / motion_base_value, chain_defaults). */
+ * and audio.c still use (transport_req, trk_index, drum_track, motion_base_value, chain_defaults). */
 
-#if !FELUCCA_SEQ
 /* ---------------------------------------------- what seq.c provided --- */
 static volatile uint8_t panic_req;               /* bit per part: its notes released (a sound load, M-UPGRADE) */
 static const uint8_t transport_req = 0;          /* (upreset.c, cr_bank.c: Felucca's transport never runs) */
@@ -30,27 +29,8 @@ static uint32_t kb_out_tick;                     /* (audio.c: seq.c's key latenc
 #endif
 static uint32_t trk_index(const track_t *t) { return (uint32_t)(t - trk); }
 static int drum_track(const track_t *t) { return ENGINES[eng_idx(t->eng_req)] == &ENG_DRUM; }
-/* motion.c's: no motion lanes, so a part's sounding value is its saved one; the guard keeps the audio IRQ out while
- * a part's parameters are copied (cr_bank.c fm4_apply), as motion.c's did */
+/* motion.c's: no motion lanes, so a part's sounding value is its saved one */
 static int16_t motion_base_value(const track_t *t, uint32_t id) { return t->p[id]; }
-static uint32_t motion_guard(void)
-{
-#if defined(FM1_IRQ_TARGET)
-    uint32_t f = fm1_icfg();
-    fm1_irq_off();
-    return f;
-#else
-    return 0;
-#endif
-}
-static void motion_unguard(uint32_t f)
-{
-#if defined(FM1_IRQ_TARGET)
-    fm1_icfg_set(f);
-#else
-    (void)f;
-#endif
-}
 
 /* ------------------------------------------------- the parts' MIDI in --- */
 /* cr_midi_in (below) forwards a CHORD / BASS channel's notes, pedal, bend, pressure and the other CCs here as
@@ -67,6 +47,13 @@ static void motion_unguard(uint32_t f)
  * Felucca's chords (CHRD), its arpeggiator and live recording were the sequencer's: gone. A part's MIDI notes and the
  * engine's stream share its voices exactly as before (a MIDI note-off ends that note, whoever started it). */
 #define CR_MPED 0x80u                            /* cr_mnote: the key is up, the pedal holds the note */
+#if BOARD_SMK37
+static uint8_t cr_smk_sus_on;                    /* the SMK-37's pedal jack holds notes (cr_smk_pedal_block): the parts'
+                                                  * MIDI notes too, as their channel's CC 64 does (either holds them) */
+#define CR_MPEDAL(c) ((c)->pedal || cr_smk_sus_on)
+#else
+#define CR_MPEDAL(c) ((c)->pedal)
+#endif
 typedef struct {
     int16_t bend;                                /* signed 14-bit, 0 = centre */
     uint8_t pedal, semis, cents, rpn_msb, rpn_lsb, ready;
@@ -105,6 +92,10 @@ static void cr_mpedal_up(uint32_t p)
 {
     uint32_t n;
     cr_mchan(p)->pedal = 0;
+#if BOARD_SMK37
+    if (cr_smk_sus_on)
+        return;                                  /* (the pedal jack still holds them: cr_smk_pedal_block) */
+#endif
     for (n = 0; n < 128u; n++)
         if (cr_mnote[p][n] & CR_MPED)
             cr_mrelease(p, n);
@@ -146,7 +137,7 @@ static void cr_mcontrol(uint32_t p, uint32_t cc, uint32_t v)
     case 123:                                    /* all notes off: normal releases, the pedal honoured */
         for (n = 0; n < 128u; n++)
             if (cr_mnote[p][n] && !(cr_mnote[p][n] & CR_MPED)) {
-                if (c->pedal)
+                if (CR_MPEDAL(c))
                     cr_mnote[p][n] |= CR_MPED;
                 else
                     cr_mrelease(p, n);
@@ -183,7 +174,7 @@ static void __attribute__((noinline)) midi_event(uint32_t st, uint32_t p, uint32
         if (cr_mheld[p] < 128u)
             cr_mheld[p]++;
     } else if (st == 0x80u || st == 0x90u) {
-        if (cr_mnote[p][d1] && cr_mchan(p)->pedal)
+        if (cr_mnote[p][d1] && CR_MPEDAL(cr_mchan(p)))
             cr_mnote[p][d1] |= CR_MPED;
         else
             cr_mrelease(p, d1);
@@ -223,7 +214,6 @@ static void events_block(uint32_t n)
         engine_block(&trk[i]);                   /* engine switch: fade, then switch (voice.c) */
     }
 }
-#endif /* !FELUCCA_SEQ */
 
 /* --------------------------------------------------------------- routing --- */
 #define CR_PART_CHORD 0u
@@ -338,11 +328,34 @@ static void cr_tr_end(uint32_t p)                /* a note of part p ended */
         cr_tr_n[p]--;
 }
 
+#if BOARD_SMK37
+/* SMK-37, the pedal jack's sustain (cr_ui.c cr_smk_pedal): a stream's note let go while it is down keeps sounding on
+ * its part (its part's note-off waits, CR_OPART kept: the transposition's count with it) and is marked here; its MIDI
+ * note-off goes out at once (the channel has CC 64). The pedal up ends every marked note; the note struck again ends
+ * the held one first (it restarts, and one note-off ends it); a panic (cr_cb_all_off) forgets the marks with the notes */
+static uint8_t cr_smk_held[CR_NSTREAM][16];      /* bit n: stream s's note n, held by the pedal */
+#define CR_HELD(s, n) ((cr_smk_held[s][(n) >> 3] >> ((n) & 7u)) & 1u)
+static void cr_smk_unhold(uint32_t s, uint32_t note)   /* the held note's part note-off now (cr_cb_note_off's) */
+{
+    cr_smk_held[s][note >> 3] &= (uint8_t)~(1u << (note & 7u));
+    if (CR_OPART(s, note)) {
+        uint32_t p = CR_OPART(s, note) - 1u;
+        trk_note_off(&trk[p], cr_tr_note(p, note));
+        cr_tr_end(p);
+        CR_OPART_SET(s, note, 0u);
+    }
+}
+#endif
+
 static void cr_cb_note_on(void *ud, cr_stream_t s, uint8_t note, uint8_t vel)
 {
     uint32_t p = cr_route.part[s], old;
     (void)ud;
     note &= 0x7Fu;
+#if BOARD_SMK37
+    if (CR_HELD(s, note))
+        cr_smk_unhold(s, note);                  /* (struck again under the pedal: the held one ends) */
+#endif
     if (p < NPART) {
         old = CR_OPART(s, note);
         if (old != p + 1u) {                     /* (a note already on for this part: counted once) */
@@ -374,6 +387,11 @@ static void cr_cb_note_off(void *ud, cr_stream_t s, uint8_t note)
 {
     (void)ud;
     note &= 0x7Fu;
+#if BOARD_SMK37
+    if (CR_OPART(s, note) && cr_smk_sus_on)
+        cr_smk_held[s][note >> 3] |= (uint8_t)(1u << (note & 7u));   /* the pedal holds it: the part's note-off waits */
+    else
+#endif
     if (CR_OPART(s, note)) {
         uint32_t p = CR_OPART(s, note) - 1u;
         trk_note_off(&trk[p], cr_tr_note(p, note));
@@ -400,6 +418,9 @@ static void cr_cb_all_off(void *ud, cr_stream_t s)
             cr_midi(0xB0u | (CR_OCH(s, n) - 1u), 123, 0);
         cr_ono[s][n] = 0;
     }
+#if BOARD_SMK37
+    memset(cr_smk_held[s], 0, sizeof cr_smk_held[s]);   /* (the held notes went with the part's) */
+#endif
     if (p < NPART)
         trk_all_off(&trk[p]);
     cr_midi(0xB0u | (cr_route.ch[s] & 15u), 123, 0);   /* (always: the channel may hold another device's notes) */
@@ -455,6 +476,43 @@ static void cr_cb_gesture(void *ud, uint32_t gid, int16_t root, uint8_t q, uint8
 
 static const cr_out_t CR_OUT = {cr_cb_note_on, cr_cb_note_off, cr_cb_all_off, 0, cr_cb_gesture};
 
+#if BOARD_SMK37
+/* SMK-37: the pedal jack (cr_ui.c cr_smk_pedal writes these, the audio ISR plays them, once a block, after the wheels).
+ * Sustain: the streams' notes held (above) and the parts' MIDI notes (CR_MPEDAL), CC 64 127 / 0 out on the CHORD and
+ * BASS streams' MIDI channels; up: the held notes end (a part's MIDI notes unless its channel's own CC 64 still holds
+ * them). Expression: both parts' EXPR (mod.c, CC 11: 127 full) and CC 11 out on the same channels */
+static volatile uint8_t cr_smk_sus;              /* 0 up, 1 down */
+static volatile uint8_t cr_smk_expr = 127;       /* 0..127 */
+static void cr_smk_pedal_block(void)
+{
+    static uint8_t expr_was = 127;
+    uint32_t on = cr_smk_sus != 0u, x = cr_smk_expr, s, n, p;
+    if (on != cr_smk_sus_on) {
+        cr_smk_sus_on = (uint8_t)on;
+        if (!on) {
+            for (s = 0; s < CR_NSTREAM; s++)
+                for (n = 0; n < 128u; n++)
+                    if (CR_HELD(s, n))
+                        cr_smk_unhold(s, n);
+            for (p = 0; p < 2u; p++)
+                if (!cr_mchan(p)->pedal)
+                    cr_mpedal_up(p);
+        }
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xB0u | (cr_route.ch[s] & 15u), 64u, on ? 127u : 0u);
+    }
+    if (x != expr_was) {
+        expr_was = (uint8_t)x;
+        for (p = 0; p < 2u; p++)
+            mod_midi(&trk[p], 0xB0u, 11u, x);
+        for (s = CR_STREAM_MAIN; s <= CR_STREAM_BASS; s++)
+            if (cr_route.midi_en[s])
+                cr_midi(0xB0u | (cr_route.ch[s] & 15u), 11u, x);
+    }
+}
+#endif
+
 /* the keys' aftertouch (docs/VELOCITY.md): both parts hear it as channel pressure (mod.c's AT source and the default
  * AT -> CUT of Velocity + Aftertouch), and it goes out as channel pressure on the Perform and Bass channels */
 static void cr_touch_at(uint32_t v)
@@ -492,8 +550,9 @@ enum {
     CRE_KEYMODE,      /* a: on, b: tonic, v: scale */
     CRE_TRANSPOSE,    /* v */
     CRE_BASS, CRE_BASS_MODE,
-    CRE_PERFORM, CRE_PERFORM_MODE,
-    CRE_PARAM,        /* a: mode, b: param, v: value */
+    CRE_PERFORM,      /* v: Perform on (the ARP tap: both parts' one switch) */
+    CRE_PERFORM_MODE, /* a: the part (cr_engine.h CR_PF_*), v: cr_pmode_t */
+    CRE_PARAM,        /* a: mode | part << 4, b: param, v: value */
     CRE_STICKY, CRE_TEMPO, CRE_STREAM, /* a: stream, v: on */
     CRE_SINGLE,       /* a: cr_single_t, v: split point 0..11 */
     CRE_KEYPLAYS,     /* v: Key plays 0 Chords, 1 Notes */
@@ -509,14 +568,19 @@ enum {
                        * (cr_set_full_chords) */
     CRE_LOOP,         /* a: LP_*, b / v: its argument */
     CRE_AT,           /* v: the keys' aftertouch 0..127 (cr_ui.c cu_touch_poll): both parts, channel pressure out */
-    CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM, quietly (cr_set_perform_quiet:
-                       * a knob or picker turning them: nothing sounding re-performed, the next chord has them) */
+    CRE_CCOUT,        /* a: channel 0..15, b: CC, v: value (Options > MIDI CC Out: a knob turned on a mapped cell) */
+    CRE_PERFORM_PART, /* a: the part (CR_PF_*), v: it performs while Perform is on (the PERF layers' Off entry) */
+    CRE_PERFORM_FOLLOW, /* v: the bass Follows the chord's mode and parameters (the Bass PERF layer's Follow entry) */
+    CRE_PERFORM_QUIET, CRE_PERFORM_MODE_QUIET,   /* as CRE_PERFORM / _MODE / CRE_PARAM for the chord part, quietly
+                       * (cr_set_perform_quiet: a knob or picker turning them in Harmony mode: nothing sounding
+                       * re-performed, the next chord has them) */
     CRE_PARAM_QUIET   /* a: mode, b: param, v: value */
 };
 /* CRE_LOOP's operations */
 enum { LP_REC, LP_PLAY, LP_UNDO, LP_CLEAR, LP_SET, LP_QUEUE, LP_CONF, LP_METRO,
-       LP_STEP, LP_PREVIEW };                                    /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_*;
-                                                                 * LP_PREVIEW: the loop editor's cursor step heard */
+       LP_STEP, LP_PREVIEW, LP_DRUMS };                         /* LP_SET / QUEUE: b 1 = empty; LP_STEP: v CRL_STEP_*;
+                                                                 * LP_PREVIEW: the loop editor's cursor step heard;
+                                                                 * LP_DRUMS: the drums on / off (cr_drum.c) */
 enum { LC_SYNC, LC_QUANT, LC_COUNTIN, LC_LEVEL, LC_SIG, LC_VOL, LC_MODE, LC_RATE };   /* LP_CONF: b, v */
 typedef struct { uint8_t op, a, b, rsv; int16_t v; } cr_ev_in_t;
 #define CR_EVQ 128u                              /* a power of two */
@@ -610,6 +674,7 @@ static void cr_loop_op(const cr_ev_in_t *e)
         crl_stage_busy = crl.next_on ? 2u : 0u;    /* (the block frees it once the switch is taken) */
         break;
     case LP_METRO: cr_loop_metro(&crl, e->v); break;
+    case LP_DRUMS: cr_loop_drums(&crl, e->v); break;
     case LP_STEP: cr_loop_step(&crl, e->v); break;
     case LP_PREVIEW: cr_loop_ed_preview(&crl, &cr); break;      /* (nothing while the loop plays: cr_loop.c) */
     case LP_CONF:
@@ -648,8 +713,10 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_BASS: cr_set_bass(&cr, e->v); break;
     case CRE_BASS_MODE: cr_set_bass_mode(&cr, (cr_bassmode_t)e->v); break;
     case CRE_PERFORM: cr_set_perform(&cr, e->v); break;
-    case CRE_PERFORM_MODE: cr_set_perform_mode(&cr, (cr_pmode_t)e->v); break;
-    case CRE_PARAM: cr_set_param(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
+    case CRE_PERFORM_MODE: cr_set_perform_mode_ex(&cr, e->a, (cr_pmode_t)e->v); break;
+    case CRE_PERFORM_PART: cr_set_perform_part(&cr, e->a, e->v); break;
+    case CRE_PERFORM_FOLLOW: cr_set_perform_follow(&cr, e->v); break;
+    case CRE_PARAM: cr_set_param_ex(&cr, e->a >> 4, (cr_pmode_t)(e->a & 15u), (cr_eparam_t)e->b, e->v); break;
     case CRE_PERFORM_QUIET: cr_set_perform_quiet(&cr, e->v); break;
     case CRE_PERFORM_MODE_QUIET: cr_set_perform_mode_quiet(&cr, (cr_pmode_t)e->v); break;
     case CRE_PARAM_QUIET: cr_set_param_quiet(&cr, (cr_pmode_t)e->a, (cr_eparam_t)e->b, e->v); break;
@@ -679,6 +746,7 @@ static void cr_apply(const cr_ev_in_t *e)
     case CRE_FULLCHORD: cr_set_full_chords(&cr, e->v); break;
     case CRE_LOOP: cr_loop_op(e); break;
     case CRE_AT: cr_touch_at((uint32_t)e->v); break;
+    case CRE_CCOUT: cr_midi(0xB0u | (e->a & 15u), e->b, (uint32_t)e->v); break;   /* (where the notes go: usb.c) */
     default: break;
     }
 }
@@ -686,11 +754,16 @@ static void cr_apply(const cr_ev_in_t *e)
 /* ------------------------------------------------------------- MIDI in --- */
 /* usb.c's midi_in_q (USB and TRS) is drained here, in the audio ISR, before fx.c's events_block runs in the same block
  * (its overflow recovery stays there: on an overflow the queue is left to it).
- *   0xF8 / FA / FB / FC   Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo) and the loop's
- *                         transport (the LP_PLAY path); otherwise ignored
+ *   0xF8                  Options > MIDI Clock = In: the tempo (cr_midi.c's follower -> cr_set_tempo); otherwise
+ *                         ignored
+ *   0xFA / FB / FC        MIDI Clock = In or Out (3y253; Off: ignored): what the LOOP (PLAY) button does (the
+ *                         LP_PLAY path, crm_transport), and Start restarts the Arp / Pattern on the downbeat. In Out
+ *                         the loop's start / stop they cause is not sent back out (cr_rt_mute: no echo to the master)
  *   the CHORD / BASS channels (Options' channels; Off: ignored): CC 7 / 91 / 93 / 94 and program changes go to the UI
- *                         (cr_min_q: it applies them as a knob would, with the meter); notes, pedal, bend, pressure and
- *                         the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
+ *                         (cr_min_q: it applies them as a knob would, with the meter); with Options > MIDI CC In the
+ *                         CCs on the sounds' parameters too (cr_midi.c crm_cc_eng; 3y269), coalesced: the latest value
+ *                         per part and CC waits in cr_ccv and one queue entry says so (cr_cc_post); notes, pedal,
+ *                         bend, pressure and the other CCs (123: all notes off) go to midi_event (above) for part 0 or 1
  *   other channels        ignored */
 #include "cr_midi.c"
 static crm_clock_t cr_cin;
@@ -700,17 +773,60 @@ static volatile uint32_t cr_in_bpm_n;            /* .. and a count of its change
 static volatile uint32_t cr_in_msg_n;            /* channel messages received (the UI's screensaver: activity) */
 static volatile uint32_t cr_in_rt_n;             /* start / stop received (In) */
 static volatile uint8_t cr_in_rt_last;
+static uint8_t cr_rt_mute;                       /* Out: the loop state (1 + playing) an incoming transport asked for .. */
+static uint32_t cr_rt_mute_until;                /* .. its change not sent back out until then (cr_now_ms) */
 #define CR_MINQ 32u                              /* ISR -> UI: CC / program change (a power of two) */
 static crm_act_t cr_minq[CR_MINQ];
 static volatile uint32_t cr_minq_w, cr_minq_r;
 
-static void cr_min_post(const crm_act_t *a)
+static int cr_min_post(const crm_act_t *a)
 {
     if (cr_minq_w - cr_minq_r >= CR_MINQ)
-        return;                                  /* (a burst of controllers: the latest values lost, nothing stuck) */
+        return 0;                                /* (a burst of controllers: the latest values lost, nothing stuck) */
     cr_minq[cr_minq_w % CR_MINQ] = *a;
     RING_PUBLISH();
     cr_minq_w++;
+    return 1;
+}
+/* Options > MIDI CC (3y269; the UI's cu_route writes it): bit 0 In (crm_map's cc_in), bit 1 Out (the UI's alone) */
+static volatile uint8_t cr_cc_mode = 1u;
+/* the CCs on the sounds' parameters, coalesced (a fast controller, a DAW's snapshot of every CC: never a queue
+ * overflow, never a stale value): per part, per crm_cc_slot, the latest value | 0x80 while the UI has not taken it.
+ * The ISR posts one cr_minq entry when a slot becomes pending (a full queue: cr_cc_sweep, the UI then looks at every
+ * slot); the UI takes the value with the IRQ off (cr_cc_take) */
+static uint8_t cr_ccv[2][CRM_NCC];
+static volatile uint8_t cr_cc_sweep;
+/* the audio ISR (cr_midi_in): a CC on a sound's parameter, or CC 38 with RPN 0 selected (its data entry, the bend
+ * range's cents, as before). Out of line, as midi_event: inlined, its branches made the ISR's MIDI loop read as
+ * eleven nested loops to tests/target_budget.py (cost 13,942 -> 23,562, 3y273); one call a CC costs nothing */
+static void __attribute__((noinline)) cr_cc_post(const crm_act_t *a, uint32_t st, uint32_t d1, uint32_t d2)
+{
+    int32_t k;
+    uint8_t was;
+    if (d1 == 38u && !cr_mchan(a->part)->rpn_msb && !cr_mchan(a->part)->rpn_lsb) {
+        midi_event(st & 0xF0u, a->part, d1, d2);
+        return;
+    }
+    k = crm_cc_slot(a->kind & 0x7Fu);
+    if (k < 0 || a->part > 1u)
+        return;
+    was = cr_ccv[a->part][k];
+    cr_ccv[a->part][k] = (uint8_t)(0x80u | a->v);
+    if (!(was & 0x80u) && !cr_min_post(a))
+        cr_cc_sweep = 1;
+}
+static int cr_cc_take(uint32_t part, uint32_t cc, uint32_t *v)   /* the UI: 1 with the value pending (then taken) */
+{
+    int32_t k = crm_cc_slot(cc);
+    uint8_t b;
+    if (k < 0 || part > 1u)
+        return 0;
+    fm1_irq_off();
+    b = cr_ccv[part][k];
+    cr_ccv[part][k] = (uint8_t)(b & 0x7Fu);
+    fm1_irq_on();
+    *v = b & 0x7Fu;
+    return (b & 0x80u) != 0;
 }
 static int cr_min_take(crm_act_t *a)             /* the UI */
 {
@@ -722,21 +838,24 @@ static int cr_min_take(crm_act_t *a)             /* the UI */
     return 1;
 }
 
-/* MIDI Keys (crm_key): the keys' events, ISR -> UI, a queue of their own (cr_minq drops a burst: a lost note-off
- * would hold a key). A note-on is taken while fewer than CR_MKQ_ON wait, a note-off while there is room; one that
- * finds the queue full asks for every key up instead (cr_mkq_allup), so nothing stays held */
+/* MIDI Keys (crm_key) and MIDI Roots (crm_root, CRM_ROOT set): their events, ISR -> UI, a queue of their own
+ * (cr_minq drops a burst: a lost note-off would hold a key). A note-on is taken while fewer than CR_MKQ_ON wait, a
+ * note-off while there is room; one that finds the queue full asks for every key and root up instead (cr_mkq_allup:
+ * CR_MKQ_EVERY), so nothing stays held */
 #define CR_MKQ 64u                               /* (a power of two) */
 #define CR_MKQ_ON 48u
 #define CR_MKQ_ALLUP CRM_KEY_ALLUP
+#define CR_MKQ_EVERY 30u                         /* every MIDI key and root up (not a key: 0 .. 26) */
 static volatile uint8_t cr_mkeys_ch;             /* the keys' channel 1 .. 16, 0 Off (the UI's cu_route) */
+static volatile uint8_t cr_mroots_ch;            /* MIDI Roots' channel 1 .. 16, 0 Off (the same) */
 static uint16_t cr_mkq[CR_MKQ];
 static volatile uint32_t cr_mkq_w, cr_mkq_r;
 static volatile uint8_t cr_mkq_allup;
 static void cr_mkq_post(uint32_t ev)
 {
-    uint32_t used = cr_mkq_w - cr_mkq_r;
-    if (((ev >> 12) & 1u) ? used >= CR_MKQ_ON : used >= CR_MKQ) {
-        if (!((ev >> 12) & 1u))
+    uint32_t used = cr_mkq_w - cr_mkq_r, down = (ev >> ((ev & CRM_ROOT) ? 14 : 12)) & 1u;
+    if (down ? used >= CR_MKQ_ON : used >= CR_MKQ) {
+        if (!down)
             cr_mkq_allup = 1;
         return;
     }
@@ -749,7 +868,7 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
     if (cr_mkq_r == cr_mkq_w) {
         if (cr_mkq_allup) {                      /* (an off was lost: every key up, once the queue is empty) */
             cr_mkq_allup = 0;
-            *ev = CR_MKQ_ALLUP;
+            *ev = CR_MKQ_EVERY;
             return 1;
         }
         return 0;
@@ -760,16 +879,53 @@ static int cr_mkq_take(uint32_t *ev)             /* the UI */
     return 1;
 }
 
+/* MIDI Keys (crm_key) and MIDI Roots (crm_root): a message on either's channel posted to the UI; 1: it was theirs
+ * (nothing else takes it). Out of the ISR's loop body: called only while one of them is on */
+static __attribute__((noinline)) int cr_in_keys(uint32_t status, uint32_t d1, uint32_t d2)
+{
+    uint32_t ev;
+    int r = crm_key(status, d1, d2, cr_mkeys_ch, &ev);
+    if (r < 0)
+        r = crm_root(status, d1, d2, cr_mroots_ch, &ev);
+    if (r > 0)
+        cr_mkq_post(ev);
+    return r >= 0;
+}
+
 static void cr_loop_op(const cr_ev_in_t *e);
-static void cr_in_transport(uint32_t st)         /* FA start / FB continue: the loop plays (FA: from its start); FC */
+static __attribute__((noinline)) void cr_in_transport(uint32_t st)   /* FA start / FB continue: the loop plays (FA: from its start); FC */
 {
     cr_ev_in_t e = {CRE_LOOP, LP_PLAY, 0, 0, 0};
     int n;
     cr_in_rt_last = (uint8_t)st;
     cr_in_rt_n++;
     n = crm_transport(st, crl.state == CRL_PLAYING, crl.state == CRL_STOPPED, crl.cap != CRL_CAP_NONE);
+    if (n && !cr_route.clock_in) {               /* Out: the change it makes is the master's, not ours to announce */
+        cr_rt_mute = (uint8_t)(1u + (st != 0xFCu));
+        cr_rt_mute_until = cr_now_ms + 1000u;
+    }
     while (n-- > 0)
         cr_loop_op(&e);
+    if (st == 0xFAu)
+        cr_transport_start(&cr);                 /* the Arp / Pattern from step 1, on the master's downbeat */
+}
+
+/* usb.c's usb_midi_lost (3y261): the USB peer went with notes held (a cable pulled, a computer asleep, a device gone
+ * from USB Host): every note MIDI holds on both parts is released, the pedal and the bend let go, and the keys MIDI Keys
+ * holds go up; the FM-1's own keys and the loop keep theirs. Every MIDI input's notes (the queue keeps no source per
+ * note), as CC 123 + 64 off on both channels would */
+static __attribute__((noinline)) void cr_mlost(void)
+{
+    uint32_t p, n;
+    for (p = 0; p < 2u; p++) {
+        cr_mch_t *c = cr_mchan(p);
+        c->pedal = 0;
+        for (n = 0; n < 128u; n++)
+            cr_mrelease(p, n);
+        c->bend = 0;
+        cr_mbend(p);
+    }
+    cr_mkq_allup = 1;
 }
 
 static void cr_midi_in(void)
@@ -779,6 +935,12 @@ static void cr_midi_in(void)
     if (cr_cin_mode != cr_route.clock_in) {
         cr_cin_mode = cr_route.clock_in;
         crm_clock_reset(&cr_cin);
+        cr_loop_ext_off(&crl);
+    }
+    cr_loop_clock_idle(&crl, cr_now_ms);         /* (a long silence: a cable pulled without a Stop) the FM-1's clock */
+    if (usb_midi_lost) {
+        usb_midi_lost = 0;
+        cr_mlost();
     }
     if (midi_in_overflow)                        /* events_block's recovery: the queue dropped, every part released */
         return;
@@ -791,10 +953,14 @@ static void cr_midi_in(void)
         uint32_t d1 = (pkt >> 16) & 0x7Fu, d2 = (pkt >> 24) & 0x7Fu, ms = midi_in_ms[at];
         mi_r++;
         if (status >= 0xF8u) {
-            if (!cr_cin_mode)
-                continue;
-            if (status == 0xF8u) {
-                int b = crm_clock_pulse(&cr_cin, ms);
+            if (!cr_cin_mode) {
+                if (cr_route.clock_out && (status == 0xFAu || status == 0xFBu || status == 0xFCu))
+                    cr_in_transport(status);     /* (Out: start / stop only; the pulses stay ours) */
+            } else if (status == 0xF8u) {
+                int b;
+                if (!cr_loop_clock_pulse(&crl, midi_in_source[at], cr_now_ms))
+                    continue;                    /* (the same clock on another input: counted once) */
+                b = crm_clock_pulse(&cr_cin, ms);   /* the loop's time from every pulse, the tempo from their stamps */
                 if (b) {
                     cr_in_bpm = (uint16_t)b;
                     cr_in_bpm_n++;
@@ -806,24 +972,29 @@ static void cr_midi_in(void)
                         cr_in_bpm_n++;
                 }
             } else if (status == 0xFAu || status == 0xFBu || status == 0xFCu) {
+                uint32_t src = crl.ext_src;
+                cr_loop_ext_off(&crl);
                 cr_in_transport(status);
+                if (status != 0xFCu) {           /* the pulse after FA / FB is the downbeat: where the loop starts */
+                    cr_loop_clock_start(&crl, cr_now_ms);
+                    crl.ext_src = (uint8_t)src;
+                }
             }
         } else if (status >= 0x80u && status < 0xF0u) {
             crm_act_t a[2];
-            uint32_t kev;
-            int i, n, kr = crm_key(status, d1, d2, cr_mkeys_ch, &kev);
+            int i, n;
             cr_in_msg_n++;
-            if (kr >= 0) {                       /* MIDI Keys' channel: the FM-1's keys, nothing else */
-                if (kr)
-                    cr_mkq_post(kev);
-                continue;
-            }
-            n = crm_map(status, d1, d2, en, ch, a);
+            if ((cr_mkeys_ch | cr_mroots_ch) && cr_in_keys(status, d1, d2))
+                continue;                        /* MIDI Keys' or MIDI Roots' channel: the FM-1's keys / roots, nothing
+                                                  * else */
+            n = crm_map(status, d1, d2, en, ch, cr_cc_mode & 1u, a);
             for (i = 0; i < n; i++) {
                 if (a[i].kind == CRM_FORWARD)
                     midi_event(status & 0xF0u, a[i].part, d1, d2);
+                else if (a[i].kind & CRM_CC)     /* (CC 38 with RPN 0 selected: midi_event there, as before) */
+                    cr_cc_post(&a[i], status, d1, d2);
                 else
-                    cr_min_post(&a[i]);
+                    (void)cr_min_post(&a[i]);
             }
         }
     }
@@ -875,6 +1046,7 @@ static void cr_audio_block(uint32_t n)
     cr_midi_in();
 #if BOARD_SMK37
     cr_smk_wheel_block(n);
+    cr_smk_pedal_block();
 #endif
     cr_ms_rem += n * 1000u;                      /* samples -> ms, the remainder kept (no drift) */
     while (cr_ms_rem >= FS) {
@@ -888,11 +1060,15 @@ static void cr_audio_block(uint32_t n)
     if ((crl.state == CRL_PLAYING) != cr_rt_was) {
         cr_rt_was = crl.state == CRL_PLAYING;
         if (cr_route.clock_out && !cr_route.clock_in) {   /* USB MIDI CIN 0x0F: a single-byte system real-time message */
-            cr_rt_last = cr_rt_was ? 0xFAu : 0xFCu;
             if (cr_rt_was)
                 cr_clk_acc = 0;                  /* the pulses start with it */
-            midi_out_event(0x0Fu | (uint32_t)cr_rt_last << 8);
-            cr_rt_n++;
+            uint32_t echo = cr_rt_mute == 1u + cr_rt_was && (int32_t)(cr_now_ms - cr_rt_mute_until) < 0;
+            cr_rt_mute = 0;                      /* (a change consumes it, either way) */
+            if (!echo) {                         /* (the master's own start / stop is not sent back) */
+                cr_rt_last = cr_rt_was ? 0xFAu : 0xFCu;
+                midi_out_event(0x0Fu | (uint32_t)cr_rt_last << 8);
+                cr_rt_n++;
+            }
         }
     }
     if (cr_route.clock_out && !cr_route.clock_in) {   /* 24 PPQN: a pulse every FS * 60 / (bpm * 24) samples */
@@ -917,9 +1093,13 @@ static void cr_audio_block(uint32_t n)
 static int32_t cr_ck_y1, cr_ck_y2, cr_ck_a1;
 static uint32_t cr_ck_n, cr_ck_wait;
 #define CR_CK_A2 16335                           /* r^2, r = 0.9985 per sample: ~25 ms */
-static void cr_click_mix(int32_t *out, uint32_t n)
+static __attribute__((noinline)) void cr_click_mix(int32_t *out, uint32_t n)   /* (out of line: its loop is not the ISR's budget) */
 {
     uint32_t i;
+    /* MASTER (the owner, after the drums' first build: "The volume of the metronome does not change when reducing the
+     * master volume"): the click is mixed after the master, where the knob had already been applied to the mix; it
+     * takes MASTER itself now (Q12; USB Level Fixed: audio.c usb_fixed_dac applies MASTER after this, to all of it) */
+    int32_t mg = fx_usb_fixed ? 4096 : (int32_t)song.master_q12;
     if (crl.click) {
         int32_t amp = 10000 * (int32_t)crl.metro_vol / 100;
         if (crl.click == 2u) { cr_ck_a1 = 30665; cr_ck_y1 = amp * 3487 / 10000; }   /* 2 r cos w, amp sin w */
@@ -935,8 +1115,8 @@ static void cr_click_mix(int32_t *out, uint32_t n)
         int32_t y = ((cr_ck_a1 * cr_ck_y1) >> 14) - ((CR_CK_A2 * cr_ck_y2) >> 14);
         cr_ck_y2 = cr_ck_y1;
         cr_ck_y1 = y;
-        out[2u * i] += y;
-        out[2u * i + 1u] += y;
+        out[2u * i] += (y * mg) >> 12;
+        out[2u * i + 1u] += (y * mg) >> 12;
     }
 }
 
@@ -944,6 +1124,8 @@ static void cr_click_mix(int32_t *out, uint32_t n)
 typedef struct {
     cr_chord_info_t ci;
     uint8_t mods_held, mods_active, latching, perform_on, perform_mode, bass_on, playstyle;
+    uint8_t perf_part;               /* the part whose performance the screen shows (cr_perform_shown; none: the chord's
+                                      * if it performs, else the bass's); perform_mode is that part's */
     int8_t voicing, bass_voicing;
     int perf_pos;
     uint8_t perf_note;
@@ -979,7 +1161,13 @@ static void cr_snapshot(void)
     cr_snap.mods_active = cr_mods_active(&cr);
     cr_snap.latching = (uint8_t)cr_latching(&cr);
     cr_snap.perform_on = cr.perform_on;
-    cr_snap.perform_mode = cr.perform_mode;
+    {
+        int sp = cr_perform_shown(&cr);
+        if (sp < 0)
+            sp = (cr.perf_parts & (1u << CR_PF_CHORD)) || !(cr.perf_parts & (1u << CR_PF_BASS)) ? CR_PF_CHORD : CR_PF_BASS;
+        cr_snap.perf_part = (uint8_t)sp;
+        cr_snap.perform_mode = sp && !cr.bfollow ? cr.bperf_mode : cr.perform_mode;
+    }
     cr_snap.bass_on = cr.bass_on;
     cr_snap.playstyle = cr.playstyle;
     cr_snap.voicing = cr.voicing;

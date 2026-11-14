@@ -12,7 +12,7 @@
  * ramps over the tick.
  *
  * The patch is the sound: VA_NP signed bytes per part (va_patch), edited through the deep pages (eng_deep_t:
- * get / set from the main loop), loaded from a factory preset (blob_preset), a user slot (va_store.c: the blob) or
+ * get / set from the main loop), loaded from a factory preset (blob_preset), a user slot (upool.c: the blob) or
  * the init patch. The eight P_E0..P_E7 are macros that write into the patch: CUT RES FENV DRIVE | MIX DTN ATK REL
  * (MIX crossfades the pairs 1+2 / 3+4, DTN spreads the four fine tunings; both are patch fields too). The audio ISR
  * picks a macro change up in va_block (va_mlast); the deep set writes the macro back, so both always agree.
@@ -240,7 +240,7 @@ static int8_t va_patch[VA_NPART][VA_NP] __attribute__((section(".pool")));   /* 
                                                                                * va_block write, the ISR reads) */
 static int16_t va_mlast[VA_NPART][8] __attribute__((section(".pool")));      /* P_E0..P_E7 as last put in the patch */
 static uint8_t va_user_pending;                  /* upreset.c up_values: a VA user slot + 1 is being loaded */
-static int (*va_store_read)(uint32_t k, uint8_t *blob);   /* va_store.c: slot k's blob, 0 = there is one */
+static int (*va_store_read)(uint32_t k, uint8_t *blob);   /* upool.c: slot k's blob, 0 = there is one */
 static int8_t va_pan_off[VA_NPART];              /* the matrix's PAN (fx.c mix_part adds it) */
 static int8_t va_rate_off[VA_NPART][4] __attribute__((section(".pool")));   /* the matrix's RATE1..4 (the latest note) */
 static struct {                                  /* per part: the LFOs */
@@ -455,7 +455,7 @@ static const uint8_t VAP_SHIMMER[] = {OSC(0, SAW, 50, 12, -9), OSC(1, SAW, 50, 1
     M_(0, VS_LFO1, VD_PIT1 + 2, 2), M_(1, VS_LFO1 + 1, VD_PIT1 + 3, -2), M_(2, VS_LFO1 + 1, VD_CUT, 5), 0xFF};
 
 /* {CUT, RES, FENV, DRIVE, MIX, DTN, ATK, REL}: the macros as the patch has them (cr_va_test checks) */
-static const preset_t VA_PRESETS[] = {
+static const preset_t VA_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"LUSH PAD", {70, 14, 10, 0, 64, 0, 86, 98}, {86, 90, 120, 98}, 0, 0, FX(0, 60, 20, 70), PAT(5)},
     {"WARM PAD", {62, 10, 6, 0, 64, 0, 80, 92}, {80, 90, 115, 92}, 0, 0, FX(0, 50, 20, 65), PAT(5)},
     {"GLASS PAD", {104, 22, 0, 0, 64, 0, 70, 100}, {70, 100, 100, 100}, 0, 0, FX(0, 40, 30, 75), PAT(5)},
@@ -668,7 +668,7 @@ static void va_blob_preset(track_t *t, uint32_t k)
 
 /* a sound load put VA into track t (eng_fm6.c fm6_track_loaded calls it on every load path: a factory preset, a
  * user slot, INIT, an engine switch): its patch. A user slot (va_user_pending, set by upreset.c up_values): its
- * stored patch (va_store.c), else a preset whose macros the track holds: its patch, else the init patch with the
+ * stored patch (upool.c), else a preset whose macros the track holds: its patch, else the init patch with the
  * track's macros on it (INIT; a user slot with no stored patch keeps its macros) */
 static void va_track_loaded(const track_t *ct)
 {
@@ -684,7 +684,7 @@ static void va_track_loaded(const track_t *ct)
         va_macros_out(t);
         return;
     }
-    if (!pend && t->preset < VA_NPRESETS) {
+    if (!pend && t->preset < VA_NPRESETS && !CR_RES2_GONE(VA_PRESETS)) {   /* (else the init patch: cr_res.h) */
         for (k = 0; k < 8u && t->p[P_E0 + k] == VA_PRESETS[t->preset].e[k]; k++)
             ;
         if (k == 8u) {

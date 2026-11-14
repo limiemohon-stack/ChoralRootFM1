@@ -146,6 +146,20 @@ enum { CRS_USB_MASTER, CRS_USB_FIXED };
 #define CRS_LEDS(s) ((unsigned)(s)->leds & CRS_LEDS_STOCK)
 #define CRS_RAW(s) ((unsigned)(s)->raw_sound & 1u)
 #define CRS_MIDI_KEYS(s) (((unsigned)(s)->raw_sound >> 1) & 31u)
+/* Options > MIDI CC (3y269, 3y272; docs/MANUAL.md section 15): Off, In (the default), Out, In + Out rides in bits 6 and
+ * 7 of the same byte: bit 6 Out ON, bit 7 In OFF, so 0, every older record's, is In and there is no version. A firmware
+ * before it checks the byte against 0 .. 0x3F: with the default (In) it reads Raw Chord Sound and MIDI Keys as they are;
+ * with Off, Out or In + Out it reads them as Off (the byte's default) until set there */
+#define CRS_CC_OUT_ON 0x40u
+#define CRS_CC_IN_OFF 0x80u
+#define CRS_MIDI_CC(s) ((((unsigned)(s)->raw_sound & CRS_CC_IN_OFF) ? 0u : 1u) | (((unsigned)(s)->raw_sound & CRS_CC_OUT_ON) ? 2u : 0u))
+#define CRS_CC_BITS(v) ((uint8_t)((((v) & 1u) ? 0u : CRS_CC_IN_OFF) | (((v) & 2u) ? CRS_CC_OUT_ON : 0u)))
+/* Options > MIDI Roots (3y289; docs/MANUAL.md "MIDI in"): the channel whose every note is a root, 0 Off, 1 .. 16, in
+ * bits 1 .. 5 of midi_en[2] (the Raw Chord stream's MIDI out on: bit 0, as ever). No version: 0, every older record's,
+ * is Off. A firmware before it checks the byte against 0 .. 1 and takes its default for it, MIDI Raw Chord Off (the
+ * default), until set there; nothing else is touched */
+#define CRS_EN(s, i) ((unsigned)(s)->midi_en[i] & 1u)
+#define CRS_MIDI_ROOTS(s) (((unsigned)(s)->midi_en[2] >> 1) & 31u)
 #define CRS_RAW_BYTE(raw, keys) ((uint8_t)(((raw) ? 1u : 0u) | (((keys) & 31u) << 1)))  /* usb_level: USB audio follows MASTER / takes the full level (docs/USB-AUDIO.md) */
 
 /* Options > Output (0.19, docs/AUDIO-QUALITY.md) rides in bit 1 of pick_roots (bit 0: the retired picker option): set =
@@ -296,14 +310,20 @@ static inline void crs_pool_set(cr_settings_t *s, unsigned part, unsigned r, uin
  * CR_BLOCK), so the block keeps its size and its layout and an older firmware reads a v15 block as it read v14's.
  * The record has its own header (magic, version, size, check: FNV-1a over [12, size)), the block's import rules (a
  * shorter, older record over the defaults; a longer, newer one by its prefix; anything else: the defaults = the unit as
- * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 126 of them unused today (46 in the
- * state, 4 after the FX block, 8 in each part, 60 at the end).
+ * 0.17 powered on) and real reserve: CSS_SIZE is 1024 of the object's 3840 bytes, 118 of them unused today (42 in the
+ * state, 8 in each part, 60 at the end; the SMK-37's MASTER took two of the state's, its Pedal one, its TRS MIDI Out
+ * one).
  * `bind`: the CRC of the settings object in flash when the session was written (0: none). The session is used at
  * power-on if the settings block was read as current (written by a v15 firmware: an older one in between would have
  * left its own version there) or, with any other block, if the settings object is still the one the session was
  * written beside: a session left behind by a downgrade, a restore or another firmware's erase is not applied over
  * settings it does not belong to */
 #define CSS_MAGIC 0x31535343u           /* "CSS1" */
+#define CSS_PERF_CHORD_OFF 0x01u        /* perf_x: the chord's PERF layer on Off */
+#define CSS_PERF_BASS_ON 0x02u          /* .. the bass's on a mode (bperf_sel) */
+#define CSS_BASS_KEYS 0x04u
+#define CSS_BASS_FOLLOW 0x08u           /* .. the bass Follows the chord's (cs.bfollow; after 0.34) */             /* .. the BASS layer's keys pick (cs.bass_keys; 0: they play) */
+#define CSS_PERF_STORED 0x80u           /* .. bperf_sel and bpar are written (0: an older record, the defaults) */
 #define CSS_VERSION 1u
 #define CSS_SIZE 1024u
 #define CSS_HDR 12u
@@ -373,6 +393,31 @@ typedef struct {
 } css_fx_t;                             /* 128 bytes (124 until the routing: par[] took rsv_fx's four bytes for one more
                                          * entry; 108 until 0.22: par[] grew by four entries into rsv_fx, the
                                          * entries before them where they were) */
+/* the beat (the SEQ layer: cr_ui.c cu_drum_*, cr_drum.c): its own version byte, so a record of a firmware before it
+ * (0 here) loads the defaults, and a later layout can tell itself apart; every field checked on import (cr_settings.c
+ * css_drum_put: out of range, the default). Version 2 (3y303): each drum's three sends and its Level, in 12 bytes of
+ * the reserve after it; a version 1 record (0.40: one send S a drum, into the delay and the reverb alike) loads as
+ * Chorus 0, Delay S, Reverb S, Level 64 (the same mix); a firmware of version 1 reads a version 2 block as none (the
+ * drums' defaults, Metronome). Version 3 (3y304): each drum's Filter and Drive, in the old pad and 4 bytes of the
+ * reserve; a version 2 record loads Filter 127, Drive 0 (as it played); a version 2 firmware reads a version 3 block as
+ * none */
+#define CSS_DRUM_VERSION 3u
+typedef struct {
+    uint8_t ver;                        /* CSS_DRUM_VERSION; 0: none stored */
+    uint8_t preset, kit, level;         /* 0 Metronome / 1 Drums; the kit 0..5; the drums' level 0..100 */
+    uint8_t x, y, density, chaos;       /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
+    uint8_t dr[3][4];                   /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
+    uint8_t send[3];                    /* .. their Delay sends 0..127 (the Kick Mix, Snare Mix, Hats Mix pages; version
+                                         * 1: the one send a drum, into the delay and the reverb; 0 in a record of the
+                                         * first drums builds: these were the reserve's) */
+    uint8_t pad;                        /* 0 */
+    uint8_t cho[3], rev[3];             /* version 2: .. their Chorus and Reverb sends 0..127 */
+    uint8_t lvl[3];                     /* version 2: .. their Level 0..127 (64: as voiced) */
+    uint8_t flt[3];                     /* version 3: .. their Filter 0..127 (127: all through the master filter; version
+                                         * 2's pad, 0) */
+    uint8_t drv[3];                     /* version 3: .. their Drive 0..127 (0: clean) */
+    uint8_t pad3;                       /* 0 */
+} css_drum_t;                           /* 40 bytes (36 in version 2, 24 in version 1) */
 typedef struct {
     uint8_t valid;                      /* 1: a sound is stored */
     uint8_t eng, preset, user;          /* core.h track_t eng_req, preset, user (the slot it is as stored, + 1) */
@@ -397,10 +442,35 @@ typedef struct {
                                          * -5 x1/8, -4 x1/6 (those four since 2026-10-11), -3 x1/4, -2 x1/2,
                                          * -1 x3/4, 0 x1, 1 x1.5, 2 x2, 3 x4 (cr_loop.h CRL_NRATE; 0 = the default, so
                                          * a record written before it reads x1: no migration) */
-    uint8_t rsv[46];
+    uint8_t smk_master[2];              /* the SMK-37's only (GitHub issue 30): K1's virtual MASTER pot (hal/smk_input.h
+                                         * smk_master, 0..1023) + 1, little-endian; 0 = not stored (an older record, a
+                                         * 0.26-smk37 one: 724 as before). The FM-1 build neither writes nor reads it
+                                         * (its MASTER is a physical pot): 0 in its records. Bytes 22, 23 (the first
+                                         * two of the old reserve) */
+    uint8_t smk_pedal;                  /* the SMK-37's only: Options > Pedal, what its pedal jack does: 0 Sustain (the
+                                         * default: an older record, a record of the FM-1 build), 1 Expression. The
+                                         * FM-1 build neither writes nor reads it. Byte 24 (the old reserve's third) */
+    uint8_t smk_trs_off;                /* the SMK-37's only: Options > TRS MIDI Out, its TRS jack (hal/smk_uart_tx.h
+                                         * smk_ut_off): 0 On (the default: an older record, a record of the FM-1
+                                         * build), 1 Off. The FM-1 build neither writes nor reads it. Byte 25 (the old
+                                         * reserve's fourth) */
+    css_drum_t drum;                    /* the beat's preset and the drums (the DRUMS plan; bytes 26..61, the old
+                                         * reserve's: 26..49 in version 1, 50..61 since 3y303's version 2, 62..65 since
+                                         * 3y304's version 3; bytes 26..65): ver
+                                         * CSS_DRUM_VERSION when stored, 0 in every older record (the defaults:
+                                         * Metronome, as before the drums) */
+    uint8_t rsv[2];
     css_fx_t fx;                        /* (rsv_fx[4] after it until the routing (issue 21): its entry took it) */
     css_part_t part[2];                 /* chord, bass */
-    uint8_t rsv_end[60];
+    /* Chord and Bass Perform (0.34, GitHub issue 41), bytes 964 .. 1005 of the old end reserve (0 in every older
+     * record: the chord performs, the bass not, the defaults: as before 0.34). perf_x: CSS_PERF_*; bperf_sel the Bass
+     * PERF layer's entry 0..6 (cr_ui.c CU_PERF, as the block's perf_sel); bpar[m][k]: the bass's parameter in slot k
+     * of mode m (cr_ui.c CU_BPAR_SLOT, its own table: since issue 26 the knob rows' order; 0.34..0.36 wrote 0.34's knob
+     * order, so their Slop and Pattern values may land on another parameter; 0 in a slot with none). The chord's
+     * entry, mode and parameters stay the block's, so an older firmware reads the chord's Perform as before (and has no bass's) */
+    uint8_t perf_x, bperf_sel;
+    int16_t bpar[CRS_NPM][4];
+    uint8_t rsv_end[18];
 } cr_session_t;
 
 void cr_session_defaults(cr_session_t *x);         /* nothing stored: the unit as it powers on without a session */

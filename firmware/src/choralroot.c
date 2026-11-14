@@ -6,14 +6,13 @@
  * screens (cr_gfx.c, cr_draw.c), the motion (cr_anim.c), the UI (cr_ui.c) and the names main.c and the kept files
  * call (cr_shim.c). Of editor*.c's SysEx only the backup / restore subset stays, on ChoralRoot's objects (cr_backup.c).
  *
- * Dropped as in the emulator (tools/emu/emu_firmware.h, the same order): Felucca's sequencer, seq.c with
- * song_chain.c, chord.c, motion.c, midi_control.c and midi_clock.c (FELUCCA_SEQ 0). cr_out.c provides what the kept
- * files call of it under the same names: events_block (fx.c, every block: the engine switches, voice.c engine_block,
- * and the releases a sound load asks for, panic_req), midi_event (MIDI in on the CHORD / BASS channels plays parts
- * 1 / 2, INTEGRATION section 2) and the few names upreset.c, main.c and audio.c still use. Dropped engines: SAMPLE,
- * GRAIN, DRUM, ANALOG, and since 0.18 PHASE, LOFI, VOICE, TRIO, NOISE (retired placeholders keep the engine numbers,
- * engines.c); Felucca's icon atlas and keycaps are not
- * in the image (FELUCCA_ICONS, FELUCCA_KEYCAPS).
+ * Felucca's sequencer (seq.c with song_chain.c, chord.c, motion.c, midi_control.c, midi_clock.c), its UI and editor,
+ * and the engines ChoralRoot retired (ANALOG, DIGITAL, SAMPLE, DRUM, SLICE, and since 0.18 PHASE, LOFI, VOICE, TRIO,
+ * NOISE, PHYS) left the tree in 3y232 (docs/HISTORY.md; core.h keeps their switches at 0, engines.c their numbers as
+ * retired slots). cr_out.c provides what the kept files called of the sequencer under the same names: events_block
+ * (fx.c, every block: the engine switches, voice.c engine_block, and the releases a sound load asks for, panic_req),
+ * midi_event (MIDI in on the CHORD / BASS channels plays parts 1 / 2, INTEGRATION section 2) and the few names
+ * upreset.c, main.c and audio.c still use. Felucca's keycaps are not in the image (FELUCCA_KEYCAPS 0).
  *
  * Host check (no device toolchain): cc -fsyntax-only -w -Ibuild/gen -Ifirmware/src -Ifirmware/hal
  * firmware/src/choralroot.c. The device build is tools/build.py with this file as the unit (see the Status section
@@ -48,20 +47,8 @@
 #if BOARD_SMK37 && FELUCCA_UART
 #error "BOARD_SMK37: midi_uart.c is the FM-1 MIDI IN driver (RX on PH8, a key-matrix row on the SMK)"
 #endif
-#ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 0          /* no SLICE engine (ChoralRoot: melodic engines only) */
-#endif
 #ifndef FELUCCA_SLICER
 #define FELUCCA_SLICER 0         /* no SLICER insert (slicer.c stubs; frees its 32 KB POOL buffer) */
-#endif
-#ifndef FELUCCA_FM4
-#define FELUCCA_FM4 0
-#endif
-#ifndef FELUCCA_SAMPLE
-#define FELUCCA_SAMPLE 0         /* no SAMPLE engine, no sample sets in the image (engine 4: a retired slot) */
-#endif
-#if BOARD_SMK37 && (FELUCCA_SAMPLE || FELUCCA_SLICE)
-#error "BOARD_SMK37: no user sample flash (eng_sample.c's slots at 0xA0000.. are the SMK's store, storage.c)"
 #endif
 #ifndef FELUCCA_GRAIN
 #define FELUCCA_GRAIN 1          /* the GRAIN engine (engine 8), 0.22: grains over material it renders itself from four
@@ -70,35 +57,6 @@
 #endif
 #ifndef GRAIN_ASYNC
 #define GRAIN_ASYNC 1            /* GRAIN renders its buffers in slices from main.c's idle loop (grain_poll) */
-#endif
-#ifndef FELUCCA_DRUM
-#define FELUCCA_DRUM 0           /* no DRUM engine (engine 10: a retired slot; frees its kit's POOL) */
-#endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 0         /* no ANALOG engine (engine 0: a retired slot; the VA replaces it, its records load there) */
-#endif
-#ifndef FELUCCA_PHASE
-#define FELUCCA_PHASE 0          /* no PHASE, LOFI, VOICE, TRIO, NOISE engines since 0.18 (engines 2, 3, 5, 6, 11: retired
-                                  * slots; a record of one loads as the VA's init sound, cr_ui.c cu_load_user) */
-#endif
-#ifndef FELUCCA_LOFI
-#define FELUCCA_LOFI 0
-#endif
-#ifndef FELUCCA_VOICE
-#define FELUCCA_VOICE 0
-#endif
-#ifndef FELUCCA_TRIO
-#define FELUCCA_TRIO 0
-#endif
-#ifndef FELUCCA_NOISE
-#define FELUCCA_NOISE 0
-#endif
-#ifndef FELUCCA_PHYS
-#define FELUCCA_PHYS 0           /* no PHYS engine since 0.18 (engine 9: a retired slot, as the five above; the engine state
-                                  * of a part is FM6's size without its three string slots, engines.c eng_state) */
-#endif
-#ifndef FELUCCA_SEQ
-#define FELUCCA_SEQ 0            /* no Felucca sequencer (seq.c and its satellites): cr_out.c's events_block, midi_event */
 #endif
 #ifndef FELUCCA_VA
 #define FELUCCA_VA 1             /* the VA engine (eng_va.c, engine 13) and its patch store (va_store.c) */
@@ -124,21 +82,17 @@
 #define CR_FX 1                  /* the delay and the reverb are ChoralRoot's (cr_fx.c, docs/FX.md: stereo, the delay at 44.1 kHz
                                   * and the reverb at half of it, their parameters global); Felucca's mono delay and ROOM / SPRING are not in the image */
 #endif
-#ifndef FELUCCA_PERFORM
-#define FELUCCA_PERFORM 0        /* no FX hold layer (perform.c: REPEAT, REVERSE, TAPE STOP ... on the master): its keys and
-                                  * knobs are Felucca's sequencer's and UI's, which this unit has not (FELUCCA_SEQ 0); the
-                                  * per-block calls and its 5 KB leave the audio ISR (fx.c) */
-#endif
 #ifndef CR_CPU1
 #define CR_CPU1 1                /* the bass part's render on the second core (cr_cpu1.h, hal/fm1_cpu1.h, docs/DUALCORE.md):
                                   * started at power-on; if it does not answer, single core with the shared budget */
 #endif
+#ifndef CR_DRUMS
+#define CR_DRUMS 1               /* the drums (cr_drum.c, docs/MANUAL.md "The beat"): the SEQ layer's Drums preset, a
+                                  * Grids beat on CoralFlower's morph drum synth, dry into the master */
+#endif
 #ifndef CV_ROWS
 #define CV_ROWS 120u             /* gfx.c's canvas: cr_draw.c's strip and its two DMA buffers, 3 x 40 rows, are all this
                                   * unit draws on it (Felucca's graph strip took 124: 1920 B of POOL) */
-#endif
-#ifndef FELUCCA_ICONS
-#define FELUCCA_ICONS 0          /* no Felucca icon atlas (icons.c, ui_icons.h): cr_draw.c draws its header glyphs */
 #endif
 #ifndef FELUCCA_KEYCAPS
 #define FELUCCA_KEYCAPS 0        /* no Felucca keycaps (gfx.c's key hints, ui_keycaps.h): no cr_*.c draws one */
@@ -151,7 +105,7 @@
 #endif
 #endif
 #ifndef FELUCCA_VERSION
-#define FELUCCA_VERSION "ChoralRoot 0.27"   /* the dev build reads as the next tag; --release X.Y sets it */
+#define FELUCCA_VERSION "ChoralRoot 0.41"   /* the dev build reads as the next tag; --release X.Y sets it */
 #endif
 #if FELUCCA_OTA && !FELUCCA_FLASH
 #error "FELUCCA_OTA needs FELUCCA_FLASH"
@@ -169,6 +123,7 @@
 #include "fm1_guard.h"
 #if BOARD_SMK37
 #include "smk_input.h"           /* SMK-37: keys, buttons, encoders, LEDs, pads, faders, wheels, battery */
+#include "smk_uart_tx.h"         /* SMK-37: the TRS jack is MIDI OUT (UART1 TX, PC7; from Skiff, GPL-3.0) */
 #else
 /* the key sensing's hooks into the scan (cr_sense.c, below): velocity from the analog rows (docs/VELOCITY.md) */
 static void cr_sense_hook(uint32_t col, uint32_t rowbit, uint32_t v, uint32_t driven);
@@ -192,6 +147,40 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #endif
 #include "felucca_tables.h"      /* generated by build.py (tools/gen_tables.py) */
 
+/* the resource region (cr_res.h, HISTORY 3y234): on the FM-1 the glyph data of the fonts M, CRX and CRB and Casio's
+ * packed CZ-1 tones (3y293) live outside the app slot, at flash 0x93040 (firmware/app.ld .res, tools/fm1pkg_make.py
+ * --res); the SMK-37 since 3y295 its own, at flash 0x9D040 (the same fonts; tools/build.py links .res there for
+ * BOARD=smk37) */
+#if BOARD_SMK37
+#define CR_RES 1
+#define AF_RES __attribute__((section(".res.font")))
+#define CRD_RES __attribute__((section(".res.drum")))   /* the drums' six kits (cr_drum_kits.h) */
+#define CRG_RES __attribute__((section(".res.grids")))  /* the beat's map (cr_grids_map.h) */
+#endif
+#if !BOARD_SMK37
+#define CR_RES 1
+#define AF_RES __attribute__((section(".res.font")))
+#define CZ_RES __attribute__((section(".res.cz")))   /* Casio's CZ-1 tones, packed (melodee_cz1.h; eng_cz.c) */
+#define CRG_RES __attribute__((section(".res.grids")))  /* the beat's map (cr_grids_map.h; 2400 B) */
+#ifndef CR_BLE
+#define CR_BLE 1                 /* Bluetooth LE MIDI, the FM-1 as a peripheral (cr_ble.h, HISTORY 3y236); CR_BLE=0: none */
+#endif
+#ifndef CR_USB_HOST
+#define CR_USB_HOST 1            /* the USB-C port as a MIDI host, Options > USB Host (usb_host.c, HISTORY 3y260) */
+#endif
+#endif
+/* the second resource region (cr_res.h CR_RES2, HISTORY 3y296): FM-1 only, flash 0xDC040.. (firmware/app.ld .res2,
+ * tools/fm1pkg_make.py --res2): the kerning of M and CRB, the factory presets' lists, FM6's factory voices; RES2_DRUM
+ * is the place kept for the drum kits that do not fit the first region */
+#if !BOARD_SMK37
+#define CR_RES2 1
+#define AF_RES2 __attribute__((section(".res2.kern")))
+#define RES2_PRESET __attribute__((section(".res2.preset")))
+#define RES2_FM6 __attribute__((section(".res2.fm6")))
+#define RES2_DRUM __attribute__((section(".res2.drum")))
+#define CRD_RES RES2_DRUM        /* the drums' six kits (cr_drum_kits.h) */
+#endif
+
 /* ----------------------------------------------------- base, display --- */
 #include "libc.c"
 #include "lcd.c"
@@ -212,15 +201,19 @@ static void cr_sense_probe_hook(uint32_t col, uint32_t v, uint32_t pressed);
 #undef mix_block
 
 /* ------------------------------------------------------------ MIDI --- */
+#if CR_BLE
+#include "cr_ble.h"              /* (before usb.c: midi_out_event hands the peer what USB MIDI gets) */
+#endif
 #include "usb.c"
 #if FELUCCA_UART
 #include "midi_uart.c"
 #endif
-#if FELUCCA_SEQ
-#include "song_chain.c"
-#include "seq.c"                 /* (FELUCCA_SEQ 1 only: Felucca's sequencer, inert under ChoralRoot's UI) */
-#endif
 
+#if CR_DRUMS
+#include "cr_drum.c"             /* the drums: the voices and the beat (mixed by fx.c, clocked by mix_block below). After
+                                  * usb.c: its statics laid out after usb.c's, whose offsets the audio ISR's and usb_poll's
+                                  * code reach in one instruction (tests/target_budget.txt) */
+#endif
 /* ------------------------------------------------- the ChoralRoot engine --- */
 /* cr_engine.h's cr_param_t (a perform parameter) and cr_screen.h's (a params column) share a name: the engine's is
  * renamed in this unit (cr_out.c / cr_ui.c call it cr_eparam_t) */
@@ -238,6 +231,14 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 {
     CR_PROF_START();             /* the ISR's stages (cr_cpu1.h): the tick from here to fx.c's parts */
     cr_audio_block(n);
+#if CR_DRUMS
+    if (crl.dstep) {             /* the drums' step due in this block (cr_loop.c crl_tick1: the loop's grid) */
+        crd_beat_step(crl.dstep - 1u);
+        crl.dstep = 0;
+    } else if (!crl.drum_run) {
+        crd_now = 0;             /* (stopped: no step on the screens) */
+    }
+#endif
 #if FELUCCA_UAC
     ua_stage_on = ua.cap_alt && !USB_CDC_ON;     /* the computer records: fx.c stages the block's capture frames */
 #endif
@@ -258,9 +259,6 @@ static void mix_block(int32_t *out, uint32_t n)   /* the audio ISR's block: the 
 
 /* -------------------------------------------------------------- UI --- */
 #include "panel.c"
-#if FELUCCA_ICONS
-#include "icons.c"               /* (1: Felucca's parameter icons; nothing of ChoralRoot's UI calls them) */
-#endif
 #include "cr_gfx.c"              /* scalable text + shapes on gfx.c (build/gen/cr_fonts.h) */
 #include "cr_layout.c"            /* the compiled layouts (build/gen/cr_layouts.h): P5's panel */
 #include "cr_draw.c"             /* the screens (cr_screen.h) */
@@ -291,6 +289,9 @@ static int cr_erase_near(void);  /* cr_ui.c: a voice is active or an input came 
 #include "cz_store.c"            /* CZ-1: Casio tone SysEx in / out (Melodee's; after cr_ui.c) */
 #include "cr_backup.c"           /* backup / restore over SysEx (after usb.c, the stores, cr_ui.c, cr_settings.c) */
 #include "cr_shim.c"             /* what main.c and the kept files call of Felucca's dropped UI */
+#if CR_BLE
+#include "cr_ble.c"              /* Bluetooth MIDI's glue and the stack (after usb.c, the stores, cr_out.c, cr_ui.c) */
+#endif
 
 /* ----------------------------------------------------------- update --- */
 #if FELUCCA_OTA

@@ -3,11 +3,12 @@
 /* FELUCCA core types: tracks, voices, engines, parameters.
  * Four tracks, each a synth part: its own engine, preset, parameters, voices and 64-step
  * pattern. The parts share one budget of VBUDGET units of sounding voices (voice.c; the voice model of Melodee,
- * Kerem Kilic's: an FM6 voice is one unit, any other engine's two, so the others keep their shared eight). Drums are the DRUM
- * engine or the SAMPLE engine's PERC set (General MIDI map) on any part.
+ * Kerem Kilic's: an FM6 voice is one unit, any other engine's two, so the others keep their shared eight). ChoralRoot
+ * plays parts 1 and 2 (chord and bass: cr_out.c); the formats keep the four.
  * Sections: sizes, parameters, voices and engines, tracks and the song, system. */
 #include <stdint.h>
 #include "cr_ram.h"              /* the CR_RAM_* build switches (code in RAM: docs/FX.md) */
+#include "cr_res.h"              /* the resource regions: RES2_PRESET, CR_RES2_GONE (the factory presets' lists) */
 
 /* ------------------------------------------------------------ sizes --- */
 #define NVOICE 16                /* voice slots per part (FM6 plays Dexed's 16; Melodee's voice model) */
@@ -17,76 +18,79 @@
                                   * second core alive (CR_CPU1, cr_cpu1.h) parts 0 and 1 each have their own VBUDGET */
 #ifndef CR_CPU1
 #define CR_CPU1 0                /* ChoralRoot's bass part on the second core (cr_cpu1.h, docs/DUALCORE.md): choralroot.c
-                                  * and the emulator set 1; felucca.c, tests/hostsim.c and tests/regress.c build without */
+                                  * and the emulator set 1; tests/hostsim.c and tests/regress.c build without */
 #endif
 #define NPART 4                  /* synth parts: tracks 1..4 */
 #define NTRK NPART               /* tracks (the formats and the protocol count these): every track is a part */
 #define NSTEP 64
 #define HALF_FRAMES 128          /* I2S half buffer: 2.9 ms at 44.1 kHz (a key waits 0..1 half, then plays 1 half later) */
+/* Felucca's sequencer and the engines ChoralRoot retired: their sources left the tree (docs/HISTORY.md 3y232). The
+ * switches stay, 0, for the code that still reads them; the engines' numbers stay reserved (engines.c ENG_GONE: the
+ * stores hold numbers) and their records load as cr_ui.c cu_load_user says (ANALOG's on the VA, the others' as the VA's
+ * init sound). Setting one to 1 is an error. */
+#ifndef FELUCCA_SEQ
+#define FELUCCA_SEQ 0            /* Felucca's keyboard, arpeggiator, sequencer and song chain (seq.c, gone): cr_out.c
+                                  * provides what the kept files call of them, tests/hostsim.c its host stand-in */
+#endif
 #ifndef FELUCCA_SLICE
-#define FELUCCA_SLICE 1          /* the SLICE engine (eng_slice.c), engine 13; FELUCCA_SLICE=0 builds without it */
+#define FELUCCA_SLICE 0          /* the SLICE engine (eng_slice.c, gone): no engine number (the VA is 13) */
 #endif
 #ifndef FELUCCA_FM4
-#define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, four-operator FM): kept in the tree, not built
-                                  * by default; replaced by FM6, its sounds convert (fm4_convert.c) */
-#endif
-#ifndef FELUCCA_VA
-#define FELUCCA_VA 0             /* ChoralRoot's VA engine (eng_va.c, docs/VA.md): engine 13 + FELUCCA_SLICE; Felucca builds
-                                  * without it (choralroot.c, the emulator and tests/regress.c set 1) */
-#endif
-#ifndef FELUCCA_SEQ
-#define FELUCCA_SEQ 1            /* Felucca's keyboard, arpeggiator, sequencer and song chain (seq.c and its satellites);
-                                  * ChoralRoot's units set 0: cr_out.c provides what the kept files call of them */
+#define FELUCCA_FM4 0            /* the DIGITAL engine (eng_digital.c, gone; Felucca retired it in 1.0), engine 1; its
+                                  * converter to FM6 (fm4_convert.c) went too: its records load as the others' */
 #endif
 #ifndef FELUCCA_SAMPLE
-#define FELUCCA_SAMPLE 1         /* the SAMPLE engine (eng_sample.c) and its ADPCM sets (build/gen/felucca_samples.h), the
-                                  * user sample slots; ChoralRoot sets 0: engine 4 a retired slot (engines.c ENG_GONE) */
+#define FELUCCA_SAMPLE 0         /* the SAMPLE engine (eng_sample.c, gone), engine 4, its sets and user sample slots */
+#endif
+#ifndef FELUCCA_DRUM
+#define FELUCCA_DRUM 0           /* the DRUM engine (eng_drum.c, drum_voice.c, gone), engine 10 */
+#endif
+#ifndef FELUCCA_ANALOG
+#define FELUCCA_ANALOG 0         /* the ANALOG engine (eng_analog.c, gone), engine 0: its records load on the VA */
+#endif
+#ifndef FELUCCA_PHASE
+#define FELUCCA_PHASE 0          /* PHASE (eng_phase.c), engine 2; LOFI (eng_lofi.c) 3, VOICE (eng_formant.c) 5, TRIO
+                                  * (eng_trio.c) 6, NOISE (eng_noise.c) 11, PHYS (eng_phys.c, phys_dsp.c, phys_symp.c) 9:
+                                  * retired in 0.18, gone */
+#endif
+#ifndef FELUCCA_LOFI
+#define FELUCCA_LOFI 0
+#endif
+#ifndef FELUCCA_VOICE
+#define FELUCCA_VOICE 0
+#endif
+#ifndef FELUCCA_TRIO
+#define FELUCCA_TRIO 0
+#endif
+#ifndef FELUCCA_NOISE
+#define FELUCCA_NOISE 0
+#endif
+#ifndef FELUCCA_PHYS
+#define FELUCCA_PHYS 0
+#endif
+#if FELUCCA_SEQ || FELUCCA_SLICE || FELUCCA_FM4 || FELUCCA_SAMPLE || FELUCCA_DRUM || FELUCCA_ANALOG || FELUCCA_PHASE || \
+    FELUCCA_LOFI || FELUCCA_VOICE || FELUCCA_TRIO || FELUCCA_NOISE || FELUCCA_PHYS
+#error "Felucca's sequencer and the retired engines left the tree (docs/HISTORY.md 3y232): their switches are 0"
 #endif
 #ifndef FELUCCA_GRAIN
 #define FELUCCA_GRAIN 1          /* the GRAIN engine (eng_grain.c; ChoralRoot 0.22: grains over material it renders itself,
                                   * engine 8; its filter, LFO sync and amount rule are the VA's, va_common.c, in every build) */
 #endif
-#ifndef FELUCCA_DRUM
-#define FELUCCA_DRUM 1           /* the DRUM engine (eng_drum.c, drum_voice.c); ChoralRoot: 0, engine 10 retired */
-#endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 1         /* the ANALOG engine (eng_analog.c), engine 0; ChoralRoot: 0, engine 0 retired (the VA
-                                  * replaces it: its records load on the VA, cr_ui.c cu_load_user) */
-#endif
-#ifndef FELUCCA_PHASE
-#define FELUCCA_PHASE 1          /* the PHASE engine (eng_phase.c), engine 2; ChoralRoot: 0 since 0.18, engine 2 retired (its
-                                  * records load as the VA's init sound, cr_ui.c cu_load_user; so do the next four's) */
-#endif
-#ifndef FELUCCA_LOFI
-#define FELUCCA_LOFI 1           /* the LOFI engine (eng_lofi.c), engine 3; ChoralRoot: 0, engine 3 retired */
-#endif
-#ifndef FELUCCA_VOICE
-#define FELUCCA_VOICE 1          /* the VOICE engine (eng_formant.c), engine 5; ChoralRoot: 0, engine 5 retired */
-#endif
-#ifndef FELUCCA_TRIO
-#define FELUCCA_TRIO 1           /* the TRIO engine (eng_trio.c), engine 6; ChoralRoot: 0, engine 6 retired */
-#endif
-#ifndef FELUCCA_NOISE
-#define FELUCCA_NOISE 1          /* the NOISE engine (eng_noise.c), engine 11; ChoralRoot: 0, engine 11 retired */
-#endif
-#ifndef FELUCCA_PHYS
-#define FELUCCA_PHYS 1           /* the PHYS engine (eng_phys.c, phys_dsp.c, phys_symp.c), engine 9; ChoralRoot: 0 since 0.18,
-                                  * engine 9 retired (its records load as the VA's init sound, as the five's above) */
+#ifndef FELUCCA_VA
+#define FELUCCA_VA 1             /* ChoralRoot's VA engine (eng_va.c, docs/VA.md): engine 13 */
 #endif
 #ifndef FELUCCA_CZ
-#define FELUCCA_CZ 0             /* Melodee's CZ-1 engine (eng_cz.c, docs/CZ1.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA (14 on
-                                  * ChoralRoot); Felucca builds without it (choralroot.c, the emulator and tests/regress.c set 1) */
+#define FELUCCA_CZ 1             /* Melodee's CZ-1 engine (eng_cz.c, docs/CZ1.md): engine 14 */
 #endif
 #ifndef FELUCCA_QUAD
-#define FELUCCA_QUAD 0           /* ChoralRoot's QUAD engine (eng_quad.c, docs/QUAD.md): engine 13 + FELUCCA_SLICE + FELUCCA_VA +
-                                  * FELUCCA_CZ (15 on ChoralRoot); Felucca builds without it (choralroot.c, the emulator and
-                                  * tests/regress.c set 1) */
+#define FELUCCA_QUAD 1           /* ChoralRoot's QUAD engine (FM TONE: eng_quad.c, docs/QUAD.md): engine 15 */
+#endif
+#if !FELUCCA_VA || !FELUCCA_CZ || !FELUCCA_QUAD
+#error "the VA, CZ-1 and FM TONE are in every build: the sound pool (upool.c) and the engine numbers after them"
 #endif
 #ifndef FELUCCA_PROPHET
-#define FELUCCA_PROPHET 0        /* Melodee's Prophet-5 engine (eng_prophet_test.c, docs/PROPHET.md): engine 13 + FELUCCA_SLICE +
-                                  * FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD (16 on ChoralRoot); Felucca builds without it
-                                  * (choralroot.c, the emulator and tests/regress.c set 1). FELUCCA_P5_FACTORY (its file):
-                                  * Sequential's 200 factory programs with it */
+#define FELUCCA_PROPHET 1        /* Melodee's Prophet-5 engine (eng_prophet_test.c, docs/PROPHET.md): engine 16; 0, an image
+                                  * without it. FELUCCA_P5_FACTORY (its file): Sequential's 200 factory programs with it */
 #endif
 #define NENGINES (13 + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD + FELUCCA_PROPHET)   /* SLICE (13), VA, CZ-1,
                                                                                   * QUAD and PROPHET come last: the other
@@ -99,20 +103,14 @@
 #define ENGI_PROPHET (13u + FELUCCA_SLICE + FELUCCA_VA + FELUCCA_CZ + FELUCCA_QUAD)   /* engines.c ENGINES[]: 16 on ChoralRoot
                                                                                        * (Melodee: 19) */
 #endif
-#define ENGI_DIGITAL 1u          /* reserved without FELUCCA_FM4: never selectable (eng_ok), its sounds load as FM6 */
+#define ENGI_DIGITAL 1u          /* reserved: never selectable (eng_ok), its records load as the VA's init sound */
 #define NENG_SHOWN (NENGINES - !FELUCCA_FM4 - !FELUCCA_SAMPLE - !FELUCCA_GRAIN - !FELUCCA_DRUM - !FELUCCA_ANALOG - \
                     !FELUCCA_PHASE - !FELUCCA_LOFI - !FELUCCA_VOICE - !FELUCCA_TRIO - !FELUCCA_NOISE - !FELUCCA_PHYS)
                                  /* the engines one can pick: PRESETS, the EDIT layer, the editor, in the display order
                                   * of engines.c ENGINE_ORDER (the retired slots are not among them) */
-#if FELUCCA_VA && FELUCCA_CZ && FELUCCA_QUAD
 #define UP_POOL 1                /* ChoralRoot 0.22: the sound pool (upool.c, storage.c sp_*): 128 slots shared by every
-                                  * engine, a slot the record and its engine's patch */
+                                  * engine, a slot the record and its engine's patch (every build since 3y232) */
 #define UP_SLOTS 128u            /* user sounds (upreset.c, upool.c); 7-bit SysEx slot numbers: at most 128 */
-#else
-#define UP_POOL 0
-#define UP_SLOTS 32u             /* user presets (upreset.c) */
-#endif
-#define UP_LEGACY 32u            /* the slots of the legacy objects (0.21's: OBJ_UPRESET0 / 1 and the engine stores) */
 #define NELEM(a) (sizeof(a) / sizeof((a)[0]))
 
 /* ------------------------------------------------------- parameters --- */
@@ -128,8 +126,9 @@ enum {
                                  * a range below 0 signed ("+41.34", "-64.00"); its finest step 1, its whole-number step
                                  * 100; names[0] (if any) = the word for the top whole number (AMP REL: "INF" at
                                  * 127.00 and up); the editor protocol's fmt 18 */
-    F_INTI                      /* a number with its max = "INF" (FM TONE's AMP DEC and REL, its filter REL: 0..126 +
+    F_INTI,                     /* a number with its max = "INF" (FM TONE's AMP DEC and REL, its filter REL: 0..126 +
                                  * INF, the Digitone's); the editor protocol's fmt 19 */
+    F_GLIDE                     /* the glide's time: 3 x F_TIME's (3 ms .. 30 s; issue 46); the editor protocol's fmt 20 */
 };
 #define FMT_HI(f) ((f) == F_FIX2)   /* a hundredths format (cr_pages.c kn_whole: finest step 1, whole numbers 100) */
 
@@ -226,7 +225,9 @@ typedef struct {
     int32_t env;                 /* Q24 */
     int32_t env_out;             /* last control-rate amplitude, Q15 */
     int32_t pitch16, pitch_cur;  /* 1/16 semitone, with glide */
-    int32_t gstep;               /* glide TIME mode: 1/16 st per control tick, 0 = RATE mode */
+    int32_t gstep;               /* glide: 1/16 st in Q16 per control tick (glide_set) */
+    int32_t gpos;                /* glide: where the pitch is, 1/16 st in Q16 (pitch_cur its whole part, rounded
+                                  * towards the start: pitch_cur == pitch16 once it is there) */
     int32_t fine;                /* unison detune: phase increment * (1 + fine / 4096) */
     uint32_t ph[3];
     int32_t s[8];                /* engine state (filters, envs) */
@@ -347,6 +348,10 @@ typedef struct {
     uint32_t nscreens;
 } eng_deep_t;
 #define ENG_MOD_TRK 0xFFu
+/* get / set's col | ENG_COL_RAW: the page's own value, where desc shows the cell as another one by a mode (FM TONE's
+ * FILTER+ on a filter machine: the cell MORPH / LPF / Q, the type the SEL hold picker's, eng_quad.c quad_ix). Passed
+ * only when desc gives the cell another descriptor (cr_edit.c ce_ftype), so an engine without one never sees it */
+#define ENG_COL_RAW 0x80u
 typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c files) */
     const char *name;            /* "ANALOG" (PRESETS, the editor) */
     const char *page_title[2];   /* EDIT 1 and EDIT 2 */
@@ -416,6 +421,29 @@ typedef struct {                 /* an engine (engines.c ENGINES[]; the eng_*.c 
      * is given (each engine's audit: docs/PROPHET.md, docs/VA.md "Two cores") */
     uint8_t split;
 } engine_t;
+/* engine en's factory preset k (k < npresets): every reader in the firmware goes through here, so a list in the FM-1's
+ * second resource region (cr_res.h RES2_PRESET) that is not this build's reads as a stand-in rather than as another
+ * build's bytes or erased flash: "NO PRESET", the engine's EDIT defaults, a plain envelope, no sends (a valid sound on
+ * every engine; FM6's PTCH default names F1, whose voice is then the init voice: eng_fm6.c fm6_slot_get). The count
+ * stays, so the pool's places, the favourites and the stored bindings keep their numbers. Main loop only (one stand-in,
+ * in RAM) */
+#if CR_RES2
+static preset_t eng_no_preset;
+#endif
+static inline const preset_t *eng_preset(const engine_t *en, uint32_t k)
+{
+#if CR_RES2
+    if (CR_RES2_GONE(en->presets)) {
+        uint32_t i;
+        eng_no_preset.name = "NO PRESET";
+        for (i = 0; i < 8u; i++)
+            eng_no_preset.e[i] = (int8_t)en->edit[i].def;
+        eng_no_preset.env[2] = 127u;                /* (ATK 0, DEC 0, SUS 127, REL 0: the INIT envelope of FM6 / P5) */
+        return &eng_no_preset;
+    }
+#endif
+    return &en->presets[k];
+}
 /* voice_start: what the voice it starts did just before (0 free, 1 released, 2 its key down: a steal or a move);
  * engine_t.note_on may read it */
 static uint8_t voice_was;

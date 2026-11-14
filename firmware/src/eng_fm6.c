@@ -32,7 +32,7 @@
  * ChoralRoot (docs/FM6.md): Melodee's engine as it is, and around it what ChoralRoot's sounds need: deep pages for
  * the sound editor (eng_deep_t FM6_DEEP: the operators, ALGO, the operator envelopes and the pitch EG, the LFO, the
  * function settings), and the patch blob (fm6_blob_*: the voice 7-bit packed with the function settings, 128
- * bytes) that a user slot keeps (fm6_ustore.c, as the VA's va_store.c). The function settings are the patch's here:
+ * bytes) that a user slot keeps (upool.c). The function settings are the patch's here:
  * a factory sound loads Dexed's, a user sound its own. ChoralRoot's PIANO (FELUCCA_SAMPLE 0) is factory preset 25
  * (F1 through the macros: the pool's 25, docs/PRESETS.md), and its presets 2, 5, 7, 8 take the names the curated bank
  * showed (FM BELL, FM PAD, FM ORGAN, FM PLUCK). No web editor (editor_fm6.c is Felucca's, not in ChoralRoot's unit), no STORE page. */
@@ -263,8 +263,10 @@ static void fm6_set_patch(uint32_t tr, const uint8_t *v)
 /* PTCH value s -> its packed record (F1..F24; the bank, an empty slot: the init voice) */
 static void fm6_slot_get(uint32_t s, uint8_t *pk)
 {
-    if (s < FM6_NFAC)
+    if (s < FM6_NFAC && !CR_RES2_GONE(FM6_FACTORY) && !CR_RES2_GONE(FM6_ROM))
         fm6_factory(s, pk);
+    else if (s < FM6_NFAC)                         /* (the FM-1's second region refused: cr_res.h) */
+        memcpy(pk, FM6_INIT, FM6_PACKED);
     else if (s >= FM6_NSLOT || !fm6_bank_read || fm6_bank_read(s - FM6_NFAC, pk))
         memcpy(pk, FM6_INIT, FM6_PACKED);
 }
@@ -278,7 +280,7 @@ static void fm6_load_slot(uint32_t tr, uint32_t s)
     fm6_slot[tr % NTRK] = (uint8_t)s;
 }
 
-/* ChoralRoot: a user slot's patch (fm6_ustore.c): fm6_user_pending = the slot + 1 being loaded (upreset.c up_values),
+/* ChoralRoot: a user slot's patch (upool.c): fm6_user_pending = the slot + 1 being loaded (upreset.c up_values),
  * fm6_store_read its blob (0 = there is one) */
 static uint8_t fm6_user_pending;
 static int (*fm6_store_read)(uint32_t k, uint8_t *blob);
@@ -1124,12 +1126,8 @@ _Static_assert(NELEM(N_FM6_PATCH) == FM6_NSLOT + 1u, "a PTCH name per slot");
 /* {ALG, FB, MLVL, MRAT, MEG, VMOD, DTUN, PTCH}: F1..F8 (Felucca's) as they are, DTUN on the pad; F9..F24
  * (Melodee's) as they are */
 #define FM6_PR(name, ptch, mono, fx) {name, {0, 0, 0, 0, 0, 0, 0, ptch}, {0, 0, 127, 0}, 0, mono, fx}
-#if FELUCCA_SAMPLE
-#define FM6_NM(felucca, choralroot) felucca
-#else                                    /* ChoralRoot (docs/PRESETS.md): the names its curated bank showed, now the pool's */
 #define FM6_NM(felucca, choralroot) choralroot
-#endif
-static const preset_t FM6_PRESETS[] = {
+static const preset_t FM6_PRESETS[] RES2_PRESET = {   /* (FM-1: the second resource region, cr_res.h) */
     {"TINE EP", {0, 0, 0, 0, 0, 0, 0, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 45, 25, 35), PAT(6)},
     {FM6_NM("BELL", "FM BELL"), {0, 0, 0, 0, 0, 0, 0, 1}, {0, 0, 127, 0}, 0, 0, FX(0, 10, 30, 70), PAT(7)},
     {"FM BASS", {0, 0, 0, 0, 0, 0, 0, 2}, {0, 0, 127, 0}, 0, 1, FX(0, 0, 10, 10), PAT(2)},
@@ -1154,21 +1152,19 @@ static const preset_t FM6_PRESETS[] = {
     FM6_PR("STEEL DRUM", 21, 0, FX(0, 0, 30, 40)),
     FM6_PR("SAW BASS", 22, 1, FX(20, 0, 10, 10)),
     FM6_PR("TUBULAR", 23, 0, FX(0, 0, 30, 80)),
-#if !FELUCCA_SAMPLE
     /* PIANO (ChoralRoot: F25, the FM6 pool's 25, docs/PRESETS.md; SAMPLE's PIANO retired): TINE EP's patch (F1) as a piano hybrid,
      * through the macros only: the modulators an octave up (MRAT +1: the even partials of a struck string instead of
      * the tine's), brighter (MLVL +10), their envelopes faster (MEG -16: a hammer transient that mellows), more
      * velocity on the brightness (VMOD +2), a little feedback grit (FB +1) and the carriers slightly apart (DTUN 12:
      * unison strings beating). Only without the SAMPLE engine (FELUCCA_SAMPLE 0): Felucca's units keep Melodee's 24 */
     {"PIANO", {0, 1, 10, 1, -16, 2, 12, 0}, {0, 0, 127, 0}, 0, 0, FX(0, 35, 15, 45), PAT(6)},
-#endif
 };
 #undef FM6_PR
 #undef FM6_NM
 _Static_assert(FM6_NROM == 16u, "FM6: the presets name F9..F24");
 
 /* ------------------------------------------------ ChoralRoot: the patch blob --- */
-/* A user slot's FM6 sound (fm6_ustore.c) and the editor's snapshot (cr_ui.c's picker) carry the track's patch as a
+/* A user slot's FM6 sound (upool.c) and the editor's snapshot (cr_ui.c's picker) carry the track's patch as a
  * blob of eng_deep_t.blob_size = 128 bytes:
  *   0..111    the voice as the 128-byte packed record (VMEM, fm6_pack), 7-bit packed (fm6_pack7: eight 7-bit bytes in
  *             seven, as fm6_bank.c keeps its slots)
@@ -1272,7 +1268,8 @@ static void fm6_blob_preset(track_t *t, uint32_t k)       /* factory preset k: i
     if (tr >= NTRK || k >= NELEM(FM6_PRESETS))
         return;
     memcpy(fm6_fn[tr], FM6_FNDEF, FM6_NFN);
-    fm6_load_slot(tr, (uint32_t)clamp(FM6_PRESETS[k].e[7], 0, FM6_NSLOT - 1));
+    fm6_load_slot(tr, CR_RES2_GONE(FM6_PRESETS) ? 0u                 /* (refused: F1, the init voice; cr_res.h) */
+                                                : (uint32_t)clamp(FM6_PRESETS[k].e[7], 0, FM6_NSLOT - 1));
 }
 
 /* ------------------------------------------------- ChoralRoot: deep pages --- */

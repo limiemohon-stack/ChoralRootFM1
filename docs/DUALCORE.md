@@ -110,7 +110,13 @@ XIP 429140 B of 581564 (73.8%), RAM 84176 B of 98304 (85.6%), POOL 327000 B of 3
 Added: RAMTEXT 60 B (`.c1_text`); RAM ~3.9 KB (core 1's stacks 2816 + 256 B, FM6's second scratch 384 B, the
 matrix per part ~150 B, `cr_dbg` ~200 B, the job's state); POOL 256 B (the bass part's block and stereo side,
 `c1_buf` / `c1_side`); XIP ~3 KB. 3y46 added `p5x_buf` (128 B of POOL) and the list; 3y177 `p5x_side` (128 B of POOL),
-424 B of XIP and, with `CR_RAM_VA` on, 9048 B of RAMTEXT (16 120 of 24 576); 3y187 (FM6) 944 B of XIP.
+424 B of XIP and, with `CR_RAM_VA` on, 9048 B of RAMTEXT (16 120 of 24 576); 3y187 (FM6) 944 B of XIP. 3y303 (the
+drums on core 1, each drum's three sends): POOL 512 B (the drums' bus and three sends, `crd_bus` / `crd_snd`), RAM 20 B,
+XIP 928 B (the FM-1: XIP 561 448 -> 562 376 of 573 440, RAM 91 248 -> 91 268, POOL 334 512 -> 335 024; the 1-core
+package XIP 557 752 -> 558 168, POOL 334 384 -> 334 896; the SMK-37 XIP 542 468 -> 543 508, POOL 331 820 -> 332 332).
+3y304 (each drum's Drive and Filter): POOL 132 B (`crd_byp`, the drums' share round the master filter), RAM 60 B (the
+drive states, the shares, the knobs), XIP 1572 B (the FM-1: XIP 562 376 -> 563 948, RAM 91 268 -> 91 328, POOL
+335 024 -> 335 156); core 1's stack down the drums' path 752 B (`crd_render` 364 with its two blocks).
 
 ## The job protocol (`fx.c mix_parts_split`, `cr_cpu1.h`)
 
@@ -155,9 +161,9 @@ in a fixed order on core 0:
 | core 0 (the audio ISR) | core 1 |
 | --- | --- |
 | the tick, events, voice allocation; both parts' matrix + LFO tick | idle |
-| (P5 or VA chord) its share of the chord's voices; (else) part 0's render | **job 1**: part 1's render (+ its share of the P5 or VA chord's voices) |
+| (P5 or VA chord) its share of the chord's voices; (else) part 0's render | **job 1**: part 1's render (+ its share of the P5 or VA chord's voices) + the drums (3y303, `crd_render`: into `crd_bus` / `crd_snd`) |
 | join 1 (`CRP_WAIT`) | idle |
-| DIST, level, pan, sends of parts 0 and 1 (the sends are whole from here) | idle |
+| DIST, level, pan, sends of parts 0 and 1, then the drums added (`crd_add`: the mix and the three sends; the sends are whole from here) | idle |
 | `xf_prep` (the coefficients, what runs), then hands over job 2 | |
 | the chorus (`xc_block`), the delay (`xf_delay`) into the mix | **job 2**: the reverb (`xf_reverb`: its half-band, its eight lines, the wet's up-sampler) into `c1x_l` / `c1x_r` |
 | join 2 (`CRP_WAIT` and `fxw`), `mix += c1x` | idle |
@@ -186,14 +192,62 @@ pieces in a row, as before.
 Job 2 refused, stalled or faulted: core 1 held for good (C1_GAVE_UP) and core 0 runs the reverb itself in that block,
 as it reruns job 1.
 
+**The drums on core 1 (3y303).** Users of 0.40 found chords hard to play over the drums: the drums took no voices,
+but they rendered on core 0 after join 1 (`cr_drum_mix` in `mix_block`), in the audio ISR's serial stretch, and the
+overload shed (`audio.c shed_check`) then faded chord voices. Now `mix_parts_split` sets `c1_dr` before the hand-over
+and core 1 runs the drums at the end of job 1 (`c1_part1_job` -> `cr_drum.c crd_render`: every ringing voice into
+buffers of the drums' own, the bus under its soft knee and each send's sum), and core 0 adds them after join 1, after
+both parts (`crd_add`: the mix and the chorus's, delay's and reverb's buses), where one core mixed them. Integer sums
+(`+=`, no saturation between): the mix is one core's, bit for bit (`tests/cr_c1_thread_test.c` "drums": 26 pairs, the
+drums ringing with each drum's three sends up and its Level off 64, FX off for a stretch: inline = thread = the drums
+on core 0 after the parts, `cr_c1_test_dr0`; ThreadSanitizer clean). **3y304**: each drum's Drive (`dsp_dist` on the
+drum's sum, its states `crd_dist`, before its sends) and its share round the master filter (`crd_byp`, its ramp
+`crd_fr`) are core 1's too, in `crd_render`; core 0 says before the hand-over whether the filter sounds (`c1_dr`:
+0x80 | `crd_flags()`, `cr_fx.c xb.on` from `xb_begin`) and adds the share into the filter's B after the parts
+(`cr_drum_out`: `crd_byp_add`). The proof as above with every drum driven and part of each round the filter, the
+filter on for a sixth of each phrase (13 416 blocks with a share round it). What core 1 touches: `crd_v` (each voice's own
+state), `crd_bus`, `crd_snd`, `crd_out`; it reads `crd_fx` (the main loop's: it never runs while the audio ISR does, so
+a knob's change is the next block's, as before) and `c1_dr` (core 0's, before the hand-over: FX off is read there).
+The hits (`crd_beat_step` -> `crd_hit` -> `ds_strike`: `ds_rng`, `crd_kit`, the voices' coefficients) stay core 0's,
+in `choralroot.c mix_block` before the hand-over. Core 1's stack: `c1_part1_job` 64 B -> `crd_render` 180 ->
+`ds_run` 216 -> `ds_noise` 56 -> `ds_fmetal` 52 (568 B), after `track_render_x` returns: under the bass part's path.
+Dual Core Off, the 1-core package, `c1_split_ok` false: `cr_drum_mix` on core 0 as before (`crd_render` then
+`crd_add`). Job 1 refused, stalled or faulted: core 0 reruns `c1_part1_job`, the drums in it (`tests/cr_cpu1_test.c`:
+the 3 x 3 pairs and the hung job with the drums ringing, every send up).
+
 **The split of the chord's voices** (3y46's rule for P5, kept in 3y50; weighed per engine and opened to the VA in
-3y177, below): core 1 takes the k voices that make the longer of the two sides (core 1: the bass part + k voices;
+3y177, below; the drums weighed on core 1's side since 3y303): core 1 takes the k voices that make the longer of the two sides (core 1: the bass part + k voices;
 core 0: the rest) shortest, at most four a core for P5, a tie to core 1. 3y50 looked at weighing them (the survey's
 item 2): every chord voice plays the part's one program, so they all weigh the same, and the bass part is already
 weighed (P5 voices as voices, another engine by its units); core 0's own fixed work (the tick, the sends, its
 effects, the master) lies **outside** the window in which the voices overlap (before the hand-over or after join 1),
 so it cannot be balanced against voices. With the measured costs the weighted rule gives today's 4 + 4 for 8, 3 + 3
-for 6, 2 + 2 for 4 (an odd one to core 1); it was not changed then.
+for 6, 2 + 2 for 4 (an odd one to core 1); it was not changed then. **3y303**: the drums ringing count on core 1's
+side (`p5x_assign`: `bl += crd_us()`), each sound at its heaviest kit's cost (`cr_drum.c CRD_US_*`: kick 140, snare
+138, clap 120, hats 134 / 132 us: the host's instructions x 128 / 259, x 2 for code from the flash, the unit's worst
+voice over the emulator's estimate of it for FM6 and the VA from the flash); a driven drum ringing adds 46 us
+(`CRD_US_DRIVE`, 3y304: its DIST once on its sum). An 8-voice VA chord over a VA bass with
+all five drums ringing: 3 to core 1, 5 to core 0 (4 + 4 without them). P5 keeps its four a core: an 8-voice P5 chord
+stays 4 + 4 whatever rings.
+
+Measured (the emulator, `EMU_STAGES=1`, device us a half, avg / max over the run; an 8-note chord over MIDI, the
+VA bass PUNCH BASS, the drums on with Density full and every drum's sends at 127 (0.40: its one send), both parts'
+three sends at 127; part0 / part1 the two cores' renders, fx the effects stage with the drums before 3y303 and the
+reverb's job, which the emulator runs inline; "half" = tick + the longer of part0 and part1 + fx + master, the
+averages):
+
+| chord | 0.40: part0 | part1 | fx | half | 3y303: part0 | part1 | fx | half |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| FM6 TINE EP | 195 / 377 | 237 / 413 | 705 / 959 | 987 | 225 / 578 | 320 / 550 | 542 / 942 | 906 |
+| VA ENSEMBLE STR | 359 / 516 | 397 / 555 | 686 / 954 | 1127 | 421 / 605 | 432 / 662 | 528 / 755 | 1003 |
+| VA MORPH PAD (the heaviest) | 489 / 670 | 527 / 711 | 685 / 985 | 1256 | 576 / 814 | 525 / 785 | 527 / 751 | 1146 |
+| P5 ITS PROPHET5 | 685 / 914 | 697 / 961 | 688 / 951 | 1437 | 656 / 1092 | 795 / 1278 | 526 / 860 | 1371 |
+
+The drums (about 160 us a half on average here) leave core 0's serial stretch; with the VA they also move a chord
+voice to core 0. The emulator's FM6 and P5 voices cost less than the unit's (the weights are the unit's worst), so
+there core 1 ends the longer side: on the unit the weights and the costs are one scale. Each core's busy time (the
+`cpu: each core` line, `cr_dbg.c0_tot_*` / `c1_tot_*`): FM6 677 / 505 -> 555 / 576, VA 829 / 657 -> 742 / 681, MORPH
+PAD 959 / 787 -> 897 / 774, P5 1165 / 958 -> 984 / 1044 (core 0 / core 1 averages).
 
 ### The VA's chord on both cores (3y177)
 
@@ -251,8 +305,19 @@ six FM6-chord pairs (an FM6, VA, P5, CZ-1 bass; TINE EP over DEEP SUB; a patch w
 LFO's AMD: its shares in use in 2948 of 3000 blocks), test_cr.sh `cr_fm6_eight` (inline = `EMU_C1=thread` =
 `EMU_C1=nostart`, one core's WAV, bit for bit); the goldens, one core and two, unchanged.
 
-CZ-1, FM TONE and GRAIN would each need their audit first (docs/notes/melodee-p5-dualcore-review.md "The other
-engines").
+**FM TONE's chord (3y206, 2026-10-31)**: `ENG_QUAD.split` 20 (`QUAD_VOICE_US` 200: WOBBLE's 8 voices part0 1509 us on
+the unit, ~190 a voice, DRIVE PRE ~+20). The audit (docs/QUAD.md "Two cores"): a voice's render writes its own
+`quad_vs[part][i]` and the buffers it is given; the part's LFO phases are `quad_block`'s (core 0, before the hand-over),
+the voices read them; the latest note's voice alone writes `quad_pan_off` / `quad_fx_off` (fx.c reads them after the
+join). One shared read: DRIVE PRE (3y205) took the LFOs' DRIVE from `quad_fx_off`, which the latest voice may be
+writing on the other core in the same block: now `quad_dro`, the last block's value, kept by `quad_block`. Proof that
+it was needed: with the old read the DRIVE-PRE pair's thread render differs from the inline one. Proof:
+`tests/cr_c1_thread_test.c` FM TONE chord pairs (WOBBLE over a VA bass; DRIVE 80 PRE with LFO 1 on DRIVE over an FM
+TONE bass; the old FM TONE / FM TONE pair now split): inline = thread = unsplit = all to core 1 = none, ThreadSanitizer
+0 reports; test_cr.sh `cr_quad_eight` (eight EP voices DRIVE 127 PRE over DEEP SUB: inline = `EMU_C1=thread` bit for
+bit). One core (`EMU_C1=nostart`) is not the same WAV: eight FM TONE voices are the whole 16-unit budget, so the bass
+note takes one (7 + 1), as before this change. GRAIN would still need its audit first
+(docs/notes/melodee-p5-dualcore-review.md "The other engines"); CZ-1's chord stays on core 0.
 
 Publishing job 1 before core 0 has prepared all of the chord's voices (Melodee's per-job publishing) needs a mailbox
 deeper than `fm1_c1_post`'s one job (core 1's voices are prepared by core 0 in `track_render_x`): not done.
@@ -424,7 +489,7 @@ one. And the overload shed sees part 1's time in the half only with one core.
   a real hang in the start.
 - Core 1 does not answer in 20 ms at power-on: held, `c1 failed`, one core for the session, the shared budget.
 - A job not done in 8 ms (`fm1_cpu1_wait`): core 1 held for good, core 0 renders part 1 itself in that block (late,
-  but the samples are one core's), `c1 gave up`, the shared budget from then on (the next allocations steal back to
+  but the samples are one core's; since 3y303 the drums with it, as they are in job 1), `c1 gave up`, the shared budget from then on (the next allocations steal back to
   it). A hang in core 1 never hangs core 0. **With P5's chord voices on core 1 (0.22)** the job core 0 then runs
   itself is the same one (the bass part and core 1's share of the chord's voices), and the next block has one
   core's voice counts: `voice.c p5_pool_enforce` gives up what is above them (docs/PROPHET.md "Voices"; tested for

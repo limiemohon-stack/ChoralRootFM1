@@ -154,7 +154,7 @@
         <button id="lib-files" class="sm">Add files…</button>
         <button id="keep-all" class="sm" disabled title="Keep every item of this source in This browser">Keep all in this browser</button>
         <label><input type="checkbox" id="lib-this" checked> this engine only</label>
-        <input id="lib-file" type="file" multiple accept=".json,.syx,.dnsnd,application/json" hidden>
+        <input id="lib-file" type="file" multiple accept=".json,.syx,.dnsnd,.dn2pst,.dn2snd,application/json" hidden>
       </div>
       <ol class="rows" id="lib-rows"></ol>
     </section>
@@ -190,7 +190,6 @@
     <button id="lib-remove" disabled>Remove from library</button>
     <button id="backup" disabled>Back up everything</button>
     <button id="restore" disabled>Install a backup…</button>
-    <button id="import-legacy" disabled title="ChoralRoot 0.22 and later: the 32 slots as ChoralRoot 0.21 left them in the FM-1's flash, into slots 001..032 again (slots 033..128 stay)">Import the 0.21 slots</button>
     <button id="delete-all" class="warn" disabled title="Every user sound in every slot of every engine, and the favourite marks of your own sounds; asks first">Delete all user sounds…</button>
     <button id="reset-factory" class="warn" disabled title="The sounds as the FM-1 came: no user sound, every factory preset in its place in the factory order; asks first">Reset sounds to factory…</button>
     <input id="restore-file" type="file" accept=".json,application/json" hidden>
@@ -230,6 +229,8 @@ const EMBED_PACKS = (/*PACKS*/null);
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const SIM_ARG = new URLSearchParams(location.search).get("sim"), SIM = SIM_ARG === "1" || SIM_ARG === "pool";   // ?sim=pool: a 0.22 FM-1 (128 slots)
+// ?sim=pool&fw=0.29: the simulated FM-1 says that version (the FM TONE version gate, 3y211, 3y219: 0.29 takes version 6)
+const SIM_FW = /^\d+\.\d+[\w.-]*$/.test(new URLSearchParams(location.search).get("fw") || "") ? new URLSearchParams(location.search).get("fw") : null;
 const PORT = MANAGER_PORT_RE;                  // "ChoralRoot FM-1", or the "FM-1" macOS keeps for the device (issue 32)
 const COLORS = { 12: "#E63829", 15: "#F67918", 13: "#F6B600", 14: "#2950CD", 16: "#29B27B", 2: "#29B27B", 3: "#F6F2EE", 5: "#E63829", 6: "#F67918", 7: "#F6B600", 9: "#29B27B", 11: "#9A999A" };
 const colorOf = (e) => COLORS[poolOf(e)] || "#6A696A";
@@ -333,7 +334,7 @@ function renderLib() {
   const vis = libVisible();
   if (!vis.length) {
     const what = ui.tab === "loops" ? "loops" : $("lib-this").checked ? `${ENGINE_NAMES[ui.tab]} sounds` : "sounds";
-    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd, backups, loop files)." : ""}</li>`;
+    $("lib-rows").innerHTML = `<li class="empty-note" style="display:block">No ${esc(what)} here. ${ui.libSrc === "browser" ? "Keep sounds from the FM-1, or add files (sound files, packs, .syx, Digitone .dnsnd and .syx dumps, Digitone II .dn2pst and .dn2snd, backups, loop files)." : ""}</li>`;
     return;
   }
   $("lib-rows").innerHTML = vis.map(({ it, i }, n) => `<li draggable="true" data-i="${i}" class="user${ui.lib.sel.has(i) ? " sel" : ""}"><span class="pos">${String(n + 1).padStart(2, "0")}</span>` +
@@ -411,7 +412,6 @@ function refresh() {
   $("sel-all").disabled = onLib ? !vis.length : !c;
   $("lib-remove").disabled = !l.length || ui.libSrc !== "browser";
   $("backup").disabled = $("restore").disabled = !c;
-  $("import-legacy").disabled = !c || !session.objs || !isPool(session.objs);
   $("undo").disabled = !c || !session.canUndo;
   $("undo").textContent = connected() && session.history.length ? `Undo (${session.history.length})` : "Undo";
 }
@@ -473,8 +473,9 @@ async function attach() {
 }
 async function startSim() {
   const pool = SIM_ARG === "pool";
-  sim = pool ? makeSimFM1(simObjects(30, true), { version: "ChoralRoot 0.22", ids: SIM_POOL_IDS }) : makeSimFM1(simObjects(30));
-  firmware = `ChoralRoot ${pool ? "0.22" : "0.15"} (simulated)`; $("fw").textContent = firmware; $("connect").hidden = true;
+  const ver = SIM_FW || (pool ? "0.22" : "0.15");
+  sim = pool ? makeSimFM1(simObjects(30, true), { version: `ChoralRoot ${ver}`, ids: SIM_POOL_IDS }) : makeSimFM1(simObjects(30), { version: `ChoralRoot ${ver}` });
+  firmware = `ChoralRoot ${ver} (simulated)`; $("fw").textContent = firmware; $("connect").hidden = true;
   setConn("sim", "simulated FM-1"); $("needs").textContent = "Simulator: a pretend FM-1 in this page. Writes change it only until the page reloads.";
   session = new ManagerSession(sim.request);
   await readDevice("Reading the simulated FM-1…");
@@ -549,8 +550,13 @@ function askDialog({ title, paras, ok }, { backup = true } = {}) {
   });
 }
 const act = (f) => async () => { try { await f(); } catch (e) { say(e.message, "err"); } };
-// what an FM-1 before the pool (0.21) will not have of a placed patch (fm1sounds.js importSound: converted down for it)
-const downText = (res) => (res.notes && res.notes.length ? ` On this firmware: ${res.notes.join("; ")}.` : "");
+// what the FM-1's firmware will not have of a placed patch (fm1sounds.js importSound: converted down for it): before the
+// pool (0.21) any; 0.22 .. 0.28 FM TONE's version 6 (keepOpts' firmware: managerPlace's version gate, 3y211)
+// (managerNotesSummary: one line; the whole list in the browser console)
+const downText = (res, many = true) => {
+  if (res.notes && res.notes.length) console.info("On this firmware:\n" + res.notes.join("\n"));
+  return managerNotesSummary(res.notes, firmware, many);
+};
 const keepOpts = () => ({ firmware, packs: ui.fpacks });
 
 // Place: the library's selection into the FM-1; one sound onto a target row (over it), several as new sounds
@@ -563,15 +569,15 @@ async function placeItems(items, target) {
     return run(`Place into loop slot ${slot}`, placeLoop(session.objs, slot, items[0].file), `Placed into loop slot ${slot}.`);
   }
   if (items.length > 1) {
-    const res = managerPlaceAll(session.objs, items.map((it) => it.file));
+    const res = managerPlaceAll(session.objs, items.map((it) => it.file), keepOpts());
     return run(`Place ${items.length}`, res, `Placed ${res.placed} sound${res.placed === 1 ? "" : "s"}${res.skipped ? `; ${res.skipped} did not fit (no free slot: delete or overwrite)` : ""}.${downText(res)}`);
   }
   const r = items[0], t = target && target.type !== "empty" ? target : null;
   if (t && t.type === "user" && t.engine === r.pool && !confirm(`Replace ${t.label} ${t.name} with ${r.name}?`)) return;
-  const res = managerPlace(session.objs, r.file, t);
+  const res = managerPlace(session.objs, r.file, t, keepOpts());
   const where = res.where === "over-factory" ? "over a factory preset" : res.where === "over-user" ? `into ${slotLabel(res.slot)}` : `as a new ${ENGINE_NAMES[r.pool]} sound`;
   if (r.pool !== ui.tab) ui.tab = r.pool;
-  await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).${downText(res)}`, { engine: r.pool, slot: res.slot });
+  await run(`Place ${r.name}`, res, `Placed ${r.name} ${where} (${slotLabel(res.slot)}).${downText(res, false)}`, { engine: r.pool, slot: res.slot });
 }
 async function keepRows(rows) {
   let n = 0;
@@ -590,7 +596,7 @@ $("place").addEventListener("click", act(() => placeItems(libSel(), devPrimary()
 $("place-all").addEventListener("click", act(async () => {
   const items = libVisible().map(({ it }) => it).filter((it) => it.type === "sound");
   if (!confirm(`Place all ${items.length} sounds? ${freeSlots()} user slots are free; what does not fit is left out.`)) return;
-  const res = managerPlaceAll(session.objs, items.map((it) => it.file));
+  const res = managerPlaceAll(session.objs, items.map((it) => it.file), keepOpts());
   await run("Place all", res, `Placed ${res.placed} sounds${res.skipped ? `; ${res.skipped} did not fit (all ${usedSlots(session.objs)} user slots are used: delete or overwrite to place more)` : ""}.${downText(res)}`);
 }));
 // Replace factory: the library's selection (or every sound shown) over the open engine's factory presets, from `from`
@@ -600,7 +606,7 @@ async function replaceFactory(items, from = 1) {
   if (!plan.items.length) throw new Error(`None of the ${items.length} selected is a ${ENGINE_NAMES[ui.tab]} sound`);
   if (!plan.replace && !plan.extra) throw new Error(plan.free ? `No factory ${ENGINE_NAMES[ui.tab]} preset left to replace` : "No free user slot: delete a user sound first");
   if (!confirm(replaceFactoryText(plan, ui.tab, items.length))) return;
-  const res = managerReplaceFactory(session.objs, ui.tab, files, from);
+  const res = managerReplaceFactory(session.objs, ui.tab, files, from, keepOpts());
   await run("Replace factory", res, `Replaced ${res.replaced} factory ${ENGINE_NAMES[ui.tab]} sounds${res.added ? `; ${res.added} more placed` : ""}${res.refused ? `; ${res.refused} did not fit` : ""}.${downText(res)}`, { engine: ui.tab, pos: from });
 }
 $("replace").addEventListener("click", act(() => replaceFactory(replaceItems())));
@@ -722,13 +728,6 @@ $("backup").addEventListener("click", act(async () => {
   finally { ui.busy = false; progress(0, 0); refresh(); }
 }));
 $("restore").addEventListener("click", () => $("restore-file").click());
-$("import-legacy").addEventListener("click", act(async () => {   // 0.22: 80 IMPORT (the device manager's way back to 0.21's slots)
-  if (!confirm("Import the 32 slots that ChoralRoot 0.21 keeps in the FM-1's flash into slots 001..032? What is in 001..032 now is replaced (slots 033..128 stay). Back up first if unsure.")) return;
-  ui.busy = true; refresh(); say("Importing the 0.21 slots…");
-  try { const n = await importLegacySlots(session.request); say(`Imported ${n} sounds into slots 001..032.`); await readDevice(); }
-  catch (e) { say(`Import the 0.21 slots: ${e.rc === 1 ? "the FM-1 holds no 0.21 slots" : writeErrorText(e)}`, e.rc === 3 ? "busy" : "err"); }
-  finally { ui.busy = false; progress(0, 0); refresh(); }
-}));
 $("restore-file").addEventListener("change", act(async () => {
   const f = $("restore-file").files[0]; $("restore-file").value = "";
   if (!f) return;
@@ -780,6 +779,7 @@ $("lib-file").addEventListener("change", act(async () => {
       if (isDnsndName(f.name)) { const got = await libraryItemsFromDnsnd(f.name, new Uint8Array(await f.arrayBuffer())); items.push(...got); dn.push(...got); continue; }
       const content = /\.syx$/i.test(f.name) ? new Uint8Array(await f.arrayBuffer()) : await f.text();
       const got = libraryItemsFromFile(f.name, content);
+      if (got.some((it) => it.notes)) { items.push(...got); dn.push(...got); continue; }   // a Digitone .syx dump
       let j = null; try { j = typeof content === "string" ? JSON.parse(content) : null; } catch (_) {}
       if (j && j.format === "choralroot-pack") { pack = { id: `filepack:${ui.filePacks.length}`, name: j.name || f.name, items: got }; ui.filePacks.push(pack); }
       else items.push(...got);
@@ -789,7 +789,8 @@ $("lib-file").addEventListener("change", act(async () => {
   if (items.length) ui.fileItems = [...(ui.fileItems || []), ...items];
   ui.libSrc = pack ? pack.id : items.length ? "files" : ui.libSrc; renderSources();
   await loadLibrary();
-  const dnSay = dn.length ? ` (${dn.length} Digitone sound${dn.length > 1 ? "s" : ""} as FM TONE: each row lists what is approximated; Place writes them)` : "";
+  const dn2 = dn.filter((it) => it.file && it.file.dnsnd && it.file.dnsnd.model === 2).length;
+  const dnSay = dn.length ? ` (${dn.length} Digitone sound${dn.length > 1 ? "s" : ""}${dn2 ? `, ${dn2} of them Digitone II` : ""} as FM TONE: each row lists what is approximated; Place writes them)` : "";
   say(`${items.length + (pack ? pack.items.length : 0)} item(s) read${dnSay}${pack ? ` (pack ${pack.name}: Keep all in this browser keeps it)` : ""}${errs.length ? `; ${errs.join("; ")}` : ""}.`, errs.length ? "err" : "");
 }));
 $("connect").addEventListener("click", () => connectMidi());

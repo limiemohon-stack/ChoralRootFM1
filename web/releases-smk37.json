@@ -3,6 +3,519 @@
   "repo": "https://github.com/Quixotic7/ChoralRootFM1",
   "releases": [
     {
+      "version": "0.41-smk37",
+      "base": "0.41",
+      "date": "2026-11-12",
+      "tag": "v0.41-smk37",
+      "title": "0.41 on the SMK-37: each drum's own mix",
+      "bullets": [
+        "Kick Mix, Snare Mix and Hats Mix: each drum's own Chorus, Delay and Reverb sends, Level, Drive (PRESETS) and Filter (ALGORITHM).",
+        "With Dual Core On the second core plays the drums, so a chord over the beat keeps its voices.",
+        "In the SEQ menu ALGORITHM picks Metronome or Drums on the first page only."
+      ],
+      "notes": [
+        "The resource region new in 0.40-smk37 has still not been reported on from an SMK-37: please tell how the install, the splash, the fonts and the drums look.",
+        "Going back to 0.40-smk37: the drums come up on Metronome with their defaults.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "283076c74f3f147c754fa57a06b38a295e12de6e7c19d05ead070e36b0b7e3af",
+          "sha256_1core": "5a5e254ad314df2a6dde5a30d7896d0bc2e54953477ed1d23489858c513c5312"
+        },
+        "elite": {
+          "sha256": "6e3873b2a00801f43fba17da0833b665bdba354f406f41ed3bfc3644613534fd",
+          "sha256_1core": "db8732424464beda60296a6587500311536314452f063dbc73dad3b8ec6d93b4"
+        },
+        "mke": {
+          "sha256": "0f5488c3427cd469be0b174d3d7d95bb2a638a484e1504cbd5d477b02fedc0e2",
+          "sha256_1core": "2b073101ee559bcb7093748f392f03ac61ad6cebbec4bc3d6a1af07abed7612c"
+        }
+      }
+    },
+    {
+      "version": "0.40-smk37",
+      "base": "0.40",
+      "date": "2026-11-11",
+      "tag": "v0.40-smk37",
+      "title": "0.40 on the SMK-37: Drums",
+      "bullets": [
+        "Drums: hold SEQ and turn ALGORITHM to Drums, PRESETS starts and stops them. A Grids beat you morph on a map, six kits from CoralFlower's drum synth, in step with your loop.",
+        "The SEQ menu's pages: Beat, Kick, Snare, Hats and Mix (each drum's FX send); the keys play there.",
+        "The click follows MASTER, and the beat is off at every power-on.",
+        "A resource region of its own (the big fonts, the drums' kits and map) frees 35 KB of app space."
+      ],
+      "notes": [
+        "New and not yet run on an SMK-37: the resource region at 0x9D000..0xA8FFF, written by the installer with the firmware. Please report how the first install, the splash, the fonts and the drums look.",
+        "Going back to 0.39-smk37: the drums are gone; the region is left in place and not read.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "8f3ba23da5d7db743efc9ad20582be55f5da66ede68c0ea66e18735f1a160b56",
+          "sha256_1core": "df322532adb8996a453140de081e562754838311f788e8839605ebe551c5a0f7"
+        },
+        "elite": {
+          "sha256": "100d1f76e62f2010221123125cb0d9e3dc0e2911f40298d0c8bb4862e443a20a",
+          "sha256_1core": "e9f4827a167ed03a7a4275368a71ed8345adce1499dcdb07e1742b53d4ba9c11"
+        },
+        "mke": {
+          "sha256": "b02aaa8d64b41f7a7633d0780f0b0d443dc957979557ac35e1c5a2e7e0de7853",
+          "sha256_1core": "4f1fbba3cf335d3053fe0baba01a1c7113b0ab2c031e0ed67b7653e1a6d1635f"
+        }
+      }
+    },
+    {
+      "version": "0.39-smk37",
+      "base": "0.39",
+      "date": "2026-11-10",
+      "tag": "v0.39-smk37",
+      "title": "0.39 on the SMK-37: Settings in groups",
+      "bullets": [
+        "Settings in groups: Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings. SELECT picks a group, OCT+ opens it, OCT- goes back.",
+        "Settings reopen where you left them: close them inside a group and OPT brings you back to the same setting.",
+        "Every setting, sound, loop and favorite is stored as before."
+      ],
+      "notes": [
+        "The FM-1's MIDI Roots, MIDI Keys, USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.38-smk37: the Options are one long list again.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "d6e31b2b6e81cb808e753e4e3c494853b84272ecdb5fe28bb0290da8a3f5a089",
+          "sha256_1core": "78b30a037aaa66bd1f19e1fb6320c7c436ecfbbab1b0597773d56af3ee76696f"
+        },
+        "elite": {
+          "sha256": "cd7a70353fdbde177bbd98bf20587527cea7900e7bc714e11a6bb4d94ebe12ae",
+          "sha256_1core": "b1ec9cee859543c34bb8077215361715a642247a559f0aed178af9ef2ac681fc"
+        },
+        "mke": {
+          "sha256": "ed6902a1723a704eff2c6a3601bfce76ac5d383d5b8c29ed50efd41151a3983d",
+          "sha256_1core": "8312aff1312b980b4f91e75f79de0a06c22dddca7c186d9c880e6740acb2956e"
+        }
+      }
+    },
+    {
+      "version": "0.38-smk37",
+      "base": "0.38",
+      "date": "2026-11-09",
+      "tag": "v0.38-smk37",
+      "title": "0.38 on the SMK-37: chords that glide, up to 30 seconds",
+      "bullets": [
+        "Chords glide into each other: in POLY with Glide above 0, each note of the next chord slides from the nearest note of the one you let go (GitHub issue 46).",
+        "Glide goes up to 30 s and the knob shows the time the slide really takes; Gl. mode RATE is the time for an octave, TIME the time for any slide.",
+        "Fixed: a chord left sounding (with its Bass Perform arp) after LATCH off with Snap, and a note left on after Free sounded over the Full keyboard."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Sounds with Glide above 0 now slide for the time the knob shows, so more slowly than before; going back to 0.37-smk37, Glide slides for at most about 1.5 s again and POLY chords do not glide.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "c3af27fc9492cba344e76c0a4cf3f840d1c3d341f2c6f326622966d453ff5591",
+          "sha256_1core": "e2f117989b8d22a2f45d4382636168ca8024b739c81c4403ca86a858aab98fbc"
+        },
+        "elite": {
+          "sha256": "8dcc28d8bcfe3d9119be816efc58fa2f6122ba7790312d93cbf383a6bcb241d2",
+          "sha256_1core": "eaa68babb65e7b12f53382270b4860e0f73767d207d93ffdc117a8c41d70acb1"
+        },
+        "mke": {
+          "sha256": "82e08555d579c59f83acab65a7633c279c6cdb688d3062664cb1719bda9712fd",
+          "sha256_1core": "95e37e5fd54b539b1bfa72f3396a49e8643431bac7aeb131f9c2d35166ce92c2"
+        }
+      }
+    },
+    {
+      "version": "0.37-smk37",
+      "base": "0.37",
+      "date": "2026-11-09",
+      "tag": "v0.37-smk37",
+      "title": "0.37 on the SMK-37: Bass Solo in your octave, loops locked to MIDI clock",
+      "bullets": [
+        "Bass Solo plays the chord's root in the octave you play it; the Register moves it by octaves, -2 is about the old range (GitHub issues 40 and 43).",
+        "The screen's C4 is MIDI note 60 over USB and the TRS jack; programs that call 60 C3 show every note an octave lower (issue 40).",
+        "Loops stay locked to MIDI Clock In however the pulses arrive: none dropped, hiccups caught up, the tempo steady (GitHub issue 39).",
+        "The PERF knobs sit in the same places across modes: Slop is Rate, Direction, Range, Amount and Pattern is Division, Pattern, Gate, Swing (GitHub issue 26); the values keep their values."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.36-smk37: Bass Solo plays in the bass register again and Slop and Pattern have their old knob order; the Bass PERF layer's Slop and Pattern values set on 0.37 may come back on another parameter.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "c8a78ac63f16e9a132f0c03974c858ef472a5947da6aafaf00dd1160c6e66d75",
+          "sha256_1core": "3e6c4ee21bb8879e9ae41880029cc0e265cd3804644d4aa09fc98452d1fd828f"
+        },
+        "elite": {
+          "sha256": "bfee8c5c3d2f19692b5c3a7496527d1c8d793b307f6cc79819fba9ea0e6ad031",
+          "sha256_1core": "3aa8481a7c972aa79c114e46224fe33f3a5215b552c06c9bd3d333c51a7c98ba"
+        },
+        "mke": {
+          "sha256": "20fbca6f1273fbb8ead99af1a1c6a876bf1057c90c84148ed6155638af271371",
+          "sha256_1core": "c6e2e1e1d40387740821ef8c7d3103842713a4fe18b8c6cee840cd7036c0c4b2"
+        }
+      }
+    },
+    {
+      "version": "0.36-smk37",
+      "base": "0.36",
+      "date": "2026-11-09",
+      "tag": "v0.36-smk37",
+      "title": "0.36 on the SMK-37: 21 more Key Mode scales",
+      "bullets": [
+        "Key Mode has 21 more scales besides Major and Minor: the modes, the pentatonics, Blues, Bebop, Whole Tone, the Diminished scales, eastern scales and Barry Harris's 6-Dim (GitHub issues 34 and 45).",
+        "Each note of the scale plays the chord built from the scale's own notes; 6-Dim plays the tonic's 6th chord over the key you press and 7b9 chords outside the scale.",
+        "In the KEY layer KNOB 2 goes through all 23; the MIN and MAJ pads tapped again step to the next scale of their kind.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.35-smk37: a scale other than Major or Minor reads as Major there, and a loop slot holding a 6-Dim inverted or 7b9 chord reads as empty (it plays again on 0.36-smk37).",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "be86be3d28baa619d4fe74b549b42024f5889739f6540771ef274ced222059c0",
+          "sha256_1core": "c4ac8df97b54e4243af521ec319be60b4788c5e38100a3a5cfa5275f1ec8b84b"
+        },
+        "elite": {
+          "sha256": "60c5821dbf40fdc4c3a8c4e802d9044e0791d9503e3a07111594a92b744e4100",
+          "sha256_1core": "d14d66d8537953ca387733615c9459a5a00efbaf1cbbb73f2fa519f22554a7f2"
+        },
+        "mke": {
+          "sha256": "a547a47c5e62d929ad12a530bb6d7ee6d8a1c3fdd436a5077690b8aeb59d1c2b",
+          "sha256_1core": "afd2d5fb62b892d185d33ac0f26832750d34f04e767181e9989680683e3b6a0f"
+        }
+      }
+    },
+    {
+      "version": "0.35-smk37",
+      "base": "0.35",
+      "date": "2026-11-09",
+      "tag": "v0.35-smk37",
+      "title": "0.35 on the SMK-37: the bass Follows the chords' performance",
+      "bullets": [
+        "The Bass PERF layer (CHORD held + ARP) has a new entry after Off, Follow: the bass performs the chords' mode with their parameters, each step together with the chords'.",
+        "Holding ARP inside either PERF layer switches to the other one; OCT-, OCT+ or HOME closes it.",
+        "With the chords on Off, a following bass plays its plain note; the bass's own settings are kept.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.34-smk37: a bass on Follow plays its own mode there, and holding ARP in a PERF layer closes it again.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "3d4d5f4435aec401a76c419989c5b20aadb12b845b6985567e4c763069d016cd",
+          "sha256_1core": "c0a953b961f587026d405c2b963ee6aa59cb19d233492c8970a25854b6059352"
+        },
+        "elite": {
+          "sha256": "e406b6b135336bff6ca95d0488bebf672225ba36a0abdfbf90150edaf1d303e2",
+          "sha256_1core": "f493a9b7f46ec348a64d7ae31a963c5607671b34a3bd1bc4a90ca861acae3b1f"
+        },
+        "mke": {
+          "sha256": "0a0fe9223f3978941b85dc7282f95840612f084393c876eff2c34cc466aa74b0",
+          "sha256_1core": "e3ed451aa3bb6bc4c9eaaa1de2de4db05c0658cf4b480ce531c48a6e9a0f72c0"
+        }
+      }
+    },
+    {
+      "version": "0.34-smk37",
+      "base": "0.34",
+      "date": "2026-11-09",
+      "tag": "v0.34-smk37",
+      "title": "0.34 on the SMK-37: Chord and Bass Perform",
+      "bullets": [
+        "Chord and Bass Perform: the chords and the bass each have their own performance mode (GitHub issue 41, by etyrnal). CHORD held + ARP opens the Bass PERF layer; the mode pads stay the chords'.",
+        "A BASS tap turns the bass, and its arpeggio, on and off at once, also under a held chord.",
+        "The BASS layer's keys now play by default; a GLO tap in the layer turns them into its Behaviour shortcuts.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.33-smk37: the bass plays its plain note, a chord part set to Off performs again, and the BASS layer's keys pick the Behaviour.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "94747b4c06c3e487511987e96f1be9061c09a909795bb08675e96eefd71c7594",
+          "sha256_1core": "d2a46f747446de850a8fccdc2bcadab8400d1bb291dc2d45b0a670045fe9b4e7"
+        },
+        "elite": {
+          "sha256": "01f6af4757ce065433660cd91aa16f10c024f3c65c4a4e2fbb9970e9e74f8b6c",
+          "sha256_1core": "3d51ecd317da400cb898f54ae09d476a743d611c03564160be239ab30b0ce023"
+        },
+        "mke": {
+          "sha256": "c62a9b9eccfc40dd14dfa6392f9e2aa8d5c9849f3641c02db298f5f49572c085",
+          "sha256_1core": "95b5c24cfde355edcd0d1eac8d792ef64423677437b78b439ba53eb3f6a85f21"
+        }
+      }
+    },
+    {
+      "version": "0.33-smk37",
+      "base": "0.33",
+      "date": "2026-11-09",
+      "tag": "v0.33-smk37",
+      "title": "0.33 on the SMK-37: MIDI CC on the sounds, the filter on one part",
+      "bullets": [
+        "Options > MIDI CC (In by default): a CC sets a parameter of the chord or the bass sound; with Out, a knob or a fader turned on one sends its CC.",
+        "The master filter can work on the chords or the bass alone (Filter: Off, All, Chord, Bass).",
+        "The audio starts right after power-on, as on the FM-1, where that took away a pop. Incoming CCs bring up no popup.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.32-smk37: the filter on Chord or Bass reads as Off, and MIDI CC set to anything but In makes it read Raw Chord Sound and MIDI Keys as Off.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "80d333480ded37e079a6be555919c7b3ddc442c7851d05f37b026c71e4f7cd59",
+          "sha256_1core": "aa5592a29ec868aa32b82047cd16e8e40e84da15804a22403f25101b7f197f3d"
+        },
+        "elite": {
+          "sha256": "225cecdbd7b7e06bad5c88d6234a6c984900318d882d5656e4dfe7301bf5d5e2",
+          "sha256_1core": "fa8b485bb2b264cc1660c9e832ea26cc9dc55db9baca068518a2a80bd4d8b36e"
+        },
+        "mke": {
+          "sha256": "daabf9b00fec7593131da68eca522be3a0e30504a8b2d32e23e913ff4465a819",
+          "sha256_1core": "34d24004816d64aef287462f1f5719f66a71070598eb6a034edd834a744bf477"
+        }
+      }
+    },
+    {
+      "version": "0.32-smk37",
+      "base": "0.32",
+      "date": "2026-11-08",
+      "tag": "v0.32-smk37",
+      "title": "0.32 on the SMK-37: a safer flash driver",
+      "bullets": [
+        "The flash driver now waits out an erase or a write that takes longer than expected (up to 2 s / 50 ms) instead of cutting it short, and never runs from the flash while the chip is busy (the FM-1's 0.32).",
+        "Everything of 0.31-smk37: held notes let go when USB goes, incoming start and stop with MIDI Clock Out, the TRS jack's MIDI out.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.31-smk37 keeps everything.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "02e30f819cef96a4fa537af0e6068b9aefca0f57ef88aaeae391efd3c84f59ae",
+          "sha256_1core": "044cc6f38a371d4e7b61f7378b48ab057c816d3376c37670155a33387561c120"
+        },
+        "elite": {
+          "sha256": "a6104d14f82bdd0c8f178857ac7af6f08027dd4334d2bb906a6f286d6953e4ce",
+          "sha256_1core": "13270f2e2f95b972b2132c2dcd583290db3ed731c70128d334f64199bcc0ab6e"
+        },
+        "mke": {
+          "sha256": "4d676c5c2b43504a5cf904ddb051a6641c18dc6caab3ed0bb42159134f5976da",
+          "sha256_1core": "8ecad56d23290f39b5bc3702752fafeb34a91e8e3875bdd9614b85ecd85f8ecb"
+        }
+      }
+    },
+    {
+      "version": "0.31-smk37",
+      "base": "0.31",
+      "date": "2026-11-08",
+      "tag": "v0.31-smk37",
+      "title": "0.31 on the SMK-37: held notes let go when USB goes",
+      "bullets": [
+        "When the computer goes with notes held (a cable pulled, a computer asleep), the keyboard now lets go of the notes MIDI was holding; its own keys and the loop keep theirs (the FM-1's 0.31).",
+        "Everything of 0.30-smk37: incoming start and stop with MIDI Clock Out, the Arp restarted by a Start, the TRS jack's MIDI out.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's USB Host and Bluetooth MIDI are not in the SMK-37 build.",
+        "Going back to 0.30-smk37 keeps everything; a note held over USB then stays on when the computer goes, until PANIC.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "f3ffe9441d05de1a16e1805dc2484829b2ff2b448a08ee57a205d1c1be865bed",
+          "sha256_1core": "605b99c44d73c6bb223f4cfd976371edd9fe929c571bf0eb5014cf7c90eb8e03"
+        },
+        "elite": {
+          "sha256": "079b621089fbef16a0af3796a6a8d2495a7b70bdf84417d35272729600653c5f",
+          "sha256_1core": "413159066031a75e4663d59a8ed6304f041095b0e39b369275a05f1c4fd682f5"
+        },
+        "mke": {
+          "sha256": "a1e9bb078b0b43a7fc8459568eac66affe01e50c4fcf26713f94c5a93fcfcf0a",
+          "sha256_1core": "8347b7c2e08880e535f584de52a8c1dc705137281092cfc8d6495807f5af02b3"
+        }
+      }
+    },
+    {
+      "version": "0.30-smk37",
+      "base": "0.30",
+      "date": "2026-11-07",
+      "tag": "v0.30-smk37",
+      "title": "0.30 on the SMK-37: MIDI start and stop with Clock Out",
+      "bullets": [
+        "Incoming MIDI Start, Continue and Stop now work like the PLAY button with MIDI Clock set to Out as well as In, and a Start takes the Arp and Pattern back to their first step (the FM-1's 0.30).",
+        "With MIDI Clock Out, a start or stop that came in is not sent back, so a master that echoes never loops.",
+        "The crash screen reads CHORALROOT CRASH.",
+        "Everything of 0.29.2-smk37: the TRS jack's MIDI out, the newer flash chip, loops that keep time with MIDI Clock In.",
+        "Your settings, sounds, loops and favourites are stored as before."
+      ],
+      "notes": [
+        "The FM-1's Bluetooth MIDI is not in the SMK-37 build.",
+        "A keyboard still on genkigenki's earlier ChoralRoot build: install 0.29.2-smk37 first and switch it on once to keep that build's sounds (SMK37.md); 0.30-smk37 no longer moves them.",
+        "Going back to 0.29.2-smk37 keeps everything; incoming start and stop with MIDI Clock Out are then ignored again.",
+        "Community-tested builds: the maintainer has no SMK-37. Please report what you find on GitHub."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "e59198bf11005d16381a1807660cd3e46722c62832c99009122de1154f6272bf",
+          "sha256_1core": "c09383e9e0a5255310a794fb64c22009ad72a0f29e5971e5cf8e05c006fd805d"
+        },
+        "elite": {
+          "sha256": "83f8d4a3b19b5ce5ee4a9513d18196428c8d5548ca83bbc8eda7e7f559afc856",
+          "sha256_1core": "572287f2e1399105e8d8bbbe4092a73a37681e784a074220f33e40cf58bab063"
+        },
+        "mke": {
+          "sha256": "ffc0ebc5171c381b386469aa90511060ae76c2bc71cd6b5635bd84557ca9c7c5",
+          "sha256_1core": "6b3dd0754f575cc426ee116b7728a1ed7ad3b57e12146ee3ee3f9c479563b446"
+        }
+      }
+    },
+    {
+      "version": "0.29.2-smk37",
+      "base": "0.29.2",
+      "date": "2026-11-06",
+      "tag": "v0.29.2-smk37",
+      "title": "0.29.2 on the SMK-37: MIDI out of the TRS jack",
+      "bullets": [
+        "The TRS jack is a MIDI output: what ChoralRoot sends over USB MIDI (notes, wheels, pedal, clock) also goes out of it, with or without a computer. Use a TRS Type A to DIN adapter. Thanks to finlaysteven1-netizen (issue 42) and Skiff.",
+        "Options > TRS MIDI Out: On (the default) or Off. Off still sends the note-offs for notes it already played, so nothing is left hanging.",
+        "A loop that follows MIDI Clock In now keeps time with the incoming pulses: no drift from the master (the FM-1's 0.29.2).",
+        "SMK-37s with the newer flash chip (0xB36014) are recognised (the FM-1's 0.29.1).",
+        "Everything of 0.29-smk37: FM TONE's new filter types (hold SCALE), drive, envelope and crush; the pedal jack; K1's volume."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer. The TRS jack was seen working on an SMK-37 Pro; the Elite, the MKE-P37, the 1-core packages and long sessions have not been tried. Please report what you find (SMK37.md, What to test, item 15) on GitHub.",
+        "Updating from 0.29-smk37 keeps your settings, sounds, loops and favourites, and TRS MIDI Out starts On. Going back to 0.29-smk37 works too; the jack is then silent again.",
+        "The jack sends about 2,500 bytes a second: a very dense burst drops some note-ons and wheel steps, never note-offs. Backups and sound dumps stay on USB."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "9e1f9bff3958a7ae4a5702f49863e093a7a4a167803e2ecf84aa65ea9ef607e4",
+          "sha256_1core": "c57333d6cec26fee81631281ff356deb6aa9b2d29ded8fd4960166e5282070e9"
+        },
+        "elite": {
+          "sha256": "422bff42932c697e1ca0aae7fdf4fcde61886a7b1e3d0ceb6a5b0ae3c11225c8",
+          "sha256_1core": "56f12a647058b72a9aff8216884f3dbcba40d3da5971c510678c41d425dc329e"
+        },
+        "mke": {
+          "sha256": "1c3b3d95084c2297aa92a1ca88a141e47c2c64a259eb3ab6537d91b2f7361453",
+          "sha256_1core": "e78781ef7379ed67f2b77ccf1e39a5376dfd0aca7583a601801cf0f568820aa5"
+        }
+      }
+    },
+    {
+      "version": "0.29-smk37",
+      "base": "0.29",
+      "date": "2026-11-01",
+      "tag": "v0.29-smk37",
+      "title": "0.29 on the SMK-37: FIZZ's engine in FM TONE",
+      "bullets": [
+        "FM TONE gets the Digitone II's filter types: MULTI (with Morph), COMB+, COMB- and EQ. In the sound editor's filter pages, hold SCALE (the FM-1's SEL) to pick one; the FILTER screen's third knob follows the type.",
+        "DRIVE before the filter, the AHD amp envelope and CRUSH (bit and sample-rate reduction) for FM TONE.",
+        "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
+        "Everything of 0.27-smk37.1: the pedal jack (Sustain or Expression), K1's volume shown and remembered, the FX routing."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: the new filters and the SCALE hold have not been tried on an SMK-37. Please report what you find (SMK37.md, What to test, item 14) on GitHub.",
+        "Updating from 0.27-smk37.1 keeps your settings, sounds, loops and favourites. Going back to it works too, but an FM TONE sound that uses something new in 0.29 plays as FM TONE's INIT sound there (it stays in its slot, untouched).",
+        "Importing Digitone and Digitone II sounds is in the FM-1's web device manager and installer, which do not connect to an SMK-37 yet; the new filters, drive, envelope and crush are all on the keyboard's own sound editor."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "07abef95a089c91863828ddc15d6da339af085ad7cb6e737e86f5d74ee8b5d36",
+          "sha256_1core": "637fae9dfaae4cbe64deeba4bcff87f83fc35ac3be552958a8f58b2c3559d9b4"
+        },
+        "elite": {
+          "sha256": "dae721828de71e3e485c1df5364ec74b2b3c4543755d4dd7fa85778300d5f56d",
+          "sha256_1core": "e7cf9ada92659660e692dc674e1ea9d1c1b238d9b3a52776000dd908735b525e"
+        },
+        "mke": {
+          "sha256": "ab31898a3df0de9e37601354e3a89448f9bc46ede74bcdd09dbfa76530786972",
+          "sha256_1core": "27b7f38982c259d9d050b99bb5d6dc84a7032e18d080e93c8246c0873a13b88e"
+        }
+      }
+    },
+    {
+      "version": "0.27-smk37.1",
+      "base": "0.27",
+      "date": "2026-10-29",
+      "tag": "v0.27-smk37.1",
+      "title": "0.27-smk37 with the pedal jack: sustain or expression",
+      "bullets": [
+        "The SMK-37's pedal jack works: Options > Pedal picks Sustain (the default) or Expression.",
+        "Sustain: a switch pedal holds the notes of the keys and pads on both parts until it comes up, and sends CC 64 on the CHORD and BASS channels. Pedals of either polarity work: plug yours in before switching on.",
+        "Expression: an expression pedal sets both parts' level (CC 11, also sent out). Sweep it heel to toe once after plugging it in so it learns the range.",
+        "Everything else as 0.27-smk37."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: the pedal has not been tried on a unit. Please report what your pedal does (SMK37.md, What to test, item 13) on GitHub.",
+        "Updating from 0.27-smk37 keeps your settings, sounds, loops and favourites. Going back to 0.27-smk37 works too (it ignores the Pedal setting)."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "573c2b0d9f1f197e39dcae99738fd4c544474e698fcffdfa5073944062a10327",
+          "sha256_1core": "3bc5a4cbc5fcc172060eaec64e517486e05a6d3cf0ac2d297749f20a09425930"
+        },
+        "elite": {
+          "sha256": "a0ce234446fcc710df00234f8bc0b3baf409b25b7e0c603a12cf000f6c4c78da",
+          "sha256_1core": "29b5d1c15250ece9d88effcccdd306b8cb7379353c0de4eaa925c862779c63db"
+        },
+        "mke": {
+          "sha256": "6d7150015f6c8ebe5cf5a130d95fb9cdaac65f70cf00406c873bfa7515e224d4",
+          "sha256_1core": "b88a1d2a8ad4b55269d7c49cf174f138b378816e27567c7c965bd3be2da5512c"
+        }
+      }
+    },
+    {
+      "version": "0.27-smk37",
+      "base": "0.27",
+      "date": "2026-10-25",
+      "tag": "v0.27-smk37",
+      "title": "ChoralRoot 0.27 on the SMK-37: FX routing, the volume on K1 shown and remembered",
+      "bullets": [
+        "ChoralRoot 0.27 on the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and Starrykey 37 Play, with everything of 0.26-smk37.",
+        "A Routing page in the FX layer draws the chorus, delay, reverb and master filter as boxes on a wire. Hold a black key of the keybed (C#4 Chorus, D#4 Delay, F#4 Reverb, G#4 Filter) and turn KNOB 1 to move that block.",
+        "The white keys and the chord pads keep playing on the page, so you hear the effects while you route them.",
+        "Parallel is ChoralRoot as it always was: the three send buses side by side. The filter can now go before them (hold G#4, KNOB 1 anticlockwise).",
+        "Chain is the original firmware's way: one path through the four blocks in the order on the screen. A#4 or KNOB 2 switches the mode.",
+        "K1 is the volume (GitHub issue 30): a turn now shows the level on the screen, and the level you set is kept across power-off by SAVE held. A new keyboard starts at about 70 %.",
+        "Where every keyboard starts (Parallel, the filter after the effects) the sound is 0.26-smk37's bit for bit.",
+        "genkigenki's port (the fm1-to-smk37 guide), built from the FM-1's 0.27."
+      ],
+      "notes": [
+        "Community-tested, not tested by the maintainer: please report what works and what does not on GitHub, the Routing page's keys and screen in particular (SMK37.md, What to test, item 11).",
+        "Updating from 0.26-smk37 or an older SMK-37 build keeps your settings, sounds, loops and favourites.",
+        "Going back: M-Vave's package for your model with M-UPGRADE. Going back to 0.26-smk37 keeps everything; the routing's two settings are skipped there and the effects are the buses again."
+      ],
+      "packages": {
+        "pro": {
+          "sha256": "e9a34a5196758918302b4282aa81cc335b7e76174914a88447e8dac4977f6b24",
+          "sha256_1core": "dfebf4778792ab09cacf20e122de6159e92b03e79a31e32484e1073fc527a47d"
+        },
+        "elite": {
+          "sha256": "b3e6cf55d095c996ca42feef0d09e40f324556541488ada5a53192c76ecc472d",
+          "sha256_1core": "a8a6d3c5d7d94a0d40b91798468fe48390ac06cfcca7ea9527e56afbfc626f7c"
+        },
+        "mke": {
+          "sha256": "c786f00c69d2f0fdd512bc8b67a1a95574408f44ccf04c5ddf4b56047d04fe31",
+          "sha256_1core": "9ac2888fd379c26aab875b2702574ec21e9646b27979f1d37ce08f7bd20ad095"
+        }
+      }
+    },
+    {
       "version": "0.26-smk37",
       "base": "0.26",
       "date": "2026-10-19",

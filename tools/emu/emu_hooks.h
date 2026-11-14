@@ -83,6 +83,7 @@ extern const int8_t emu_keymap[6][EMU_NCOL];
 /* the flash file (before emu_fw_init): flash_path NULL = the default (build/emu/flash.bin; headless: none, a fresh
  * flash each run), no_flash = RAM only, save_on_exit = the settings saved at exit */
 void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int headless);
+void emu_fw_erase_ms(int ms);                     /* --erase-ms: a sector erase's time (emu_hal_fw.h) */
 /* the boot guard before the power-on (firmware/src/cr_bootguard.h): fail < 0 none (a clean record), reason NULL a
  * power-on, stage < 0 the default; 0 = a bad reason */
 int emu_fw_boot_options(int fail, const char *reason, int stage);
@@ -92,6 +93,7 @@ void emu_fw_frame(void);                    /* one UI frame: ui_input + ui_leds 
 void emu_fw_idle(void);                     /* between frames: ui_input (main.c's wait loop) */
 void emu_fw_audio(int16_t *stereo, uint32_t frames);   /* frames: a multiple of EMU_BLOCK; s16 interleaved */
 int emu_fw_midi_in(uint32_t pkt);           /* one USB-MIDI event packet in; 0: no room (retry later) */
+void emu_fw_usb_lost(void);                 /* the USB peer went (usb.c usb_midi_lost, 3y261) */
 int emu_fw_midi_out_take(uint32_t *pkt);    /* one USB-MIDI event packet out, 0: none */
 void emu_fw_dump(void);                     /* print the firmware's input state (F12) */
 void emu_fw_stats(uint32_t *shed, uint32_t *cpu_pct);  /* voices shed on overload, the CPU meter */

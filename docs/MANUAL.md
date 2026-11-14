@@ -1,6 +1,6 @@
 # ChoralRoot FM-1: the manual
 
-For ChoralRoot 0.27 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md); 0.26.1 is 0.26 signed, [releases/0.26.1.md](releases/0.26.1.md)). It is written for someone who owns an
+For ChoralRoot 0.41 on the M-VAVE FM-1 (what is new since 0.22 is marked so; what 0.41 brought, each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core: [releases/0.41.md](releases/0.41.md); what 0.40 brought, drums on the metronome's keys (a Grids beat you morph, six kits, following your loop), the click following MASTER and the beat off at power-on: [releases/0.40.md](releases/0.40.md); what 0.39 brought, MIDI Roots (a whole keyboard plays the chords, shown on the home screen), pads holding the chord keys and the Options in groups that reopen where you left them: [releases/0.39.md](releases/0.39.md); what 0.38 brought, chords that glide into each other in POLY and a Glide of up to 30 s that shows the time it takes: [releases/0.38.md](releases/0.38.md); what 0.37 brought, Bass Solo in the octave you play, loops locked to MIDI Clock In however the pulses arrive and the PERF knobs in the same places across modes: [releases/0.37.md](releases/0.37.md); what 0.36 brought, 21 more Key Mode scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished): [releases/0.36.md](releases/0.36.md); what 0.35 brought, the bass Following the chords' performance and PERF held switching between the two PERF layers: [releases/0.35.md](releases/0.35.md); what 0.34 brought, Chord and Bass Perform, each part with its own performance mode: [releases/0.34.md](releases/0.34.md); what 0.33 brought, no pop at power-on, MIDI CC on the sounds' parameters and the filter on the chords or the bass alone: [releases/0.33.md](releases/0.33.md); 0.32 is 0.31 with a flash driver that waits out a slow erase or write, for the newer FM-1s' slower flash chip, [releases/0.32.md](releases/0.32.md); what 0.31 brought, USB Host and two FM-1s on one cable: [releases/0.31.md](releases/0.31.md); what 0.30 brought, Bluetooth MIDI and incoming start and stop with MIDI Clock Out: [releases/0.30.md](releases/0.30.md); 0.29.2 is 0.29.1 with loops that stay in time with an incoming MIDI clock, [releases/0.29.2.md](releases/0.29.2.md); 0.29.1 is 0.29 for the newer FM-1s with the second flash chip, [releases/0.29.1.md](releases/0.29.1.md); what 0.29 brought, FIZZ's engine in FM TONE and Digitone II sounds: [releases/0.29.md](releases/0.29.md); 0.28 is 0.27's firmware with the Digitone importing of the web pages, [releases/0.28.md](releases/0.28.md); what 0.27 brought, the FX routing: [releases/0.27.md](releases/0.27.md)). It is written for someone who owns an
 FM-1, has installed ChoralRoot with
 the web installer and wants to play it. Nothing here needs the design documents; where one goes deeper, the manual
 links to it.
@@ -49,14 +49,15 @@ sound editor, MIDI out on three channels and USB audio recording.
 What it is not:
 
 - **Not the stock firmware with additions.** ChoralRoot replaces the FM-1's firmware while it is installed. The stock
-  sequencer, sampler and drum sounds are not in it; every sound is synthesised. The installer puts the stock firmware
-  back whenever you want ([Back to the stock firmware](#back-to-the-stock-firmware)).
+  sequencer, sampler and drum sounds are not in it; every sound is synthesised. You can switch to another firmware,
+  or put the stock one back, whenever you want ([Switching firmwares](#switching-firmwares)).
 - **Not what the panel says.** Most printed labels have another job (SEL is KEY, ARP is PERF, ENV is BASS, and so on),
   and in the sound editor the buttons change again. A sticker sheet would carry the table of the
   [quick reference](#18-quick-reference).
 - **No velocity.** The FM-1's keys do not sense it. One fixed velocity is set in Options.
-- **No Bluetooth MIDI**, and the computer cannot play audio through the FM-1. USB MIDI works both ways, the TRS jack
-  is a MIDI input, and the computer can record the FM-1 over USB.
+- **No audio from the computer.** The computer cannot play audio through the FM-1. USB MIDI works both ways, the TRS
+  jack is a MIDI input, the computer can record the FM-1 over USB, and the FM-1 (not the SMK-37) does MIDI over
+  Bluetooth too, Off until you turn it on ([Bluetooth MIDI](#bluetooth-midi)).
 - **Not affiliated** with Telepathic Instruments or M-VAVE.
 
 You can try everything in this manual without the hardware: the firmware runs in the browser at
@@ -159,8 +160,8 @@ Two rows of six, and the two octave buttons.
 | GLO | **OPT** | the Options | with a knob: the knob's second job |
 | HOME | **HOME** | back to the view; on the view: the next view | 0.6 s: the view menu |
 | SAVE | **SAVE** | save the sound | held: **save everything** (`saved`). GLO + SAVE held 1 s: back to the last save (`reverted`) |
-| ARP | **PERF** | performance on / off | the PERF layer |
-| SEQ | **SEQ** | the loop editor, then the PLAY menu, then back to the view ([The loop editor](#the-loop-editor)). With OPT (GLO) held: metronome on / off | the SEQ key's hold menu (metronome) |
+| ARP | **PERF** | performance on / off | the PERF layer; with BASS (ENV) held: the Bass PERF layer |
+| SEQ | **SEQ** | the loop editor, then the PLAY menu, then back to the view ([The loop editor](#the-loop-editor)). With OPT (GLO) held: the beat (metronome or drums) on / off | the SEQ key's hold menu: the beat, Metronome or Drums ([The drums](#the-drums)) |
 | PLAY | **LOOP** | play / stop the loop | the PLAY menu |
 | REC | **REC** | record | undo the last layer |
 | OCT- / OCT+ | octave | the roots an octave down / up; in layers, menus and dialogs: back / OK | both together: PANIC |
@@ -180,7 +181,7 @@ None of them can be pressed. A turn (of any knob but MASTER) shows its value lar
 | ALGORITHM | the bass sound: off, then the bass engine's sounds | the bass sound's engine (with BASS held instead: the bass level) |
 | KNOB 1 | the chord's voicing (on the Full keyboard too, since 0.24) | the Single Notes split point |
 | KNOB 2 | the bass register, in octaves | |
-| KNOB 3 | the first parameter of the performance mode | |
+| KNOB 3 | the main parameter of the performance mode (Rate, Amount, Division, the pattern) | |
 | KNOB 4 | the chord part's send into the selected effect, in per cent | |
 
 In a layer KNOB 1 to KNOB 4 are the layer's; in the editor they edit the four values of the active lane.
@@ -190,7 +191,7 @@ In a layer KNOB 1 to KNOB 4 are the layer's; in the editor they edit the four va
 - **Top left**: `Key: C` in yellow while Key Mode is on. While a loop records or plays: `Loop 1` in red (no key
   then).
 - **Top right**: one status word, the first of these that applies: `Bass Solo`, the performance mode (`Strum`, `Slop`,
-  `Arp`, `Pattern`, `Harp`), `Bass`, `Oct +1`, `Latch`, `lock`. While a loop records or plays, the looper's state
+  `Arp`, `Pattern`, `Harp`; `Bass Arp` and so on in orange while only the bass performs), `Bass`, `Oct +1`, `Latch`, `lock`. While a loop records or plays, the looper's state
   instead (`Rec · Overwrite`, `Rec 2.3`, `Dub 3.2`), and a small dial at the right end that fills as the loop goes
   round.
 - **The middle**: the chord and its notes ([Views](#13-views) has the other four views), or the open layer, menu,
@@ -489,7 +490,9 @@ SUS, MAJ + SUS, MIN + SUS). On the Full keyboard B3 is a note, so there is no LO
 Tap **KEY** (printed SEL): the KEY light comes on and `Key: C` shows at the top left. Now a root key on its own plays
 the chord that belongs on that note of the scale. In C major: D gives `Dm`, E `Em`, F `F`, G `G`, A `Am`, B `Bdim`.
 A key outside the scale plays a sus chord on a neighbouring scale note (C# in C gives `Csus`). A chord key held
-overrides the scale's choice of type. The root keys light the key: the scale's notes glow, the tonic's keys are
+overrides the scale's choice of type. Besides Major and Minor there are 21 more scales (new in 0.36): the modes,
+pentatonics, blues, bebop, whole tone, diminished, some eastern scales and Barry Harris's 6th-diminished
+([Scales](#scales)). The root keys light the key: the scale's notes glow, the tonic's keys are
 brighter, the keys outside the scale are dark ([The lights](#the-lights)).
 
 Hold KEY to open the **KEY layer**:
@@ -498,10 +501,10 @@ Hold KEY to open the **KEY layer**:
 
 | Control | In the KEY layer |
 | --- | --- |
-| any root key | that note becomes the tonic and Key Mode switches on. The scale stays as it is, unless MAJ or MIN is held with the root |
-| MAJ, MIN (the chord keys) | the scale: Major or Minor (`Key: E minor`), at the press, with LOCK on or off. In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; LFO is still LOCK (Classic: B3) |
+| any root key | that note becomes the tonic and Key Mode switches on. The scale stays as it is, unless MIN is held with the root while the scale is a major one (then Minor), or MAJ while it is a minor one (then Major) |
+| MAJ, MIN (the chord keys) | the scale, with LOCK on or off. MIN picks Minor (`Key: E minor`) at the press when the scale is a major one; when it is already a minor one, MIN tapped steps to the next minor scale (Dorian, Phrygian ..). MAJ does the same with Major and the major scales ([Scales](#scales)). In this layer they are not chord keys: the chord you have latched with LOCK is untouched and is back when the layer closes. The other chord keys do nothing here; LFO is still LOCK (Classic: B3) |
 | KNOB 1 | Tonic, step by step (Key Mode switches on) |
-| KNOB 2 | Scale: Major or Minor |
+| KNOB 2 | Scale: all 23, in the order of the table in [Scales](#scales) |
 | KNOB 3 | Transpose, -24 to +24 semitones. It moves everything you play from then on, in or out of Key Mode |
 | KNOB 4 | Single: Full, Split Oct or Split Bass (below) |
 | SELECT | turns the layer's page: page 1 is the four settings above, page 2 has Key plays, Keyboard, Snap and Numerals (below). The top line says `1/2` or `2/2`. SELECT does not change the tempo in this layer |
@@ -516,9 +519,57 @@ A quick way to set a key: hold KEY and press a root at once (the layer opens str
 For a minor key press MIN as well, before or after the root.
 
 While the layer is open the chord keys' lights show the scale instead of the chord: MAJ and MIN glow, the one of
-the selected scale is fully lit, and the six chord keys without a job here are dark. (With Options > LEDs set to
+the selected scale's kind (MAJ for the major scales, MIN for the minor ones) is fully lit, and the six chord keys without a job here are dark. (With Options > LEDs set to
 Stock, which has no half level, only the selected scale's key is lit.) Outside the layer the lights mean what they
 always do.
+
+#### Scales
+
+KNOB 2 in the KEY layer goes through them in this order; MAJ steps through the major ones (the first column says
+which), MIN through the minor ones, each from its first, Major or Minor, and round again. The top line names the scale
+(`Key: D dorian`; Major shows as `Key: D`); in the KEY layer's Scale cell a long name goes on two larger lines (`Harm` over `Minor`). Every key of the scale plays the chord built from the scale's own notes on
+it, as Major and Minor do; the chord keys 6, m7, M7 and 9 add to it as ever. The chords below are in C.
+
+| Scale | Kind | The chords on the scale's notes | Keys outside the scale |
+| --- | --- | --- | --- |
+| Major | MAJ | C Dm Em F G Am Bdim | a sus chord on a neighbour |
+| Minor | MIN | Cm Ddim Eb Fm Gm Ab Bb | the same |
+| Dorian | MIN | Cm Dm Eb F Gm Adim Bb | the same |
+| Phrygian | MIN | Cm Db Eb Fm Gdim Ab Bbm | the same |
+| Lydian | MAJ | C D Em F#dim G Am Bm | the same |
+| Mixolydian | MAJ | C Dm Edim F Gm Am Bb | the same |
+| Locrian | MIN | Cdim Db Ebm Fm Gb Ab Bbm | the same |
+| Harm Minor | MIN | Cm Ddim Eb+ Fm G Ab Bdim | the same |
+| Mel Minor | MIN | Cm Dm Eb+ F G Adim Bdim | the same |
+| Maj Pent | MAJ | C D E G A: C Dm Em G Am | Major's chords (F, Bdim) |
+| Min Pent | MIN | C Eb F G Bb: Cm Eb Fm Gm Bb | Minor's chords (Ddim, Ab) |
+| Blues | MIN | C Eb F F# G Bb: Cm Eb Fm F#dim Gm Bb | Minor's chords |
+| Phryg Dom | MAJ | C Db Edim Fm Gdim Ab+ Bbm | a sus chord on a neighbour |
+| Dbl Harm | MAJ | C Db Em Fm G Ab+ Bdim | the same |
+| Hirajoshi | MIN | C D Eb G Ab: Cm Ddim Eb Gm Ab | Minor's chords |
+| Whole Tone | MAJ | C+7 D+7 E+7 F#+7 G#+7 A#+7 | an augmented chord |
+| Dim W-H | MIN | C D Eb F F# G# A B: a diminished seventh on each | a 7b9 chord (below) |
+| Dim H-W | MAJ | C Db Eb E F# G A Bb: C7 Eb7 F#7 A7, a diminished seventh on Db E G Bb | a 7b9 chord |
+| Bebop Dom | MAJ | Mixolydian's, and the passing B: Bdim7 | a sus chord on a neighbour |
+| Bebop Maj | MAJ | Major's, and the passing G#: G#dim7 | the same |
+| Bebop Min | MIN | Dorian's, and the passing E: Edim7 | the same |
+| 6-Dim | MAJ | C6 on C, E, G and A (below), Ddim7 Fdim7 G#dim7 Bdim7 | a 7b9 chord |
+| m6-Dim | MIN | Cm6 on C, Eb, G and A, Ddim7 Fdim7 G#dim7 Bdim7 | a 7b9 chord |
+
+The pentatonics, Blues and Hirajoshi have five or six notes. The lights, Key plays `Notes` and Snap use just those
+notes; the chords are the major or minor scale's, so a key between them still plays a chord that fits. In Dbl Harm, G
+and B stack no plain chord in the scale: they play G and Bdim.
+
+**6-Dim and m6-Dim** are Barry Harris's 6th-diminished scales (GitHub issue 45): the major (or minor) scale with a
+raised 5th added, eight notes, each with one of two chords. The tonic's 6th chord sits on C, E, G and A, always with
+the key you press in the bass: E plays `C6/E` (E G A C), G `C6/G` (G A C E), A `Am7` (A C E G, the same four notes).
+D, F, G# and B play the diminished seventh on them. A key outside the scale plays its **7b9 chord**: the key in the
+bass under the diminished seventh a semitone up (C# plays C# D F G# B, `C#7b9`). The chord name shows the slash
+(`C6/E`, `Cm6/D#`); the bass part plays the key you press. The two Dim scales (whole-half and half-whole) give their
+keys outside the scale the same 7b9 chord. A loop records these chords as played and plays them back the same way.
+
+**Numerals** in the new scales count the degrees as Major does for a MAJ scale and as Minor does for a MIN scale: F
+in C Dorian is IV, A is #vi° (Locrian's flat fifth reads #IV). C6/E reads I.
 
 **Keys: pick or play.** The layer opens with its keys on **pick**: the root keys set the tonic, MAJ and MIN the
 scale, and nothing sounds. Tap **OPT** (printed GLO) in the layer and the keys **play** instead, exactly as outside
@@ -645,7 +696,7 @@ loop and the settings are kept. The screen goes red for a second and is then bla
 ## 5. Layers
 
 A layer is a screen that borrows KNOB 1 to KNOB 4 (and sometimes the root keys) for one job. Six buttons have one:
-KEY, PERF, FX, BASS, SEQ (its hold menu is the metronome's) and LOOP.
+KEY, PERF, FX, BASS, SEQ (its hold menu is the beat's: the metronome or the drums) and LOOP.
 
 - **Tap = use.** A tap is always the button's on / off action, also while its own layer is open.
 - **Hold = open, and it stays.** Hold the button past the hold time (0.4 s) and its layer opens and stays open after
@@ -665,17 +716,18 @@ KEY, PERF, FX, BASS, SEQ (its hold menu is the metronome's) and LOOP.
 | Layer | Hold | The picker (SELECT) | The root keys | A tap of its button | OCT- / OCT+ |
 | --- | --- | --- | --- | --- | --- |
 | KEY | KEY (SEL) | a keyboard with the tonic lit | set the tonic (OPT tap: they play instead) | Key Mode on / off | close |
-| PERF | PERF (ARP) | the performance mode | play as usual | performance on / off | close |
+| PERF | PERF (ARP) | the performance mode (Off first) | play as usual | performance on / off | close |
+| Bass PERF | BASS (ENV) + PERF (ARP) | the bass's performance mode (Off first) | play as usual | performance on / off | close |
 | FX | FX | the effect | play as usual | effects on / off | close |
 | BASS | BASS (ENV) | the bass behaviour | the white keys D4 E4 F4 G4 pick the behaviour; nothing sounds | bass on / off | close |
-| SEQ's hold menu (metronome) | SEQ | the time signature | D4 E4 F4 pick 4/4, 3/4, 6/8 | metronome on / off (in this layer only; on the view a tap is the loop editor) | close |
+| SEQ's hold menu (the beat) | SEQ | the page: with Drums, the preset, Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix ([The drums](#the-drums)) | play as usual | the beat on / off (in this layer only; on the view a tap is the loop editor) | close |
 | PLAY menu | LOOP (PLAY) | see [The looper](#10-the-looper) | play, or pick loop slots | play / stop | close (in step entry: back a step / a rest) |
 
 Three more things open the same way and are described in their own chapters: **EDIT** held is the engine picker
 ([Sounds](#11-sounds)), **HOME** held for 0.6 s is the view menu ([Views](#13-views)), and **SAVE** held is not a layer: it is the global save ([What the FM-1 remembers](#what-the-fm-1-remembers)). (Until 0.17 SAVE held showed the
 loop slots for as long as it was held.)
 
-PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu). The hold time is set in Options > Hold
+PRESETS and ALGORITHM keep their jobs in a layer (except in the PLAY menu and in SEQ's hold menu, where they are the beat's, and on its Mix pages a drum's Drive and Filter: [The drums](#the-drums)). The hold time is set in Options > Hold
 Time (300, 400, 500 or 600 ms).
 
 ## 6. Bass
@@ -705,20 +757,24 @@ Hold BASS for the **BASS layer**:
 
 | Control | In the BASS layer |
 | --- | --- |
-| SELECT, KNOB 1, or the white keys D4 E4 F4 G4 | Behaviour (below) |
+| SELECT, KNOB 1, or the white keys D4 E4 F4 G4 (after a GLO tap) | Behaviour (below) |
 | KNOB 2 | Register |
 | KNOB 3 | Sound (as ALGORITHM, without wrapping round) |
 | KNOB 4 | Level |
 | ALGORITHM | the bass sound, as everywhere; **with BASS held: Level** |
+| GLO | the keys: play (the default) or pick |
 
-The root keys do not sound while this layer is open, whatever its footer says; close it to hear the change.
+The keys play while this layer is open, so you hear the bass as you change it (`keys play` at the top). A **GLO** tap
+in the layer turns its keys into shortcuts (`keys pick`, the GLO light on): the white keys D4 to G4 pick the
+Behaviour and the keys do not sound. Another GLO tap: they play again. The choice is kept with the settings, as the
+KEY layer's.
 
 | Behaviour | What the bass does |
 | --- | --- |
 | **Chords Only** (default) | plays the chord's root, in the bass register, under chords; a single note has no bass |
 | **Unison Bass** | plays under everything, at the pitch of the key you pressed rather than in the bass register (KNOB 2 still moves it by octaves) |
 | **Bass Single Notes** | plays the root under everything; a single note sounds on the bass alone |
-| **Solo** | only the bass sounds; the chord sound is silent (`Bass Solo` at the top right) |
+| **Solo** | only the bass sounds, at the chord's root in the octave you play it (KNOB 2 moves it by octaves; new in 0.37); the chord sound is silent (`Bass Solo` at the top right). Until 0.36 Solo played in the bass register, the same octave from every key (GitHub issues 40, 43) |
 
 The same setting is Options > Bass Behaviour. The behaviour, the register and the level are kept by a global save (SAVE held).
 
@@ -731,7 +787,8 @@ engine, hold OPT and turn ALGORITHM (above), or open the bass sound's editor and
 A performance mode plays the notes of your chord for you. **PERF** (printed ARP) tap switches the chosen mode on and
 off; the top right names it. Hold PERF for the **PERF layer**: SELECT picks the mode (picking one switches the
 performance on), the root keys play so you hear it, KNOB 1 to KNOB 4 are the mode's parameters, and a PERF tap is
-still on / off. OCT-, OCT+, HOME or holding PERF again closes the layer.
+still on / off. OCT-, OCT+ or HOME closes the layer; holding PERF again switches to the Bass PERF layer and back
+([below](#chord-and-bass-perform-new-in-034)).
 
 While an arpeggio or a pattern is playing, the top half of the PERF layer shows it: the chord's name, its notes on a
 line and the sounding note hopping along, with the mode's name small at the top left (`Arpeggiate · on`). The four
@@ -743,11 +800,15 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 | Mode in the picker | What it does | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
 | --- | --- | --- | --- | --- | --- |
 | **Strum**, **Strum 2 Octaves** | the notes one after another | Rate (ms) | Direction | Range (octaves) | Hold |
-| **Slop** | a strum with uneven timing | Amount (%) | Rate | Direction | Range |
+| **Slop** | a strum with uneven timing | Rate | Direction | Range | Amount (%) |
 | **Arpeggiate**, **Arp 2 Octaves** | the notes in turn, in time with the tempo | Division | Direction | Gate (%) | Swing (%) |
-| **Pattern** | one of twelve rhythmic figures over the chord's notes | Pattern | Division | Gate | Swing |
+| **Pattern** | one of twelve rhythmic figures over the chord's notes | Division | Pattern | Gate | Swing |
 | **Harp** | a fast run over several octaves | Rate | Direction | Gate | Range |
 
+- A parameter two modes share is on the same knob in each, in that knob's colour: KNOB 1 is the timing (Rate or
+  Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3 Range in Strum and Slop and Gate in Arpeggiate,
+  Pattern and Harp, KNOB 4 the mode's own (Harp: its Range). New in 0.37: until 0.36 Slop and Pattern had theirs in another order
+  (GitHub issue 26); the values you set are kept as they were.
 - Direction: Up, Down, Up-down, Down-up, Played or Random.
 - Division: 2/1, 1/1, 1/2, 1/4, 1/8, 1/16, 1/32 and the triplets of 1/2 to 1/32.
 - Rate is in milliseconds at 120 BPM and follows the tempo.
@@ -757,8 +818,44 @@ When nothing is being stepped (no keys held, or Strum, Slop, Harp) the picker st
 - Strum's Hold keeps the strummed chord sounding after you let go, as LATCH does, and lights LATCH; LATCH's gesture
   (GLO held + LFO; Classic: a tap on LFO) turns it off again (0.22).
 
-Outside the layer **KNOB 3** turns the mode's first parameter (the strum rate, the slop amount, the arp division,
+Outside the layer **KNOB 3** turns the mode's main parameter (the strum rate, the slop amount, the arp division,
 the pattern, the harp rate). An arpeggio stops when you let go of the keys; switch LATCH on to keep it running.
+
+### Chord and Bass Perform (new in 0.34)
+
+The chords and the bass each have a performance mode of their own, so slow sustained chords can sit over an
+arpeggiated bass, or both can perform at once.
+
+- **PERF held** is the chord part's PERF layer, as above. **BASS (ENV) held + PERF (ARP)** is the **Bass PERF layer**:
+  the same picker, the same modes and knobs, in the bass's orange, with `bass perform` at the top. The bass has its
+  own mode and its own four parameters for each mode.
+- **Holding PERF inside either PERF layer switches to the other**, chords to bass and back, so once one is open you
+  need no BASS. OCT-, OCT+ or HOME closes it.
+- Both pickers start with **Off**, in front of Strum. A part on Off plays as it does with the performance off: the
+  chord part holds its chord, the bass part its bass note. A new FM-1 (and every older save) has the chords on their
+  mode and the bass on Off, which is how ChoralRoot played before.
+- **A PERF tap is still the one switch**: it turns the performance on and off for both parts. With the chords on
+  Off and the bass on Arpeggiate, a tap turns the bass's arpeggio off, and the next tap brings back only the bass's,
+  because the chords are on Off.
+- **Follow** (the Bass PERF layer's second entry, after Off; new in 0.35): the bass performs whatever the chords'
+  layer is set to, the same mode with the same parameters, step for step with the chords. The top reads `bass perform
+  · follows chord`, and the knob row shows the chord's values: set them in the chords' layer (a knob turned here only
+  shows `follows chord`). With the chords on Off the bass plays its plain note. The bass's own settings are kept for
+  when you pick one of its modes again.
+- What the bass performs: the chord you play, moved down to where the bass note would be (the BASS layer's
+  **Register**, by whole octaves), on the bass sound and on the MIDI Bass channel. It follows the bass's
+  **Behaviour**: nothing with the bass off, nothing for a single note under Chords Only, the played note with Unison,
+  the chord alone with Solo, and with **Split Bass** a key below the split arpeggiates its own note (over the range's
+  octaves).
+- **A BASS (ENV) tap** turns the bass on and off at once, also under a chord you are holding: its note or its
+  performance stops, and the next tap brings it back on the same chord, arpeggio and all. The chord plays on.
+- **Hold** (Strum's KNOB 4) of either part keeps the whole chord sounding after you let go, as LATCH does; LATCH's
+  gesture turns both off.
+- The top right says `Bass Arp` (in orange) while only the bass performs, and the Chord view's hopping note follows
+  the bass's arpeggio then, on the chord note of the same name.
+- The tempo, LATCH and a MIDI Start are shared: both parts follow them. A loop plays back with the performance of
+  each part as it is set now, as before.
+- A global save (SAVE held) keeps both parts' modes, Off, Follow and their parameters.
 
 On the Chord view, while an arpeggio or a pattern is playing, the screen shows it: the chord's name, its notes on a
 line, and the note sounding lifted onto a block that hops from note to note. When the arpeggio stops the chord view
@@ -808,7 +905,7 @@ On the panel:
 | Delay 1 | Time | Spread | Feedback | **Send** |
 | Delay 2 | Sync | Mode | Tone | Wow |
 | Drive | | | | **Send** (the amount of drive) |
-| Filter | Low cut | High cut | Slope | Filter (Off / On) |
+| Filter | Low cut | High cut | Slope | Filter (Off / All / Chord / Bass) |
 | Routing | (hold a black key) move | Mode | | |
 
 **Sends**, the first page, is the chord part's four sends side by side: its drive, and how much of it goes into the
@@ -816,7 +913,7 @@ chorus, the delay and the reverb. They are the same four, in the same order and 
 of the sound editor ([The sound editor](#12-the-sound-editor)), and each is the same value as the **Send** cell on
 the effect's own page: change it in one place and the others show it at once. **A send reads the same everywhere**:
 in per cent, from `0%` (nothing) to `100%` (all of it), on the Sends page, in a Send cell, in the sound editor, and in
-the large number KNOB 4 or a MIDI controller puts on the screen. A knob turned slowly moves a send by one (under
+the large number KNOB 4 puts on the screen. A knob turned slowly moves a send by one (under
 1 %), turned quickly by about 5 % a click, in each of these places ([Knob speed and OPT snap](#knob-speed-and-opt-snap)),
 and both ends are reached exactly. A new FM-1 opens the layer on Sends;
 after that it opens on the page you left it on. While FX is off the four cells read `off`; turning one switches the
@@ -827,6 +924,11 @@ effects on again. In the sound editor the FX group always shows the values that 
 The Sends page and the Send cells are the chord part's. The bass part's four sends are in the bass sound's editor, FX
 group (BASS held + EDIT, then the FX button); it plays into the same reverb and delay as the chords. A new FM-1 has a
 little reverb on the bass and nothing else.
+
+A sound load leaves the sends where they are, with one exception: a Digitone sound imported into FM TONE (the web
+device manager's import) carries its own reverb, delay and chorus sends, as it had them on the Digitone. Loading it
+sets its part's three sends to them (the chord part's Sends page, or the bass part's), FX on or off staying as it is;
+the next sound you load leaves them there. Save such a sound and it keeps the sends the part has at that moment.
 
 ### The Filter page
 
@@ -840,13 +942,30 @@ the effects it is set once for the instrument, every sound plays through it, and
   is a band-pass.
 - **Slope** (KNOB 3): `6 dB` or `12 dB` an octave. 12 dB (where it starts) is the firmer cut; 6 dB is gentler, a
   tone control, and costs the unit half as much.
-- **Filter** (KNOB 4): `Off` or `On`. Turning Low cut or High cut switches it On by itself (and FX on, if FX was
-  off), so you hear the knob at once; KNOB 4 takes it out and puts it back with the cutoffs as you left them, to
-  compare. With FX off the filter is off with the effects, and the cell reads `Off`.
+- **Filter** (KNOB 4): what goes through the filter. `Off`; `All`, both parts (what earlier firmware called `On`); `Chord`,
+  the chord part only, the bass part going round it as it is; `Bass`, the bass part only, the chords going round.
+  Turning Low cut or High cut while the filter is `Off` switches it to `All` by itself (and FX on, if FX was off), so
+  you hear the knob at once; with `Chord` or `Bass` chosen a cutoff turned leaves that choice. KNOB 4 takes it out
+  and puts it back with the cutoffs as you left them, to compare. With FX off the filter is off with the effects,
+  and the cell reads `Off`.
 
 A new FM-1 has the filter Off with both cuts at their `Off` ends, and with it Off nothing in the sound changes.
-Turning a cutoff while a chord plays is smooth, and switching the filter or the slope fades over a hundredth of a
-second: no click.
+Turning a cutoff while a chord plays is smooth, and switching the filter, the slope, or between All, Chord and Bass
+fades over a hundredth of a second: no click. Settings kept (SAVE held) by an earlier firmware with the filter `On` come back as `All`.
+
+**Chord and Bass, and the effects.** What goes round the filter is the other part's **dry** sound: its drive,
+level and pan as they are. The effects are shared by both parts, so their sound is filtered or not by where the
+filter sits (Routing, below), whichever part is round it:
+
+- **Parallel, the filter after the effects** (where every FM-1 starts): the effects' sound is filtered, the
+  bypassed part's echoes and reverb too. Only that part's dry sound is unfiltered.
+- **Parallel, the filter before the effects**: what goes into the effects is filtered, the bypassed part's sends
+  too; its dry sound is not.
+- **Chain**: at the filter's place in the chain, everything that has reached it is filtered except the bypassed
+  part's dry sound. An effect before the filter is filtered with the rest (the bass part's echoes as well, with
+  `Chord`); an effect after it is not touched by the filter at all.
+
+Going back to an earlier firmware, a kept `Chord` or `Bass` is out of its range: it starts with the filter `Off`.
 
 ### Routing
 
@@ -868,7 +987,8 @@ parts' sends, added back into the mix, the filter on the whole output after them
 but not heard in this mode (holding an effect lifts it; KNOB 1 leaves it where it is). The **Filter** has two places
 in Parallel: hold **G#4** and turn KNOB 1 anticlockwise to put it **before** the buses, clockwise to put it back
 **after** them. Before, the effects hear the filtered signal: a high cut keeps the fizz out of the reverb, a low cut
-the bass out of the delay; the dry sound is filtered too.
+the bass out of the delay; the dry sound is filtered too. With Filter `Chord` or `Bass` the other part's dry sound
+goes round the filter in either place, and in Chain too ([The Filter page](#the-filter-page)).
 
 **Chain** is the original firmware's way: one path through the four blocks in the order on the screen. The dry mix
 goes into the first block; each effect adds its sound to everything before it and passes it all on, and the filter
@@ -956,11 +1076,73 @@ one to three short gaps in it ([What the FM-1 remembers](#what-the-fm-1-remember
   On or Off.
 - From anywhere outside the sound editor, **hold OPT (GLO) and tap SEQ** for the same thing
   (`metronome on`). SEQ tapped by itself opens the loop editor (until 0.18 it was the click).
-- Hold SEQ for **the SEQ key's hold menu, the metronome's**: SELECT (or D4, E4, F4) picks the time signature, 4/4, 3/4 or 6/8; KNOB 1 is the
-  click's level. OPT + SELECT sets the level without opening the layer.
-- The click is not part of the USB recording.
+- Hold SEQ for **the SEQ key's hold menu, the beat's** (also from the loop editor, new in 0.40). Its first page is
+  the preset: two tiles, **Metronome** (the click, as ever) and **Drums** (new in 0.40, [below](#the-drums)).
+  On the first page **ALGORITHM** picks the preset (a turn right Drums, left Metronome; new in 0.41: on the other
+  pages it does nothing, and on the Mix pages it is the drum's Filter), and **PRESETS** starts and stops the beat on
+  every page but the Mix pages, where it is the drum's Drive (right on, left off; a tap of SEQ does the same). KNOB 1 is the level (the click's, or the
+  drums'), KNOB 2 the time signature, 4/4, 3/4 or 6/8, with Drums KNOB 3 the kit, and KNOB 4 shows the beat on or off
+  (and turns it too). The keys play as usual in this menu. OPT + SELECT sets the click's level without opening the
+  menu. (Until 0.39 SELECT and D4, E4, F4 picked the time signature here and KNOB 1 was the level.)
+- The click follows MASTER (new in 0.40), the count-in's too. It is not part of the USB recording.
 
-With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)).
+### The drums
+
+New in 0.40. With the preset on **Drums** the beat is a drum machine instead of the click: a kick, a snare that
+turns into a clap, and closed and open hats, playing a beat you morph rather than program.
+
+- **The beat** comes from Mutable Instruments' **Grids**: a map of 25 drum patterns on a 5 x 5 grid. You pick a place
+  on the map, and the beat there is a blend of the four patterns around it. Each drum hits where its pattern is strong
+  enough for its **Fill**.
+- **The sound** is CoralFlower's morph drum synth: each drum has a soft and a hard setting, and **Character** sets
+  where it sits between them. Six kits: Club, Deep, Lo-Fi, Live, Tech and Break.
+- **On and off**: GLO + SEQ from anywhere (`drums on`, `drums off`), PRESETS or a tap of SEQ in its menu, or the PLAY
+  menu's page 2, KNOB 2 (**Beat**). It is the metronome's switch: whichever preset is chosen is what plays.
+- **On is playing.** With nothing playing they start at once, on the tempo. When a loop starts they follow it: LOOP's
+  start is bar 1 for them too, and they stay in step with its bars; under a take they start with it (in the count-in,
+  in step with its clicks). When the loop stops they keep going. Turned on while a loop plays, they come in on its
+  next beat. **They are never part of a loop**: nothing of them is recorded or saved in a slot (they are in the sound
+  that goes out, USB recording included).
+- **3/4 and 6/8**: Grids' patterns are bars of 4/4; in 3/4 and 6/8 the drums play the first three quarters of each.
+
+With Drums, **SELECT** turns the menu's pages after the preset page:
+
+| Page | KNOB 1 | KNOB 2 | KNOB 3 | KNOB 4 |
+| --- | --- | --- | --- | --- |
+| the preset (both presets; ALGORITHM picks it) | Level (the click's, or the drums') | Meter: 4/4, 3/4, 6/8 | Kit (Drums) | Beat: on or off (as PRESETS) |
+| **Beat**: the map, the dot where you are and the four patterns it blends, beside it the bar the three drums play (kick, snare, hats, top to bottom; white: an accent), the step playing framed | Map X | Map Y | Density: more or fewer hits on all three | Chaos: a few hits added at random, new each bar |
+| **Kick**, **Snare**, **Hats**: the drum's sound drawn (as tall as its tune, as long as its decay, smooth when soft, striped when hard) | Tune, -12 to +12 semitones | Decay | Character: soft to hard (the snare: past the middle it becomes a clap) | Fill: how many of the map's hits this drum plays |
+| **Kick Mix**, **Snare Mix**, **Hats Mix** (new in 0.41; 0.40 had one Mix page, a send a drum): the drum in a ring as full as its Level, red spikes round it as hot as its Drive (its value under it), a wire from it through a white filter box (filled with as much of the drum as goes through the master filter, its value under it; dim while the master filter is Off) and its three sends, each a ring as full as the send in its knob's colour, swelling as the drum hits. **PRESETS**: the drum's Drive; **ALGORITHM**: its Filter (the knobs' order, left to right) | Chorus | Delay | Reverb | Level (100%: the kit as voiced; up to 198%, down to off) |
+
+- **The map**: turning Map X right moves the dot right, turning Map Y right moves it up.
+- **FX**: each drum has its own three sends, into the chorus, the delay and the reverb, read in per cent as the FX
+  layer's Sends page reads a part's (0, the default: the drums dry). The snare's are the clap's too, and the hats' are
+  both hats'. FX off closes them (the pages read `off`). The drums go through the master filter as the parts do. A
+  setting saved on 0.40, whose one send a drum went into the delay and the reverb alike, comes back as that send on
+  Delay and Reverb, Chorus 0 and Level 100%: the same sound.
+- **Filter and Drive** (new in 0.41), on each Mix page: PRESETS the Drive, ALGORITHM the Filter. **Filter** is how much of the
+  drum's dry sound goes through the master filter (FX layer, the Filter page): 100%, the default, all of it, as
+  before; less sends the rest round it, the way Filter Chord or Bass sends the other part round. It follows its own
+  amount whichever part the master filter is on (All, Chord or Bass); its sends go to the effects as they are. With
+  the master filter Off (or FX off) it changes nothing, and its value is shown dim. **Drive** (0%, the default: clean)
+  drives the drum through the same drive as a part's, before its sends, the snare with its clap and both hats
+  together.
+- **Two cores** (new in 0.41): with Options > Dual Core On, the drums play on the second core, beside the bass
+  part, so they no longer take time from the chord's voices on the first; the chord's voices are shared out with the
+  drums counted on the second core's side. Dual Core Off, or the single-core package: on the one core, as before.
+- **Accents**: where the map's pattern is strongest, the kick and the snare play louder, and the hats play the **open
+  hat**, which the next closed hat cuts short.
+- **The home screen** shows a small chip at the top right while the beat is on: four blocks, the beat lit, and with
+  Drums a drum roundel that thumps on the kick.
+- **Saved** with everything else by the global save (SAVE held): the preset, the kit, the level, the Beat page,
+  each drum's knobs, its sends, its Level, Filter and Drive. A new unit, and one coming from an older ChoralRoot, starts on Metronome. The drums are not in a
+  settings backup (the same as the FX layer and the Bass Perform: the backup keeps the Options).
+- If the drums' data is missing from the unit (an interrupted install), Drums plays the click instead: install
+  ChoralRoot again.
+
+With Options > MIDI Clock set to In, the tempo follows the incoming clock instead ([MIDI and USB](#15-midi-and-usb)),
+averaged over four beats. While the clock runs, SELECT does not change the tempo (new in 0.37): a turn shows the clock's (`bpm`,
+`clock in`). To see the tempo the clock set, switch Options > View to **Geek Out**: its status lines show the tempo.
 
 ## 10. The looper
 
@@ -1023,7 +1205,7 @@ playing and recording with it open.
 | page 1, KNOB 3 | **Quantize**: none, 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32 | none |
 | page 1, KNOB 4 | **Count-in**: On or Off | On |
 | page 2, KNOB 1 | **Level**: how loud the loop plays, 0 to 100 (0 mutes it) | 100 |
-| page 2, KNOB 2 | **Metronome**: On or Off ([Tempo and metronome](#9-tempo-and-metronome)). KNOB 3 and 4 do nothing on this page | Off |
+| page 2, KNOB 2 | **Beat**: On or Off, the metronome or the drums, as the SEQ menu's preset says ([Tempo and metronome](#9-tempo-and-metronome)). Called Metronome until 0.39. KNOB 3 and 4 do nothing on this page | Off |
 | OPT (GLO) tap | **what the keys do** in the menu: play, or the loop shortcuts (below). The bottom line says which. The Options do not open from here | play |
 | EDIT | the **loop editor** ([below](#the-loop-editor)) | |
 | SEQ | leaves the PLAY menu, back to the main screen (its light is lit while the menu is open) | |
@@ -1104,7 +1286,8 @@ change it one step at a time. **SEQ goes round three places**: the main screen, 
 the main screen again. So from the editor one tap of SEQ is the PLAY menu (the slots, the record mode, Length, Rate,
 the metronome) and one more is back where you started. In the PLAY menu **EDIT** opens the same editor. (Outside the
 PLAY menu EDIT is the sound editor, as ever.) SEQ does not open the editor from another layer, the Options or the
-sound editor, and not while a take is being recorded (`end the take first`).
+sound editor, and not while a take is being recorded (`end the take first`). **Hold SEQ** in the editor for the
+beat's menu (the metronome or the drums; new in 0.40): the editor closes under it.
 
 <img src="manual/loop-editor.png" width="240" alt="The loop editor, page Step: a row of sixteen steps, three red, the second outlined, a white bar along its foot and the next three; Am, step 2/16; cells Note len 4, Steps 16, Chance 100%, Velocity 100">
 <img src="manual/loop-editor-trig.png" width="240" alt="The loop editor, page Trig: the same row, the second step with two ticks at its top and a blue strip at its right; Am +2 under the grid; cells Ratchet x2, Condition 1:2, Voicing +2, Transpose A4">
@@ -1238,8 +1421,15 @@ stopped.)
 
 Limits: 512 chords in a loop over at most 32 layers; reaching the limit ends the take (`loop full`).
 
-With MIDI Clock set to Out the FM-1 sends start and stop with the loop; set to In, the loop follows incoming start,
-continue and stop.
+Incoming start, continue and stop (USB, Bluetooth, and the FM-1's TRS jack) do what the LOOP (PLAY) button does,
+with MIDI Clock set to Out (the default) or In; Off ignores them. Start also starts the Arp and Pattern again from
+their first step. With MIDI Clock set to Out the FM-1 sends start and stop with the loop, except for a start or stop
+that came in: it is not sent back. Set to In, the tempo follows the incoming clock too, and the loop keeps time with
+the clock's pulses themselves: it stays with the master however long it plays, even at a tempo between two whole BPMs.
+Every pulse counts, however unevenly a computer or a USB cable delivers them (new in 0.37; until 0.36 pulses that came bunched
+together were dropped and the loop slid behind, GitHub issue 39), the pulse after a start is the loop's first beat,
+and with the same clock on two inputs (USB and the TRS jack) the first one is followed. If the pulses pause the loop
+waits for them; if the clock stops for more than a second without a stop, the loop plays on at the tempo.
 
 More detail: [LOOPER.md](LOOPER.md), [LOOPER-MODES.md](LOOPER-MODES.md).
 
@@ -1417,7 +1607,7 @@ To **delete** a sound you added, or to **reset** a factory preset you saved over
 SAVE for a second. The screen asks `delete?` or `reset to factory?`; OCT+ does it, OCT- keeps it.
 
 There is room for **128 saved sounds** in all (32 until 0.21), numbered U001 to U128, shared by the engines and the
-two parts (`no free slot` when they are used up). A saved sound holds the engine's whole patch, its envelopes and modulation. (It also holds four send values, which are no longer used: the sends are the part's. An FM TONE sound's Drive is the one that is used: [FM TONE's Drive](#fm-tones-drive).)
+two parts (`no free slot` when they are used up). A saved sound holds the engine's whole patch, its envelopes and modulation. (It also holds four send values, which are no longer used: the sends are the part's. An FM TONE sound's Drive is the one that is used: [FM TONE's Drive](#fm-tones-drive); an imported Digitone sound's sends are used too, see [FX](#8-fx).)
 Changes you have not saved are lost when you load another sound. A **global save** (SAVE held) keeps each part's
 sound as it is, edited or not, without making it a preset: the FM-1 comes back with it after a power-off, and GLO +
 SAVE brings it back (new in 0.18). The pool still holds the sound as it was saved as a preset, so turning PRESETS
@@ -1480,6 +1670,10 @@ their buttons are the editor's groups.
   spin crosses the whole range. A list (a wave, a mode, an algorithm, a ratio) is always one item a click.
 - **SHIFT** (printed GLO, OPT outside) **snaps**: while it is held each click goes to the next common value
   ([Knob speed and OPT snap](#knob-speed-and-opt-snap)). Tap it to latch it (`snap` in the top line, the button lit).
+- **SEL held** (FILT) brings up the **filter type picker** on FM TONE (an engine with a filter Type column): the
+  types in a list, the current one big. While SEL is down, any of KNOB 1 to KNOB 4 or SELECT steps the type, one a
+  click, and you hear it at once; let go of SEL and the picker closes on the FILT group with the type kept. A knob
+  turned while SEL is still going down opens the picker straight away. A tap of SEL still goes to FILT's next screen.
 
 ### Knob speed and OPT snap
 
@@ -1519,6 +1713,24 @@ Two groups are the same for every engine:
 | **FX** | one | Drive · Chorus · Delay · Reverb: the part's four sends (its drive, and how much of it goes into the chorus, the delay and the reverb). They stay when the sound changes (on FM TONE the Drive is the sound's: [FM TONE's Drive](#fm-tones-drive)) |
 | **MIX** | two | Level · Pan · Voice · Glide, and Trans · Detune · Priority · Gl. mode |
 
+**Glide** (new in 0.38, GitHub issue 46) slides the pitch from one note to the next. The knob shows the time it
+really takes, from 3 ms to **30 s**. **Gl. mode** says what that time is: **RATE** (the default) is the time for an
+octave, so a small step is quicker than a big one; **TIME** is the time for any slide, big or small. Glide at 0 is off.
+
+- **MONO, LEGATO, UNISON**: the one note slides to the next (MONO on every note, LEGATO and UNISON while a key is
+  still down).
+- **POLY: chords glide.** When you change chord, each note of the new chord takes the voice of the old chord that is
+  nearest to it and slides there from where it is: C E G to D F A slides C to D, E to F and G to A, and C E G to E G C
+  keeps E and G and slides the C up an octave. The voices go on from where they were (no click, no gap); their
+  envelopes start again from the level they had. It works on the notes you let go of: a note added over a chord you
+  hold gets a voice of its own, and the held chord does not move. A new chord with more notes than the old one starts
+  its extra notes on free voices (they slide from the last pitch those voices played); a chord with fewer notes lets
+  the voices left over ring out. FM6 keeps its own portamento (the patch's), and the sampled engines (GRAIN, the
+  samples) do not glide chords.
+
+Old sounds with Glide above 0 keep their settings but slide for the time the knob now shows: slower than before (until
+0.37 the slowest slide was about 1.5 s whatever the screen said, and RATE much shorter).
+
 The sections below list what the other groups hold for each engine. They name the screens; for what each parameter
 does, follow the link.
 
@@ -1557,10 +1769,29 @@ More: [FM6.md](FM6.md).
 | Group | Screens |
 | --- | --- |
 | OSC | (1) `SYN 1`, under a drawing of the algorithm: Algo · Ratio C · Ratio A · Ratio B, and Harm · Dtune · Feedback · Mix. (2) `SYN 2`: Offset C · Offset A · Offset B1 · Offset B2 |
-| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth. (2) `FILTER 2`: Env delay · Key track, and Base · Width |
-| ENV | (1) `ENV A/B`, the two operator envelopes: Attack · Decay · End · Level for A and for B. (2) `ENV 2`: Delay · Trig · Reset for A and B, Phase, Velocity. (3) `ENV 3`: A Key · B1 Key · B2 Key. (4) `AMP`: Attack · Decay · Sustain · Release, and Level · Pan · Drive (0 to 127, saved with the sound, heard with FX off too) |
+| FILT | (1) `FILTER`, under the filter curve: Attack · Decay · Sustain · Release (the filter's envelope), and Freq · Reso · Type · Env depth (by the type: below). (2) `FILTER 2`: Env delay · Key track · Shape · Gain, and Base · Width · BW route. (3) `CRUSH`: Bits (0 off, up to 1 bit) · Rate (sample-rate reduction: 0 off, up to 1/64) · Route (POST after the filter, PRE before it) |
+| ENV | (1) `ENV A/B`, the two operator envelopes: Attack · Decay · End · Level for A and for B. (2) `ENV 2`: Delay · Trig · Reset for A and B, Phase, Velocity. (3) `ENV 3`: A Key · B1 Key · B2 Key. (4) `AMP`: Attack · Decay · Sustain · Release, and Level · Pan · Drive (0 to 127, saved with the sound, heard with FX off too) · Route (`POST`: the drive works on the part's whole sound after the voices, as before; `PRE`: every note is driven on its own, before the filter, as on the Digitone: a chord stays clean between its notes, the filter shapes the grit and a fading note keeps it; an imported Digitone sound with Drive comes as PRE). (5) `AMP 2`: Amp mode (ADSR, or AHD: attack, hold, decay, the Digitone II's one-shot shape; Sustain and Release are then not used) · Hold (a time, or INF: while the key is down) |
 | LFO | three screens, `LFO 1` to `LFO 3`: Speed · Mult · Fade · Dest, and Wave · Phase · Trig · Depth |
 | MOD | four fixed routes with an Amount each: ENV to FILT, ENV to PITCH, ENV to SHAPE, LFO to AMP |
+
+**Filter types.** There are eight: OFF, LP12, HP12, LP24, and four from the Digitone II: MULTI, COMB+, COMB- and EQ.
+**Hold SEL** (in the editor) to pick one from a list: turn any knob or SELECT, let go to keep it. This is how you go
+into one of the four new filters and how you come back from one to LP / HP / OFF.
+
+The third cell of the `FILTER` screen's second row follows the type, as on the Digitone II:
+
+| Type | Freq | 2nd cell | 3rd cell | Env depth |
+| --- | --- | --- | --- | --- |
+| OFF, LP12, HP12, LP24 | cutoff | Reso | **Type** (OFF to LP24 only) | the envelope |
+| MULTI | cutoff | Reso | **Morph**: low-pass at 0, band-pass at 64, high-pass at 127, morphing in between | the envelope |
+| COMB+, COMB- | the comb's pitch (43 Hz up) | **Feedback**: how much it rings | **LPF**: how bright the ring stays | the envelope |
+| EQ | the bell's centre | **Gain**: -18 to +18 dB | **Q**: wide to narrow | the envelope |
+
+On one of the four new filters that cell never changes the type; only the SEL hold does. With Feedback at 0 a comb
+passes the sound unchanged, and so does EQ at Gain 0: turn them up to hear the filter. COMB+ rings on every harmonic
+(string-like), COMB- on the odd ones (hollow). The filter picture draws each type with its name. `FILTER 2`'s Shape and
+Gain are the same values as Morph / LPF / Q and EQ's Gain. **BW route** puts the Base / Width filter before the main
+filter (PRE, as before) or after it (POST).
 
 Ratio B is two values in one cell: a click steps the upper one (B2), a click with SHIFT the lower one (B1); the top
 line then reads `snap · B1`. More: [QUAD.md](QUAD.md) (the engine's working name was QUAD).
@@ -1686,53 +1917,100 @@ Options > Motion (Full, Calm, Off) sets how much the screens animate; the hoppin
 
 ## 14. Options
 
-Tap **OPT** (printed GLO). One setting fills the screen:
+Tap **OPT** (printed GLO). The settings are in groups (new in 0.39): **Play**, **Chords**, **Keys**, **MIDI**,
+**Screen**, **Audio** and **System**, and the list ends with **Reset Settings**. OPT opens the Options where you
+left them: closed inside a group (with HOME, OPT or any other way), they reopen in that group on the same setting;
+closed from the group list, they reopen on the group list at the group you used last. Under a group's name, how many
+settings it holds. (This is remembered until power-off; a fresh start opens the group list on Play.)
+
+- **SELECT** (or **KNOB 1**) picks a group; **OCT+** opens it.
+- In a group one setting fills the screen, the group's name at the top:
 
 <img src="manual/options.png" width="240" alt="An Options page: Play Style, value Simple, the next entry Extension Addition under it, the battery at the top right">
 
-- **SELECT** moves to the next or previous setting.
-- **KNOB 1** changes the value. Changes act at once.
-- **OPT**, **HOME**, **OCT-** or **OCT+** closes the Options. The bottom line of the screen says so.
+- **SELECT** moves to the next or previous setting of the group, **KNOB 1** changes the value. Changes act at once.
+- **OCT-** goes back to the group list; OCT- on the group list closes the Options. **OPT** or **HOME** closes them
+  from anywhere. OCT+ on a setting does nothing (it only opens a group, and starts Calibrate, Forget Bluetooth and
+  Reset Settings).
 - **The keys play**, exactly as on the view you opened the Options from: chords, LOCK, Key Mode, the split, the
   arpeggio, LATCH, and a loop being recorded takes what you play. Their lights show what plays, and OPT is lit while
   the Options are open. So you can hold a chord and turn KNOB 1 to hear a setting change: Output between Classic and
   Clean, for one. KNOB 2 to 4, PRESETS and ALGORITHM also keep the jobs they have on the view. Only OCT- and OCT+ are
-  different: they close the Options instead of shifting the octave. (Until 0.19 the white keys jumped to the first
-  eleven settings and nothing sounded.)
+  different: they move through the groups (above) instead of shifting the octave. (Until 0.19 the white keys jumped
+  to the first eleven settings and nothing sounded.)
 - No key confirms or cancels anything in the Options. Calibrate and Reset Settings are started with OCT+ only.
+
+**Play**
 
 | Setting | Values | Default | What it does |
 | --- | --- | --- | --- |
 | **Play Style** | Simple, Advanced, Free | Simple | what chord keys do while a root is held ([Play styles](#play-styles)) |
 | **Extension Addition** | Add Note, Play Chord | Add Note | in Advanced and Free: an extension adds its note, or replays the chord |
 | **Secret Chords** | Off, Simple, All | Off | two chord types together make a third chord ([Secret chords](#secret-chords)) |
+
+**Chords**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **Chord Keys** | FM-1, Classic | FM-1 (since 0.25.1; an updated unit is moved to it once) | which keys are the chord keys: FM-1 (SUS = G#3 + A#3, the 9 on B3, C4 and C#4 roots, LOCK on LFO; [The FM-1 chord keys](#the-fm-1-chord-keys)) or Classic, the Orchid's (DIM MIN MAJ SUS on F#3 G#3 A#3 C#4, the 9 on C4, LOCK on B3; [The Classic chord keys](#the-classic-chord-keys)). Not on the SMK-37 |
 | **SUS Window** | 30 to 80 ms, 5 ms a step | 30 ms | listed with the FM-1 chord keys only: how long a root waits for the second key of G#3 + A#3 ([The FM-1 chord keys](#the-fm-1-chord-keys)) |
 | **Full K Shorts** | Off, On | Off | on the Full keyboard, F#5 brings the chord keys back and G5 plays a chord on every key ([Key Mode](#key-mode)) |
-| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5 ([MIDI in](#midi-in-usb-and-the-trs-jack)); the MIDI Perform and MIDI Bass channels are skipped |
 | **6th with 7th** | In place, Octave up | In place | where the 6th sounds in a chord that also has a seventh (7 or M7). In place: 9 semitones above the root, under the seventh, as the Orchid plays it. Octave up: an octave higher, on top, which makes it a 13th chord (D + 7 + 6: D F# A C B). Chords without a seventh never change; the name does not change ([Types and extensions](#types-and-extensions)) |
-| **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
 | **Bass Behaviour** | Chords Only, Unison Bass, Bass Single Notes, Solo | Chords Only | what the bass plays ([Bass](#6-bass)) |
 | **Single Notes** | Full Octave, Split Oct, Split Bass | Full Octave | Split Oct: single notes below the split point sound an octave lower. Split Bass: the keys below it play the bass part ([Key Mode](#key-mode)) |
 | **Split Point** | C to B | F | where that split is on the Chords keyboard; reads `(Split off)` while Single Notes is Full Octave. The Full keyboard splits at its second F |
+
+**Keys**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
+| **Velocity** | 1 to 127 | 100 | the velocity of every key, for the sound and for MIDI out |
+| **Hold Time** | 300, 400, 500, 600 ms | 400 ms | how long a hold is |
+| **Pedal** | Sustain, Expression | Sustain | the SMK-37 only: what its pedal jack does. Sustain: a switch pedal holds the notes; Expression: an expression pedal sets both parts' expression (CC 11). Kept by the global save ([SMK37.md](../SMK37.md#the-pedal-jack)) |
+
+**MIDI**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **MIDI Perform** | Off, ch 1 to ch 16 | ch 1 | the channel the chord sound's notes go out on, and come in on |
 | **MIDI Bass** | Off, ch 1 to ch 16 | ch 2 | the same for the bass |
 | **MIDI Raw Chord** | Off, ch 1 to ch 16 | Off | the channel for the plain chord, without the performance mode. From Off the first step is ch 1; choose a channel of its own (the Orchid uses 3) |
 | **Raw Chord Sound** | Off, On | Off | On: the plain chord also plays on the chord sound, under an arpeggio or pattern. With no performance mode on, every note then sounds twice |
-| **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop. In: follows them |
+| **MIDI Keys** | Off, ch 1 to ch 16 | Off | the channel whose notes 53 to 79 press the FM-1's keys F3 to G5, and notes 36 to 44 (a pad controller's first pads) the chord keys F3 to C#4 ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Roots channels are skipped |
+| **MIDI Roots** | Off, ch 1 to ch 16 | Off | the channel whose every note is a root at its own pitch: a whole keyboard plays chords, with the chord keys held on the FM-1 or over MIDI Keys ([MIDI in](#midi-in-usb-bluetooth-and-the-trs-jack)); the MIDI Perform, MIDI Bass and MIDI Keys channels are skipped. Not on the SMK-37. New in 0.39 |
+| **MIDI Clock** | Off, Out, In | Out | Out: sends clock, and start / stop with the loop; incoming start / stop work as LOOP. In: follows the clock and start / stop |
+| **MIDI CC** | Off, In, Out, In + Out | In | CCs on the sounds' parameters ([MIDI CC](#midi-cc-the-sounds-parameters)). In: a CC sets the parameter; Out: a knob turned on such a parameter sends its CC. Off: only CC 7, 91, 93 and 94 as before. New in 0.33 |
+| **Bluetooth** | Off, On | Off | the FM-1 only: MIDI over Bluetooth, the same MIDI as over USB ([Bluetooth MIDI](#bluetooth-midi)); the first On takes effect at the next power-on. The line under it says what the link is doing. Kept apart from the other settings (Reset Settings leaves it, a backup does not carry it; Flash Data clears it) |
+| **Forget Bluetooth** | | | OCT+ twice: the FM-1 forgets the computer it paired with. Forget the FM-1 on that computer too |
+| **USB Host** | Off, On | Off | the FM-1 only: the USB-C port hosts a USB MIDI keyboard, controller or second FM-1 instead of talking to a computer ([USB Host](#usb-host-a-midi-device-on-the-fm-1s-usb-c)). Never saved: every start-up is a USB device again |
+
+**Screen**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **View** | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2 | Chord | the view ([Views](#13-views)) |
 | **Motion** | Full, Calm, Off | Full | screen animation |
 | **Chord Names** | Orchid, Standard | Orchid | how a chord is named on every screen. Orchid: by the keys held, as the Orchid does (`A` `7 9`, `JAZZ`). Standard: as a lead sheet names the notes that sound (`A9`, `Aadd9`, `A13`). Only the name changes, never the notes ([Chord names](#chord-names)) |
 | **LEDs** | Glow, Stock | Glow | Glow: idle keys glow dim, active ones are bright. Stock: the reverse |
-| **Hold Time** | 300, 400, 500, 600 ms | 400 ms | how long a hold is |
+
+**Audio**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
+| **Output** | Classic, Clean | Clean | the last stage before the headphones, the speaker and the USB recording. Classic: as 0.18 and before. Clean: 0.19's, with less distortion on chords and at low MASTER settings; a single note is a little quieter, a full chord with the bass a little louder, and everything sounds 0.7 ms later (its limiter looks ahead). You can switch while you play to compare |
 | **USB Record** | Off, On | On | On: the computer can record the FM-1 ([USB audio recording](#usb-audio-recording)) |
 | **USB Level** | Master, Fixed | Master | Master: the recording follows the MASTER knob. Fixed: it is recorded at full level and MASTER only sets what you hear |
 | **USB Rate** | 44.1 kHz, 44.1 + 48 kHz | 44.1 kHz | 44.1 kHz: the computer records at the FM-1's own rate, as in 0.18. 44.1 + 48 kHz: the computer may also choose 48 kHz, which the FM-1 converts for it; that takes some of its processor time while a recording runs ([USB audio recording](#usb-audio-recording)). The FM-1 leaves USB for a second when you change it |
+
+**System**
+
+| Setting | Values | Default | What it does |
+| --- | --- | --- | --- |
 | **Dual Core** | Off, On | On (a new unit; an updated unit keeps what it had) | On: the chip's second core shares the work, so more voices sound (below). Takes effect after a restart |
-| **Output** | Classic, Clean | Clean | the last stage before the headphones, the speaker and the USB recording. Classic: as 0.18 and before. Clean: 0.19's, with less distortion on chords and at low MASTER settings; a single note is a little quieter, a full chord with the bass a little louder, and everything sounds 0.7 ms later (its limiter looks ahead). You can switch while you play to compare |
 | **Version** | | | the firmware's version; the line under it is this FM-1's unit ID (`unit ID A1B2C3D4`, its flash chip's: the same after any install), which tells several FM-1s on one computer apart (`fm1_install.py --unit`, the device manager) |
 | **Calibrate** | | | OCT+ starts the panel calibration ([Calibration](#calibration)) |
-| **Reset Settings** | | | OCT+ twice puts every setting back to its default (below) |
+
+**Reset Settings** (the group list's last item, not a group): OCT+ twice puts every setting back to its default (below)
 
 In SAFE MODE two more entries appear at the end, Safe Mode and Flash Data ([SAFE MODE](#safe-mode)).
 
@@ -1745,7 +2023,7 @@ Anything else cancels: OCT-, HOME, turning SELECT to another entry, closing the 
 - **Reset:** everything in the Options (Play Style back to Simple, 6th with 7th back to In place, Motion, Chord Names, LEDs, Hold Time, the MIDI channels and
   clock, USB Record, USB Level and USB Rate, Dual Core and the rest), Key Mode with its tonic, scale and Transpose, Single
   Notes and the split point, the KEY layer's keys, Key plays and Keyboard, the LOCK layer's two settings, the
-  performance mode with all its parameters and whether it is on, LATCH, the effects being on, the tempo, the
+  performance mode with all its parameters and whether it is on (the bass's back to Off), LATCH, the effects being on, the tempo, the
   metronome, the looper's options (length, record mode, quantize, count-in, level, what its keys do), the bass
   behaviour and register, the view and its lock, and which sound each part plays: the chord part is on TINE EP
   again, the bass on DEEP SUB, and every engine is back at its first preset.
@@ -1809,13 +2087,13 @@ with Standard chosen, the default) puts Dual Core back as your settings say.
 | A global save keeps (SAVE held) | Stored by itself | Never kept, on purpose |
 | --- | --- | --- |
 | Key Mode, the tonic, the scale, Transpose; **Single Notes and the split point**; the KEY layer's keys (pick or play), Key plays, Keyboard and Numerals | **Options:** Play Style, Extension Addition, Secret Chords, 6th with 7th, Velocity | notes that were sounding, a chord LATCH was holding |
-| the performance mode, its parameters, and whether it is on | MIDI Perform, MIDI Bass, MIDI Raw Chord, Raw Chord Sound, MIDI Clock | a playing loop: its slot is loaded, **stopped**. It never starts by itself |
+| the performance mode, its parameters, and whether it is on; the bass's mode, its parameters, and each part's Off | MIDI Perform, MIDI Bass, MIDI Raw Chord, Raw Chord Sound, MIDI Clock | a playing loop: its slot is loaded, **stopped**. It never starts by itself |
 | LATCH; LOCK and what it latched; the LOCK layer's two settings | Motion, Chord Names, LEDs, Hold Time | a take you were recording |
 | the voicing on KNOB 1 and the octave shift | USB Record, USB Level, USB Rate, Dual Core, Output | an open layer, menu, dialog or editor: the FM-1 starts on the view |
 | the bass being on, its **behaviour**, register, level, and which sound it plays | the panel calibration | where you were in the editor, the KEY layer's and the PLAY menu's page |
 | the effects in full: on or off, the page picked, every cell of the reverb, the chorus and the delay, both parts' sends | | |
 | which sound each part plays and each engine's last place; **each part's sound as it is, with changes you have not saved as a preset**; the parts' Level and Pan | | |
-| the tempo; the metronome, its time signature and level | | |
+| the tempo; the metronome's time signature and level; the beat's preset and the drums: the kit, their level, the Beat page, each drum's knobs, sends, Level, Filter and Drive. **The beat itself (metronome or drums) is off at every power-on** (new in 0.40) | | |
 | the looper's settings (Length, **Rate**, Quantize, Count-in, Level, the record mode, what its keys do), the slot, and **the loop in memory** | | |
 | the **view** and its lock | | |
 
@@ -1857,13 +2135,19 @@ Over USB the computer sees one device, **ChoralRoot FM-1**: a MIDI port of that 
 | What | Channel (Options) | Carries |
 | --- | --- | --- |
 | Perform | MIDI Perform, ch 1 | what the chord sound plays: the chord, or the performance mode's notes |
-| Bass | MIDI Bass, ch 2 | the bass line |
+| Bass | MIDI Bass, ch 2 | the bass line, or the bass's performance mode's notes |
 | Raw Chord | MIDI Raw Chord, Off | the plain chord as a block, whatever the performance mode does |
 
 With MIDI Clock set to Out (the default) the FM-1 also sends MIDI clock at the tempo, a start when the loop starts
-playing and a stop when it stops. PANIC sends all notes off (CC 123).
+playing and a stop when it stops. PANIC sends all notes off (CC 123). With MIDI CC set to Out or In + Out (the
+default is In) a knob turned on a sound's parameter sends its CC on the part's channel ([MIDI CC](#midi-cc-the-sounds-parameters)).
 
-### MIDI in (USB and the TRS jack)
+**Note names** (explained in 0.37). The screen names notes the usual way, middle C (MIDI note 60) as **C4**, and MIDI out sends the note
+the screen names: C4 on the screen is note 60. Some programs (Ableton Live, Logic, Cubase and others that follow
+Yamaha's convention) call note 60 **C3**, so there every note reads an octave lower than on the FM-1; the notes are
+the same. The bass's notes are wherever its Behaviour and Register put them ([Bass](#6-bass)).
+
+### MIDI in (USB, Bluetooth and the TRS jack)
 
 | Message | Effect |
 | --- | --- |
@@ -1871,17 +2155,268 @@ playing and a stop when it stops. PANIC sends all notes off (CC 123).
 | notes on the MIDI Bass channel | play the bass sound |
 | program change | the sound's place in its engine's pool (chord: 0 = INIT; bass: 0 = off, 1 = INIT, and so on) |
 | CC 7 | the part's level |
-| CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them). The screen shows the new send in per cent: controller value 127 is 100 % |
+| CC 91, 93, 94 | the part's reverb, chorus and delay sends (they stay until changed: a program change does not reset them), quietly, with no popup: controller value 127 is 100 % |
 | CC 64, pitch bend, CC 1, aftertouch | sustain, bend, and the modulation sources of the engines that use them |
-| clock, start, continue, stop | with MIDI Clock set to In: the tempo follows the clock and the loop follows start / continue / stop |
+| CC 10, 92, 16 to 63, 71 to 77, 79, 80 to 90, 102 to 113 | with Options > MIDI CC In (the default): the sound's parameters, below |
+| start, continue, stop | with MIDI Clock set to Out or In: as the LOOP (PLAY) button; start also restarts the Arp / Pattern from its first step |
+| clock | with MIDI Clock set to In: the tempo follows it |
 
 A part whose channel is Off ignores MIDI in.
 
+If the computer is unplugged or goes to sleep while it holds notes, those notes stop (the FM-1 notices the USB
+connection going); the notes of the FM-1's own keys and the loop keep sounding.
+
 **MIDI Keys** (Options > MIDI Keys, Off by default; new in 0.24): on that channel the notes 53 to 79 press the FM-1's
 own keys F3 to G5, exactly as the keybed does: the chord keys of the layout you chose, the roots, LOCK, the SUS
-Window, the Full keyboard and its shortcuts. The note's velocity plays the key; CC 120 and CC 123 let every key go;
-other notes and messages on that channel do nothing. It cannot be the MIDI Perform or MIDI Bass channel (those are
-skipped, and setting one of them to it switches MIDI Keys off).
+Window, the Full keyboard and its shortcuts. Notes 36 to 44 (C2 to G#2, where most pad controllers' first pads sit)
+press F3 to C#4 too, the chord block, so pads can hold the chord keys (new in 0.39): pad 1 is F3, pad 2 F#3, and so
+on. The note's velocity plays the key; CC 120 and CC 123 let every key go; other notes and messages on that channel
+do nothing. It cannot be the MIDI Perform, MIDI Bass or MIDI Roots channel (those are skipped, and setting a part to
+it switches MIDI Keys off).
+
+**MIDI Roots** (Options > MIDI Roots, Off by default; new in 0.39): on that channel every note is a root at its own
+pitch, from the lowest note to the highest, so a whole keyboard plays ChoralRoot's chords. It plays as the FM-1's
+root keys do: with the chord keys held (on the FM-1, or on pads over MIDI Keys), LOCK and LATCH, the play style,
+Key Mode, the bass, the arpeggio or pattern and the looper, and the home screen shows the chord's name, its notes and
+the lit keys as for a key press. The keyboard's own octave sets the pitch (OCT- and OCT+ do not move it), and the
+note's velocity plays it. A root played while the FM-1 chord keys wait for their SUS Window waits too, as a root key
+does. The notes play whatever layer or page is open. CC 120 and CC 123 let every root go; other messages on that
+channel do nothing (a sustain pedal there holds nothing: use LATCH). It cannot be the MIDI Perform, MIDI Bass or
+MIDI Keys channel. Not on the SMK-37.
+
+A keyboard and a pad controller together: set the keyboard to the MIDI Roots channel and the pads to the MIDI Keys
+channel. Pads 1 to 9 (notes 36 to 44) are F3 to C#4; with the FM-1 chord keys that is 6, DIM, m7, MIN, M7, MAJ, 9 on
+pads 1 to 7 (MIN and MAJ together: SUS), and pads 8 and 9 are the roots C4 and C#4; with the Classic chord keys pads
+1 to 9 are 6, DIM, m7, MIN, M7, MAJ, LOCK, 9 and SUS.
+
+### MIDI CC: the sounds' parameters
+
+New in 0.33. With Options > **MIDI CC** set to In (the default) or In + Out, a CC on the MIDI Perform channel sets
+a parameter of the chord sound, and on the MIDI Bass channel one of the bass sound (one channel for both: both).
+It acts exactly as a knob turn on that parameter in the [sound editor](#12-the-sound-editor): the sound is marked
+edited (`*`) and the cell turns hot when the editor shows it; elsewhere the value changes quietly, with no popup. A
+fast controller is fine: only the latest value of each CC is applied. The CCs ChoralRoot already used keep their
+meaning: 1, 2, 4, 5, 7, 11, 64, 65, 91, 93, 94, 120 to 123, and the RPN messages (6, 38, 100, 101; CC 38 is the
+filter block's below unless RPN 0, the bend range, is selected).
+
+With MIDI CC set to Out or In + Out (not the default) it works the other way too: turning a knob on such a parameter (in the sound
+editor, the FX layer's sends, KNOB 4 on the home view, the bass level) sends its CC on the part's channel, where the
+notes go. A program change or an engine change sends nothing. A part whose channel is Off sends nothing. When the
+computer echoes a CC back, the FM-1 ignores a value it sent itself within the last second, so the knob does not
+jitter.
+
+The value: 0 to 127 spread evenly over the parameter's range (a list of names: in equal slices; FM TONE's values in
+hundredths, such as 0.00 to 127.00, in steps of 1.00). Out is the reverse, so a value of 128 steps or fewer comes
+back exactly.
+
+**The common CCs** mean the same on every engine that has the thing:
+
+| CC | Parameter |
+| --- | --- |
+| 10 | Pan (the MIX group's) |
+| 92 | the Drive send (with 91, 93 and 94: the four sends; FM TONE: the sound's own Drive, as its FX group's Drive cell) |
+| 74 / 71 | the filter's cutoff / resonance (FM TONE: Freq / Reso; FM6, CZ-1 and WHEEL have none) |
+| 73 / 75 / 79 / 72 | the amp envelope's attack / decay / sustain / release (FM TONE: AMP; VA, GRAIN, P5: ENV 1; WHEEL: the ENV page; FM6 and CZ-1: none) |
+| 76 / 77 | LFO 1's rate / depth (FM6: LFO Speed / PM depth; CZ-1: VIB Rate / Depth; P5: LFO Rate / Amount; WHEEL: Rate / Vibrato) |
+
+**The editor's blocks.** Each group of the sound editor has a block of CCs: **OSC 16 to 31, FILT 32 to 47, ENV 48
+to 63, LFO 102 to 113, MOD 80 to 90**. The group's lanes in the order SELECT steps through them (across its
+screens) take four CCs each, KNOB 1 to KNOB 4: lane 1 is the block's first four CCs, lane 2 the next four, and so
+on. A lane past the end of the block has no CC (the common CCs cover the usual ones), and an empty cell keeps its
+place. Because the map follows what the editor shows, it is the same on the screen and on the CC. The FX and MIX
+groups have no block: their parameters are CC 7, 10, 91 to 94. A MOD slot's Dest and Amount take their CC once
+the slot has a source, as on the knobs.
+
+Each engine's map (from `tests/cr_cc_test.c --map`, the firmware's own walk of the editor):
+
+**FM6**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 76 Speed, 77 PM depth |
+| 16-19 | OSC OP 1 · A: Level, Coarse, Fine, Detune |
+| 20-23 | OSC OP 2 · A: Level, Coarse, Fine, Detune |
+| 24-27 | OSC OP 3 · A: Level, Coarse, Fine, Detune |
+| 28-31 | OSC OP 4 · A: Level, Coarse, Fine, Detune |
+| 32-35 | FILT ALGO: Algo, Feedback, Transp, Osc sync |
+| 48-51 | ENV ENV 1: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 52-55 | ENV ENV 1: Level 1, Level 2, Level 3, Level 4 |
+| 56-59 | ENV ENV 2: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 60-63 | ENV ENV 2: Level 1, Level 2, Level 3, Level 4 |
+| 102-105 | LFO LFO: Speed, Delay, PM depth, AM depth |
+| 106-109 | LFO LFO: Wave, Sync, PM sens, - |
+| 80-83 | MOD FUNC: Bend, Porta, Engine, - |
+| 84-87 | MOD FUNC: Step, Porta md, Gliss, DX vel |
+| 88-90 | MOD CTRL: Wheel, W.dst, Foot, (none) |
+
+**FM TONE**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Freq, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Speed, 77 Depth |
+| 16-19 | OSC SYN 1 · A: Algo, Ratio c, Ratio a, Ratio b |
+| 20-23 | OSC SYN 1 · B: Harm, Dtune, Fdbk, Mix |
+| 24-27 | OSC SYN 2: Ofs c, Ofs a, Ofs b1, Ofs b2 |
+| 32-35 | FILT FILTER · A: Attack, Decay, Sustain, Release |
+| 36-39 | FILT FILTER · B: Freq, Reso, Type, Depth |
+| 40-43 | FILT FILTER 2 · A: Delay, Key trk, Shape, Gain |
+| 44-47 | FILT FILTER 2 · B: Base, Width, Bw rt, - |
+| 48-51 | ENV ENV A/B: A atk, A dec, A end, A lev |
+| 52-55 | ENV ENV A/B: B atk, B dec, B end, B lev |
+| 56-59 | ENV ENV 2: A dly, A trig, A reset, Phrt |
+| 60-63 | ENV ENV 2: B dly, B trig, B reset, Velocity |
+| 102-105 | LFO LFO 1 · A: Speed, Mult, Fade, Dest |
+| 106-109 | LFO LFO 1 · B: Wave, Phase, Trig, Depth |
+| 110-113 | LFO LFO 2 · A: Speed, Mult, Fade, Dest |
+| 80-83 | MOD MOD 1: -, -, Env>Filter, - |
+| 84-87 | MOD MOD 2: -, -, Env>Pitch, - |
+| 88-90 | MOD MOD 3: -, -, Env>Shape, (none) |
+
+**VA**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Depth |
+| 16-19 | OSC OSC 1 · A: Wave, Level, Coarse, Fine |
+| 20-23 | OSC OSC 2 · A: Wave, Level, Coarse, Fine |
+| 24-27 | OSC OSC 3 · A: Wave, Level, Coarse, Fine |
+| 28-31 | OSC OSC 4 · A: Wave, Level, Coarse, Fine |
+| 32-35 | FILT FILTER: Cutoff, Reso, Ftype, Env amt |
+| 36-39 | FILT FILTER: Key trk, -, Spread, Drive |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 1 · amp: Hold, Velocity, -, - |
+| 56-59 | ENV ENV 2 · filter: Attack, Decay, Sustain, Release |
+| 60-63 | ENV ENV 2 · filter: Hold, -, -, - |
+| 102-105 | LFO LFO 1 · A: Rate, Wave, Depth, Fade |
+| 106-109 | LFO LFO 2 · A: Rate, Wave, Depth, Fade |
+| 110-113 | LFO LFO 3 · A: Rate, Wave, Depth, Fade |
+| 80-83 | MOD MOD 1: Source, Dest, Amount, - |
+| 84-87 | MOD MOD 2: Source, Dest, Amount, - |
+| 88-90 | MOD MOD 3: Source, Dest, Amount, (none) |
+
+**CZ-1**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 76 Rate, 77 Depth |
+| 16-19 | OSC LINE 1 · A: Wave, Wave2, Window, Level |
+| 20-23 | OSC LINE 2 · A: Wave, Wave2, Window, Level |
+| 24-27 | OSC DETUNE: Sign, Oct, Note, Fine |
+| 28-31 | OSC OSC · MIX: Level, Level, -, - |
+| 32-35 | FILT DCW: DCW key 1, DCW key 2, DCW vel 1, DCW vel 2 |
+| 36-39 | FILT DCW: DCA key 1, DCA key 2, DCA vel 1, DCA vel 2 |
+| 48-51 | ENV PITCH 1 · 1-4: Rate 1, Rate 2, Rate 3, Rate 4 |
+| 52-55 | ENV PITCH 1 · 1-4: Level 1, Level 2, Level 3, Level 4 |
+| 56-59 | ENV PITCH 1 · 5-8: Rate 5, Rate 6, Rate 7, Rate 8 |
+| 60-63 | ENV PITCH 1 · 5-8: Level 5, Level 6, Level 7, Level 8 |
+| 102-105 | LFO VIB: Wave, Delay, Rate, Depth |
+| 80-83 | MOD TONE: Line, Mod, Oct, - |
+| 84-87 | MOD EXPR · VEL: -, -, -, - |
+| 88-90 | MOD EXPR · AT: -, -, -, (none) |
+
+**P5**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Amount |
+| 16-19 | OSC OSC A: Freq, Saw, Pulse, Width |
+| 20-23 | OSC OSC A: Sync, Osc A, Osc B, Noise |
+| 24-27 | OSC OSC B: Freq, Saw, Tri, Pulse |
+| 28-31 | OSC OSC B: Fine, Width, Lo freq, Keyboard |
+| 32-35 | FILT FILTER: Cutoff, Reso, Env amt, Filter rev |
+| 36-39 | FILT ENV 2 · filter: Attack, Decay, Sustain, Release |
+| 40-43 | FILT ENV 2 +: Velocity, -, Key trk, Aftertch |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 1 +: Velocity, Rel sw, -, - |
+| 102-105 | LFO LFO: Rate, Saw, Tri, Square |
+| 106-109 | LFO LFO: Amount, Aftertch, -, - |
+| 110-113 | LFO WHEEL: Noise, Freq A, Freq B, PW A |
+| 80-83 | MOD POLYMOD: Env, Osc B, Freq A, PW A |
+| 84-87 | MOD POLYMOD: Filter, -, -, - |
+| 88-90 | MOD VOICE: Unison, Voices, Detune, (none) |
+
+**WHEEL**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Vibrato |
+| 16-19 | OSC BARS: Reg, Sub, Body, Top |
+| 32-35 | FILT TONE: Perc, Click, Drv, Rotr |
+| 48-51 | ENV ENV: Attack, Decay, Sustain, Release |
+| 102-105 | LFO LFO: Rate, Wave, Vibrato, Wah |
+| 80-83 | MOD MOD 1: -, -, Env>Filter, - |
+| 84-87 | MOD MOD 2: -, -, Env>Pitch, - |
+| 88-90 | MOD MOD 3: -, -, Env>Shape, (none) |
+
+**GRAIN**
+
+| CC | cell |
+| --- | --- |
+| common | 10 Pan, 92 Drive, 74 Cutoff, 71 Reso, 73 Attack, 75 Decay, 79 Sustain, 72 Release, 76 Rate, 77 Depth |
+| 16-19 | OSC SRC · A: Type, Tone, Motion, Seed |
+| 20-23 | OSC SRC · B: Type, Tone, Motion, Seed |
+| 24-27 | OSC GRAIN · A: Size, Dens, Pos, Sprd |
+| 28-31 | OSC GRAIN · B: Morph, Rand, Pitch, Scan |
+| 32-35 | FILT FILTER: Cutoff, Reso, Ftype, Drive |
+| 36-39 | FILT FILTER: Key trk, -, -, - |
+| 48-51 | ENV ENV 1 · amp: Attack, Decay, Sustain, Release |
+| 52-55 | ENV ENV 2 · mod: Attack, Decay, Sustain, Release |
+| 102-105 | LFO LFO 1 · A: Rate, Wave, Depth, Fade |
+| 106-109 | LFO LFO 2 · A: Rate, Wave, Depth, Fade |
+| 110-113 | LFO LFO 1 · B: Sync1, -, -, - |
+| 80-83 | MOD MOD 1: Source, Dest, Amount, - |
+| 84-87 | MOD MOD 2: Source, Dest, Amount, - |
+| 88-90 | MOD MOD 3: Source, Dest, Amount, (none) |
+
+### Bluetooth MIDI
+
+The FM-1 (not the SMK-37) can be a Bluetooth MIDI device for a Mac, an iPad, an iPhone or anything else that speaks
+Bluetooth LE MIDI. It is **Off** by default; Options > **Bluetooth** turns it on, and it stays on after a restart.
+
+1. Options > Bluetooth: On, then switch the FM-1 off and on. The radio starts only while the FM-1 starts up (until
+   then the line under Bluetooth reads `on at the next power-on`). Afterwards the line reads `ChoralRoot 1A2B: visible`
+   (the four characters are this unit's own).
+2. On the computer, connect to **ChoralRoot 1A2B**: on a Mac in Audio MIDI Setup > MIDI Studio > Bluetooth, on an
+   iPad or iPhone in the music app's Bluetooth MIDI page. The first time, the two pair (no code to type); afterwards
+   they reconnect without asking. The line then reads `connected`.
+
+Over Bluetooth the FM-1 sends and receives what it does over USB MIDI, on the same channels: the Perform, Bass and
+Raw Chord notes out, the clock with MIDI Clock set to Out; notes, program changes, the CCs, pitch bend, aftertouch,
+clock and transport in, and MIDI Keys. SysEx (sound transfers, backups, the editor) stays on USB. USB MIDI and the
+TRS jack keep working alongside it. If the connection drops, the notes the computer was holding stop; the rest keep
+sounding.
+
+With Bluetooth On, the FM-1 starts its radio at power-on, so starting up takes a moment longer. Off stops the
+connection and the FM-1 is no longer visible; On again makes it visible at once, without a restart. If the FM-1 ever
+restarts by itself while its radio starts, the next start-up leaves the radio off; switching off and on tries again.
+
+To pair with another computer, or if the line reads `forget ChoralRoot on the peer`: Options > **Forget Bluetooth**,
+OCT+ twice, and remove ChoralRoot from the computer's Bluetooth list too; then connect again. If the line reads
+`install ChoralRoot again`, the radio's part of the installation is missing: install the firmware again.
+
+### USB Host: a MIDI device on the FM-1's USB-C
+
+The FM-1 (not the SMK-37) can host a USB MIDI device on its USB-C port: a USB MIDI keyboard or controller, or a second
+FM-1 or ChoralRoot, directly or behind a hub. Options > **USB Host** turns it on; it is **never saved**, so every
+start-up is a normal USB device again and the computer, updates and backups always find the FM-1.
+
+- While USB Host is On, the port belongs to the device: no computer, no USB audio, no updates. Off gives it back.
+- The FM-1 does not power the port. A second FM-1 needs nothing more (it runs on its battery: a plain USB-C cable
+  between the two is enough). A keyboard or a hub needs power of its own: a powered hub, or a powered USB-C OTG
+  adapter.
+- The line under USB Host reads `connected, in 1234` (the messages received) once a device is found, or `looking`
+  and a few letters while it searches (what it met: read them out if you report a problem). A message box says
+  what happened: `USB device connected`, `USB device gone`, `not a USB MIDI device`, `nothing on USB: powered hub?`,
+  `USB device not answering` (unplug it and plug it back), `low-speed USB: not supported`.
+- In: notes, program changes, the CCs, pitch bend, aftertouch, clock and start / continue / stop, exactly as over
+  USB MIDI from a computer. Out: what the FM-1 sends over USB MIDI (the Perform, Bass and Raw Chord notes, the clock
+  with MIDI Clock set to Out). SysEx is not passed either way. If the device goes, the notes it was holding stop; the
+  FM-1's own keys keep theirs.
+- Full-speed devices only, one hub level (a hub on a hub's port too).
+
+**Two FM-1s.** A plain USB-C to USB-C cable between them; A on USB Host, B as it is (any ChoralRoot). Notes go both
+ways: B plays what A sends on its Perform and Bass channels, and A what B sends. With A's MIDI Clock on Out and B's on
+In, B's tempo and loop follow A's start and stop; the other way round (B on Out, A on In) works too.
 
 ### USB audio recording
 
@@ -1944,7 +2479,13 @@ The installer page (<https://quixotic7.github.io/ChoralRootFM1/>) has **Back up*
 - Restore checks the file, writes it back and restarts the FM-1. Stop any loop first.
 - Install saves a backup before it writes, unless you skip it.
 - The page's Sounds section exports, imports, renames and deletes single sounds as files (FM6 voices also as DX7
-  `.syx`, CZ-1 tones as Casio dumps).
+  `.syx`, CZ-1 tones as Casio dumps). It also imports Elektron Digitone sounds as FM TONE: a `.dnsnd` file or a
+  Digitone `.syx` dump (a sound, the pool or a whole project; you choose which sound), and a Digitone II FM TONE sound
+  (`.dn2pst`, or a `.dn2snd` from a backup) with its filter machine, AHD envelope, bit and sample-rate reduction,
+  drive, sends, portamento (the part's Glide) and modulation where the FM-1 has them. The device manager's library
+  takes the same files and lists every sound of a dump, each with what was approximated. On ChoralRoot 0.28 or older
+  the import writes a copy those versions play, without the Digitone II's filter machines, AHD, crush and the
+  sound's own sends, and says so.
 
 The same from the command line: `tools/fm1_install.py` (see the [README](../README.md) and [SOUNDS.md](SOUNDS.md)).
 
@@ -1974,6 +2515,12 @@ over), and after an install it reads the version back.
 
 Your saved sounds, loops and settings are kept. What you have not saved is not: hold SAVE first.
 Options > Version shows what is installed.
+
+**From 0.21 or older:** ChoralRoot 0.22 to 0.29.2 moved the 32 sounds of 0.21 and older into U001 to U032 the first
+time they started; the versions after 0.29.2 no longer do. If your FM-1 still runs 0.21 or older, the page asks before
+it installs a newer version: install **0.29.2** first (Other versions), switch the FM-1 on once, then install the
+newest. A backup made on 0.21 or older restores its settings, banks and loops on the newer versions, but not its
+sounds: restore it on 0.29.2 and back up again.
 
 **Going back to an older version:** under the button, **Other versions** offers 0.21 down to 0.16. One click on
 one of them shows its date, what it brought and what going back to it means, and the button now says, for example,
@@ -2053,11 +2600,28 @@ A black screen with a `WL82 UBOOT1.00` disk on the computer, or nothing on USB a
 [INSTALL-COMPAT.md](INSTALL-COMPAT.md), which lead to
 [MvaveFM1Unbricker](https://github.com/Quixotic7/MvaveFM1Unbricker). Do not format the disk.
 
-### Back to the stock firmware
+### Switching firmwares
 
-The installer's "Return to official V15" section installs M-VAVE's own firmware, which you download yourself from
-M-VAVE. It saves a backup first: the stock firmware cannot use ChoralRoot's sounds, loops or settings. To bring them
-back, install ChoralRoot again and press Restore.
+To switch from ChoralRoot to another firmware, or from another firmware to ChoralRoot, use **[M-Flasher](https://github.com/jvitkauskas/m-flasher) and the
+[M-Bootloader](https://github.com/jvitkauskas/m-bootloader)** (Windows, macOS and Linux; free, unofficial). M-Flasher talks to the chip's own USB download mode, so it works
+whatever firmware is on the FM-1, even one that no longer starts; it backs up the whole flash before it writes, and
+installs any firmware's `.fwsc` package, ChoralRoot's included. The M-Bootloader replaces M-VAVE's bootloader and adds
+a way into download mode from the keys (hold REC while switching on) and a recovery menu (hold PLAY while switching on).
+
+1. In ChoralRoot's installer, press **Back up**: no other firmware can use ChoralRoot's sounds, loops or settings.
+2. Start M-Flasher and connect the FM-1 directly with a USB data cable. With ChoralRoot running, M-Flasher's
+   **DOWNLOAD MODE** button switches it over (ChoralRoot answers the same message as the stock firmware); with the
+   M-Bootloader installed, you can also hold REC while switching on.
+3. In M-Flasher: back up the whole flash, install the M-Bootloader (once), then install the other firmware's package.
+
+To come back, install ChoralRoot's package (`choralroot-X.Y.fwsc`, from the [Releases](https://github.com/Quixotic7/ChoralRootFM1/releases))
+the same way, or with ChoralRoot's web installer if the other firmware lets it, then press Restore in the installer.
+You never need to go through the stock firmware in between. M-Flasher's own instructions are in its README.
+
+**Back to the stock firmware completely**: use **M-VAVE's own updater, M-Updater** (from M-VAVE's downloads): it
+reflashes the FM-1 completely, the official firmware and its factory presets (and puts M-VAVE's bootloader back:
+reinstall the M-Bootloader afterwards if you want it). The installer's own "Return to official V15" section writes the
+V15 firmware only: the FM-1 then starts without M-VAVE's presets (checked on a unit, HISTORY 3y235).
 
 More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), the
 [0.16 release notes](releases/0.16.md).
@@ -2080,7 +2644,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | SUS will not come, or C4 / C#4 play roots | the FM-1 chord keys (the default since 0.25.1): SUS is G#3 + A#3, the 9 is B3 | press G#3 and A#3 together, or Options > Chord Keys: Classic |
 | The chord sound is silent, the bass plays | Bass Behaviour is Solo (`Bass Solo`) | BASS layer, another behaviour, or tap BASS |
 | No bass | the bass is off (a new unit, a reset, or you switched it off) | tap BASS |
-| The bass layer's keys make no sound | in that layer the white keys pick the behaviour | close the layer to play |
+| The bass layer's keys make no sound | its keys are on pick (`keys pick`, GLO lit) | tap GLO in the layer, or close it |
 | The loop plays but is silent | its Level is 0 | PLAY menu, page 2, KNOB 1 |
 | REC replaced my loop | the record mode is Overwrite | PLAY menu, ALGORITHM: Overdub. Before the first chord, REC again cancels |
 | In step entry two notes land on the same step | they were held together | let go of the first before pressing the next; OCT- goes back |
@@ -2092,7 +2656,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | Every sound is dull, or thin, whatever I load | the master filter is on (0.22) | FX layer, Filter: KNOB 4 to `Off`, or the cuts to `Off` |
 | The echoes are on one side, then the other | the delay's Mode is Ping-pong | FX layer, Delay 2, KNOB 2: Stereo |
 | The bass has reverb or echo | the bass part has sends of its own | BASS held + EDIT, the FX group; or FX off |
-| A sound I saved with lots of reverb loads dry (or the other way round) | sends are no longer loaded with a sound: they are the part's | set the sends once in the FX layer (its first page); they stay for every sound |
+| A sound I saved with lots of reverb loads dry (or the other way round) | sends are no longer loaded with a sound: they are the part's (only an imported Digitone sound brings its own) | set the sends once in the FX layer (its first page); they stay for every sound |
 | An FM TONE sound is distorted although FX is off, or the drive changes when I turn PRESETS | on FM TONE the Drive is the sound's: saved with it, loaded with it, not switched off by FX | the sound editor, ENV group, AMP screen, Drive (or the Sends page's Drive); SAVE to keep it |
 | In the engine picker the white keys no longer choose the engine | they always play now, so that you hear what you turn to | SELECT steps the engines |
 | After updating to 0.18 the reverb and the delay sound different | they are new, and start at their defaults | [FX](#8-fx) |
@@ -2107,6 +2671,7 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 | Every note sounds doubled and louder | Raw Chord Sound is On with no performance mode | Options > Raw Chord Sound: Off |
 | The screen shows the logo, or is black | three minutes, or ten, without input | touch anything |
 | `Safe mode` on the top line | SAFE MODE | see [SAFE MODE](#safe-mode) |
+| `FONTS MISSING` under the logo at power-on, the big type missing on the screens | the part of the firmware that holds the screens' type did not arrive (an install that was cut, or an older version installed in between) | install ChoralRoot again with the web installer: it writes what is missing; your sounds, loops and settings stay |
 | The computer shows no audio input | USB Record is Off | Options > USB Record: On |
 | The FM-1 drops off USB for a second | USB Record or USB Rate was changed (`USB RECONNECTING`) | wait |
 | The computer offers 44.1 kHz only for ChoralRoot In | USB Rate is `44.1 kHz` (the default) | Options > USB Rate: `44.1 + 48 kHz` |
@@ -2121,21 +2686,22 @@ More: [BOOT-SAFETY.md](BOOT-SAFETY.md), [INSTALL-COMPAT.md](INSTALL-COMPAT.md), 
 
 ### Buttons
 
-A held layer button opens its layer and it stays; holding the same button again closes it (so do OCT- and HOME).
+A held layer button opens its layer and it stays; holding the same button again closes it (so do OCT- and HOME). PERF
+is the exception: held again it switches between the chords' and the bass's PERF layers.
 
 | Button (printed label) | ChoralRoot | Tap | Hold |
 | --- | --- | --- | --- |
 | FX | FX | effects on / off (in its layer too) | FX layer: SELECT the page (Sends · Reverb 1 · Reverb 2 · Chorus · Delay 1 · Delay 2 · Drive) · KNOB 1-4 its cells (Sends: the chord part's drive, chorus, delay and reverb sends; KNOB 4 on an effect's first page: its Send) |
-| SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale · KNOB 1 Tonic · 2 Scale · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
-| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level. Held + EDIT: edit the bass sound. Held + SAVE: save it |
+| SEL | KEY | Key Mode on / off | KEY layer: a root = tonic · MAJ / MIN = scale (again: the next of its kind) · KNOB 1 Tonic · 2 Scale (23) · 3 Transpose · 4 Single (Full / Split Oct / Split Bass) · SELECT: page 2: KNOB 1 Key plays (Chords / Notes) · 2 Keyboard (Chords / Full) · 4 Numerals (Off / On / Solfège) · GLO: the keys pick / play |
+| ENV | BASS | bass on / off | BASS layer: SELECT behaviour · KNOB 1 Behaviour · 2 Register · 3 Sound · 4 Level · GLO: the keys play / pick. Held + EDIT: edit the bass sound. Held + SAVE: save it. Held + ARP: the Bass PERF layer |
 | LFO | LOCK (Classic chord keys: LATCH) | LOCK on / off; GLO held + LFO: LATCH (Classic: latch on / off) | the LOCK layer: KNOB 1 Type key Clears / Keeps · KNOB 2 Ext keys Toggle / Pushed (Classic: nothing) |
 | EDIT | EDIT | the sound editor; in it: leave | the engine picker: SELECT engine · KNOB 1 presets · KNOB 2 init · the keys play · OCT+ keep · OCT- cancel |
-| GLO | OPT | Options (SELECT setting · KNOB 1 value). In the PLAY menu: its keys play / loops. In the KEY layer: its keys pick / play. In the editor: SHIFT latch | + **SAVE, both held 1 s: revert to the last save** · + PRESETS: engine · + ALGORITHM: bass engine (both wherever the knob alone is the sound: the main screen, the Options, the layers but PLAY; ALGORITHM in the sound editor too) · + KNOB 1: split point · + SELECT: click level · + SEQ: metronome on / off · + REC: the next record mode. In the editor: snap (held or latched); + EDIT: chord / bass sound. Held + a value knob anywhere: the value snaps |
+| GLO | OPT | Options (SELECT setting · KNOB 1 value). In the PLAY menu: its keys play / loops. In the KEY layer: its keys pick / play. In the editor: SHIFT latch | + **SAVE, both held 1 s: revert to the last save** · + PRESETS: engine · + ALGORITHM: bass engine (both wherever the knob alone is the sound: the main screen, the Options, the layers but PLAY; ALGORITHM in the sound editor too) · + KNOB 1: split point · + SELECT: click level · + SEQ: the beat (metronome or drums) on / off · + REC: the next record mode. In the editor: snap (held or latched); + EDIT: chord / bass sound. Held + a value knob anywhere: the value snaps |
 | HOME | HOME | back; on the view: next view | 0.6 s: the view menu (SELECT view · KNOB 1 lock) |
 | SAVE | SAVE | the save menu: SELECT Overwrite / Save as new / Favorite / Favorites filter / Favorite type · KNOB 1 value · KNOB 2 filter · 3 type · 4 favorite · OCT+ saves · held 1 s: delete / reset | **the global save**: everything as it is now, and the loop (`saved`). With GLO, both held 1 s: revert (`reverted`) |
-| ARP | PERF | performance on / off (in its layer too) | PERF layer: SELECT mode · KNOB 1-4 its parameters |
-| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: metronome on / off | its hold menu (metronome): SELECT time signature · KNOB 1 Click · a tap there: metronome on / off |
-| PLAY | LOOP | play / stop the loop; ends a take | PLAY menu: PRESETS slot · ALGORITHM record mode · SELECT page · page 1: KNOB 1 Length · 2 Rate · 3 Quantize · 4 Count-in · page 2: KNOB 1 Level · 2 Metronome · GLO: its keys play / loops · SEQ: leave · EDIT: the loop editor (PRESETS step, heard while the loop is stopped, with GLO 8 steps · SELECT page · ALGORITHM the step's voicing · the keys replace it · REC clears it · OCT the octave · page 1: KNOB 1 Note len · 2 Steps, with GLO to 8 16 32 48 64 · 3 Chance · 4 Velocity · page 2: KNOB 1 Ratchet · 2 Condition · 3 Voicing · SEQ, EDIT or LOOP held: the PLAY menu · HOME: the view) |
+| ARP | PERF | performance on / off, both parts (in its layers too) | PERF layer (the chords): SELECT mode (Off first) · KNOB 1-4 its parameters. With BASS (ENV) held: the Bass PERF layer, the same for the bass (Off, Follow, the modes). Held again in a PERF layer: the other part's |
+| SEQ | SEQ | the loop editor; in it: the PLAY menu; in the PLAY menu: leave. With GLO held: the beat on / off | its hold menu (the beat; from the loop editor too): ALGORITHM Preset (Metronome / Drums; the first page only) · PRESETS the beat on / off (not on the Mix pages) · KNOB 1 Level · 2 Meter · 3 Kit · 4 Beat · SELECT: Beat (Map X, Map Y, Density, Chaos), Kick, Snare, Hats (Tune, Decay, Character, Fill), Kick Mix, Snare Mix, Hats Mix (Chorus, Delay, Reverb, Level; PRESETS Drive, ALGORITHM Filter) · the keys play · a tap there: the beat on / off |
+| PLAY | LOOP | play / stop the loop; ends a take | PLAY menu: PRESETS slot · ALGORITHM record mode · SELECT page · page 1: KNOB 1 Length · 2 Rate · 3 Quantize · 4 Count-in · page 2: KNOB 1 Level · 2 Beat · GLO: its keys play / loops · SEQ: leave · EDIT: the loop editor (PRESETS step, heard while the loop is stopped, with GLO 8 steps · SELECT page · ALGORITHM the step's voicing · the keys replace it · REC clears it · OCT the octave · page 1: KNOB 1 Note len · 2 Steps, with GLO to 8 16 32 48 64 · 3 Chance · 4 Velocity · page 2: KNOB 1 Ratchet · 2 Condition · 3 Voicing · SEQ, EDIT or LOOP held: the PLAY menu · HOME: the view) |
 | REC | REC | record by the record mode; ends a take; cancels when armed. With GLO held: the next record mode | undo the last layer |
 | OCT- | octave down | roots down an octave (to -2). In layers, menus, dialogs: back / cancel (closes). In step entry: back a step | in the editor, + a knob: clear that parameter's modulation |
 | OCT+ | octave up | roots up an octave (to +2). In layers, menus, dialogs: confirm (keep, save, do it); where there is nothing to confirm it closes, as OCT-. In step entry: a rest | |
@@ -2146,7 +2712,7 @@ A held layer button opens its layer and it stays; holding the same button again 
 | Button (printed label) | In the editor | Tap | Hold |
 | --- | --- | --- | --- |
 | FX | OSC | the group; again: its next screen | |
-| SEL | FILT | the same | |
+| SEL | FILT | the same | the filter type picker (FM TONE): a knob or SELECT picks, the release keeps it |
 | ENV | ENV | the same | + a knob: that envelope modulates the knob's parameter (VA) |
 | LFO | LFO | the same | + a knob: that LFO modulates it (VA) |
 | SEQ | MOD | the same | |
@@ -2186,7 +2752,7 @@ SELECT: the next lane. KNOB 1 to KNOB 4: the lane's values. PRESETS: the engine 
 | D#4, F#4, PLAY menu with its keys on loops | clear the loop (hold 1 s), undo |
 | white roots, naming a sound | letters and digits; D#4 a space; F#4 delete |
 | white roots D4 to B4, then C5, view menu | Chord, Keyboard, Notes, Geek Out, Scope, Geek Out 2; Lock |
-| white roots D4 to G4, BASS layer | the bass behaviour |
+| white roots D4 to G4, BASS layer with its keys on pick (GLO) | the bass behaviour |
 | white roots D4 to F4, the SEQ key's hold menu (metronome) | 4/4, 3/4, 6/8 |
 
 ### At power-on

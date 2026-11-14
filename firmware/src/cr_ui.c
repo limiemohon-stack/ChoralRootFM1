@@ -227,12 +227,8 @@ static void cu_snd_set(uint32_t part, uint32_t kind, uint32_t fk, uint32_t slot)
 
 static uint32_t cu_preset_orig(const engine_t *e, uint32_t k)  /* ui.c preset_orig: a retired alias -> the original */
 {
-#if FELUCCA_SAMPLE
-    return e->presets == SMP_PRESET_TABLE && k < SMP_NSETS ? SMP_SET_ORIG[k] : k;
-#else
     (void)e;                                     /* (the aliases were SAMPLE's sets: none) */
     return k;
-#endif
 }
 /* the EDIT engine picker: pitched engines with presets (not DRUM, not SLICE, not the retired DIGITAL slot) */
 static int cu_engine_melodic(uint32_t e)
@@ -245,12 +241,13 @@ static int cu_engine_melodic(uint32_t e)
 static const char *cu_preset_name(uint32_t e, uint32_t p)
 {
     const engine_t *en = ENGINES[e % NENGINES];
-    return en->npresets ? en->presets[p % en->npresets].name : en->name;
+    return en->npresets ? eng_preset(en, p % en->npresets)->name : en->name;
 }
 static int cu_kept(uint32_t i) { return param_kept(i); }
 /* FM TONE's Drive is its preset's (below, at cu_fx_apply): every load that changes a part's engine or loads an FM
  * TONE sound says so BEFORE it writes eng_req: engine e is coming, with Drive d if e is FM TONE */
 static void cu_drive_load(track_t *t, uint32_t e, int32_t d);
+static void cu_sends_load(track_t *t, const int16_t *v);   /* (an FM TONE sound that carries its sends, below) */
 static int32_t cu_preset_drive(const preset_t *pr) { return pr->fx[0] ? (int32_t)pr->fx[0] - 1 : 0; }   /* core.h FX() */
 
 /* engine e's preset pi into part t, as ui.c set_engine_of + apply_preset_to: the sound only (not its sends: they are
@@ -265,7 +262,7 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
     if (!en->npresets)
         return;
     pi = cu_preset_orig(en, pi % en->npresets);
-    pr = &en->presets[pi];
+    pr = eng_preset(en, pi);
     fm1_irq_off();
     cu_drive_load(t, e % NENGINES, cu_preset_drive(pr));
     t->eng_req = (uint8_t)(e % NENGINES);
@@ -296,12 +293,13 @@ static void cu_load(track_t *t, uint32_t e, uint32_t pi, int bass)
  * the part's own (param_kept); a chord part plays it POLY when it was saved MONO, a bass part MONO. An ANALOG sound
  * (engine 0, retired in 0.14: a 0.13 slot, a restored bank) loads on the VA with its macros carried by name (cu_analog_va;
  * the VA's init patch under them, eng_va.c va_track_loaded); a sound of another retired engine (PHASE 2, LOFI 3, VOICE 5,
- * TRIO 6, NOISE 11, PHYS 9, retired in 0.18: a 0.17 slot, a restored bank; SAMPLE 4, GRAIN 8, DRUM 10: a Felucca slot; engines.c
- * ENG_GONE) loads as the VA's init sound, a stand-in: the six of 0.18 keep the record's sends and its envelope's ATK /
- * REL on the VA's macros of that name (cu_analog_va's mapping; their other macros have no VA meaning). All under the
- * slot's name, with a message (and a trace line on the emulator) */
+ * TRIO 6, NOISE 11, PHYS 9, retired in 0.18: a 0.17 slot, a restored bank; DIGITAL 1, SAMPLE 4, GRAIN 8, DRUM 10: a
+ * Felucca slot; engines.c ENG_GONE) loads as the VA's init sound, a stand-in: the six of 0.18 keep the record's sends and
+ * its envelope's ATK / REL on the VA's macros of that name (cu_analog_va's mapping; their other macros have no VA
+ * meaning). All under the slot's name, with a message (and a trace line on the emulator). (A DIGITAL record converted to
+ * FM6 until 3y232, fm4_convert.c: it left with Felucca's tree; its trace line names it, its message is the generic
+ * one) */
 static void cu_message(const char *t, uint32_t col);
-#if !FELUCCA_ANALOG
 /* ANALOG's values -> the VA's: CUT RES DRV MIX DTN to the VA's macros of the same name, the filter envelope (ENV
  * DEST FLT) to FENV, the envelope's ATK / REL to the VA's ATK / REL macros (its own envelope); ANALOG's WAVE, NOIS
  * and KTR have no VA macro (the init patch's two saws) */
@@ -323,7 +321,6 @@ static void cu_analog_va(int16_t *v)
     for (i = 0; i < 8u; i++)
         v[P_E0 + i] = (int16_t)clamp(v[P_E0 + i], ENG_VA.edit[i].min, ENG_VA.edit[i].max);
 }
-#endif
 static void cu_load_user(track_t *t, uint32_t k, int bass)
 {
     const up_rec_t *r;
@@ -338,16 +335,6 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
     if (!bass && (v[P_VOICE] == V_MONO || v[P_VOICE] == V_LEGATO))
         v[P_VOICE] = V_POLY;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
-#if !FELUCCA_FM4
-    if (r->engine == ENGI_DIGITAL) {
-        int16_t p[P_COUNT];
-        cu_drive_load(t, ENGI_FM6, 0);
-        for (i = 0; i < P_COUNT; i++)
-            p[i] = cu_kept(i) ? t->p[i] : v[i];
-        fm4_apply(t, p);
-    } else
-#endif
-#if !FELUCCA_ANALOG
     if (r->engine == 0u) {                        /* ANALOG (retired): its macros on the VA */
 #if defined(CR_TRACE) && CR_TRACE
         printf("load: slot %u engine 0 (ANALOG) retired -> VA, its macros\n", (unsigned)k + 1u);
@@ -364,11 +351,11 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         fm6_track_loaded(t);                      /* (no stored VA patch: the init patch + these macros) */
         cu_message("ANALOG retired: on the VA", CR_COL_WHITE);
     } else
-#endif
     if (!eng_ok(r->engine)) {
         const engine_t *en = ENGINES[CB_RETIRED_POOL];
         const char *was = r->engine == 2u ? "PHASE" : r->engine == 3u ? "LOFI" : r->engine == 5u ? "VOICE" :
-                          r->engine == 6u ? "TRIO" : r->engine == 11u ? "NOISE" : r->engine == ENGI_PHYS ? "PHYS" : 0;
+                          r->engine == 6u ? "TRIO" : r->engine == 11u ? "NOISE" : r->engine == ENGI_PHYS ? "PHYS" :
+                          r->engine == ENGI_DIGITAL ? "DIGITAL" : 0;
         int carry = was && ((ENG_RETIRED_018 >> r->engine) & 1u) && CB_RETIRED_POOL == ENGI_VA;
         char msg[24];                             /* (cu.msg.text holds 23 characters) */
 #if defined(CR_TRACE) && CR_TRACE
@@ -407,6 +394,7 @@ static void cu_load_user(track_t *t, uint32_t k, int bass)
         t->preset = 0;
         fm1_irq_on();
         fm6_track_loaded(t);
+        cu_sends_load(t, v);                      /* (an FM TONE sound with SENDS: its sends become the part's) */
     }
     t->user = (uint8_t)(k + 1u);
     t->trim = 0;                                  /* an added user preset: no trim (a bound one: cu_pool_load) */
@@ -490,12 +478,26 @@ static const struct { const char *name, *short_name; uint8_t mode, range; } CU_P
     {"Strum", "Strum", CR_PM_STRUM, 1}, {"Strum 2 Octaves", "Strum", CR_PM_STRUM, 2}, {"Slop", "Slop", CR_PM_SLOP, 0},
     {"Arpeggiate", "Arp", CR_PM_ARP, 1}, {"Arp 2 Octaves", "Arp", CR_PM_ARP, 2}, {"Pattern", "Pattern", CR_PM_PATTERN, 0},
     {"Harp", "Harp", CR_PM_HARP, 0}};
-/* the four knobs of each perform mode's layer; the first is KNOB 3's main parameter on the view */
+/* the four knobs of each perform mode's layer. GitHub issue 26 (dphaine): a parameter two modes share sits on the same
+ * knob, in the knob's colour: KNOB 1 the time (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
+ * Range (Strum, Slop) or Gate (Arp, Pattern, and Harp, whose Range is then KNOB 4), KNOB 4 the mode's own (Hold,
+ * Amount, Swing, Harp's Range). Until 0.36 Slop was Amount / Rate / Direction / Range, Pattern Pattern / Division /
+ * Gate / Swing (Harp's row is as it was). The chord's values are stored per parameter; the bass's in CU_BPAR_SLOT's slots, below */
 static const int8_t CU_PERF_KNOB[CR_PM_COUNT][4] = {
     {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
-    {CR_P_AMOUNT, CR_P_RATE, CR_P_DIR, CR_P_RANGE},               /* SLOP */
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_AMOUNT},               /* SLOP */
     {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
-    {CR_P_PATTERN, CR_P_DIV, CR_P_GATE, CR_P_SWING},              /* PATTERN */
+    {CR_P_DIV, CR_P_PATTERN, CR_P_GATE, CR_P_SWING},              /* PATTERN */
+    {CR_P_RATE, CR_P_DIR, CR_P_GATE, CR_P_RANGE}};                /* HARP (Gate on KNOB 3 as Pattern's) */
+/* KNOB 3 on the view (and the arp screen's line): each mode's main parameter, as before issue 26 */
+static const int8_t CU_PERF_MAIN[CR_PM_COUNT] = {CR_P_RATE, CR_P_AMOUNT, CR_P_DIV, CR_P_PATTERN, CR_P_RATE};
+/* the session's bpar[m][k] (cr_settings.h): which of the bass's parameters is stored in slot k of mode m. A table of its
+ * own, so the knobs can move without moving what is stored (issue 26 set it to its knob rows) */
+static const int8_t CU_BPAR_SLOT[CR_PM_COUNT][4] = {
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_HOLD},                 /* STRUM */
+    {CR_P_RATE, CR_P_DIR, CR_P_RANGE, CR_P_AMOUNT},               /* SLOP */
+    {CR_P_DIV, CR_P_DIR, CR_P_GATE, CR_P_SWING},                  /* ARP */
+    {CR_P_DIV, CR_P_PATTERN, CR_P_GATE, CR_P_SWING},              /* PATTERN */
     {CR_P_RATE, CR_P_DIR, CR_P_GATE, CR_P_RANGE}};                /* HARP */
 static const struct { const char *name; int16_t min, max, step; } CU_PAR[CR_P_COUNT] = {
     {"rate", 1, 1000, 5}, {"division", 0, CR_DIV_COUNT - 1, 1}, {"direction", 0, 5, 1}, {"range", 1, 4, 1},
@@ -563,6 +565,15 @@ static struct {
     uint8_t bass_on, bass_mode, perform_on, perf_sel, sticky;
     uint16_t bpm;
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    /* the Bass Perform (0.34, GitHub issue 41; cr_engine.h perf_parts): its PERF layer's entry (CU_PERF) and its own
+     * parameters; perf_off bit p: part p (CU_PF_CHORD / CU_PF_BASS) is Off, the first entry of its layer: it plays as
+     * with Perform off while the other performs. Default: the bass Off (bit 1), as before 0.34 */
+    uint8_t perf_off, bperf_sel;
+    int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
+    uint8_t bfollow;                      /* the Bass PERF layer on Follow (after 0.34): the bass performs the chord's
+                                           * mode with its parameters (cr_engine.h bfollow); bperf_sel / bpar kept */
+    uint8_t bass_keys;                    /* the BASS layer's keys (0.34): 0 play (the default), 1 pick (the white
+                                           * roots = the Behaviour); GLO tapped in the layer, as the KEY layer's */
     uint8_t fx_on, fx_sel, fx_amt[CU_NFX];
     uint8_t fx_page;                      /* the effect's page in the FX layer (0, or 1: Reverb 2, Delay 2), or
                                            * CU_FXPG_SENDS: the Sends page (cs.fx_sel stays the effect last picked:
@@ -575,7 +586,17 @@ static struct {
     uint8_t ch[CR_NSTREAM];               /* MIDI channel 1..16, 0 = off */
     uint8_t raw_sound;                    /* RAW also plays part 0 */
     uint8_t split;                        /* Single Notes' split point, pitch class 0..11 */
-    uint8_t metro, metro_sig, metro_vol;  /* the click: on, CRL_SIG_*, level 0..100 */
+    uint8_t metro, metro_sig, metro_vol;  /* the beat on (GLO + SEQ; the click or the drums), CRL_SIG_*, the click's level
+                                           * 0..100 */
+    uint8_t beat_preset;                  /* the SEQ layer's preset: 0 Metronome, 1 Drums (the session's drum block) */
+    uint8_t dr_kit, dr_level;             /* Drums: the kit 0..5 (cr_drum_kits.h), the level 0..100 */
+    uint8_t dr_x, dr_y, dr_dens, dr_chaos;   /* the Beat page: Map X, Map Y, Density, Chaos 0..127 */
+    uint8_t dr[3][4];                     /* kick, snare, hats: Tune 0..24 (12: as voiced), Decay, Character, Fill 0..127 */
+    uint8_t dr_fx[3][3];                  /* .. their sends 0..127 into the chorus, the delay and the reverb (the Kick
+                                           * Mix, Snare Mix, Hats Mix pages; 3y303) */
+    uint8_t dr_lvl[3];                    /* .. their Level 0..127, 64 as voiced (the same pages' KNOB 4) */
+    uint8_t dr_flt[3], dr_drv[3];         /* .. their Filter 0..127 (127: all through the master filter) and Drive (0:
+                                           * clean) (the same pages' PRESETS and ALGORITHM; 3y304) */
     uint8_t loop_len, loop_quant, loop_count_in, loop_level;   /* SYNC (0 Free, 1..16 bars), QUANT, COUNT-IN, LEVEL */
     uint8_t loop_rate;                    /* the loop's Rate, 0..CRL_NRATE-1 (x1/16 .. x4; CRL_RATE_1; the session's) */
     uint8_t loop_slot;                    /* the slot in RAM (0..9) */
@@ -613,7 +634,15 @@ static struct {
     uint8_t suswin;                       /* .. SUS Window, ms (30 .. 80, 5 a step; 30 the default): FM-1's type keys */
     uint8_t full_short;                   /* .. Full K Shorts: F#5 / G5 are the Full keyboard's shortcut keys */
     uint8_t midi_keys;                    /* .. MIDI Keys: the channel (1 .. 16) whose notes 53 .. 79 press the keys F3 ..
-                                           * G5; 0 Off */
+                                           * G5 (36 .. 44: F3 .. C#4, a pad controller's); 0 Off */
+    uint8_t midi_roots;                   /* .. MIDI Roots (3y289): the channel (1 .. 16) whose every note is a root at its
+                                           * own pitch (cu_mroot); 0 Off */
+    uint8_t midi_cc;                      /* Options > MIDI CC (3y269): bit 0 In, bit 1 Out (0 Off .. 3 In+Out; 1 In,
+                                           * the default, 3y272) */
+#if BOARD_SMK37
+    uint8_t smk_pedal;                    /* Options > Pedal: the pedal jack 0 Sustain, 1 Expression (the session's:
+                                           * cr_settings.h smk_pedal; cr_smk_pedal) */
+#endif
 } cs;
 
 /* the layout (docs/CHORD-LAYOUT.md): Classic unless Options > Chord Keys says FM-1 (never on the SMK-37: its chord keys
@@ -628,8 +657,9 @@ static uint32_t cu_lbtn(uint32_t l)               /* layer l's button (NB: none;
                                                     * Harmony mode's LFO in Classic) */
 {
     if (l == L_LOCK)                               /* (this fork, 2026-10-18: LFO held is Harmony mode in both layouts,
-                                                    * as it always was here; FM-1's LOCK settings are on SEQ held, the
-                                                    * METRO layer's KNOB 2 / 3. Classic: B3 held, cu_lock_menu) */
+                                                    * as it always was here. Classic: B3 held, cu_lock_menu. FM-1: none
+                                                    * since 0.40, whose SEQ layer took the METRO knobs its LOCK settings
+                                                    * were on; the defaults stand) */
         return NB;
     return L_BTN[l];
 }
@@ -687,6 +717,7 @@ static void cu_post_single(void)
 {
     cr_post(CRE_SINGLE, cs.single, 0, cs.split);
 }
+static void cu_beat_post(int force);              /* (the beat, below) */
 static void cu_loop_conf(void)                    /* the looper's settings -> the ISR */
 {
     cr_post(CRE_LOOP, LP_CONF, LC_SYNC, cs.loop_len);
@@ -695,7 +726,7 @@ static void cu_loop_conf(void)                    /* the looper's settings -> th
     cr_post(CRE_LOOP, LP_CONF, LC_LEVEL, cs.loop_level);
     cr_post(CRE_LOOP, LP_CONF, LC_SIG, cs.metro_sig);
     cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-    cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+    cu_beat_post(1);                              /* the click or the drums (the SEQ layer's preset) */
     cr_post(CRE_LOOP, LP_CONF, LC_MODE, cs.loop_mode);
     cr_post(CRE_LOOP, LP_CONF, LC_RATE, cs.loop_rate);
 }
@@ -761,6 +792,60 @@ static void cu_drive_load(track_t *t, uint32_t e, int32_t d)     /* (declared at
     (void)t; (void)e; (void)d;
 #endif
 }
+/* AN FM TONE SOUND THAT CARRIES ITS SENDS (3y203, the owner 2026-10-31: "Ok, lets let these presets change the FX send
+ * amounts when you load"). The 0.18 rule above stands for every other sound; a sound whose patch has SENDS (version 6,
+ * eng_quad.c: the Digitone importer sets it, its record's P_REV P_DLY P_CHOR hold the preset's amounts) sets its
+ * PART's three sends when it loads (a user slot or a pool entry, cu_load_user): the chord part's cs.fx_amt[] (FX on or
+ * off stays as it is), the bass part's track values; Drive as ever (cu_drive_load). Nothing else changes them: the next
+ * sound without SENDS leaves them where this one put them. A save of such a sound writes the part's amounts into the
+ * record (cu_store), so it loads them again */
+static void cu_sends_load(track_t *t, const int16_t *v)
+{
+#if FELUCCA_QUAD
+    uint32_t i;
+    if (!quad_sends_own(t))
+        return;
+    for (i = 0; i < CU_NFX; i++) {
+        uint32_t id = CU_FX[i].send;
+        int16_t x = (int16_t)clamp(v[id], 0, 127);
+        if (id == P_DIST)
+            continue;
+        if (t == &trk[CR_PART_CHORD]) {
+            cs.fx_amt[i] = (uint8_t)x;
+        } else {
+            fm1_irq_off();
+            t->p[id] = x;
+            fm1_irq_on();
+        }
+    }
+    if (t == &trk[CR_PART_CHORD])
+        cu_fx_apply();
+#if defined(CR_TRACE) && CR_TRACE
+    printf("load: part %u FM TONE sends: reverb %d delay %d chorus %d\n", t == &trk[CR_PART_CHORD] ? 0u : 1u,
+           (int)v[P_REV], (int)v[P_DLY], (int)v[P_CHOR]);
+#endif
+#else
+    (void)t;
+    (void)v;
+#endif
+}
+/* cr_bank.c cb_store for the part's sound: a chord-part sound with SENDS stores the part's amounts (cs.fx_amt), not the
+ * track's (0 with FX off) */
+static int cu_store(const track_t *t, uint32_t part, uint32_t k, const char *name, uint32_t bind)
+{
+#if FELUCCA_QUAD
+    if (!part && quad_sends_own(t)) {
+        int16_t s[3];
+        uint32_t i;
+        for (i = 0; i < CU_NFX; i++)
+            if (CU_FX[i].send >= P_CHOR && CU_FX[i].send <= P_REV)
+                s[CU_FX[i].send - P_CHOR] = (int16_t)cs.fx_amt[i];
+        return cb_store_s(t, part, k, name, bind, s);
+    }
+#endif
+    return cb_store(t, part, k, name, bind);
+}
+
 /* a new unit's, and Options > Reset Settings': what the power-on sounds were made with (FM6 TINE EP: reverb 35,
  * chorus 45, delay 25, no drive; VA DEEP SUB: a little reverb, 10) */
 static void cu_sends_default(void)
@@ -1012,7 +1097,11 @@ static void cu_fx_val(int32_t id, char *out, uint32_t n)
             cu_fx_hz(out, xq_high_hz((uint32_t)v), n);
         break;
     case XP_FSLOPE: cu_cpy(out, v ? "12 dB" : "6 dB", n); break;
-    case XP_FON: cu_cpy(out, v && cs.fx_on ? "On" : "Off", n); break;   /* (FX off: the filter is out, as a send) */
+    case XP_FON: {                                /* (FX off: the filter is out, as a send) */
+        static const char *const FON[4] = {"Off", "All", "Chord", "Bass"};   /* (cr_fx.c: what goes through it) */
+        cu_cpy(out, cs.fx_on ? FON[v & 3] : "Off", n);
+        break;
+    }
     default: cu_int(out, v, 0, n); break;
     }
 }
@@ -1138,18 +1227,62 @@ static void cu_bass_go(uint32_t v)                /* ALGORITHM: 0 OFF, 1.. the b
     cr_post(CRE_BASS, 0, 0, cs.bass_on);
 }
 static uint8_t cu_pquiet;                          /* 1: Perform on / off quietly (Harmony mode's motion picker) */
-/* a perform mode picked (the PERF layer's picker, Harmony mode's ALGORITHM), quietly: nothing sounding is re-performed
- * by it, the next chord has it (cr_set_perform_mode_quiet; the owner, 2026-10-15: a setting turning must not be heard
- * playing over the chord) */
-static void cu_perf_pick(uint32_t i)
+/* Chord and Bass Perform (0.34): the two parts' entries, parameters and Off */
+#define CU_PF_CHORD CR_PF_CHORD
+#define CU_PF_BASS CR_PF_BASS
+/* (Follow: the bass's mode and parameters are the chord's, its own kept for when it leaves Follow) */
+static uint32_t cu_pf_sel(uint32_t part) { return part && !cs.bfollow ? cs.bperf_sel : cs.perf_sel; }
+static int16_t (*cu_pf_par(uint32_t part))[CR_P_COUNT] { return part && !cs.bfollow ? cs.bpar : cs.par; }
+static uint32_t cu_pf_off(uint32_t part) { return (cs.perf_off >> part) & 1u; }
+static uint32_t cu_pf_item(uint32_t part)         /* the layer's picker: 0 Off; the bass's 1 Follow, then the modes */
 {
-    cs.perf_sel = (uint8_t)(i % 7u);
-    cr_post(CRE_PERFORM_MODE_QUIET, 0, 0, CU_PERF[cs.perf_sel].mode);
-    if (CU_PERF[cs.perf_sel].range) {
-        cs.par[CU_PERF[cs.perf_sel].mode][CR_P_RANGE] = CU_PERF[cs.perf_sel].range;
-        cr_post(CRE_PARAM_QUIET, CU_PERF[cs.perf_sel].mode, CR_P_RANGE, CU_PERF[cs.perf_sel].range);
-    }
+    if (cu_pf_off(part))
+        return 0u;
+    if (part)
+        return cs.bfollow ? 1u : cs.bperf_sel + 2u;
+    return cs.perf_sel + 1u;
 }
+/* the parts that perform while Perform is on: the chord unless Off; the bass unless Off, or Follow with the chord Off */
+static uint32_t cu_pf_any(void) { return !cu_pf_off(0) || (!cu_pf_off(1) && !cs.bfollow); }
+static void cu_perf_follow(uint32_t on)
+{
+    if (cs.bfollow == on)
+        return;
+    cs.bfollow = (uint8_t)on;
+    cr_post(CRE_PERFORM_FOLLOW, 0, 0, (int32_t)on);
+}
+static void cu_perf_part_set(uint32_t part, uint32_t off)
+{
+    if (cu_pf_off(part) == off)
+        return;
+    cs.perf_off = (uint8_t)(off ? cs.perf_off | (1u << part) : cs.perf_off & ~(1u << part));
+    cr_post(CRE_PERFORM_PART, part, 0, (int32_t)!off);
+}
+static void cu_perf_pick_part(uint32_t part, uint32_t i)   /* part's entry i of CU_PERF (it performs again) */
+{
+    uint32_t sel = i % 7u;
+    if (part)
+        cu_perf_follow(0);                        /* (its own mode again: cu_pf_par is the bass's from here) */
+    if (part)
+        cs.bperf_sel = (uint8_t)sel;
+    else
+        cs.perf_sel = (uint8_t)sel;
+    if (part == CU_PF_CHORD)                      /* the chord's mode picked (the PERF layer's picker, Harmony mode's
+                                                   * ALGORITHM), quietly: nothing sounding is re-performed by it, the next
+                                                   * chord has it (cr_set_perform_mode_quiet; the owner, 2026-10-15) */
+        cr_post(CRE_PERFORM_MODE_QUIET, 0, 0, CU_PERF[sel].mode);
+    else
+        cr_post(CRE_PERFORM_MODE, part, 0, CU_PERF[sel].mode);
+    if (CU_PERF[sel].range) {
+        cu_pf_par(part)[CU_PERF[sel].mode][CR_P_RANGE] = CU_PERF[sel].range;
+        if (part == CU_PF_CHORD)
+            cr_post(CRE_PARAM_QUIET, CU_PERF[sel].mode, CR_P_RANGE, CU_PERF[sel].range);
+        else
+            cr_post(CRE_PARAM, CU_PERF[sel].mode | part << 4, CR_P_RANGE, CU_PERF[sel].range);
+    }
+    cu_perf_part_set(part, 0);
+}
+static void cu_perf_pick(uint32_t i) { cu_perf_pick_part(CU_PF_CHORD, i); }
 static void cu_route(void)                        /* Options > MIDI: channels and the RAW stream */
 {
     uint32_t s;
@@ -1160,6 +1293,8 @@ static void cu_route(void)                        /* Options > MIDI: channels an
     }
     cr_route.part[CR_STREAM_RAW] = cs.raw_sound ? CR_PART_CHORD : CR_NOPART;
     cr_mkeys_ch = cs.midi_keys;                   /* MIDI Keys (0 Off; never a part's channel: opt_set) */
+    cr_mroots_ch = cs.midi_roots;                 /* MIDI Roots (the same; never MIDI Keys' either) */
+    cr_cc_mode = cs.midi_cc;                      /* MIDI CC (the ISR's In; Out is cr_edit.c cu_cc_send's) */
     cr_post(CRE_STREAM, CR_STREAM_RAW, 0, cs.ch[CR_STREAM_RAW] || cs.raw_sound);
 }
 
@@ -1167,8 +1302,22 @@ static void cu_route(void)                        /* Options > MIDI: channels an
 enum { O_STYLE, O_EXTADD, O_SECRET,
        O_LAYOUT, O_SUSWIN, O_FULLSHORT, O_MIDI_KEYS,   /* the chord layouts (0.24, docs/CHORD-LAYOUT.md): together, after
                                           * Secret Chords (the owner, 2026-10-16) */
-       O_SIXTH, O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS, O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
-       O_CLOCK, O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
+       O_SIXTH, O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS,
+#if BOARD_SMK37
+       O_PEDAL,                           /* the SMK-37's pedal jack (cr_smk_pedal): not in the FM-1's list */
+#endif
+       O_BASSMODE, O_SINGLE, O_SPLIT, O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND,
+       O_CLOCK, O_MIDI_CC, O_MIDI_ROOTS,  /* (MIDI Roots, 3y289: after the MIDI Options, so no entry before it moves) */
+#if CR_BLE
+       O_BLE, O_BLE_FORGET,               /* Bluetooth MIDI (cr_ble.c, 3y236; FM-1 only) */
+#endif
+#if CR_USB_HOST
+       O_USB_HOST,                        /* the USB-C port as a MIDI host (usb_host.c, 3y260; FM-1 only; never saved) */
+#endif
+#if BOARD_SMK37
+       O_TRS,                             /* the SMK-37's TRS jack, a MIDI OUT (hal/smk_uart_tx.h): not in the FM-1's list */
+#endif
+       O_VIEW, O_MOTION, O_NAMES, O_LEDS, O_HOLD, O_USB_IN, O_USB_LEVEL, O_USB_RATE, O_DUALCORE, O_OUTPUT,
        O_VERSION,
        O_CALIB,
        O_RESET,                           /* Reset Settings: the last entry of a normal session */
@@ -1178,12 +1327,39 @@ enum { O_STYLE, O_EXTADD, O_SECRET,
 static const char *const O_NAME[O_N] = {"Play Style", "Extension Addition", "Secret Chords",
     "Chord Keys", "SUS Window", "Full K Shorts", "MIDI Keys", "6th with 7th",
     "Velocity", "Key Touch", "Velocity Sens", "Velocity Curve", "Aftertouch Sens",
+#if BOARD_SMK37
+    "Pedal",
+#endif
     "Bass Behaviour", "Single Notes", "Split Point", "MIDI Perform", "MIDI Bass", "MIDI Raw Chord", "Raw Chord Sound",
-    "MIDI Clock", "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
+    "MIDI Clock", "MIDI CC", "MIDI Roots",
+#if CR_BLE
+    "Bluetooth", "Forget Bluetooth",
+#endif
+#if CR_USB_HOST
+    "USB Host",
+#endif
+#if BOARD_SMK37
+    "TRS MIDI Out",
+#endif
+    "View", "Motion", "Chord Names", "LEDs", "Hold Time", "USB Record", "USB Level", "USB Rate", "Dual Core", "Output",
     "Version",
     "Calibrate", "Reset Settings", "Safe Mode", "Flash Data"};
-static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX, 3, 2, 11, 16, 16,
-                                   16, 1, 2, V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
+static const int16_t O_MAX[O_N] = {2, 1, 2, 1, 10, 1, 16, 1, 127, CU_TOUCH_MAX, 2, CU_VCURVE_MAX, CU_ATSENS_MAX,
+#if BOARD_SMK37
+                                   1,
+#endif
+                                   3, 2, 11, 16, 16,
+                                   16, 1, 2, 3, 16,
+#if CR_BLE
+                                   1, 0,
+#endif
+#if CR_USB_HOST
+                                   1,
+#endif
+#if BOARD_SMK37
+                                   1,
+#endif
+                                   V_N - 1, CR_MOTION_N - 1, 1, 1, 3, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0};
 static uint32_t cu_opt_n(void) { return cr_safe ? O_N : O_N_NORMAL; }
 /* an entry listed (docs/CHORD-LAYOUT.md): the chord layouts' four not on the SMK-37 (its chord keys are pads), the
  * SUS Window only while Chord Keys is FM-1. SELECT skips the others (cu_opt_next); their values are kept */
@@ -1191,26 +1367,15 @@ static int cu_opt_vis(uint32_t o)
 {
     if (o >= cu_opt_n())
         return 0;
-    if (o == O_LAYOUT || o == O_SUSWIN || o == O_FULLSHORT || o == O_MIDI_KEYS)
+    if (o == O_LAYOUT || o == O_SUSWIN || o == O_FULLSHORT || o == O_MIDI_KEYS || o == O_MIDI_ROOTS)
         return CU_FN_KEYS && (o != O_SUSWIN || cs.layout);
     return 1;
 }
-static uint32_t cu_opt_next(uint32_t from, int32_t s)   /* SELECT in the Options: s listed entries on from entry
-                                                    * from, stopping at the ends */
-{
-    int32_t o = (int32_t)from, d = s < 0 ? -1 : 1, n = s < 0 ? -s : s;
-    while (n-- > 0) {
-        int32_t t = o + d;
-        while (t >= 0 && t < (int32_t)cu_opt_n() && !cu_opt_vis((uint32_t)t))
-            t += d;
-        if (t < 0 || t >= (int32_t)cu_opt_n())
-            break;
-        o = t;
-    }
-    return (uint32_t)o;
-}
 static uint8_t cu_erase_ask;              /* Options > Flash Data: OCT+ pressed once (the second erases) */
 static uint8_t cu_reset_ask;              /* Options > Reset Settings: OCT+ pressed once (the second resets) */
+#if CR_BLE
+static uint8_t cu_ble_ask;                /* Options > Forget Bluetooth: OCT+ pressed once (the second forgets) */
+#endif
 
 /* Options > USB Record / USB Level / USB Rate (docs/USB-AUDIO.md; named from the FM-1's side: Record = the computer
  * records the FM-1, the device "ChoralRoot In"): USB Level at once (fx.c), USB Record and USB Rate once the setting
@@ -1241,6 +1406,7 @@ static void cu_usb_apply(void)
 }
 
 static void cu_layout_set(uint32_t fm1);           /* Options > Chord Keys (below, with the keys) */
+static void cu_mroot_allup(void);                 /* Options > MIDI Roots (below) */
 static void cu_fsc_set(uint32_t on);              /* Options > Full K Shorts */
 static int32_t opt_get(uint32_t o)
 {
@@ -1252,18 +1418,32 @@ static int32_t opt_get(uint32_t o)
     case O_SUSWIN: return (cs.suswin - 30) / 5;
     case O_FULLSHORT: return cs.full_short;
     case O_MIDI_KEYS: return cs.midi_keys;
+    case O_MIDI_ROOTS: return cs.midi_roots;
     case O_SIXTH: return cs.sixth_up;
     case O_VEL: return cs.vel;
     case O_TOUCH: return cs.touch;
     case O_VSENS: return cs.vel_sens;
     case O_VCURVE: return cs.vel_curve + 3;
     case O_ATSENS: return cs.at_sens;
+#if BOARD_SMK37
+    case O_PEDAL: return cs.smk_pedal;
+#endif
     case O_BASSMODE: return cs.bass_mode;
     case O_SINGLE: return cs.single;
     case O_SPLIT: return cs.split;
     case O_CH_MAIN: case O_CH_BASS: case O_CH_RAW: return cs.ch[o - O_CH_MAIN];
     case O_RAW_SOUND: return cs.raw_sound;
     case O_CLOCK: return cr_route.clock_in ? 2 : cr_route.clock_out;
+    case O_MIDI_CC: return cs.midi_cc;
+#if CR_BLE
+    case O_BLE: return cr_ble_on();
+#endif
+#if CR_USB_HOST
+    case O_USB_HOST: return uh.want;
+#endif
+#if BOARD_SMK37
+    case O_TRS: return !smk_ut_off;
+#endif
     case O_VIEW: return cs.view;
     case O_MOTION: return cr_motion;
     case O_NAMES: return cs.names_std;
@@ -1287,13 +1467,18 @@ static void opt_set(uint32_t o, int32_t v)
     case O_LAYOUT: cu_layout_set((uint32_t)v); break;
     case O_SUSWIN: cs.suswin = (uint8_t)(30 + 5 * v); break;
     case O_FULLSHORT: cu_fsc_set((uint32_t)v); break;
-    case O_MIDI_KEYS: {                               /* (a channel of its own: the parts' are skipped) */
-        int32_t d = v > cs.midi_keys ? 1 : -1;
-        while (v && (v == cs.ch[CR_STREAM_MAIN] || v == cs.ch[CR_STREAM_BASS]))
+    case O_MIDI_KEYS: case O_MIDI_ROOTS: {           /* (a channel of its own: the parts' and the other's are
+                                                       * skipped) */
+        uint8_t *mine = o == O_MIDI_KEYS ? &cs.midi_keys : &cs.midi_roots;
+        uint8_t other = o == O_MIDI_KEYS ? cs.midi_roots : cs.midi_keys;
+        int32_t d = v > *mine ? 1 : -1;
+        while (v && (v == cs.ch[CR_STREAM_MAIN] || v == cs.ch[CR_STREAM_BASS] || v == other))
             v += d;
         if (v < 0 || v > 16)
             break;
-        cs.midi_keys = (uint8_t)v;
+        if (o == O_MIDI_ROOTS && v != *mine)
+            cu_mroot_allup();                     /* (the old channel's roots held: up) */
+        *mine = (uint8_t)v;
         cu_route();
         break;
     }
@@ -1303,6 +1488,10 @@ static void opt_set(uint32_t o, int32_t v)
     case O_VSENS: cs.vel_sens = (uint8_t)v; cu_touch_apply(); break;
     case O_VCURVE: cs.vel_curve = (int8_t)(v - 3); cu_touch_apply(); break;
     case O_ATSENS: cs.at_sens = (uint8_t)v; cu_touch_apply(); break;
+#if BOARD_SMK37
+    case O_PEDAL: cs.smk_pedal = (uint8_t)v; break;   /* (cr_smk_pedal takes the change: a held sustain let go, the
+                                                       * expression back to full, the rest learnt again) */
+#endif
     case O_BASSMODE: cs.bass_mode = (uint8_t)v; cr_post(CRE_BASS_MODE, 0, 0, v); break;
     case O_SINGLE: cs.single = (uint8_t)v; cu_post_single(); break;
     case O_SPLIT: cs.split = (uint8_t)v; cu_post_single(); break;
@@ -1312,10 +1501,30 @@ static void opt_set(uint32_t o, int32_t v)
             cs.midi_keys = 0;
             cu_message("MIDI Keys off", CR_COL_WHITE);
         }
+        if (o != O_CH_RAW && v && v == cs.midi_roots) {   /* .. on MIDI Roots': MIDI Roots off */
+            cu_mroot_allup();
+            cs.midi_roots = 0;
+            cu_message("MIDI Roots off", CR_COL_WHITE);
+        }
         cu_route();
         break;
     case O_RAW_SOUND: cs.raw_sound = (uint8_t)v; cu_route(); break;
     case O_CLOCK: cr_route.clock_in = (uint8_t)(v == 2); cr_route.clock_out = (uint8_t)(v == 1); break;
+    case O_MIDI_CC: cs.midi_cc = (uint8_t)v; cu_route(); break;
+#if CR_BLE
+    case O_BLE:                                   /* (not in cs: the Bluetooth record keeps it, cr_ble.c) */
+        if (!cr_ble_set((int)v))
+            cu_message(cr_res_ok ? "Bluetooth: no radio" : "install ChoralRoot again", CR_COL_WHITE);
+        else if (v && !cr_ble_running())          /* (the radio starts only at power-on: cr_ble.c, 3y238) */
+            cu_message("Bluetooth: switch off and on", CR_COL_WHITE);
+        break;
+#endif
+#if CR_USB_HOST
+    case O_USB_HOST: uh.want = (uint8_t)!!v; break;   /* (never saved: every power-on is a USB device; main.c uh_task) */
+#endif
+#if BOARD_SMK37
+    case O_TRS: smk_ut_off = (uint8_t)!v; break;  /* (Off: the jack's notes still get their note-offs) */
+#endif
     case O_VIEW: cs.view = (uint8_t)v; break;
     case O_MOTION: cr_motion = (uint8_t)v; break;
     case O_NAMES: cs.names_std = (uint8_t)v; cr_chord_names_set(v); break;   /* (the names only: docs/CHORD-NAMES.md) */
@@ -1395,7 +1604,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
     case O_LAYOUT: cu_cpy(d, v ? "FM-1" : "Classic", n); break;
     case O_SUSWIN: cu_int(d, 30 + 5 * v, 0, n); cu_cat(d, " ms", n); break;
     case O_FULLSHORT: cu_cpy(d, ONOFF[v & 1], n); break;
-    case O_MIDI_KEYS:
+    case O_MIDI_KEYS: case O_MIDI_ROOTS:
         if (!v) cu_cpy(d, "Off", n);
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
@@ -1405,6 +1614,7 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
 #if BOARD_SMK37
     case O_VCURVE: case O_ATSENS: cu_cpy(d, "FM-1 only", n); break;   /* (CU_VCURVE_MAX, CU_ATSENS_MAX) */
     case O_VSENS: cu_cpy(d, v == 2 ? "High" : v ? "Low" : "Mid", n); break;
+    case O_PEDAL: cu_cpy(d, v ? "Expression" : "Sustain", n); break;
 #else
     case O_VSENS: case O_ATSENS: cu_cpy(d, v == 2 ? "High" : v ? "Low" : "Mid", n); break;
     case O_VCURVE: cu_int(d, v - 3, 1, n); break;
@@ -1418,6 +1628,17 @@ static void opt_text(uint32_t o, char *d, uint32_t n)
         else { cu_cpy(d, "ch ", n); cu_int(d + 3, v, 0, n > 3u ? n - 3u : 0u); }
         break;
     case O_CLOCK: cu_cpy(d, CLOCK[v % 3], n); break;
+    case O_MIDI_CC: cu_cpy(d, v == 3 ? "In + Out" : v == 2 ? "Out" : v ? "In" : "Off", n); break;
+#if CR_BLE
+    case O_BLE: cu_cpy(d, v ? "On" : "Off", n); break;
+    case O_BLE_FORGET: cu_cpy(d, cu_ble_ask ? "OCT+ again: forget" : "the paired computer", n); break;
+#endif
+#if CR_USB_HOST
+    case O_USB_HOST: cu_cpy(d, v ? "On" : "Off", n); break;
+#endif
+#if BOARD_SMK37
+    case O_TRS: cu_cpy(d, ONOFF[v & 1], n); break;
+#endif
     case O_VIEW: cu_cpy(d, CU_VIEW[v % V_N], n); break;
     case O_MOTION: cu_cpy(d, MOTION[v % 3], n); break;
     case O_NAMES: cu_cpy(d, v ? "Standard" : "Orchid", n); break;
@@ -1466,6 +1687,8 @@ static struct {
     uint8_t lock;                         /* the open layer (locked since its button's hold), L_NONE: none */
     uint32_t perf_t0;                     /* the PERF layer opened / SELECT turned in it: its picker shows for
                                            * CU_PERF_PICK_MS from then, before the arp band may (cu_arp_layer) */
+    uint8_t perf_part;                    /* the part the PERF layer sets: CU_PF_CHORD (ARP held), CU_PF_BASS (BASS
+                                           * held + ARP: the Bass PERF layer) */
     uint32_t swallow;                     /* buttons pressed during another's hold: their release does nothing */
     uint8_t oct_chord;                    /* OCT- and OCT+ were down together (panic): no tap */
     uint8_t oct_mod;                      /* OCT- held was a modifier (the editor: + a knob clears its modulation): no tap */
@@ -1484,6 +1707,8 @@ static struct {
                                            * it goes off (another chord key pressed meanwhile: it stays) */
     uint8_t kpage;                        /* the KEY layer's page (SELECT): 0 Tonic Scale Transpose Single, 1 Key plays
                                            * Keyboard; the first page whenever the layer opens */
+    uint8_t mpage;                        /* the SEQ layer's page (SELECT, Drums only): 0 the preset, 1 Beat, 2 Kick,
+                                           * 3 Snare, 4 Hats; the first whenever the layer opens */
     uint8_t lpage;                        /* the PLAY menu's page (SELECT): 0 Length Rate Quantize Count-in, 1 Level;
                                            * the first page whenever the menu opens */
     uint8_t ledit;                        /* the loop editor is open (EDIT in the PLAY menu; cu_ledit_*) */
@@ -1501,6 +1726,8 @@ static struct {
                                            * layer's / a picker's; 0: not pressed, or pressed as a chord key */
     int8_t octave;
     uint8_t opt_open, opt_sel;
+    uint8_t opt_in, opt_g;                /* Options' groups (3y290): inside a group (0: the group list), the group
+                                           * chosen there (CU_G_*; CU_G_RESET: Reset Settings, the list's last item) */
     uint8_t page;                         /* PG_* */
     uint32_t last_sound;                  /* the last time a chord sounded or a key was held */
     uint32_t last_input;                  /* the last key, button, knob or MIDI message in (the screensaver, CR_IDLE_MS) */
@@ -1543,6 +1770,106 @@ static struct {
     uint8_t fsc_was[2];                   /* .. each switch's state before its press (a long press goes back to it) */
     uint32_t fsc_t0[2];                   /* .. its press (0: up) */
 } cu;
+/* Options' groups (3y290, the owner: "the settings get organized into Groups. So Enter Settings, select a group,
+ * OCT+ to enter the group, OCT- To exit the group"; their grouping, with Play first and Reset Settings at the end of
+ * the group list). Only the menu: every entry keeps its O_* and where it is stored. O_ORD: the entries in the order
+ * shown, CU_G_END closing each group, in CU_G_* order; Reset Settings is no group's (the group list's last item) */
+enum { CU_G_PLAY, CU_G_CHORDS, CU_G_KEYS, CU_G_MIDI, CU_G_SCREEN, CU_G_AUDIO, CU_G_SYSTEM, CU_G_SAFE, CU_G_N };
+#define CU_G_RESET CU_G_N                         /* (the group list's last item) */
+#define CU_G_END 0xFFu
+static const char *const CU_G_NAME[CU_G_N + 1] = {"Play", "Chords", "Keys", "MIDI", "Screen", "Audio", "System",
+                                                  "Safe Mode", "Reset Settings"};
+static const uint8_t O_ORD[] = {
+    O_STYLE, O_EXTADD, O_SECRET, CU_G_END,
+    O_LAYOUT, O_SUSWIN, O_FULLSHORT, O_SIXTH, O_BASSMODE, O_SINGLE, O_SPLIT, CU_G_END,
+    O_VEL, O_TOUCH, O_VSENS, O_VCURVE, O_ATSENS, O_HOLD,
+#if BOARD_SMK37
+    O_PEDAL,
+#endif
+    CU_G_END,
+    O_CH_MAIN, O_CH_BASS, O_CH_RAW, O_RAW_SOUND, O_MIDI_KEYS, O_MIDI_ROOTS, O_CLOCK, O_MIDI_CC,
+#if CR_BLE
+    O_BLE, O_BLE_FORGET,
+#endif
+#if CR_USB_HOST
+    O_USB_HOST,
+#endif
+#if BOARD_SMK37
+    O_TRS,
+#endif
+    CU_G_END,
+    O_VIEW, O_MOTION, O_NAMES, O_LEDS, CU_G_END,
+    O_OUTPUT, O_USB_IN, O_USB_LEVEL, O_USB_RATE, CU_G_END,
+    O_DUALCORE, O_VERSION, O_CALIB, CU_G_END,
+    O_SAFE, O_ERASE, CU_G_END};
+static __attribute__((noinline)) uint32_t cu_g_at(uint32_t g)               /* group g's first place in O_ORD */
+{
+    uint32_t i = 0;
+    while (g && i < sizeof O_ORD)
+        if (O_ORD[i++] == CU_G_END)
+            g--;
+    return i;
+}
+static __attribute__((noinline)) int cu_g_vis(uint32_t g)                   /* an item of the group list (Safe Mode: in SAFE MODE only) */
+{
+    return g == CU_G_SAFE ? cr_safe : g <= CU_G_RESET;
+}
+static __attribute__((noinline)) uint32_t cu_g_of(uint32_t o)               /* the group of entry o (Reset Settings: CU_G_RESET) */
+{
+    uint32_t i, g = 0;
+    for (i = 0; i < sizeof O_ORD; i++)
+        if (O_ORD[i] == CU_G_END)
+            g++;
+        else if (O_ORD[i] == o)
+            return g;
+    return CU_G_RESET;
+}
+/* SELECT inside a group: s listed entries on from entry from, stopping at the group's ends; the group list: s items
+ * on from group from */
+static __attribute__((noinline)) uint32_t cu_opt_next(uint32_t from, int32_t s)
+{
+    int32_t d = s < 0 ? -1 : 1, n = s < 0 ? -s : s;
+    if (!cu.opt_in) {
+        int32_t g = (int32_t)from;
+        while (n-- > 0) {
+            int32_t t = g + d;
+            while (t >= 0 && t <= CU_G_RESET && !cu_g_vis((uint32_t)t))
+                t += d;
+            if (t < 0 || t > CU_G_RESET)
+                break;
+            g = t;
+        }
+        return (uint32_t)g;
+    }
+    {
+        int32_t i = (int32_t)cu_g_at(cu_g_of(from)), at = i;
+        while (O_ORD[at] != from)
+            at++;
+        while (n-- > 0) {
+            int32_t t = at + d;
+            while (t >= i && O_ORD[t] != CU_G_END && !cu_opt_vis(O_ORD[t]))
+                t += d;
+            if (t < i || O_ORD[t] == CU_G_END)
+                break;
+            at = t;
+        }
+        return O_ORD[at];
+    }
+}
+static __attribute__((noinline)) void cu_opt_root(uint32_t g)   /* the group list, on group g */
+{
+    cu.opt_in = 0;
+    cu.opt_g = (uint8_t)g;
+    cu.opt_sel = g == CU_G_RESET ? O_RESET : O_N;  /* (O_N: no entry: Reset's OCT+ is the only one the list has) */
+}
+static __attribute__((noinline)) void cu_opt_enter(void)   /* OCT+ on a group: its first entry listed */
+{
+    uint32_t i = cu_g_at(cu.opt_g);
+    while (O_ORD[i] != CU_G_END && !cu_opt_vis(O_ORD[i]))
+        i++;
+    cu.opt_in = 1;
+    cu.opt_sel = O_ORD[i];
+}
 /* the Full keyboard (KEY layer, Keyboard: Full) with Full K Shorts: F#5 and G5 are its switches, F#5 brings the
  * layout's chord keys back on the low keys (cu.full_chk: the Chords keyboard then, its roots to F5) */
 static int cu_fshort(void) { return CU_FN_KEYS && cs.kbd_full && cs.full_short; }
@@ -1850,8 +2177,8 @@ static const cr_hmap_chord_t *cu_hm_dest(uint32_t k)   /* root key k's place on 
     return 0;
 }
 static void cu_edited(uint32_t part);
-static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop);
-static uint32_t cu_perf_mode(void);
+static void cu_param_turn(uint32_t part, uint32_t mode, int32_t p, int32_t s, int pop);
+static uint32_t cu_perf_mode(uint32_t part);
 static void cu_perf_toggle(void);
 /* ALGORITHM in the mode: the motion -- off, or one of the perform modes (CU_PERF: Strum, Strum 2 Octaves, Slop, Arp,
  * Arp 2 Octaves, Pattern, Harp) -- picked and switched on in one turn, no menu; KNOB 3 is then its time. Both quietly
@@ -1898,10 +2225,10 @@ static void cu_hm_knob(uint32_t knob, int32_t s)
     static const char *const STY[CR_HSTYLE_N] = {"Shell", "Spread", "Colour"};
     int32_t v;
     if (knob == 2u) {
-        int32_t p = CU_PERF_KNOB[cu_perf_mode()][0];
-        cu_param_turn(cu_perf_mode(), p, s, 1);   /* (quietly, as every perform knob) */
+        int32_t p = CU_PERF_KNOB[cu_perf_mode(CU_PF_CHORD)][0];
+        cu_param_turn(CU_PF_CHORD, cu_perf_mode(CU_PF_CHORD), p, s, 1);   /* (quietly, as every chord perform knob) */
         cu_trace("harm: motion %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name,
-                 (int)cs.par[cu_perf_mode()][p]);
+                 (int)cs.par[cu_perf_mode(CU_PF_CHORD)][p]);
         return;
     }
     if (knob == 3u) {
@@ -2172,8 +2499,7 @@ static void cu_fsc_enter(void)                    /* the Full keyboard entered (
 }
 static uint32_t cu_scale_bits(void)               /* bit pc: in the key (Key Mode's tonic and scale), as cr_scale_mask */
 {
-    uint32_t m = cs.scale ? 0x5ADu : 0xAB5u, t = cs.tonic % 12u;
-    return ((m << t) | (m >> (12u - t))) & 0xFFFu;
+    return cr_scale_bits(cs.tonic, cs.scale);
 }
 static int cu_blink(uint32_t now) { return ((now / 250u) & 1u) == 0u; }   /* the blinking LEDs' phase (and the dial's dot) */
 
@@ -2600,32 +2926,47 @@ static void cu_param_text(uint32_t p, int32_t v, char *val, char *sub)
         cu_cpy(sub, p == CR_P_RATE ? "ms" : p == CR_P_RANGE ? "oct" : p == CR_P_ROTATE ? "" : "%", 12);
     }
 }
-static void cu_param_turn(uint32_t mode, int32_t p, int32_t s, int pop)   /* pop 0: the PERF layer's knob row */
+static void cu_param_turn(uint32_t part, uint32_t mode, int32_t p, int32_t s, int pop)   /* pop 0: the PERF layer's knob
+                                                                                         * row */
 {
     char val[8], sub[12], label[24];
+    int16_t (*par)[CR_P_COUNT] = cu_pf_par(part);
     int32_t v;
     if (p < 0)
         return;
+    if (part && cs.bfollow) {                     /* Follow: the row shows the chord's values, set in its layer */
+        cu_message("follows chord", CR_COL_ORANGE);
+        return;
+    }
     if (CU_PAR[p].step > 1 || p == CR_P_SWING)    /* a value (rate, gate, swing, amount): at the knob's speed, snapped
                                                    * with OPT held; the choices one a detent */
-        v = cu_kval(cs.par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
+        v = cu_kval(par[mode][p], s, CU_PAR[p].min, CU_PAR[p].max, kn.snap);
     else
-        v = cs.par[mode][p] + s;
+        v = par[mode][p] + s;
     v = v < CU_PAR[p].min ? CU_PAR[p].min : v > CU_PAR[p].max ? CU_PAR[p].max : v;
-    cs.par[mode][p] = (int16_t)v;
-    cr_post(CRE_PARAM_QUIET, mode, (uint32_t)p, v);   /* (quietly: a running arp follows, nothing re-struck) */
+    par[mode][p] = (int16_t)v;
+    if (part == CU_PF_CHORD)                      /* the chord's, quietly: a running arp follows, nothing re-struck (the
+                                                   * owner, 2026-10-15: a setting turning must not be heard over the
+                                                   * chord); the bass's as upstream */
+        cr_post(CRE_PARAM_QUIET, mode, (uint32_t)p, v);
+    else
+        cr_post(CRE_PARAM, mode | part << 4, (uint32_t)p, v);
     if (!pop) {
-        cu_trace("perf: knob %s %s %d\n", CU_PERF[cs.perf_sel].short_name, CU_PAR[p].name, (int)v);
+        cu_trace("perf: knob %s%s %s %d\n", part ? "bass " : "", CU_PERF[cu_pf_sel(part)].short_name, CU_PAR[p].name,
+                 (int)v);
         return;
     }
     cu_param_text((uint32_t)p, v, val, sub);
-    cu_cpy(label, CU_PERF[cs.perf_sel].short_name, sizeof label);
-    label[0] = (char)(label[0] | 0x20);
+    cu_cpy(label, part ? "bass " : "", sizeof label);
+    cu_cat(label, CU_PERF[cu_pf_sel(part)].short_name, sizeof label);
+    label[part ? 5 : 0] = (char)(label[part ? 5 : 0] | 0x20);
     cu_cat(label, " ", sizeof label);
     cu_cat(label, CU_PAR[p].name, sizeof label);
-    cu_popup(val, sub, label, CR_COL_WHITE, v, CU_PAR[p].min, CU_PAR[p].max, 12);
+    cu_popup(val, sub, label, part ? CR_COL_ORANGE : CR_COL_WHITE, v, CU_PAR[p].min, CU_PAR[p].max, 12);
 }
-static uint32_t cu_perf_mode(void) { return CU_PERF[cs.perf_sel].mode; }
+static uint32_t cu_perf_mode(uint32_t part) { return CU_PERF[cu_pf_sel(part)].mode; }
+/* the part the views show and KNOB 3 of the view sets: the chord's, the bass's while only the bass performs */
+static uint32_t cu_perf_view_part(void) { return cu_pf_off(CU_PF_CHORD) && !cu_pf_off(CU_PF_BASS) && !cs.bfollow ? CU_PF_BASS : CU_PF_CHORD; }
 
 /* ------------------------------------------------------------ the looper --- */
 /* The ten loop slots in flash (docs/LOOPER.md): storage.c's commit record and A/B copies (its hooks st_read /
@@ -3106,12 +3447,374 @@ static void cu_ledit_close(void)
  * button, the click on / off as before. Every other layer, the Options, the naming page: nothing (the sound editor:
  * its MOD group, cu_tap) */
 static void cu_layer_close(void);
+static void cu_layer_pick(uint32_t l, int32_t i);
+static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint32_t sel, uint32_t col,
+                      const char *label, const char *footer);
+static void cu_row_trace(const cr_screen_t *s, const char *who, char *seen, uint32_t n);
+/* ------------------------------------------------------------- the beat --- */
+/* The SEQ layer's preset (the DRUMS plan, docs/MANUAL.md "The beat"): Metronome (the click, as ever) or Drums (a Grids
+ * beat on CoralFlower's morph drum synth, cr_drum.c). GLO + SEQ is the beat on / off whatever the preset (cs.metro, the
+ * block's metro_on); the preset, the kit and the drums' knobs are the session's drum block (cr_settings.h css_drum_t),
+ * saved by the global save. The beat on, the drums play: free on the tempo, on a loop's grid while one plays or a take
+ * records (cr_loop.c), and never part of a loop. With Drums and their region not there (cr_res.h: a cut install), the
+ * beat is the click (cu_drums_ok 0). In the layer (the owner, after the first drums build): ALGORITHM switches the
+ * preset, PRESETS starts / stops the beat, on every page; the keys play */
+#define CU_DR_NPAGE 8u
+enum { CU_DRP_PRESET, CU_DRP_BEAT, CU_DRP_KICK, CU_DRP_SNARE, CU_DRP_HATS, CU_DRP_KMIX, CU_DRP_SMIX, CU_DRP_HMIX };
+                                                  /* (3y303: a Mix page a drum, after the three drums' pages; the one
+                                                   * Mix page of 0.40 had a send a drum) */
+static const uint8_t CU_DRUM_DEF[3][4] = {{12, 64, 32, 72}, {12, 64, 32, 64}, {12, 64, 32, 88}};   /* Tune Decay
+                                                                 * Character Fill: kick, snare, hats */
+static uint8_t cu_drums_ok;                       /* Drums is what plays (the kit and the map in RAM) */
+static uint8_t cu_beat_sent[2] = {0xFF, 0xFF};    /* the click and the drums as last posted (a repost restarts them) */
+static struct { uint8_t hitn[3]; uint32_t t[3]; } cu_bt;   /* the drums' last hits seen (the screens' thumps) */
+
+static void cu_drum_defaults(void)                /* the drum block's defaults (an older session: none stored) */
+{
+    uint32_t d, k;
+    cs.beat_preset = 0;
+    cs.dr_kit = 0;
+    cs.dr_level = 80;
+    cs.dr_x = cs.dr_y = 64;
+    cs.dr_dens = 64;
+    cs.dr_chaos = 0;
+    for (d = 0; d < 3u; d++) {
+        for (k = 0; k < 4u; k++)
+            cs.dr[d][k] = CU_DRUM_DEF[d][k];
+        for (k = 0; k < 3u; k++)
+            cs.dr_fx[d][k] = 0;                   /* (no FX: the drums dry, as before the sends) */
+        cs.dr_lvl[d] = 64;                        /* (as voiced) */
+        cs.dr_flt[d] = 127;                       /* (3y304: all through the master filter, clean: as before) */
+        cs.dr_drv[d] = 0;
+    }
+}
+/* the beat's state -> cr_drum.c and the looper: the kit and the map into RAM, the knobs; the click on when the beat is
+ * on with Metronome (or Drums without their region), the drums with Drums. force: post both (power-on, a revert) */
+static void cu_beat_post(int force)
+{
+    uint32_t on[2], i;
+    int drums = cs.beat_preset == 1u;
+#if CR_DRUMS
+    for (i = 0; i < 3u; i++) {
+        crd_knob[i].tune = cs.dr[i][0];
+        crd_knob[i].decay = cs.dr[i][1];
+        crd_knob[i].chr = cs.dr[i][2];
+        crd_knob[i].fill = cs.dr[i][3];
+    }
+    crd_level = cs.dr_level;
+    crd_rand = (uint8_t)(cs.dr_chaos * 2u);
+    for (i = 0; i < 9u; i++)
+        crd_fx[i / 3u][i % 3u] = cs.dr_fx[i / 3u][i % 3u];
+    for (i = 0; i < 3u; i++)
+        crd_lvl[i] = cs.dr_lvl[i];
+        crd_flt[i] = cs.dr_flt[i];
+        crd_drv[i] = cs.dr_drv[i];
+    crd_beat_dens(cs.dr_dens);
+    if (drums)
+        drums = crd_kit_load(cs.dr_kit) && crd_beat_blend(cs.dr_x * 2u, cs.dr_y * 2u);
+#else
+    (void)i;
+    drums = 0;
+#endif
+    cu_drums_ok = (uint8_t)drums;
+    on[0] = cs.metro && !drums;
+    on[1] = cs.metro && drums;
+    if (force || on[0] != cu_beat_sent[0])
+        cr_post(CRE_LOOP, LP_METRO, 0, (int32_t)on[0]);
+    if (force || on[1] != cu_beat_sent[1])
+        cr_post(CRE_LOOP, LP_DRUMS, 0, (int32_t)on[1]);
+    cu_beat_sent[0] = (uint8_t)on[0];
+    cu_beat_sent[1] = (uint8_t)on[1];
+}
+/* the drums' hits since the last frame: their times (a thump on the screens: 255 at the hit, gone after 150 ms) */
+static void cu_beat_track(uint32_t now)
+{
+#if CR_DRUMS
+    for (uint32_t d = 0; d < 3u; d++)
+        if (crd_hitn[d] != cu_bt.hitn[d]) {
+            cu_bt.hitn[d] = crd_hitn[d];
+            cu_bt.t[d] = now;
+        }
+#else
+    (void)now;
+#endif
+}
+static uint32_t cu_beat_pulse(uint32_t d, uint32_t now, uint32_t ms)
+{
+    uint32_t dt = now - cu_bt.t[d % 3u];
+    if (cr_motion == CR_MOTION_OFF || !cu_bt.t[d % 3u] || dt >= ms)
+        return 0;
+    return 255u * (ms - dt) / ms;
+}
+/* the home pages' beat chip (the view): the beat's blocks, the roundel with Drums */
+static void cu_beat_chip(cr_screen_t *s, uint32_t now)
+{
+    if (!s->header || !cs.metro)
+        return;
+    cu_beat_track(now);
+    s->beat_on = cu_drums_ok ? 2u : 1u;
+    s->beat_n = (uint8_t)(cs.metro_sig == CRL_SIG_44 ? 4u : cs.metro_sig == CRL_SIG_34 ? 3u : 6u);
+    s->beat_pos = crl.bpos <= s->beat_n ? crl.bpos : 0u;
+    if (cu_drums_ok) {
+        s->beat_pulse = (uint8_t)cu_beat_pulse(0, now, 120u);
+        s->beat_flash = (uint8_t)(cu_beat_pulse(1, now, 100u) != 0u);
+    }
+}
+
+/* GLO + SEQ, SEQ tapped in the layer, the PLAY menu's Beat: the beat on / off */
+static void cu_metro_set(uint32_t on)
+{
+    cs.metro = (uint8_t)(on != 0u);
+    cu_beat_post(0);
+}
+static void cu_beat_turn(int32_t s);
 static void cu_metro_toggle(void)
 {
-    cs.metro ^= 1u;
-    cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
-    cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
-    cu_trace("metro: %s\n", cs.metro ? "on" : "off");
+    cu_metro_set(!cs.metro);
+    if (cs.beat_preset == 1u && cu_drums_ok)
+        cu_message(cs.metro ? "drums on" : "drums off", CR_COL_MAGENTA);
+    else
+        cu_message(cs.metro ? "metronome on" : "metronome off", CR_COL_WHITE);
+    cu_trace("metro: %s%s\n", cs.metro ? "on" : "off", cs.beat_preset == 1u ? " (drums)" : "");
+}
+
+/* the SEQ layer's knobs (cu.mpage: the page; Metronome has the preset page alone). Page 0: Level (the click's or the
+ * drums'), Meter (4/4 3/4 6/8), Kit (Drums), Beat (on / off). Beat: Map X, Map Y, Density, Chaos. Kick, Snare, Hats:
+ * Tune (-12 .. +12 semitones), Decay, Character, Fill. Kick Mix, Snare Mix, Hats Mix (3y303): the drum's sends into
+ * the Chorus, the Delay, the Reverb (the FX layer's step, cu_send_step), its Level (64 as voiced) */
+static void cu_drum_knob(uint32_t knob, int32_t s)
+{
+    uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u, d;
+    int32_t v;
+    uint8_t *p = 0;
+    if (pg == CU_DRP_PRESET) {
+        if (knob == 0u) {
+            if (cs.beat_preset == 1u) {
+                v = cs.dr_level + s * 5;
+                cs.dr_level = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+                cu_beat_post(0);
+                cu_trace("metro: knob 1 level %u\n", (unsigned)cs.dr_level);
+            } else {
+                v = cs.metro_vol + s * 5;
+                cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+                cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+                cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
+            }
+        } else if (knob == 1u) {
+            v = (int32_t)cs.metro_sig + (s > 0 ? 1 : -1);
+            cu_layer_pick(L_METRO, v < 0 ? 0 : v >= (int32_t)CRL_NSIG ? (int32_t)CRL_NSIG - 1 : v);
+            cu_trace("metro: knob 2 meter %s\n", CU_SIG[cs.metro_sig]);
+        } else if (knob == 2u) {
+            if (cs.beat_preset != 1u)
+                return;
+#if CR_DRUMS
+            v = (int32_t)cs.dr_kit + (s > 0 ? 1 : -1);
+            cs.dr_kit = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CRD_NKIT ? (int32_t)CRD_NKIT - 1 : v);
+            cu_beat_post(0);
+            cu_trace("metro: knob 3 kit %s\n", CRD_KIT_NAME[cs.dr_kit]);
+#endif
+        } else {
+            cu_beat_turn(s);                       /* (as PRESETS: the beat on / off) */
+        }
+        cu_hot_set(L_METRO, knob);
+        return;
+    }
+    if (pg == CU_DRP_BEAT) {
+        p = knob == 0u ? &cs.dr_x : knob == 1u ? &cs.dr_y : knob == 2u ? &cs.dr_dens : &cs.dr_chaos;
+        *p = (uint8_t)cu_kval(*p, s, 0, 127, kn.snap);
+        cu_beat_post(0);
+        cu_trace("metro: beat x %u y %u density %u chaos %u\n", (unsigned)cs.dr_x, (unsigned)cs.dr_y,
+                 (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos);
+    } else if (pg >= CU_DRP_KMIX) {
+        d = (pg - CU_DRP_KMIX) % 3u;
+        if (knob < 3u)
+            cs.dr_fx[d][knob] = (uint8_t)cu_send_step(cs.dr_fx[d][knob], s, kn.snap);
+        else
+            cs.dr_lvl[d] = (uint8_t)cu_kval(cs.dr_lvl[d], s, 0, 127, kn.snap);
+        cu_beat_post(0);
+        cu_trace("metro: mix drum %u chorus %u delay %u reverb %u level %u\n", (unsigned)d, (unsigned)cs.dr_fx[d][0],
+                 (unsigned)cs.dr_fx[d][1], (unsigned)cs.dr_fx[d][2], (unsigned)cs.dr_lvl[d]);
+    } else {
+        d = pg - CU_DRP_KICK;
+        p = &cs.dr[d % 3u][knob & 3u];
+        *p = (uint8_t)(knob == 0u ? cu_kval(*p, s, 0, 24, kn.snap) : cu_kval(*p, s, 0, 127, kn.snap));
+        cu_beat_post(0);
+        cu_trace("metro: drum %u tune %u decay %u character %u fill %u\n", (unsigned)d, (unsigned)cs.dr[d % 3u][0],
+                 (unsigned)cs.dr[d % 3u][1], (unsigned)cs.dr[d % 3u][2], (unsigned)cs.dr[d % 3u][3]);
+    }
+    cu_hot_set(L_METRO, knob);
+}
+/* ALGORITHM in the SEQ layer, the preset page alone (the owner: "I would make the ALGO knob change between Metronome
+ * and Drums", and after 3y303: "Algo knob should only switch the drum machine on the first page"): a detent right
+ * Drums, left Metronome (the encoder turns, it has no press: the PLAY menu's ALGORITHM picks its record mode the same
+ * way). The pages after the preset's are Drums' alone; on Beat, Kick, Snare, Hats ALGORITHM does nothing, on the Mix
+ * pages it is the drum's Filter (cu_drum_enc, 3y305) */
+static void cu_beat_preset_turn(int32_t s)
+{
+    uint32_t v = s > 0 ? 1u : 0u;
+    if (v == cs.beat_preset)
+        return;
+    cs.beat_preset = (uint8_t)v;
+    if (!v)
+        cu.mpage = 0;
+    cu_hot.knob = 0;
+    cu_beat_post(0);
+    cu_message(v ? "Drums" : "Metronome", v ? CR_COL_MAGENTA : CR_COL_WHITE);
+    cu_trace("metro: algorithm preset %s\n", v ? "drums" : "metronome");
+}
+/* PRESETS in the SEQ layer, every page but the Mix pages ("with the PRESETS knob it should start/stop the drums or
+ * metronome"; on the Mix pages the drum's Drive, 3y305): a detent right starts the beat, left stops it (as the PLAY
+ * menu's Beat cell: a direction, not a toggle, so a turn of several detents lands where it points) */
+static void cu_beat_turn(int32_t s)
+{
+    if ((s > 0) == (cs.metro != 0u))
+        return;
+    cu_metro_toggle();
+}
+/* PRESETS and ALGORITHM on a Mix page (3y304; the owner: "I would be fine if on the FX Mix pages the PRESETS and ALGO
+ * knobs were used for filter and drive"; 3y305: "make PRESETS be the Drive and ALGO be the filter to match physical order of
+ * the knobs"): the drum's Drive (PRESETS) and Filter (ALGORITHM), 0..127 at the knobs'
+ * step (cu_send_step: the encoders' detents at their speed, OPT held the snap). The screen marks the one turned */
+static struct { uint8_t which; uint32_t until; } cu_dr_enc;   /* 1 Filter, 2 Drive: lit on the Mix page until `until` */
+static void cu_drum_enc(int drive, int32_t s)
+{
+    uint32_t d = (cu.mpage - CU_DRP_KMIX) % 3u;
+    uint8_t *p = drive ? &cs.dr_drv[d] : &cs.dr_flt[d];
+    *p = (uint8_t)cu_send_step(*p, s, kn.snap);
+    cu_beat_post(0);
+    cu_dr_enc.which = (uint8_t)(drive ? 2u : 1u);
+    cu_dr_enc.until = fm1_ms + CU_HOT_MS;
+    cu_trace("metro: mix drum %u filter %u drive %u\n", (unsigned)d, (unsigned)cs.dr_flt[d], (unsigned)cs.dr_drv[d]);
+}
+/* SELECT in the SEQ layer: the page (Drums: the preset, Beat, Kick, Snare, Hats, Kick Mix, Snare Mix, Hats Mix;
+ * Metronome: the one page) */
+static void cu_drum_page(int32_t s)
+{
+    int32_t pg = (int32_t)cu.mpage + (s > 0 ? 1 : -1);
+    if (cs.beat_preset != 1u)
+        return;
+    pg = pg < 0 ? 0 : pg >= (int32_t)CU_DR_NPAGE ? (int32_t)CU_DR_NPAGE - 1 : pg;
+    if ((uint32_t)pg != cu.mpage) {
+        cu.mpage = (uint8_t)pg;
+        cu_hot.knob = 0;
+        cu_trace("metro: page %u\n", (unsigned)pg + 1u);
+    }
+}
+
+static void cu_dr_cell(cr_cell_t *c, const char *label, const char *value, uint32_t glyph, uint32_t pct)
+{
+    c->flags = CR_CF_ON;
+    cu_cpy(c->label, label, sizeof c->label);
+    cu_cpy(c->value, value, sizeof c->value);
+    c->glyph = (uint8_t)glyph;
+    c->pct = (uint8_t)(pct > 255u ? 255u : pct);
+}
+static void cu_dr_pct(char *b, uint32_t v, uint32_t n)       /* 0..127 as "62%" */
+{
+    cu_int(b, (int32_t)((v * 100u + 63u) / 127u), 0, n);
+    cu_cat(b, "%", n);
+}
+/* the SEQ layer's screen (cr_screen.h CR_K_DRUM) */
+static void cu_drum_screen(cr_screen_t *s)
+{
+    static const char *const PG[CU_DR_NPAGE] = {"Drums", "Beat", "Kick", "Snare", "Hats", "Kick Mix", "Snare Mix",
+                                                "Hats Mix"};
+    static char seen[48];
+    const char *it[CU_DR_NPAGE];
+    uint32_t drums = cs.beat_preset == 1u, pg = drums ? cu.mpage % CU_DR_NPAGE : 0u, now = cu_now(), k, d;
+    char b[12];
+    for (k = 0; k < CU_DR_NPAGE; k++)
+        it[k] = PG[k];
+    if (!drums)
+        it[0] = "Metronome";
+    cu_beat_track(now);
+    cu_picker(s, it, drums ? CU_DR_NPAGE : 1u, pg, drums ? CR_COL_MAGENTA : CR_COL_WHITE, "", "");
+    s->kind = CR_K_DRUM;
+    s->orient = 1;
+    s->dr_page = (uint8_t)pg;
+    s->dr_preset = (uint8_t)drums;
+    s->dr_steps = (uint8_t)(cs.metro_sig == CRL_SIG_44 ? 32u : 24u);
+#if CR_DRUMS
+    s->dr_step = crd_now <= s->dr_steps ? crd_now : 0u;
+#endif
+    if (pg == CU_DRP_PRESET) {
+        cu_int(b, drums ? cs.dr_level : cs.metro_vol, 0, sizeof b);
+        cu_dr_cell(&s->cell[0][0], drums ? "Level" : "Click", b, CR_G_BAR, (drums ? cs.dr_level : cs.metro_vol) * 255u / 100u);
+        cu_dr_cell(&s->cell[0][1], "Meter", CU_SIG[cs.metro_sig % CRL_NSIG], CR_G_NONE, 0);
+#if CR_DRUMS
+        if (drums)
+            cu_dr_cell(&s->cell[0][2], "Kit", CRD_KIT_NAME[cs.dr_kit % CRD_NKIT], CR_G_NONE, 0);
+#endif
+        cu_dr_cell(&s->cell[0][3], "Beat", cs.metro ? "On" : "Off", CR_G_GATE, cs.metro ? 255u : 26u);
+    } else if (pg >= CU_DRP_KMIX) {               /* (3y303) the drum's three sends, read as the FX layer's, and
+                                                   * its Level in per cent of the kit's (64: 100%) */
+        static const char *const L[3] = {"Chorus", "Delay", "Reverb"};
+        d = (pg - CU_DRP_KMIX) % 3u;
+        for (k = 0; k < 3u; k++) {
+            if (cs.fx_on)
+                cu_send_text(cs.dr_fx[d][k], b, sizeof b);
+            else
+                cu_cpy(b, "off", sizeof b);       /* (FX off: no send, as the FX layer's Sends page reads) */
+            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_MIX, cs.dr_fx[d][k] * 255u / 127u);
+            s->dr_fx[k] = cs.dr_fx[d][k];
+        }
+        cu_int(b, (int32_t)((cs.dr_lvl[d] * 100u + 32u) / 64u), 0, sizeof b);
+        cu_cat(b, "%", sizeof b);
+        cu_dr_cell(&s->cell[0][3], "Level", b, CR_G_BAR, cs.dr_lvl[d] * 255u / 127u);
+        s->dr_lvl = cs.dr_lvl[d];
+        s->dr_fxoff = (uint8_t)!cs.fx_on;
+        s->dr_flt = cs.dr_flt[d];               /* (3y305: ALGORITHM, PRESETS; the filter dim while it is Off or FX is) */
+        s->dr_drv = cs.dr_drv[d];
+        s->dr_fon = (uint8_t)(cs.fx_on && xfp[XP_FON]);
+        s->dr_enc = (int32_t)(cu_dr_enc.until - fm1_ms) > 0 ? cu_dr_enc.which : 0u;
+        s->dr_pulse = (uint8_t)cu_beat_pulse(d, now, 150u);
+    } else if (pg == CU_DRP_BEAT) {
+        static const char *const L[4] = {"Map X", "Map Y", "Density", "Chaos"};
+        const uint8_t *v[4] = {&cs.dr_x, &cs.dr_y, &cs.dr_dens, &cs.dr_chaos};
+        for (k = 0; k < 4u; k++) {
+            if (k < 2u) cu_int(b, (int32_t)((*v[k] * 100u + 63u) / 127u), 0, sizeof b);
+            else cu_dr_pct(b, *v[k], sizeof b);
+            cu_dr_cell(&s->cell[0][k], L[k], b, CR_G_BAR, *v[k] * 255u / 127u);
+        }
+        s->dr_x = (uint8_t)(cs.dr_x * 2u);
+        s->dr_y = (uint8_t)(cs.dr_y * 2u);
+#if CR_DRUMS
+        for (d = 0; d < 3u; d++)
+            for (k = 0; k < s->dr_steps; k++) {
+                uint32_t h = crd_beat_at(d, k);
+                if (h) s->dr_lane[d] |= 1u << k;
+                if (h == 2u) s->dr_acc[d] |= 1u << k;
+            }
+#endif
+    } else {
+        const uint8_t *v;
+        static const char *const CH[4] = {"soft", "mid", "hard", "hard"};
+        d = pg - CU_DRP_KICK;
+        v = cs.dr[d % 3u];
+        cu_int(b, (int32_t)v[0] - 12, 1, sizeof b);
+        if (v[0] == 12u) cu_cpy(b, "0", sizeof b);
+        cu_dr_cell(&s->cell[0][0], "Tune", b, CR_G_BAR, v[0] * 255u / 24u);
+        s->cell[0][0].flags |= CR_CF_BIP;
+        cu_dr_pct(b, v[1], sizeof b);
+        cu_dr_cell(&s->cell[0][1], "Decay", b, CR_G_BAR, v[1] * 255u / 127u);
+        if (d == 1u)                               /* the snare: soft .. hard, then toward the clap */
+            cu_dr_cell(&s->cell[0][2], "Character", v[2] < 32u ? "soft" : v[2] < 64u ? "hard" : v[2] < 96u ? "+clap" : "clap",
+                       CR_G_MIX, v[2] * 255u / 127u);
+        else
+            cu_dr_cell(&s->cell[0][2], "Character", CH[v[2] / 43u], CR_G_MIX, v[2] * 255u / 127u);
+        cu_dr_pct(b, v[3], sizeof b);
+        cu_dr_cell(&s->cell[0][3], "Fill", b, CR_G_BAR, v[3] * 255u / 127u);
+        s->dr_tune = v[0];
+        s->dr_decay = v[1];
+        s->dr_chr = v[2];
+        s->dr_pulse = (uint8_t)cu_beat_pulse(d, now, 150u);
+#if CR_DRUMS
+        for (k = 0; k < s->dr_steps; k++)
+            if (crd_beat_at(d, k)) s->dr_lane[0] |= 1u << k;
+#endif
+    }
+    cu_hot_row(s, L_METRO);
+    cu_row_trace(s, "metro", seen, sizeof seen);
 }
 static void cu_seq_tap(void)
 {
@@ -3680,6 +4383,11 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
                 cu_loop_keys(!cs.loop_keys);
             break;
         }
+        if (cu.lock == L_BASS) {                  /* the BASS layer: GLO toggles its keys (play / pick), as below */
+            cs.bass_keys ^= 1u;
+            cu_trace("bass: keys %s\n", cs.bass_keys ? "pick" : "play");
+            break;
+        }
         if (cu.lock == L_KEY) {                   /* the KEY layer: GLO toggles its keys (pick / play): no Options
                                                    * from here (OPT held + a knob keeps its second job: a combo) */
             cs.key_play ^= 1u;
@@ -3689,6 +4397,17 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
         cu.page = PG_NONE;
         cu.lock = L_NONE;
         cu.opt_open ^= 1u;
+        if (cu.opt_open) {                        /* (3y290) where it was closed (3y291: inside a group, on the
+                                                   * same entry; RAM only), else the group list on the group last
+                                                   * used; SAFE MODE's first opening: inside Safe Mode, on its entry */
+            if (cr_safe && cu_g_of(cu.opt_sel) == CU_G_SAFE) {
+                cu.opt_in = 1;
+                cu.opt_g = CU_G_SAFE;
+            } else if (!cu.opt_in)
+                cu_opt_root(cu.opt_g);
+            else if (!cu_opt_vis(cu.opt_sel))     /* (an entry hidden since: the group's first) */
+                cu_opt_enter();
+        }
         break;
     case BT_EDIT:                                 /* the chord sound's editor (BASS held + EDIT: cu_btn_press) */
         if (cu.lock == L_LOOP) {                  /* the PLAY menu: the loop editor, and out of it */
@@ -3736,6 +4455,15 @@ static void cu_tap(uint32_t b)                    /* a button tapped (released b
     }
 }
 
+static void cu_perf_layer_part(uint32_t part)     /* the PERF layer shows part's (its picker first) */
+{
+    if (part == cu.perf_part)
+        return;
+    cu.perf_t0 = cu_now();
+    cu_hot.knob = 0;
+    cu.perf_part = (uint8_t)part;
+    cu_trace("perf: layer %s\n", part ? "bass" : "chord");
+}
 static void cu_opened(uint32_t b)                 /* a button held past HOLD (or a combo): its layer / shift */
 {
     uint32_t l = cu_layer_of(b), was = cu.lock;
@@ -3756,8 +4484,16 @@ static void cu_opened(uint32_t b)                 /* a button held past HOLD (or
         cu.lpage = 0;
     if (l == L_HARM && was != L_HARM)             /* .. Harmony mode: the chord on screen is home */
         cu_hm_enter();
-    if (l == L_PERF && was != L_PERF)             /* the perform layer opens on its picker (the mode's name) */
-        cu.perf_t0 = cu_now();
+    if (l == L_METRO && was != L_METRO)           /* .. the SEQ layer: its preset page */
+        cu.mpage = 0;
+    if (l == L_PERF) {                            /* the perform layer opens on its picker (the mode's name): the chord's
+                                                   * (ARP held) or, BASS held + ARP, the bass's; ARP held + a knob in the
+                                                   * layer: the part it shows */
+        uint32_t part = cu.armed == BT_BASS ? CU_PF_BASS : was == L_PERF ? cu.perf_part : CU_PF_CHORD;
+        if (was != L_PERF)
+            cu.perf_t0 = cu_now();
+        cu_perf_layer_part(part);
+    }
     cu_trace("layer: open %u%s\n", (unsigned)l, cu.lock ? " (locked)" : "");
     if (l == L_EDIT && was != L_EDIT)             /* the engine picker: a preview of the sound as it is now */
         cu_pick_begin();
@@ -3816,7 +4552,7 @@ static void cu_reset(void)
 #if CR_HAVE_SETTINGS
     cr_settings_reset();
 #endif
-    cu.opt_sel = O_STYLE;
+    cu_opt_root(CU_G_PLAY);                       /* (the group list, on its first group) */
     cu_message(cr_c1_off && cs.dualcore && !CR_SINGLE_CORE ? "settings reset \267 restart" : "settings reset", CR_COL_GREEN);   /* (Dual Core
                                                    * was Off at this power-on: On, the default since 0.22, is saved,
                                                    * the core starts at the next; but not in a power-on that kept
@@ -3840,6 +4576,21 @@ static void cu_oct_tap(uint32_t b)
             cu_save_close();
         return;
     }
+    if (cu.opt_open && !cu.lock && !cu.page) {    /* the Options' groups (3y290): OCT+ enters the group, OCT- back to
+                                                   * the group list, OCT- there leaves (Reset Settings, the list's last
+                                                   * item: its OCT+ below) */
+        if (!cu.opt_in && cu.opt_g != CU_G_RESET) {
+            if (b == B_OCTUP)
+                cu_opt_enter();
+            else
+                cu_close_all();
+            return;
+        }
+        if (cu.opt_in && b != B_OCTUP) {
+            cu_opt_root(cu.opt_g);
+            return;
+        }
+    }
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_ERASE && cr_safe && !cu.lock && !cu.page) {
         if (!cu_erase_ask) {
             cu_erase_ask = 1;                     /* the first OCT+: "OCT+ again" */
@@ -3857,6 +4608,18 @@ static void cu_oct_tap(uint32_t b)
         cu_reset();                               /* the second: every option to its default, saved */
         return;
     }
+#if CR_BLE
+    if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_BLE_FORGET && !cu.lock && !cu.page) {
+        if (!cu_ble_ask) {
+            cu_ble_ask = 1;                       /* the first OCT+: "OCT+ again" */
+            return;
+        }
+        cu_ble_ask = 0;
+        cr_ble_forget();                          /* the second: the bond goes (forget ChoralRoot on the peer too) */
+        cu_message("forgotten: on the peer too", CR_COL_WHITE);
+        return;
+    }
+#endif
     if (b == B_OCTUP && cu.opt_open && cu.opt_sel == O_CALIB && !cu.lock && !cu.page) {
         cu_close_all();
         cu_calib_start();                         /* Options > Calibrate, OCT+: Felucca's HARDWARE CALIBRATION */
@@ -3895,6 +4658,8 @@ static void cu_oct_tap(uint32_t b)
             cu_layer_close();
         return;
     }
+    if (b == B_OCTUP && cu.opt_open && cu.opt_in && !cu.lock && !cu.page)
+        return;                                   /* (an entry of a group: OCT+ does nothing, the owner's choice) */
     if (cu_picker_ctx()) {                        /* OCT+: OK (a picker's change is live already), OCT-: back */
         cu_close_all();
         return;
@@ -3961,16 +4726,16 @@ static void cu_engine_switch(uint32_t part, uint32_t e)
     if (eng_idx(t->eng_req) == ENGI_PROPHET)
         p5_leave(t);                              /* (the mix is kept: not a UNISON that a P5 program gave the part) */
 #endif
-    cu_drive_load(t, e, en->npresets ? cu_preset_drive(&en->presets[p0]) : 0);   /* (FM TONE: its first preset's) */
+    cu_drive_load(t, e, en->npresets ? cu_preset_drive(eng_preset(en, p0)) : 0);   /* (FM TONE: its first preset's) */
     t->eng_req = (uint8_t)e;
     t->preset = (uint8_t)p0;
     t->trim = 0;
     for (i = 0; i < 8u; i++)
-        t->p[P_E0 + i] = en->npresets ? (int16_t)en->presets[p0].e[i] : en->edit[i].def;
+        t->p[P_E0 + i] = en->npresets ? (int16_t)eng_preset(en, p0)->e[i] : en->edit[i].def;
     panic_req |= (uint8_t)(1u << (uint32_t)(t - trk));
     fm1_irq_on();
     fm6_track_loaded(t);
-    str_cpy(psnd[part].name, en->npresets ? en->presets[p0].name : en->name, sizeof psnd[0].name);
+    str_cpy(psnd[part].name, en->npresets ? eng_preset(en, p0)->name : en->name, sizeof psnd[0].name);
     cu_snd_set(part, pool_f0(e) > p0 || !en->npresets ? PK_INIT : PK_FACTORY, p0, PF_NONE);   /* (its first preset) */
     cu_edited(part);
     cu_pos_sync();
@@ -4109,6 +4874,8 @@ static void cu_pick_open(void)                     /* PRESETS turned in the edit
     cu_pick_begin();
 }
 
+static void cu_picker(cr_screen_t *s, const char *const *items, uint32_t n, uint32_t sel, uint32_t col,
+                      const char *label, const char *footer);   /* (below: the editor's filter picker) */
 #include "cr_edit.c"                       /* the sound editor: its state, input and screen */
 static void cu_edit_open(uint32_t part) { ce_open(part); }
 
@@ -4129,12 +4896,8 @@ static const char *const CU_SAVE_NAME[CU_SAVE_N] = {"overwrite", "save as new", 
  * a P5 sound's whole program with its record, so P5 saves as every engine does (docs/PROPHET.md "Saving") */
 static int cu_save_favonly(uint32_t part)
 {
-#if FELUCCA_PROPHET && !UP_POOL
-    return eng_idx(trk[part ? CR_PART_BASS : CR_PART_CHORD].eng_req) == ENGI_PROPHET;
-#else
     (void)part;
     return 0;
-#endif
 }
 static void cu_save_open(uint32_t part)
 {
@@ -4213,7 +4976,7 @@ static void cu_save_take(void)
             cu_trace("save: no free slot\n");
             return;
         }
-        rc = cb_store(t, part, k, nm, f != PF_NONE ? f + 1u : 0u);
+        rc = cu_store(t, part, k, nm, f != PF_NONE ? f + 1u : 0u);
         up_slot_label(l, k);
         cu_trace("save: part %u overwrite slot %s %s %02u %s rc %d\n", (unsigned)part, l, ENGINES[e]->name,
                  (unsigned)(f != PF_NONE ? pool_pos_factory(e, f) : pool_pos_slot(e, k)), nm, rc);
@@ -4243,13 +5006,6 @@ static void cu_save_commit(void)
     int rc;
     if (ce.save_step == 0u && ce.save_choice >= CU_SAVE_FAV) {   /* Favorite, the filter, the type: OCT+ saves nothing,
                                                                   * writes no slot */
-#if !UP_POOL
-        if (cu_save_favonly(part)) {                /* (before the sound pool: P5 had no store) */
-            cu_message("P5: no save yet", CR_COL_RED);
-            cu_trace("save: part %u P5 refused (no store)\n", (unsigned)part);
-            return;
-        }
-#endif
         cu_trace("save: favorite, nothing to save\n");
         (void)part;
         return;
@@ -4266,7 +5022,7 @@ static void cu_save_commit(void)
             return;
         }
     }
-    rc = cb_store(t, part, k, name, 0);
+    rc = cu_store(t, part, k, name, 0);
     up_slot_label(l, k);
     cu_trace("save: part %u slot %s name %s rc %d\n", (unsigned)part, l, name, rc);
     cu_save_done(part, k, rc, "saved ");
@@ -4340,10 +5096,18 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
     case L_PERF:
         cu.perf_t0 = cu_now();                    /* SELECT turned (a detent at the list's end too): the picker, for
                                                    * CU_PERF_PICK_MS from the last detent */
-        if (i < 7) {
-            if (cs.perf_sel != (uint8_t)i)
+        if (i < (cu.perf_part ? 9 : 8)) {        /* (cu_layer_count) */
+            if (cu_pf_item(cu.perf_part) != (uint32_t)i)
                 cu_hot.knob = 0;                  /* another mode: its row has no hot cell */
-            cu_perf_pick((uint32_t)i);
+            if (i == 0) {                         /* Off: this part plays as with Perform off; the switch stays */
+                cu_perf_part_set(cu.perf_part, 1);
+                break;
+            }
+            if (cu.perf_part && i == 1) {         /* the bass's Follow: the chord's mode and parameters */
+                cu_perf_follow(1);
+                cu_perf_part_set(CU_PF_BASS, 0);
+            } else
+                cu_perf_pick_part(cu.perf_part, (uint32_t)i - 1u - cu.perf_part);
             if (!cs.perform_on) {
                 cs.perform_on = 1;
                 cr_post(CRE_PERFORM_QUIET, 0, 0, 1);
@@ -4422,7 +5186,7 @@ static void cu_layer_pick(uint32_t l, int32_t i)   /* a white root / SELECT: the
 static int32_t cu_layer_sel(uint32_t l)
 {
     switch (l) {
-    case L_PERF: return cs.perf_sel;
+    case L_PERF: return (int32_t)cu_pf_item(cu.perf_part);
     case L_FX: return (int32_t)cu_fx_pg();
     case L_BASS: return cs.bass_mode;
     case L_EDIT: return cu_engine_rank(cu_edit_trk()->eng_req % NENGINES);
@@ -4436,7 +5200,7 @@ static int32_t cu_layer_count(uint32_t l)
 {
     uint32_t n;
     switch (l) {
-    case L_PERF: return 7;
+    case L_PERF: return cu.perf_part ? 9 : 8;   /* (the bass's: Off, Follow, the modes) */
     case L_FX: return CU_NFXP;
     case L_BASS: return 4;
     case L_EDIT: cu_engine_at(0, &n); return (int32_t)n;
@@ -4458,14 +5222,49 @@ static int32_t cu_layer_count(uint32_t l)
 #define CU_KEY_MIN 3u                              /* G#3 (CU_MOD_OF_KEY) */
 #define CU_KEY_MAJ 5u                              /* A#3 */
 static int cu_key_pick(void) { return cu_layer() == L_KEY && !cs.key_play; }   /* (keys: play: the chord block's own job) */
+/* More scales (0.36): MAJ picks Major and MIN Minor, as before, when the scale is of the other key's kind; when it is
+ * already one of its own (cr_scale_minor), the key steps to the next of them at its release (MAJ: Major Lydian
+ * Mixolydian .. 6-Dim; MIN: Minor Dorian Phrygian .. m6-Dim), unless a root was pressed while it was held (MIN held
+ * with a root keeps the minor scale there is) */
+static uint16_t cu_kcyc;                           /* bit k: MAJ / MIN pressed within its kind: steps at the release */
+static void cu_scale_trace(const char *why)
+{
+    char b[12];
+    uint32_t i;
+    const char *n = cr_scale_name(cs.scale);
+    for (i = 0; n[i] && i < sizeof b - 1u; i++)
+        b[i] = (char)(n[i] >= 'A' && n[i] <= 'Z' ? n[i] | 0x20 : n[i]);
+    b[i] = 0;
+    cu_trace("key: %s scale %s\n", why, b);
+}
 static void cu_key_scale(uint32_t k)               /* a chord key pressed in the KEY layer */
 {
     if (k != CU_KEY_MIN && k != CU_KEY_MAJ)
         return;
+    if (cr_scale_minor(cs.scale) == (k == CU_KEY_MIN)) {
+        cu_kcyc |= (uint16_t)(1u << k);
+        return;
+    }
     cs.scale = k == CU_KEY_MIN ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
     cu_post_key();
     cu_hot_set(L_KEY, 1);                          /* (the Scale cell turns hot, as under KNOB 2) */
-    cu_trace("key: %s scale %s\n", k == CU_KEY_MIN ? "MIN" : "MAJ", cs.scale ? "minor" : "major");
+    cu_scale_trace(k == CU_KEY_MIN ? "MIN" : "MAJ");
+}
+static void cu_key_scale_up(uint32_t k)            /* .. its release */
+{
+    uint32_t s = cs.scale, minor = k == CU_KEY_MIN;
+    if (!((cu_kcyc >> k) & 1u))
+        return;
+    cu_kcyc &= (uint16_t)~(1u << k);
+    if (cu_layer() != L_KEY)
+        return;
+    do
+        s = (s + 1u) % CR_SCALE_COUNT;
+    while ((uint32_t)cr_scale_minor((uint8_t)s) != minor);
+    cs.scale = (uint8_t)s;
+    cu_post_key();
+    cu_hot_set(L_KEY, 1);
+    cu_scale_trace(minor ? "MIN" : "MAJ");
 }
 
 static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l is open */
@@ -4489,13 +5288,15 @@ static void cu_layer_key(uint32_t l, uint32_t k)   /* a root key while layer l i
                                                     * (so MIN tapped, then a root, is a minor key: until 2026-10-10 a
                                                     * root alone meant major) */
         cs.tonic = (uint8_t)((53u + k) % 12u);
-        if ((cu.kheld >> CU_KEY_MIN) & 1u)
+        cu_kcyc = 0;                               /* (MAJ / MIN held with a root: no step at their release) */
+        if (((cu.kheld >> CU_KEY_MIN) & 1u) && !cr_scale_minor(cs.scale))
             cs.scale = CR_SCALE_MINOR;
-        else if ((cu.kheld >> CU_KEY_MAJ) & 1u)
+        else if (((cu.kheld >> CU_KEY_MAJ) & 1u) && cr_scale_minor(cs.scale))
             cs.scale = CR_SCALE_MAJOR;
         cs.key_on = 1;
         cu_post_key();
-        cu_trace("key: root tonic %s %s\n", CU_NOTE[cs.tonic], cs.scale ? "minor" : "major");
+        cu_trace("key: root tonic %s %s\n", CU_NOTE[cs.tonic], cs.scale == CR_SCALE_MAJOR ? "major"
+                 : cs.scale == CR_SCALE_MINOR ? "minor" : cr_scale_name(cs.scale));
         return;
     }
     if (l == L_LOOP && k == 10u) {                 /* D#4: CLEAR, held 1 s (cu_clear_poll) */
@@ -4550,10 +5351,11 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cs.key_on = 1;
             cu_post_key();
             cu_trace("key: knob 1 tonic %s\n", CU_NOTE[cs.tonic]);
-        } else if (knob == 1) {                    /* SCALE */
-            cs.scale = s > 0 ? CR_SCALE_MINOR : CR_SCALE_MAJOR;
+        } else if (knob == 1) {                    /* SCALE: the list (cr_scale_t), no wrap */
+            v = (int32_t)cs.scale + s;
+            cs.scale = (uint8_t)(v < 0 ? 0 : v >= (int32_t)CR_SCALE_COUNT ? CR_SCALE_COUNT - 1 : v);
             cu_post_key();
-            cu_trace("key: knob 2 scale %s\n", cs.scale ? "minor" : "major");
+            cu_scale_trace("knob 2");
         } else if (knob == 2) {                    /* TRANSPOSE */
             v = kn.snap ? kn_snap_rng(cs.transpose, s, -24, 24, 12, 0) : cs.transpose + s;   /* (a semitone a detent;
                                                     * OPT held: octaves) */
@@ -4587,7 +5389,9 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         break;
     case L_PERF:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][knob], s, 0);
+        if (cu_pf_off(cu.perf_part))              /* Off: no knob row */
+            break;
+        cu_param_turn(cu.perf_part, cu_perf_mode(cu.perf_part), CU_PERF_KNOB[cu_perf_mode(cu.perf_part)][knob], s, 0);
         cu_hot_set(L_PERF, knob);                 /* (no popup: the cell turns hot) */
         break;
     case L_FX: {
@@ -4611,6 +5415,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             uint32_t sid = CU_FX[e].send;
             v = cu_send(0, sid);
             cu_send_set(0, sid, cu_send_step(v, s, kn.snap));
+            if (cu_send(0, sid) != v)
+                cu_cc_send_trk(0, sid);           /* (MIDI CC Out: CC 91 92 93 94 on MIDI Perform's channel) */
             cu_hot_set(L_FX, knob);               /* (no popup: the knob row is the readout, its cell turns hot) */
             cu_trace("fx: knob %u %s send %u\n", (unsigned)knob + 1u, CU_FX[e].name, (unsigned)cu_send(0, sid));
             break;
@@ -4635,9 +5441,13 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
                                                    * division, a ratio, a switch: one a detent) */
         v = v < lo ? lo : v > hi ? hi : v;
         if (((id == XP_FLOW || id == XP_FHIGH) && v != *q) || (id == XP_FON && v)) {   /* the master filter: a cutoff
-                                                   * turned, or Filter to On, switches the filter and FX on (as a
-                                                   * send turned switches FX on: the knob is heard) */
-            xfp[XP_FON] = 1;
+                                                   * turned, or Filter to All / Chord / Bass, switches the filter and
+                                                   * FX on (as a send turned switches FX on: the knob is heard). A
+                                                   * cutoff turned while Off: All (the knob reaches Off only from
+                                                   * All, so "the last choice" would be All anyway); while Chord or
+                                                   * Bass: kept */
+            if (!xfp[XP_FON])
+                xfp[XP_FON] = 1;
             if (!cs.fx_on) {
                 cs.fx_on = 1;
                 cu_fx_apply();
@@ -4662,7 +5472,10 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
             cu_bass_go((uint32_t)(v < 0 ? 0 : v));
             cu_trace("bass: knob 3 sound %u\n", (unsigned)cs.bass_sound);
         } else {                                   /* LEVEL */
+            v = trk[CR_PART_BASS].p[P_LEVEL];
             trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, kn.snap);
+            if (trk[CR_PART_BASS].p[P_LEVEL] != v)
+                cu_cc_send_trk(1, P_LEVEL);       /* (MIDI CC Out: CC 7 on MIDI Bass's channel) */
             cu_trace("bass: knob 4 level %d\n", (int)trk[CR_PART_BASS].p[P_LEVEL]);
         }
         cu_hot_set(L_BASS, knob);                 /* (no popup: the knob row is the readout, its cell turns hot) */
@@ -4699,8 +5512,7 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         if (cu.lpage) {
             if (knob == 1) {                       /* the click on / off (SEQ's tap until 0.18: the owner, 2026-10-11:
                                                     * "Add Metronome to the second param page of the play menu") */
-                cs.metro = s > 0;
-                cr_post(CRE_LOOP, LP_METRO, 0, cs.metro);
+                cu_metro_set(s > 0);               /* (the beat: the click or the drums, the SEQ layer's preset) */
                 cu_trace("loop: knob 2 metronome %s\n", cs.metro ? "on" : "off");
             } else if (knob != 0)
                 break;
@@ -4735,24 +5547,8 @@ static void cu_layer_knob(uint32_t l, uint32_t knob, int32_t s)   /* KNOB 1..4 (
         }
         cu_hot_set(L_LOOP, knob);                 /* (no popup: the cell turns hot) */
         break;
-    case L_METRO:                                  /* KNOB 1: the click level */
-        if (knob == 0) {
-            v = cs.metro_vol + s * 5;
-            cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
-            cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
-            cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
-            cu_hot_set(L_METRO, 0);               /* (no popup: the cell turns hot) */
-        } else if (cu_fm1() && (knob == 1 || knob == 2)) {   /* FM-1: LOCK's two settings (its layer's button, LFO
-                                                    * held, is Harmony mode in this fork) */
-            if (knob == 1) {
-                cs.lock_keep = (uint8_t)(s > 0);
-                cu_trace("lock: type key %s\n", cs.lock_keep ? "keeps" : "clears");
-            } else {
-                cs.lock_push = (uint8_t)(s > 0);
-                cu_trace("lock: ext keys %s\n", cs.lock_push ? "pushed" : "toggle");
-            }
-            cu_hot_set(L_METRO, knob);
-        }
+    case L_METRO:                                  /* the SEQ layer: the preset page, the drums' pages (cu_drum_knob) */
+        cu_drum_knob(knob, s);                    /* (no popup: the cell turns hot) */
         break;
     default:
         break;
@@ -4770,8 +5566,9 @@ static void cu_activity(void)
             cu.open = 1;
             cu.blvl = 0;
             if (cu.armed == BT_METRO && cu.ledit && cu.lock == L_LOOP)
-                return;                           /* the loop editor: SEQ is its way out, no METRO layer from there
-                                                   * (SEQ held + a knob: the knob stays the editor's) */
+                return;                           /* the loop editor: SEQ down + a knob inside the hold time: the knob
+                                                   * stays the editor's (its step cursor); SEQ held past it: the SEQ
+                                                   * layer (the hold, below) */
 #if CR_EDIT_HOOKS
             if (cu.page == PG_EDIT && !cu_layer() && ce_owns(cu.armed))
                 return;                           /* the editor's button: a combo, no layer */
@@ -5049,9 +5846,75 @@ static void cu_tk_post(const uint8_t *w, uint32_t n, int press, int force)
         cr_post(CRE_MOD, w[n - 1u], 0, CR_MOD_PRESS);
     cu_trace("chord keys: types 0x%x%s\n", (unsigned)wb, press ? " (press)" : "");
 }
+/* Options > MIDI Roots (3y289; docs/MANUAL.md "MIDI in"): every note on that channel is a root at its own pitch, so a
+ * full keyboard plays the chords while the chord keys come from the FM-1, MIDI Keys (a pad controller) or LOCK. It
+ * plays as a root key's note does at the end of cu_key_press (CRE_KEY with the note: the engine builds the chord, and
+ * the screen and the keys' lights show it as for a key), in every layer and page (the keyboard has no layer jobs),
+ * with the note's velocity, and it waits for FM-1's open type-key gesture as a root key does (cu_tk_flush). The notes
+ * held are a bit set: the same note again while held is one press */
+#define CU_MRW 8u                                  /* roots waiting for a gesture (more: they play at once) */
+static struct {
+    uint32_t held[4];                              /* bit n: note n held over MIDI Roots */
+    uint8_t n;                                     /* .. how many */
+    uint8_t nw;                                    /* waiting for the gesture: w[0 .. nw - 1] */
+    struct { uint8_t note, vel, up; } w[CU_MRW];
+} cmr;
+static __attribute__((noinline)) void cu_mroot(uint32_t note, uint32_t vel, uint32_t down)
+{
+    uint32_t i, bit = 1u << (note & 31u), *h = &cmr.held[(note >> 5) & 3u];
+    if (down) {
+        if (*h & bit)
+            return;
+        *h |= bit;
+        cmr.n++;
+        cu.last_sound = cu_now();
+        if (cu.g_open && cmr.nw < CU_MRW) {        /* (a type-key gesture not decided yet: the root waits for it) */
+            cmr.w[cmr.nw].note = (uint8_t)note;
+            cmr.w[cmr.nw].vel = (uint8_t)vel;
+            cmr.w[cmr.nw].up = 0;
+            cmr.nw++;
+            cu_trace("midi roots: %u waits for the window\n", (unsigned)note);
+            return;
+        }
+        cr_post(CRE_KEY, note, vel, 1);
+        cu.last_vel = (uint8_t)vel;
+        cu_trace("midi roots: %u vel %u\n", (unsigned)note, (unsigned)vel);
+        return;
+    }
+    if (!(*h & bit))
+        return;
+    *h &= ~bit;
+    cmr.n--;
+    for (i = 0; i < cmr.nw; i++)
+        if (cmr.w[i].note == note && !cmr.w[i].up) {   /* (still waiting: it plays then, briefly) */
+            cmr.w[i].up = 1;
+            return;
+        }
+    cr_post(CRE_KEY, note, 0, 0);
+}
+static __attribute__((noinline)) void cu_mroot_allup(void)   /* every root MIDI Roots holds: up */
+{
+    uint32_t n;
+    for (n = 0; cmr.n && n < 128u; n++)
+        if ((cmr.held[n >> 5] >> (n & 31u)) & 1u)
+            cu_mroot(n, 0, 0);
+}
+static __attribute__((noinline)) void cu_mroot_flush(void)   /* the gesture decided: the waiting roots play */
+{
+    uint32_t i;
+    for (i = 0; i < cmr.nw; i++) {
+        cr_post(CRE_KEY, cmr.w[i].note, cmr.w[i].vel, 1);
+        if (cmr.w[i].up)
+            cr_post(CRE_KEY, cmr.w[i].note, 0, 0);
+    }
+    cmr.nw = 0;
+}
+
 static void cu_tk_flush(void)                      /* the roots that waited for the decision: they start now */
 {
     uint32_t k;
+    if (cmr.nw)
+        cu_mroot_flush();
     for (k = 0; k < CU_NKEY; k++) {
         uint32_t bit = 1u << k;
         if (!(cu.kwait & bit))
@@ -5206,6 +6069,7 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
     cu.g_keys = 0;
     cu_tk_prune();
     cu.kwait = cu.kwait_up = 0;
+    cmr.nw = 0;                                    /* (MIDI Roots' waiting: dropped too, as the keys' are) */
 }
 
 /* the root keys belong to layer l (its map), else they play: PERF and FX play the chord so a mode or an effect is
@@ -5214,8 +6078,10 @@ static void cu_tk_quiet(void)                      /* PANIC, a layout change: no
 static int cu_layer_keys(uint32_t l)
 {                                                  /* (the Routing page owns only its five black keys, cu_rt_key:
                                                     * the rest play, so an effect is heard while it is routed) */
-    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT && l != L_HARM &&
-           !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play);
+    return l && l != L_PERF && l != L_FX && l != L_LOCK && l != L_EDIT && l != L_METRO && l != L_HARM &&   /* (the SEQ layer: they play,
+                                                    * the owner after the first drums build; the meter is KNOB 2) */
+           !(l == L_LOOP && (!cs.loop_keys || cu.ledit)) && !(l == L_KEY && cs.key_play) &&
+           !(l == L_BASS && !cs.bass_keys);
 }   /* (the PLAY menu with Keys = Play, the loop editor, the KEY layer with keys: play: they play, docs/LOOPER-MODES.md) */
 
 #ifndef CU_KEY_T0
@@ -5402,9 +6268,11 @@ static void cu_key_release(uint32_t k)
         return;
     }
     if (k < 9u && !cu.key_note[k]) {               /* (pressed as a chord key: not a Full-keyboard note, not a root) */
-        if ((cu.kpick >> k) & 1u)                  /* pressed as the KEY layer's: nothing to end (the layer may be
-                                                    * closed by now) */
+        if ((cu.kpick >> k) & 1u) {                /* pressed as the KEY layer's: nothing to end (the layer may be
+                                                    * closed by now); MAJ / MIN may step the scale */
             cu.kpick &= (uint16_t)~(1u << k);
+            cu_key_scale_up(k);
+        }
         else if (cu_fm1() && ((CU_TK_MASK >> k) & 1u))
             cu_tk_release(k);
         else if (cu_mod_of(k) != 0xFFu)
@@ -5495,7 +6363,15 @@ static void cu_mkeys_poll(void)
     while (cr_mkq_take(&e)) {
         uint32_t k = e & 31u, vel = (e >> 5) & 127u, down = (e >> 12) & 1u, bit;
         cu.last_input = cu_now();
-        if (k == CR_MKQ_ALLUP) {
+        if (e == CRM_ROOT_ALLUP || e == CR_MKQ_EVERY)
+            cu_mroot_allup();                      /* (MIDI Roots: CC 120 / 123 there, or a queue overflow) */
+        if (e == CRM_ROOT_ALLUP)
+            continue;
+        if (e & CRM_ROOT) {                        /* MIDI Roots: a note */
+            cu_mroot(e & 127u, (e >> 7) & 127u, (e >> 14) & 1u);
+            continue;
+        }
+        if (k == CR_MKQ_ALLUP || e == CR_MKQ_EVERY) {
             for (k = 0; k < CU_NKEY; k++)
                 if ((cu.kmidi >> k) & 1u) {
                     cu.kmidi &= ~(1u << k);
@@ -5526,15 +6402,23 @@ static void cu_mkeys_poll(void)
 
 static void cu_latch_toggle(void)                 /* LATCH: LFO tap (Classic), GLO held + LFO (FM-1) */
 {
-    uint32_t mode = CU_PERF[cs.perf_sel].mode;
-    if (!cs.sticky && cs.perform_on && cs.par[mode][CR_P_HOLD]) {   /* the mode's Hold (Strum's KNOB 4, the arp's)
+    uint32_t part, held = 0;
+    for (part = 0; part < 2u; part++)              /* (either part's Hold latches: cr_engine.c cr_latching) */
+        held |= (uint32_t)(!cu_pf_off(part) && !(part && cs.bfollow) &&   /* (Follow: the chord's Hold is its) */
+                           cu_pf_par(part)[cu_perf_mode(part)][CR_P_HOLD] != 0) << part;
+    if (!cs.sticky && cs.perform_on && held) {   /* the mode's Hold (Strum's KNOB 4, the arp's)
                                                    * lit the button: a tap turns Hold off and the held notes go, as a
                                                    * tap on a lit LATCH does (the owner, 2026-10-15: "you can't control
                                                    * this using the lock/hold button like you can elsewhere"); the next
                                                    * tap latches as before */
-        cs.par[mode][CR_P_HOLD] = 0;
-        cr_post(CRE_PARAM, mode, CR_P_HOLD, 0);   /* (cr_engine.c: Hold off releases the latched voices) */
-        cu_trace("latch: %s hold off\n", CU_PERF[cs.perf_sel].short_name);
+        for (part = 0; part < 2u; part++)
+            if ((held >> part) & 1u) {
+                uint32_t mode = cu_perf_mode(part);
+                cu_pf_par(part)[mode][CR_P_HOLD] = 0;
+                cr_post(CRE_PARAM, mode | part << 4, CR_P_HOLD, 0);   /* (cr_engine.c: Hold off releases the latched
+                                                                     * voices) */
+                cu_trace("latch: %s%s hold off\n", part ? "bass " : "", CU_PERF[cu_pf_sel(part)].short_name);
+            }
         return;
     }
     cs.sticky ^= 1u;
@@ -5631,6 +6515,9 @@ static void cu_btn_press(uint32_t b)
         cu.lock = L_NONE;
         cu_save_open(1);
     }
+    if (cu.armed == BT_BASS && b == BT_PERF && !(cu.page == PG_EDIT && !cu_layer()))
+        cu_opened(BT_PERF);                        /* BASS held + ARP: the Bass PERF layer (0.34; cu_opened: the part by
+                                                    * the armed button). Not in the sound editor (its ARP group there) */
 }
 
 static void cu_btn_release(uint32_t b)
@@ -5766,8 +6653,10 @@ static int cu_bass_level_hold(int32_t s)
             cu_opened(BT_BASS);
         }
     }
-    (void)v;
+    v = trk[CR_PART_BASS].p[P_LEVEL];
     trk[CR_PART_BASS].p[P_LEVEL] = (int16_t)cu_kval(trk[CR_PART_BASS].p[P_LEVEL], s, 0, 127, 0);
+    if (trk[CR_PART_BASS].p[P_LEVEL] != v)
+        cu_cc_send_trk(1, P_LEVEL);               /* (MIDI CC Out) */
     if (cu_layer() == L_BASS)
         cu_hot_set(L_BASS, 3);
     else
@@ -5914,9 +6803,14 @@ static void cu_knob(uint32_t role, int32_t s)
             cu_post_single();
             cu_popup(CU_NOTE[cs.split], cu_full() ? "Full: at F4" : cs.single == 2u ? "split bass" :
                      cs.single ? "split oct" : "split off", "split point", CR_COL_BLUE, cs.split, 0, 11, 12);
-        } else {                                   /* SELECT: the metronome level */
-            cu_layer_knob(L_METRO, 0, s);
-            if (cu_layer() != L_METRO)             /* (outside the layer: the popup is the readout) */
+        } else {                                   /* SELECT: the metronome level (the click's) */
+            v = cs.metro_vol + s * 5;
+            cs.metro_vol = (uint8_t)(v < 0 ? 0 : v > 100 ? 100 : v);
+            cr_post(CRE_LOOP, LP_CONF, LC_VOL, cs.metro_vol);
+            cu_trace("metro: knob 1 click %u\n", (unsigned)cs.metro_vol);
+            if (cu_layer() == L_METRO)             /* (in the layer: its Click / Level cell turns hot) */
+                cu_hot_set(L_METRO, 1);
+            else                                   /* (outside the layer: the popup is the readout) */
                 cu_popup_num(cs.metro_vol, 0, "%", "click level", CR_COL_WHITE, 0, 100, 10);
         }
         return;
@@ -5947,6 +6841,19 @@ static void cu_knob(uint32_t role, int32_t s)
     }
     if (l && role >= EN_K1) {
         cu_layer_knob(l, role - EN_K1, s);
+        return;
+    }
+    if (l == L_METRO && (role == EN_PRESET || role == EN_ALGO)) {   /* the SEQ layer: PRESETS starts / stops the beat
+                                                    * but on the Mix pages, ALGORITHM picks the preset (Metronome /
+                                                    * Drums) on the preset page; the Mix pages: the drum's Filter and
+                                                    * Drive (3y304) */
+        uint32_t pg = cs.beat_preset == 1u ? cu.mpage : 0u;
+        if (pg >= CU_DRP_KMIX)
+            cu_drum_enc(role == EN_PRESET, s);   /* (3y305: PRESETS the Drive, ALGORITHM the Filter: the knobs' order) */
+        else if (role == EN_PRESET)
+            cu_beat_turn(s);
+        else if (pg == CU_DRP_PRESET)
+            cu_beat_preset_turn(s);
         return;
     }
     if (l == L_LOOP && role == EN_PRESET) {        /* the PLAY menu: PRESETS the slot, ALGORITHM the record mode */
@@ -5982,6 +6889,11 @@ static void cu_knob(uint32_t role, int32_t s)
         }
         return;
     }
+    if (l == L_METRO && role == EN_SELECT) {       /* the SEQ layer: SELECT turns its page (Drums: Beat, Kick, Snare,
+                                                    * Hats; the meter is KNOB 3 and D4 E4 F4) */
+        cu_drum_page(s);
+        return;
+    }
     if (l == L_KEY && role == EN_SELECT) {         /* the KEY layer: SELECT turns its page (no tempo there) */
         uint32_t pg = s > 0 ? 1u : 0u;
         if (pg != cu.kpage) {
@@ -5999,8 +6911,10 @@ static void cu_knob(uint32_t role, int32_t s)
         return;
     }
     if (cu.opt_open && (role == EN_SELECT || role == EN_K1)) {
-        if (role == EN_SELECT) {
-            cu.opt_sel = (uint8_t)cu_opt_next(cu.opt_sel, s);   /* (the entries listed: cu_opt_vis) */
+        if (!cu.opt_in)                           /* the group list: SELECT or KNOB 1 picks a group */
+            cu_opt_root(cu_opt_next(cu.opt_g, s));
+        else if (role == EN_SELECT) {
+            cu.opt_sel = (uint8_t)cu_opt_next(cu.opt_sel, s);   /* (the group's entries listed: cu_opt_vis) */
         } else {
             opt_set(cu.opt_sel, cu.opt_sel == O_VEL ? cu_kval(opt_get(O_VEL), s, 1, 127, kn.snap) : opt_get(cu.opt_sel) + s);
                                                    /* (Velocity: a value; the others are choices, one a detent) */
@@ -6078,10 +6992,14 @@ static void cu_knob(uint32_t role, int32_t s)
         cu.pop.kind = PU_BASS_VOICING;
         break;
     case EN_K3:
-        cu_param_turn(cu_perf_mode(), CU_PERF_KNOB[cu_perf_mode()][0], s, 1);
+        cu_param_turn(cu_perf_view_part(), cu_perf_mode(cu_perf_view_part()), CU_PERF_MAIN[cu_perf_mode(cu_perf_view_part())],
+                      s, 1);
         break;
     case EN_K4:
+        v = cu_send(0, CU_FX[cs.fx_sel].send);
         cu_send_set(0, CU_FX[cs.fx_sel].send, cu_send_step(cu_send(0, CU_FX[cs.fx_sel].send), s, kn.snap));
+        if (cu_send(0, CU_FX[cs.fx_sel].send) != v)
+            cu_cc_send_trk(0, CU_FX[cs.fx_sel].send);   /* (MIDI CC Out) */
         cu_send_popup(cu_send(0, CU_FX[cs.fx_sel].send), CU_FX[cs.fx_sel].name, CR_COL_GREEN);
         cu_trace("send: knob 4 %s %u (%u%%)\n", CU_FX[cs.fx_sel].name, (unsigned)cu_send(0, CU_FX[cs.fx_sel].send),
                  (unsigned)cu_send_pct(cu_send(0, CU_FX[cs.fx_sel].send)));
@@ -6101,6 +7019,11 @@ static void cu_knob(uint32_t role, int32_t s)
         cu_bass_sound_step(s);
         break;
     case EN_SELECT:
+        if (cr_route.clock_in && crl.ext_on) {    /* (GitHub issue 39) the clock's tempo, shown, not changed: a turn
+                                                   * here made it jump to 119 / 121 and back with the next pulse */
+            cu_popup_num(cs.bpm, 0, "bpm", "clock in", CR_COL_WHITE, 20, 300, 14);
+            break;
+        }
         cu_set_tempo((int32_t)cs.bpm + s);
         cu_popup_num(cs.bpm, 0, "", "bpm", CR_COL_WHITE, 20, 300, 14);
         break;
@@ -6338,9 +7261,10 @@ static void cu_scan_step(void)                     /* step entry: every key up (
 {
     static uint8_t down;
 #if BOARD_SMK37
-    uint8_t dn = (uint8_t)(cu.kheld || cu_xheld || (cu.mlatch && !cu_full()));
+    uint8_t dn = (uint8_t)(cu.kheld || cmr.n || cu_xheld || (cu.mlatch && !cu_full()));
 #else
-    uint8_t dn = (uint8_t)(cu.kheld || (cu.mlatch && !cu_full()));   /* (the Full keyboard: the latch waits) */
+    uint8_t dn = (uint8_t)(cu.kheld || cmr.n || (cu.mlatch && !cu_full()));   /* (the Full keyboard: the latch
+                                                    * waits; MIDI Roots' notes are keys down) */
 #endif
     if (cr_snap.lcap == CRL_CAP_STEP && down && !dn) {
         cr_post(CRE_LOOP, LP_STEP, 0, CRL_STEP_KEYSUP);
@@ -6442,7 +7366,7 @@ static void cu_smk_pad(uint32_t pad, uint32_t vel)
     if (i >= 0 && vel) {                           /* a mode pad: that mode, performance on; the mode playing: off (as
                                                     * a PERF tap). The same state as PERF and the PERF layer's picker */
         cu_activity();
-        if (cs.perform_on && cs.perf_sel == (uint32_t)i)
+        if (cs.perform_on && !cu_pf_off(CU_PF_CHORD) && cs.perf_sel == (uint32_t)i)
             cu_perf_toggle();
         else {
             cu_perf_pick((uint32_t)i);
@@ -6464,8 +7388,10 @@ static void cu_smk_pad(uint32_t pad, uint32_t vel)
                 cu.b3_pend = 0;
                 cu_lock_tap();
             }
-        } else if (cu_ppick & bit)
+        } else if (cu_ppick & bit) {
             cu_ppick &= (uint16_t)~bit;
+            cu_key_scale_up((uint32_t)k);
+        }
         else
             cu_mod_release((uint32_t)k);
         return;
@@ -6542,6 +7468,16 @@ static void cu_smk_input(uint32_t pe)
         cu_smk_xkey((uint32_t)e >> 8, (uint32_t)e & 0xFFu);
     while ((e = smk_pad_take()) >= 0)
         cu_smk_pad((uint32_t)e >> 8, (uint32_t)e & 0xFFu);
+    {                                              /* K1 turned (hal/smk_input.h smk_master_seq; GitHub issue 30):
+                                                    * the volume, in per cent of the pot's range, as the click level's */
+        static uint8_t seen;
+        uint8_t q = smk_master_seq;
+        if (q != seen) {
+            seen = q;
+            cu_activity();
+            cu_popup_num((smk_master * 100 + 511) / 1023, 0, "%", "volume", CR_COL_WHITE, 0, 100, 10);
+        }
+    }
     if (cu.b3_pend && ((cu_pheld >> CU_KEY_LOCK) & 1u) &&
         cu_now() - cu.b3_t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
         cu.b3_pend = 0;                            /* LOCK's pad held alone past the hold time: the LOCK layer */
@@ -6574,6 +7510,7 @@ static void cu_smk_faders(void)
         if (cc.on)
             continue;
         cu_send_set(cu_fbank, CU_FX[fx].send, (int32_t)v);
+        cu_cc_send_trk(cu_fbank, CU_FX[fx].send);   /* (MIDI CC Out) */
         cu_send_popup((int32_t)v, CU_FX[fx].name, cu_fbank ? CR_COL_ORANGE : CR_COL_GREEN);
         cu.last_input = cu.last_local = cu_now();
     }
@@ -6626,10 +7563,92 @@ static void cr_smk_wheels(void)
     cr_smk_modw = (uint8_t)mw;
 }
 
+/* the pedal jack (mux C address 6, hal/smk_input.h fm1_in.pedal): a pull-up, ~985 with nothing plugged in, no plug
+ * detect. What a pedal reads is not known here (no unit to try; the stock firmware takes 1023 - raw through its
+ * calibration record's fifth curve: raw ~0..170 the active range), so both modes learn. Options > Pedal:
+ *   Sustain     a switch pedal of either polarity: its rest is learnt once the readings settle at power-on and again
+ *               at every change of the option; down = more than 400 counts from it (up again within 250), steady for
+ *               8 scan frames (~13 ms). A normally-closed pedal plugged in after power-on reads as held until then
+ *   Expression  0..127, lower raw = more (as the stock firmware's inversion). The range is what the pedal has
+ *               reached (a dead band inside each end: both reachable), learnt once it has rested plugged in ~0.3 s;
+ *               nothing is sent until that range spans 48 counts (an empty jack sets nothing: the parts stay at full
+ *               expression, 127). The empty jack's reading (940 and up) is no pedal: back to 127, the range learnt
+ *               again from the next pedal. A step of 2 or an end, as the faders (no jitter)
+ * Leaving a mode lets go of what it held: a sustain up, the expression back to 127. Once per scan frame (~1.6 ms),
+ * called with the wheels; a change is a touch (the screensaver). The audio ISR plays them (cr_out.c
+ * cr_smk_pedal_block) */
+static void cr_smk_pedal(void)
+{
+    enum { OPEN = 940, DOWN = 400, UP = 250, DEB = 8, PLUG = 200, SPAN = 48, DEAD = 6 };
+    static uint32_t seen, t_flip, t_open;
+    static int32_t acc, rest, lo, hi;
+    static uint8_t ready, mode, on, moved;
+    uint32_t fr = fm1_in.frames;
+    int32_t r, d, e, x;
+    if (fr < 300u || fr == seen)                   /* (the readings settle) */
+        return;
+    seen = fr;
+    if (!ready)
+        acc = (int32_t)fm1_in.pedal * 16;
+    acc += ((int32_t)fm1_in.pedal * 16 - acc) / 4; /* x16 IIR */
+    r = acc / 16;
+    if (!ready || mode != cs.smk_pedal) {          /* power-on, or the option changed: start again */
+        if (on || cr_smk_expr != 127u)
+            cu.last_input = cu.last_local = cu_now();
+        cr_smk_sus = 0;
+        cr_smk_expr = 127;
+        ready = 1;
+        mode = cs.smk_pedal;
+        on = moved = 0;
+        rest = r;
+        t_flip = t_open = fr;
+        lo = 1023;
+        hi = 0;
+        return;
+    }
+    if (!mode) {                                   /* Sustain */
+        d = r > rest ? r - rest : rest - r;
+        if ((on ? d > UP : d > DOWN) == on)
+            t_flip = fr;
+        else if (fr - t_flip >= DEB) {
+            on ^= 1u;
+            cr_smk_sus = on;
+            cu.last_input = cu.last_local = cu_now();
+        }
+        return;
+    }
+    if (r >= OPEN) {                               /* Expression: the jack empty */
+        t_open = fr;
+        lo = 1023;
+        hi = 0;
+        if (moved) {
+            moved = 0;
+            cr_smk_expr = 127;
+            cu.last_input = cu.last_local = cu_now();
+        }
+        return;
+    }
+    if (fr - t_open < PLUG)                        /* (a plug going in: its contacts settle) */
+        return;
+    lo = r < lo ? r : lo;
+    hi = r > hi ? r : hi;
+    if (!moved && hi - lo < SPAN)
+        return;
+    moved = 1;
+    e = hi - r <= DEAD ? 0 : r - lo <= DEAD ? 127 : (hi - DEAD - r) * 127 / (hi - lo - 2 * DEAD);
+    e = e < 0 ? 0 : e > 127 ? 127 : e;
+    x = cr_smk_expr;
+    if (e > x + 1 || e + 1 < x || (e != x && (e == 0 || e == 127))) {
+        cr_smk_expr = (uint8_t)e;
+        cu.last_input = cu.last_local = cu_now();
+    }
+}
+
 static void cr_smk_frame(void)                     /* main.c, once a frame */
 {
     cu_smk_faders();
     cr_smk_wheels();
+    cr_smk_pedal();
 }
 #endif
 
@@ -6707,13 +7726,20 @@ static void cr_ui_input(void)
     }
     if (cu.armed != NB && !cu.open && ((cu.bheld >> cu.armed) & 1u) && !(cu.armed == BT_SAVE && cu.page == PG_SAVE) &&
         now - cu.t0 >= (uint32_t)HOLD_MS[settings_hold % 4u]) {
-        if ((cu.armed == BT_EDIT || cu.armed == BT_METRO) && cu.ledit && cu.lock == L_LOOP) {   /* the loop editor:
-                                                    * EDIT or SEQ held again closes it, as a layer's own button does (no
-                                                    * engine picker, no METRO layer from there; a knob turned while the
-                                                    * button is still down: nothing, cu_knob) */
+        if (cu.armed == BT_EDIT && cu.ledit && cu.lock == L_LOOP) {   /* the loop editor: EDIT held again closes it, as
+                                                    * a layer's own button does (no engine picker from there; a knob
+                                                    * turned while the button is still down: nothing, cu_knob) */
             cu.open = 1;
             cu.hclosed = 0xFF;
             cu_ledit_close();
+        } else
+        if (cu.armed == BT_METRO && cu.ledit && cu.lock == L_LOOP) {   /* .. SEQ held there: the SEQ layer (the owner,
+                                                    * after the first drums build: "when you hold seq from the sequencer
+                                                    * it takes you to the drums"); EDIT keeps the editor / PLAY menu
+                                                    * switch. Until then SEQ held closed the editor */
+            cu.open = 1;
+            cu_ledit_close();
+            cu_opened(BT_METRO);
         } else
         if (cu.armed == BT_LOOP && cu.ledit && cu.lock == L_LOOP) {   /* .. LOOP held there: the PLAY menu (the owner,
                                                     * 2026-10-11: "from the Sequencer, holding the play key should
@@ -6737,10 +7763,16 @@ static void cr_ui_input(void)
             ce_button(cu.armed, CE_HOLD);
         } else
 #endif
-        if (cu.lock && cu_layer_of(cu.armed) == cu.lock) {   /* a layer's own button held again past the hold time
-                                                              * (alone: a key or a knob touched meanwhile is a combo in
-                                                              * the layer, cu_activity): the layer closes, as it
-                                                              * opened; the engine picker keeps its sound (as EDIT
+        if (cu.lock == L_PERF && cu.armed == BT_PERF) {   /* ARP held alone in a PERF layer: the other part's (the
+                                                           * owner, after 0.34: "once in there, you could just hold
+                                                           * ARP to switch between the layers"); OCT- / OCT+ / HOME
+                                                           * close it */
+            cu.open = 1;
+            cu_perf_layer_part(cu.perf_part ^ 1u);
+        } else if (cu.lock && cu_layer_of(cu.armed) == cu.lock) {   /* a layer's own button held again past the hold
+                                                              * time (alone: a key or a knob touched meanwhile is a
+                                                              * combo in the layer, cu_activity): the layer closes, as
+                                                              * it opened; the engine picker keeps its sound (as EDIT
                                                               * tapped). Its release does nothing */
             cu.open = 1;
             cu.hclosed = cu.lock;
@@ -6854,7 +7886,8 @@ static void cu_smk_leds(const uint8_t *nl, const uint8_t *nd, const uint8_t *nm,
         uint32_t lv = 0, r = 255, g = 255, b = 255, fid;  /* white */
         int32_t k = CU_PAD_FN[p], i = CU_PAD_PERF[p];
         if (i >= 0) {                              /* a mode: bright while it plays, dim otherwise */
-            lv = panic ? (cu_smk_bit(nl, CU_LK(0)) ? 4u : 0u) : cs.perform_on && cs.perf_sel == (uint32_t)i ? 4u : 2u;
+            lv = panic ? (cu_smk_bit(nl, CU_LK(0)) ? 4u : 0u)
+                       : cs.perform_on && !cu_pf_off(CU_PF_CHORD) && cs.perf_sel == (uint32_t)i ? 4u : 2u;
             if (CU_PERF[i].mode == CR_PM_ARP || CU_PERF[i].mode == CR_PM_PATTERN) {   /* tempo-synced: green */
                 r = 30;
                 g = 200;
@@ -6930,7 +7963,7 @@ static void cr_leds(void)
     } else
         cu_led(nl, panel.btn[BT_LATCH], cu.clock);
     cu_led(nl, panel.btn[BT_OPT], cu.opt_open || cu_shift() || (l == L_LOOP && cs.loop_keys && !cu.ledit) ||
-                                      (l == L_KEY && cs.key_play));   /* (the PLAY menu: Keys = Loops; the KEY layer:
+                                      (l == L_KEY && cs.key_play) || (l == L_BASS && cs.bass_keys));   /* (the PLAY menu: Keys = Loops; the KEY layer:
                                                                        * keys: play. Lit = not the default) */
     cu_led(nl, panel.btn[BT_EDIT], (cu.page == PG_EDIT || (cu.ledit && l == L_LOOP)) && blink);   /* blinks while the
                                                                        * editor is open (the sound's, the loop's) */
@@ -6994,7 +8027,7 @@ static void cr_leds(void)
         }
         if (cu_key_pick()) {
             if (k == CU_KEY_MIN || k == CU_KEY_MAJ) {
-                if ((k == CU_KEY_MIN) == (cs.scale == CR_SCALE_MINOR))
+                if ((k == CU_KEY_MIN) == cr_scale_minor(cs.scale))   /* (the key of the scale's kind) */
                     cu_led(own, CU_LK(k), 1);
                 else if (!cs.leds)
                     cu_led(nd, CU_LK(k), 1);
@@ -7157,7 +8190,8 @@ static void cr_leds(void)
 
 /* ------------------------------------------------------- the view-model --- */
 static const uint8_t CU_TRIAD[CR_Q_COUNT][3] = {     /* intervals of each quality's base (the rest: extensions) */
-    {0, 0, 0}, {0, 3, 6}, {0, 3, 7}, {0, 4, 7}, {0, 5, 7}, {0, 4, 8}, {0, 7, 7}, {0, 3, 5}};
+    {0, 0, 0}, {0, 3, 6}, {0, 3, 7}, {0, 4, 7}, {0, 5, 7}, {0, 4, 8}, {0, 7, 7}, {0, 3, 5},
+    {0, 3, 8}, {0, 5, 9}, {0, 4, 9}, {0, 5, 8}, {0, 4, 7}};   /* (6-Dim's, from the bass: C6/E's C E G; 7b9's X E# G#) */
 
 _Static_assert(sizeof ((cr_name_t *)0)->sup >= CR_SUP_MAX && sizeof ((cr_name_t *)0)->quality >= 5,
                "the screen's name holds the engine's whole (cr_chord_name)");
@@ -7244,8 +8278,17 @@ static void cu_header(cr_screen_t *s)
     if (cs.key_on) {
         cu_cpy(s->mid, "Key: ", sizeof s->mid);
         cu_cat(s->mid, CU_NOTE[cs.tonic], sizeof s->mid);
-        if (cs.scale == CR_SCALE_MINOR)
-            cu_cat(s->mid, " minor", sizeof s->mid);
+        if (cs.scale != CR_SCALE_MAJOR) {         /* " minor", " dorian", " bebop dom" */
+            uint32_t i = 0, j;
+            const char *n = cr_scale_name(cs.scale);
+            cu_cat(s->mid, " ", sizeof s->mid);
+            for (j = 0; s->mid[j]; j++) {}
+            while (n[i] && j < sizeof s->mid - 1u) {
+                s->mid[j++] = (char)(n[i] >= 'A' && n[i] <= 'Z' ? n[i] | 0x20 : n[i]);
+                i++;
+            }
+            s->mid[j] = 0;
+        }
         s->mid_col = CR_COL_YELLOW;
     } else if (cr_safe) {                         /* SAFE MODE: on the top line all session (Options > Safe Mode) */
         cu_cpy(s->mid, "Safe mode", sizeof s->mid);
@@ -7260,8 +8303,14 @@ static void cu_header(cr_screen_t *s)
     } else if (sn->bass_on && cs.bass_mode == CR_BASS_SOLO && cs.single != CR_SINGLE_SPLIT_BASS) {
         cu_cpy(s->right, "Bass Solo", sizeof s->right);
         s->right_col = CR_COL_ORANGE;
-    } else if (sn->perform_on)
-        cu_cpy(s->right, CU_PERF[cs.perf_sel].short_name, sizeof s->right);
+    } else if (sn->perform_on && cu_pf_any()) {   /* (the part shown: the chord's, the bass's while it alone
+                                                         * performs: "Bass Arp" in its colour) */
+        uint32_t part = cu_perf_view_part();
+        cu_cpy(s->right, part ? "Bass " : "", sizeof s->right);
+        cu_cat(s->right, CU_PERF[cu_pf_sel(part)].short_name, sizeof s->right);
+        if (part)
+            s->right_col = CR_COL_ORANGE;
+    }
     else if (sn->bass_on) {
         cu_cpy(s->right, "Bass", sizeof s->right);
         s->right_col = CR_COL_ORANGE;
@@ -7426,17 +8475,15 @@ static void cu_safe_screen(cr_screen_t *s)
 }
 
 /* Options > Flash Data (SAFE MODE, OCT+ twice): erase every data object ChoralRoot keeps (not the firmware, not the
- * update area) and reboot; the boot after it loads nothing (an
- * erased flash: factory sounds, default settings, calibration from RAM or the default). The FM-1's regions (SMK-37:
- * storage.c ST_SMK_REGIONS, the same as a new owner clears): the stores and
- * FM6 bank copy A 0x97000..0x9FFFF (storage.c st_sector: VA store, FM6 stores, the project slots, 0x9F000), the loop
- * slots 0xC8000..0xDBFFF (CRL_FL_BASE), the user sound banks 0xDC000..0xDFFFF, the settings A / B and FM6 bank
- * copy B 0xFC000..0xFEFFF; FELUCCA_CZ: the CZ-1 tone store's second half and the eight CZ-1 banks 0xA0000..0xB1FFF;
- * FELUCCA_QUAD: the QUAD patch store 0xB2000..0xB3FFF, the session 0xB4000..0xB5FFF (0.18) and the favourites
- * 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their slots); UP_POOL: the sound
- * pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out, so the sounds
- * stayed). On a full build that is all of 0x97000..0xDFFFF and 0xFC000..0xFEFFF, 76 sectors; the asserts below
- * tie the list to storage.c's map */
+ * update area) and reboot; the boot after it loads nothing (an erased flash: factory sounds, default settings,
+ * calibration from RAM or the default). The FM-1's regions (SMK-37: storage.c ST_SMK_REGIONS, the same as a new owner
+ * clears, its resource region left out; storage.c's map): FM6 bank copy A 0x9F000, the eight CZ-1 banks
+ * 0xA2000..0xB1FFF, the session 0xB4000..0xB5FFF
+ * (0.18) and the favourites 0xB6000..0xB7FFF (0.22: marks on sounds that are gone would name whatever takes their
+ * slots), the sound pool 0xB8000..0xC7FFF (storage.c sp_*, the user sounds since 0.22: until 0.24-beta2 it was left out,
+ * so the sounds stayed), the loop slots 0xC8000..0xDBFFF (CRL_FL_BASE), the settings A / B and FM6 bank copy B
+ * 0xFC000..0xFEFFF: 60 sectors. The sectors of 0.21's sound objects (0x97000..0x9EFFF, 0xA0000, 0xB2000, 0xDC000) are
+ * no longer ChoralRoot's (HISTORY 3y231): not erased. The asserts below tie the list to storage.c's map */
 #ifndef CR_REBOOT
 #define CR_REBOOT() do { bootguard_settled(&bootguard); usb_detach(); fm1_delay_ms(30); fm1_reboot(); } while (0)
 #endif
@@ -7446,23 +8493,25 @@ static void cu_flash_erase(void)
 #if BOARD_SMK37
 #define R ST_SMK_REGIONS                           /* (SMK-37: storage.c, the same as a new owner clears) */
 #else
-    static const uint32_t R[][2] = {{0x97000u, 9u}, {CRL_FL_BASE, 2u * CRL_SLOTS}, {0xDC000u, 4u}, {0xFC000u, 3u},
-#if FELUCCA_CZ
-                                    {0xA0000u, 18u},   /* (storage.c: OBJ_CZSTORE1, OBJ_CZBANK0..+7) */
-#endif
-#if FELUCCA_QUAD
-                                    {0xB2000u, 6u},    /* (storage.c: OBJ_QUADSTORE, OBJ_SESSION, OBJ_FAVS) */
-#endif
-#if UP_POOL && FELUCCA_FLASH
-                                    {SP_BASE, SP_NSEC},   /* (storage.c sp_*: the sound pool's 16 sectors) */
-#endif
-    };
-#if FELUCCA_CZ && FELUCCA_QUAD && FELUCCA_FLASH
-    _Static_assert(OBJ_COUNT == 20u && OBJ_FAVS + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
-#endif
-#if UP_POOL && FELUCCA_FLASH
-    _Static_assert(SP_BASE == 0xB2000u + 6u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
+    static const uint32_t R[][2] = {{0x9F000u, 1u},      /* (storage.c: OBJ_FM6BANK copy A) */
+                                    {0xA0000u, 2u},      /* (OBJ_BLE: Bluetooth's pairing, 3y236) */
+                                    {0xA2000u, 16u},     /* (OBJ_CZBANK0..+7) */
+                                    {0xB4000u, 4u},      /* (OBJ_SESSION, OBJ_FAVS) */
+                                    {SP_BASE, SP_NSEC},  /* (storage.c sp_*: the sound pool's 16 sectors) */
+                                    {CRL_FL_BASE, 2u * CRL_SLOTS},
+                                    {0xFC000u, 3u}};     /* (OBJ_SETTINGS A / B, OBJ_FM6BANK copy B) */
+#if FELUCCA_FLASH
+    _Static_assert(OBJ_COUNT == 21u && OBJ_BLE + 1u == OBJ_COUNT, "Flash Data: a new storage object needs a place here");
+    _Static_assert(SP_BASE == 0xB4000u + 4u * ST_SECTOR && SP_BASE + SP_NSEC * ST_SECTOR == CRL_FL_BASE,
                    "Flash Data: the pool lies between the favourites and the loop slots");
+#ifdef FL_RES_HI                                    /* (the device's flash map: hal/fm1_flash_map.h) */
+    _Static_assert(FL_RES_HI <= 0x9F000u, "Flash Data: the resource region (cr_res.h) below everything it erases");
+#endif
+#ifdef FL_RES2_LO                                   /* (the FM-1's second region, 3y296: between the loop slots and the
+                                                     * settings, none of it erased) */
+    _Static_assert(CRL_FL_BASE + 2u * CRL_SLOTS * ST_SECTOR <= FL_RES2_LO && FL_RES2_HI <= 0xFC000u,
+                   "Flash Data: the second resource region lies outside everything it erases");
+#endif
 #endif
 #endif
     cr_screen_t *es = &cu_scr;                     /* (the frame's screen, in the pool: off the stack and out of
@@ -7555,13 +8604,13 @@ static void cu_perf_cells(cr_screen_t *s)
 {
     static const uint8_t ARROW[6] = {0, 96, 160, 160, 0, 255};
     static const char *const DIR[6] = {"Up", "Down", "Up-down", "Down-up", "Played", "Random"};
-    uint32_t m = cu_perf_mode(), k;
-    for (k = 0; k < 4u; k++) {
+    uint32_t part = cu.perf_part, m = cu_perf_mode(part), k;
+    for (k = 0; k < 4u && !cu_pf_off(part); k++) {   /* (Off: an empty row) */
         cr_cell_t *c = &s->cell[0][k];
         int32_t p = CU_PERF_KNOB[m][k], v;
         if (p < 0)
             continue;
-        v = cs.par[m][p];
+        v = cu_pf_par(part)[m][p];
         c->flags = CR_CF_ON;
         cu_cpy(c->label, CU_PAR[p].name, sizeof c->label);
         c->label[0] = (char)(c->label[0] - 'a' + 'A');
@@ -7682,7 +8731,9 @@ static void cu_key_cells(cr_screen_t *s)
         cu_cpy(s->cell[0][k].label, LB[k], sizeof s->cell[0][k].label);
     }
     cu_cpy(s->cell[0][0].value, cs.key_on ? CU_NOTE[cs.tonic % 12u] : "-", sizeof s->cell[0][0].value);
-    cu_cpy(s->cell[0][1].value, cs.scale ? "Minor" : "Major", sizeof s->cell[0][1].value);
+    cu_cpy(s->cell[0][1].value, cs.scale == CR_SCALE_MIXOLYDIAN ? "Mixo-lydian" : cr_scale_name(cs.scale),
+           sizeof s->cell[0][1].value);           /* (a long name on two lines: CR_CF_WRAP; Mixolydian's break) */
+    s->cell[0][1].flags |= CR_CF_WRAP;
     cu_int(s->cell[0][2].value, cs.transpose, 1, sizeof s->cell[0][2].value);
     s->cell[0][2].glyph = CR_G_SHIFT;
     s->cell[0][2].pct = (uint8_t)((uint32_t)(cs.transpose + 24) * 255u / 48u);
@@ -7704,7 +8755,8 @@ static void cu_loop_cells(cr_screen_t *s)
         s->cell[0][0].glyph = CR_G_BAR;
         s->cell[0][0].pct = (uint8_t)(cs.loop_level * 255u / 100u);
         s->cell[0][1].flags = CR_CF_ON;            /* the click, as Count-in on page 1 */
-        cu_cpy(s->cell[0][1].label, "Metronome", sizeof s->cell[0][1].label);
+        cu_cpy(s->cell[0][1].label, "Beat", sizeof s->cell[0][1].label);   /* (the click or the drums: the SEQ layer's
+                                                    * preset; "Metronome" until the drums) */
         cu_cpy(s->cell[0][1].value, cs.metro ? "On" : "Off", sizeof s->cell[0][1].value);
         s->cell[0][1].glyph = CR_G_GATE;
         s->cell[0][1].pct = cs.metro ? 255 : 26;
@@ -7881,7 +8933,7 @@ static void cu_loopmenu(cr_screen_t *s, uint32_t now)
          * playback, I would like this to always show chord/notes of the selected step"), but while a root key is DOWN:
          * then the chord the player plays into it (his own, never a loop voice's: until then ci, the engine's "most
          * recent voice", which is the loop's whenever the loop strikes and a latched chord's whenever it does not) */
-        if ((cu.kheld >> cu_root0()) && sn->pl_on) {
+        if (((cu.kheld >> cu_root0()) || cmr.n) && sn->pl_on) {
             cr_chord_name(sn->pl_pc, sn->pl_q, sn->pl_x, r, q, sup);
             cu_cpy(s->sub, r, sizeof s->sub);
             cu_cat(s->sub, q, sizeof s->sub);
@@ -8225,8 +9277,10 @@ static void cu_hm_view_step(int32_t s)
 
 static void cu_layer_screen(cr_screen_t *s, uint32_t l)
 {
-    static const char *const PERF_ITEMS[7] = {"Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
-                                              "Pattern", "Harp"};
+    static const char *const PERF_ITEMS[8] = {"Off", "Strum", "Strum 2 Octaves", "Slop", "Arpeggiate", "Arp 2 Octaves",
+                                              "Pattern", "Harp"};   /* (CU_PERF's after Off) */
+    static const char *const BPERF_ITEMS[9] = {"Off", "Follow", "Strum", "Strum 2 Octaves", "Slop", "Arpeggiate",
+                                               "Arp 2 Octaves", "Pattern", "Harp"};   /* (the bass's: Follow second) */
     static const char *const FX_ITEMS[CU_NFX + 3u] = {"Sends", "Reverb", "Chorus", "Delay", "Drive", "Filter",
                                                       "Routing"};
     const char *eng[NENGINES];
@@ -8256,11 +9310,18 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_PERF: {
         static char seen[48];
-        cu_picker(s, PERF_ITEMS, 7, cs.perf_sel, CR_COL_WHITE, cs.perform_on ? "perform \267 on" : "perform \267 off",
-                  "SELECT: mode \267 ARP: on/off \267 OCT-: back");
+        uint32_t part = cu.perf_part;
+        if (part)                                  /* the Bass PERF layer: the bass's colour and name */
+            cu_picker(s, BPERF_ITEMS, 9, cu_pf_item(part), CR_COL_ORANGE,
+                      cs.bfollow && !cu_pf_off(part) ? "bass perform \267 follows chord" :
+                      cs.perform_on ? "bass perform \267 on" : "bass perform \267 off",
+                      "SELECT: mode \267 ARP: on/off \267 OCT-: back");
+        else
+            cu_picker(s, PERF_ITEMS, 8, cu_pf_item(part), CR_COL_WHITE,
+                      cs.perform_on ? "perform \267 on" : "perform \267 off", "SELECT: mode \267 ARP: on/off \267 OCT-: back");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
-        if (cu_arp_layer(cu_now())) {              /* notes are being stepped and the picker's 2 s are over: the
+        if (cr_snap.perf_part == part && cu_arp_layer(cu_now())) {              /* notes are being stepped and the picker's 2 s are over: the
                                                     * band is the arp (the chord's name, the hopping note); the mode's
                                                     * name moves into the label; the knob row as it is */
             const cr_snap_t *sn = &cr_snap;
@@ -8268,8 +9329,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
             cu_name(&s->name, &sn->ci);
             cu_notes(s, &sn->ci);
             s->pos = (int8_t)(sn->perf_step && sn->perf_pos >= 0 && sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
-            s->hop_col = CR_COL_WHITE;
-            cu_cpy(s->label, PERF_ITEMS[cs.perf_sel % 7u], sizeof s->label);
+            s->hop_col = part ? CR_COL_ORANGE : CR_COL_WHITE;
+            cu_cpy(s->label, part ? "bass " : "", sizeof s->label);
+            cu_cat(s->label, part ? BPERF_ITEMS[cu_pf_item(part) % 9u] : PERF_ITEMS[cu_pf_item(part) % 8u], sizeof s->label);
             cu_cat(s->label, " \267 on", sizeof s->label);
         }
         cu_perf_cells(s);
@@ -8333,7 +9395,8 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
     case L_BASS: {
         static char seen[48];
-        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, "bass", "a root: preview \267 OCT-: back \267 HOME");
+        cu_picker(s, CU_BASSMODE, 4, cs.bass_mode, CR_COL_ORANGE, cs.bass_keys ? "bass \267 keys pick" : "bass \267 keys play",
+                  cs.bass_keys ? "GLO: play \267 OCT-: back \267 HOME" : "GLO: pick \267 OCT-: back \267 HOME");
         s->kind = CR_K_KNOBROW;
         s->orient = 1;
         cu_bass_cells(s);
@@ -8355,27 +9418,9 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     case L_LOOP:                                   /* the PLAY menu (no ring: a loop running shows the dial) */
         cu_loopmenu(s, cu_now());
         break;
-    case L_METRO: {                                /* layers sheet 7: the time signature over Click (KNOB 1) */
-        static char seen[48];
-        cu_picker(s, CU_SIG, CRL_NSIG, cs.metro_sig, CR_COL_WHITE, "metronome", "OCT-: back \267 HOME: home");
-        s->kind = CR_K_KNOBROW;
-        s->orient = 1;
-        s->cell[0][0].flags = CR_CF_ON;
-        cu_cpy(s->cell[0][0].label, "Click", sizeof s->cell[0][0].label);
-        cu_int(s->cell[0][0].value, cs.metro_vol, 0, sizeof s->cell[0][0].value);
-        s->cell[0][0].glyph = CR_G_BAR;
-        s->cell[0][0].pct = (uint8_t)(cs.metro_vol * 255u / 100u);
-        if (cu_fm1()) {                            /* FM-1: LOCK's settings beside the click (LFO held: Harmony mode) */
-            s->cell[0][1].flags = s->cell[0][2].flags = CR_CF_ON;
-            cu_cpy(s->cell[0][1].label, "Lock type", sizeof s->cell[0][1].label);
-            cu_cpy(s->cell[0][1].value, cs.lock_keep ? "Keeps" : "Clears", sizeof s->cell[0][1].value);
-            cu_cpy(s->cell[0][2].label, "Lock ext", sizeof s->cell[0][2].label);
-            cu_cpy(s->cell[0][2].value, cs.lock_push ? "Pushed" : "Toggle", sizeof s->cell[0][2].value);
-        }
-        cu_hot_row(s, L_METRO);
-        cu_row_trace(s, "metro", seen, sizeof seen);
+    case L_METRO:                                  /* the SEQ layer: the beat's preset, the drums' pages */
+        cu_drum_screen(s);
         break;
-    }
     case L_HARM: {                                 /* Harmony mode: the chord you are on (the map's centre), its
                                                     * numeral against home above it, home on the top line */
         cr_chord_info_t ci = cu_hm.cur;
@@ -8402,6 +9447,41 @@ static void cu_layer_screen(cr_screen_t *s, uint32_t l)
     }
 }
 
+/* the picker's items (3y290): the group list (each group's entries counted under it; Reset Settings, its last item,
+ * shows as the entry it is), or the group's entries listed (cu_opt_vis). 1: the group list on a group (done) */
+static __attribute__((noinline)) int cu_options_list(cr_screen_t *s)
+{
+    const char *it[O_N];
+    char t[32];
+    uint32_t i, n = 0, at = 0;
+    if (!cu.opt_in) {
+        for (i = 0; i <= CU_G_RESET; i++)
+            if (cu_g_vis(i)) {
+                if (i == cu.opt_g)
+                    at = n;
+                it[n++] = CU_G_NAME[i];
+            }
+        cu_picker(s, it, n, at, CR_COL_WHITE, "settings \267 OCT+ opens", "SELECT: group \267 OCT+: open \267 OCT-: back");
+        if (cu.opt_g == CU_G_RESET)
+            return 0;
+        for (i = cu_g_at(cu.opt_g), n = 0; O_ORD[i] != CU_G_END; i++)
+            n += (uint32_t)cu_opt_vis(O_ORD[i]);
+        cu_int(s->value, (int32_t)n, 0, sizeof s->value);
+        cu_cat(s->value, " settings", sizeof s->value);
+        return 1;
+    }
+    for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+        if (cu_opt_vis(O_ORD[i])) {
+            if (O_ORD[i] == cu.opt_sel)
+                at = n;
+            it[n++] = O_NAME[O_ORD[i]];
+        }
+    cu_cpy(t, CU_G_NAME[cu.opt_g], sizeof t);
+    cu_cat(t, " \267 KNOB 1 sets", sizeof t);
+    cu_picker(s, it, n, at, CR_COL_WHITE, t, "SELECT: move \267 OCT-: groups \267 HOME");
+    return 0;
+}
+
 static void cu_options_screen(cr_screen_t *s)
 {
     s->batt = (uint8_t)cu_batt();                  /* the one page with the battery level */
@@ -8409,17 +9489,12 @@ static void cu_options_screen(cr_screen_t *s)
         cu_erase_ask = 0;                          /* (left the entry: the confirmation starts again) */
     if (cu.opt_sel != O_RESET)
         cu_reset_ask = 0;
-    {                                              /* the entries listed (cu_opt_vis), the selected one's place */
-        const char *it[O_N];
-        uint32_t o, n = 0, at = 0;
-        for (o = 0; o < cu_opt_n(); o++)
-            if (cu_opt_vis(o)) {
-                if (o == cu.opt_sel)
-                    at = n;
-                it[n++] = O_NAME[o];
-            }
-        cu_picker(s, it, n, at, CR_COL_WHITE, "options \267 KNOB 1 sets", "SELECT: move \267 OCT-: back \267 HOME");
-    }
+#if CR_BLE
+    if (cu.opt_sel != O_BLE_FORGET)
+        cu_ble_ask = 0;
+#endif
+    if (cu_options_list(s))
+        return;
     opt_text(cu.opt_sel, s->value, sizeof s->value);
     if (cu.opt_sel == O_SAFE)                      /* "Safe mode: flash data skipped \267 OCT- OCT+ HOME 5 s: update" (0.18) */
         cu_cpy(s->label, "OCT- OCT+ HOME 5 s: update", sizeof s->label);
@@ -8441,9 +9516,39 @@ static void cu_options_screen(cr_screen_t *s)
     else if (cu.opt_sel == O_FULLSHORT)
         cu_cpy(s->label, "Full: F#5 chord keys \267 G5 chords", sizeof s->label);
     else if (cu.opt_sel == O_MIDI_KEYS)
-        cu_cpy(s->label, "notes 53..79 press F3..G5", sizeof s->label);
+        cu_cpy(s->label, "53..79 F3..G5 \267 36..44 pads", sizeof s->label);
+    else if (cu.opt_sel == O_MIDI_ROOTS)
+        cu_cpy(s->label, "every note a root", sizeof s->label);
+    else if (cu.opt_sel == O_MIDI_CC)              /* (docs/MANUAL.md section 15: the CCs on the sounds' parameters) */
+        cu_cpy(s->label, cs.midi_cc ? "the sounds' parameters" : "CC 7 91 93 94 only", sizeof s->label);
     else if (cu.opt_sel == O_SIXTH)                /* (docs/CHORD-NAMES.md "The 6th above a seventh": C7 + 6 and the like) */
         cu_cpy(s->label, cs.sixth_up ? "6 + 7: the 6th on top, a 13th" : "6 + 7: the 6th under the 7th", sizeof s->label);
+#if BOARD_SMK37
+    else if (cu.opt_sel == O_PEDAL)                /* (SMK37.md "The pedal jack") */
+        cu_cpy(s->label, cs.smk_pedal ? "the jack: CC 11, both parts" : "the jack: CC 64, both parts", sizeof s->label);
+    else if (cu.opt_sel == O_TRS)                  /* (SMK37.md "The TRS jack") */
+        cu_cpy(s->label, smk_ut_off ? "the jack sends nothing new" : "the jack: what USB MIDI sends", sizeof s->label);
+#endif
+#if CR_BLE
+    else if (cu.opt_sel == O_BLE)                  /* (cr_ble.c: the name to pick on the computer, the link's state) */
+        cr_ble_status(s->label, sizeof s->label);
+    else if (cu.opt_sel == O_BLE_FORGET)
+        cu_cpy(s->label, cu_ble_ask ? "the bond goes" : "OCT+ twice: forget the pairing", sizeof s->label);
+#endif
+#if CR_USB_HOST
+    else if (cu.opt_sel == O_USB_HOST) {           /* (usb_host.c: off, a device and its events in, or what the
+                                                    * search saw: uh.dg's letters, read out on a bench) */
+        if (!uh.on)
+            cu_cpy(s->label, "a MIDI device on USB-C", sizeof s->label);
+        else if (uh.run) {
+            cu_cpy(s->label, "connected, in ", sizeof s->label);
+            cu_int(s->label + 14, (int32_t)(uh.events % 1000000u), 0, sizeof s->label - 14u);
+        } else {
+            cu_cpy(s->label, "looking ", sizeof s->label);
+            cu_cat(s->label, uh.dg, sizeof s->label);
+        }
+    }
+#endif
     else if (cu.opt_sel == O_NAMES)                /* (docs/CHORD-NAMES.md: the same notes under either name) */
         cu_cpy(s->label, cs.names_std ? "A9 \267 Aadd9 \267 A9sus4" : "A7 9 \267 A9 \267 Asus m7 9", sizeof s->label);
     else if (cu.opt_sel == O_VERSION) {            /* the unit's ID under the version (3y66: several FM-1s on one
@@ -8498,7 +9603,7 @@ static void cu_save_screen(cr_screen_t *s, uint32_t now)
         s->kind = CR_K_BIG;
         cu_2d(s->value, cu_part_pos(part), sizeof s->value);
         if (ce.del_ask == 2u && psnd[part].kind == PK_USER && cb_bound(psnd[part].slot) != PF_NONE)
-            cu_cpy(s->sub, ENGINES[e]->presets[cb_bound(psnd[part].slot)].name, sizeof s->sub);
+            cu_cpy(s->sub, eng_preset(ENGINES[e], cb_bound(psnd[part].slot))->name, sizeof s->sub);
         else
             cu_cpy(s->sub, psnd[part].name, sizeof s->sub);
         cu_cpy(s->label, ce.del_ask == 2u ? "reset to factory?" : "delete?", sizeof s->label);
@@ -8735,18 +9840,19 @@ static void cu_view_screen(cr_screen_t *s, uint32_t now)
     const cr_snap_t *sn = &cr_snap;
     const cr_chord_info_t *ci = &sn->ci;
     if (cu_arp_on(now)) {
-        uint32_t pm = sn->perform_mode;
+        uint32_t pm = sn->perform_mode, part = sn->perf_part;
         char v[8], sub[12];
-        int32_t p = CU_PERF_KNOB[pm][0];
+        int32_t p = CU_PERF_MAIN[pm];
         s->kind = CR_K_ARP;                        /* the arp in motion: the sounding note hops along */
         cu_name(&s->name, ci);
         cu_notes(s, ci);
         cu_numeral_put(s);
         s->pos = (int8_t)(sn->perf_step && sn->perf_pos >= 0 && sn->perf_pos < (int)s->n_notes ? sn->perf_pos : -1);
-        s->hop_col = CR_COL_WHITE;
-        cu_param_text((uint32_t)p, cs.par[pm][p], v, sub);
-        cu_cpy(s->line, CU_PERF[cs.perf_sel].short_name, sizeof s->line);
-        s->line[0] = (char)(s->line[0] | 0x20);
+        s->hop_col = part ? CR_COL_ORANGE : CR_COL_WHITE;   /* (the bass's arp: its colour) */
+        cu_param_text((uint32_t)p, cu_pf_par(part)[pm][p], v, sub);
+        cu_cpy(s->line, part ? "bass " : "", sizeof s->line);
+        cu_cat(s->line, CU_PERF[cu_pf_sel(part)].short_name, sizeof s->line);
+        s->line[part ? 5 : 0] = (char)(s->line[part ? 5 : 0] | 0x20);
         cu_cat(s->line, " ", sizeof s->line);
         cu_cat(s->line, p == CR_P_DIV || p == CR_P_PATTERN ? sub : v, sizeof s->line);
         s->line_col = CR_COL_MID;
@@ -8917,7 +10023,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_calib_screen(s);
         return;
     }
-    if (sn->ci.sounding || (cu.kheld >> cu_root0()))
+    if (sn->ci.sounding || (cu.kheld >> cu_root0()) || cmr.n)
         cu.last_sound = now;
     if (cr_safe && now - cu_boot_ms < CR_SAFE_MS && !cu.bheld && !cu.kheld) {   /* 0. SAFE MODE, after the boot */
         cu_safe_screen(s);
@@ -9021,6 +10127,9 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
         cu_options_screen(s);
         return;
     }
+#if CR_BLE
+    cu_ble_ask = 0;
+#endif
     cu_erase_ask = cu_reset_ask = 0;               /* (the Options left with an "OCT+ again" pending: it starts again;
                                                     * until 2026-10-12 Flash Data's stayed armed behind a closed menu) */
     /* 6. the stripes: nothing touched since power-on (the splash stays; a PANIC's cleared chord no longer brings
@@ -9035,6 +10144,7 @@ static void cr_build_screen(cr_screen_t *s, uint32_t now)
     /* 5. the View */
     cu_view_screen(s, now);
     cu_dial(s, now);
+    cu_beat_chip(s, now);                          /* (the beat on: its blocks, the drums' roundel) */
 }
 
 /* the animations' clock: restarted when what animates changed (cr_anim.c, cr_draw.c CR_A_*) */
@@ -9255,7 +10365,16 @@ static void cu_midi_poll(void)
         cu_trace("bpm: %u (clock in)\n", (unsigned)cs.bpm);
     }
     while (cr_min_take(&a)) {
-        uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i;
+        uint32_t p = a.part ? CR_PART_BASS : CR_PART_CHORD, i, ch = cu_cc_ch(a.part ? 1u : 0u), v;
+        if (a.kind & CRM_CC) {                    /* a CC on a sound's parameter: its latest value (cr_out.c cr_cc_take) */
+            if (cr_cc_take(a.part ? 1u : 0u, a.kind & 0x7Fu, &v))
+                ce_cc_in(a.part ? 1u : 0u, a.kind & 0x7Fu, v);
+            continue;
+        }
+        if (a.kind != CRM_PROGRAM && ch &&        /* CC 7 91 93 94: our own echo (MIDI CC Out) changes nothing */
+            crm_echo_hit(&cu_echo, ch - 1u, a.kind == CRM_LEVEL ? 7u : a.kind == CRM_SEND_REV ? 91u
+                         : a.kind == CRM_SEND_CHO ? 93u : 94u, a.v, cu_now()))
+            continue;
         if (a.kind == CRM_PROGRAM) {
             if (!p) {                             /* the chord part's pool position (0 INIT) */
                 if (a.v >= pool_count(trk[CR_PART_CHORD].eng_req % NENGINES))
@@ -9275,7 +10394,7 @@ static void cu_midi_poll(void)
             fm1_irq_off();
             trk[p].p[P_LEVEL] = (int16_t)a.v;
             fm1_irq_on();
-            cu_popup_num(a.v, 0, "", p ? "bass level" : "level", p ? CR_COL_ORANGE : CR_COL_WHITE, 0, 127, 12);
+            /* (no popup: incoming CCs change values quietly, owner 2026-11-08) */
             cu_trace("level: part %u %u (cc 7)\n", (unsigned)p, (unsigned)a.v);
         } else {
             uint32_t id = a.kind == CRM_SEND_REV ? P_REV : a.kind == CRM_SEND_CHO ? P_CHOR : P_DLY;
@@ -9283,9 +10402,16 @@ static void cu_midi_poll(void)
                 if (CU_FX[i].send == id)
                     break;
             cu_send_set(a.part ? 1u : 0u, id, a.v);   /* (part 0's sends are the FX amounts: cu_send_set) */
-            cu_send_popup(a.v, i < CU_NFX ? CU_FX[i].name : "send", p ? CR_COL_ORANGE : CR_COL_GREEN);
             cu_trace("send: part %u %s %u (cc)\n", (unsigned)p, i < CU_NFX ? CU_FX[i].name : "?", (unsigned)a.v);
         }
+    }
+    if (cr_cc_sweep) {                            /* (the queue was full: every pending value, part by part) */
+        uint32_t p, cc, v;
+        cr_cc_sweep = 0;
+        for (p = 0; p < 2u; p++)
+            for (cc = 0; cc < 128u; cc++)
+                if (crm_cc_eng(cc) && cr_cc_take(p, cc, &v))
+                    ce_cc_in(p, cc, v);
     }
 }
 
@@ -9396,7 +10522,7 @@ static uint32_t cu_pool_find(uint32_t e, const char *name)
     const engine_t *en = ENGINES[e % NENGINES];
     uint32_t k;
     for (k = pool_f0(e); k < en->npresets; k++)
-        if (cu_eq(en->presets[k].name, name))
+        if (cu_eq(eng_preset(en, k)->name, name))
             return pool_pos_factory(e, k);
     return 1u;
 }
@@ -9437,8 +10563,11 @@ static void cr_ui_init(void)
     cs.vel = 100;
     cs.suswin = 30;                               /* (the settings' default, before a record is read) */
     for (m = 0; m < CR_PM_COUNT; m++)
-        for (p = 0; p < CR_P_COUNT; p++)
+        for (p = 0; p < CR_P_COUNT; p++) {
             cs.par[m][p] = (int16_t)cr_get_param(&cr, (cr_pmode_t)m, (cr_eparam_t)p);
+            cs.bpar[m][p] = (int16_t)cr_get_param_ex(&cr, CR_PF_BASS, (cr_pmode_t)m, (cr_eparam_t)p);
+        }
+    cs.perf_off = (uint8_t)(1u << CU_PF_BASS);    /* (the engine's perf_parts: the chord performs, the bass not) */
     for (k = 0; k < 7u; k++)
         if (CU_PERF[k].mode == cr.perform_mode) {
             cs.perf_sel = (uint8_t)k;
@@ -9479,6 +10608,7 @@ static void cr_ui_init(void)
     cs.loop_level = 100;
     cs.loop_rate = CRL_RATE_1;
     cs.metro_vol = 70;
+    cu_drum_defaults();                           /* (the session's drum block: cr_settings.c css_drum_put) */
     cs.dualcore = 1;                              /* Options > Dual Core On (the record's: cr_settings_load) */
     cs.out_clean = 1;                             /* Options > Output Clean (the record's) */
     cs.usb48 = 0;                                 /* Options > USB Rate 44.1 kHz (the record's) */
@@ -9489,6 +10619,7 @@ static void cr_ui_init(void)
     fx_output_set(1, 1);                          /* (a build without the record: nothing else tells fx.c) */
 #endif
     cs.usb_in = 1;                                /* (the record's, cr_settings_load; usb.c got it at boot) */
+    cs.midi_cc = 1;                               /* Options > MIDI CC In (the record's) */
     cu_route();
     cu_set_tempo(cr.bpm ? cr.bpm : 120);
 #if CR_HAVE_SETTINGS
@@ -9501,9 +10632,6 @@ static void cr_ui_init(void)
     if ((cs.loop_used >> cs.loop_slot) & 1u)
         cu_loop_load(cs.loop_slot, 1);            /* (a load only: nothing in RAM to keep yet) */
     cu.msg.until = 0;
-#if FELUCCA_SEQ
-    song.grid = 2;                                /* seq.c's keyboard never plays (keyboard_block: every key silent) */
-#endif
     if (cr_safe)
         cu.opt_sel = O_SAFE;                      /* Options opens on Safe Mode (then Flash Data) */
     cu_boot_ms = cu_now();                        /* the splash: the idle stripes' first CR_SPLASH_MS */

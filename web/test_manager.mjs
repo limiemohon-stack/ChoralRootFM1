@@ -26,7 +26,7 @@ import {
   managerKeep, keepLoop, readLoopFile, placeLoop, deleteLoop, swapLoops, ManagerSession, makeSimFM1, simObjects, makeLoopRecord,
   libraryItemsFromFile, libraryItemsFromDnsnd, SIM_POOL_IDS, LibraryStore, loadPackIndex, loadPack, auditionMessages, noteMessage, midiText, writeErrorText, UNDO_DEPTH, retiredNote,
   managerPorts, MANAGER_PORT_RE, pickUnit, favUserSlots, favsClearSlots, replacedRows, replacedOf, managerRestorePresets, managerDeleteAll, managerDeleteRows,
-  restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch,
+  restorePresetsText, deleteAllText, managerEngines, favMarks, favOf, favKeyOf, keepable, P5_NO_PACK, simP5Patch, managerNotesSummary,
 } from "./fm1manager.js";
 
 let failed = 0;
@@ -336,8 +336,9 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
     const d = new Uint8Array(302); d.set([0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 1], 0);
     for (let i = 0; i < name.length; i++) d[12 + i] = name.charCodeAt(i);
     const lit = [0xF0]; let r = d.length - 15; while (r >= 255) { lit.push(255); r -= 255; } lit.push(r);   // (one LZ4 sequence of literals)
-    const hdr = new Uint8Array(0x23); hdr.set([0xac, 0x11, 0xd3, 0x03], 0); hdr.set([0x30, 0x30, 0x39, 0x37], 9); hdr.set(le(2, 302), 0x1c);
-    const tr = Uint8Array.from([0, 0, 1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]);
+    const n = lit.length + d.length, hdr = new Uint8Array(0x23);   // the header: the body's length u32be at 0x19, packed, the block's size
+    hdr.set([0xac, 0x11, 0xd3, 0x03, 2, 0, 5, 0, 9, 0x30, 0x30, 0x39, 0x37, 0, 0, 0, 3], 0); hdr.set([0, 0, 1, 0x2e, 1, 12, n >>> 24, n >>> 16 & 255, n >>> 8 & 255, n & 255], 0x19);
+    const tr = Uint8Array.from([0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]);
     const pl = Uint8Array.from([...hdr, ...lit, ...d, ...tr]);
     const man = { FormatVersion: 1, ProductType: ["24", "30"], Payload: "SND", FileType: "Sound", FirmwareVersion: "1.42A", MetaInfo: { Tags: ["test"] } };
     return zip([["manifest.json", new TextEncoder().encode(JSON.stringify(man))], ["SND", pl]]);
@@ -374,6 +375,43 @@ ok(site.includes('"manager.html"') && site.includes("fm1manager.js") && site.inc
      `pool: Place all 127 into ${nfree} free slots -> ${nfree} placed, ${all.skipped} did not fit, read back the same`);
   let full = null; try { managerPlace(rb, lib[0].file, null); } catch (e) { full = e; }
   ok(full && /All 128 user slots/.test(full.message), "pool: 128 used -> Place refused, \"All 128 user slots\"");
+  // the FM TONE version gate (3y211): a Digitone import is version 6 (its SENDS at least); onto a ChoralRoot 0.28 or older
+  // (quad_blob_ok refuses version 6: INIT) it is written as version 5 with the notes, onto 0.29 as it is
+  {
+    const o0 = simObjects(30, true), item = lib[0].file, html = readFileSync(join(HERE, "manager.html"), "utf8");
+    const patchAt = (objs, n) => objs.get(50 + Math.floor((n - 1) / 10)).subarray(((n - 1) % 10) * 384 + 196, ((n - 1) % 10) * 384 + 196 + 96);
+    const old = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.28" }), now = managerPlace(o0, item, null, { firmware: "ChoralRoot 0.29" });
+    const none = managerPlace(o0, item, null);
+    ok(patchAt(old.objs, old.slot)[1] === 5 && old.notes.length === 1 && /the sound's own sends: .*0\.28 or older/.test(old.notes[0]) &&
+       patchAt(now.objs, now.slot)[1] === 6 && !now.notes.length && patchAt(none.objs, none.slot)[1] === 6,
+       "gate: Place onto 0.28 -> FM TONE version 5 and a note; onto 0.29 (or no version given) -> version 6");
+    {   // the status line: one summary, counted per kind, however many sounds (the whole list stays in the console)
+      const n = [], N = 128;
+      for (let i = 0; i < N; i++) {
+        n.push(`S${i}: the sound's own sends: the part's stay: this firmware has none (ChoralRoot 0.28 or older)`);
+        if (i < 61) n.push(`S${i}: DRIVE before the filter (ROUTE PRE): driven after it: this firmware has none (ChoralRoot 0.28 or older)`);
+        if (i < 2) n.push(`S${i}: filter COMB+: this firmware has none, LP12 instead`);
+      }
+      const t = managerNotesSummary(n, "ChoralRoot 0.28"), one = managerNotesSummary(old.notes, "ChoralRoot 0.28 1-core", false);
+      ok(t.length < 260 && /runs ChoralRoot 0\.28/.test(t) && /own sends \(128\)/.test(t) && /DRIVE before the filter \(61\)/.test(t) &&
+         /new filter types \(2\)/.test(t) && /Install 0\.29 or later/.test(t) && !/S5/.test(t) &&
+         /it was written without .*own sends/.test(one) && managerNotesSummary([], "x") === "" &&
+         /other changes \(1\)\..*the newest ChoralRoot/.test(managerNotesSummary(["X: an LFO dest: none"], "ChoralRoot 0.21")),
+         "status line: 128 sounds' notes -> one summary line, counted per kind (" + t.length + " chars)");
+    }
+    const pa = managerPlaceAll(o0, [item, lib[1].file], { firmware: "ChoralRoot 0.22 (simulated)" });
+    const rf = managerReplaceFactory(o0, 15, [item], 1, { firmware: "ChoralRoot 0.27 1-core" });
+    ok(pa.placed === 2 && pa.notes.length === 2 && /^DN 000: the sound's own sends/.test(pa.notes[0]) && rf.notes.length === 1 && rf.replaced === 1,
+       "gate: Place all and Replace factory onto 0.22 / 0.27 1-core: version 5, a note each with the sound's name");
+    const simG = makeSimFM1(o0, { version: "ChoralRoot 0.22", ids: SIM_POOL_IDS }), sg = new ManagerSession(simG.request); await sg.read();
+    const info = await deviceInfo(simG.request), w = managerPlace(sg.objs, item, null, { firmware: info.version }); await sg.apply(w);
+    const back = new ManagerSession(simG.request); await back.read();
+    ok(patchAt(back.objs, w.slot)[1] === 5 && w.notes.length === 1, "gate: the 0.22 simulator (?sim=pool): written and read back as version 5");
+    ok(["managerPlace(session.objs, r.file, t, keepOpts())", "managerReplaceFactory(session.objs, ui.tab, files, from, keepOpts())"].every((x) => html.includes(x)) &&
+       html.split("managerPlaceAll(session.objs, items.map((it) => it.file), keepOpts())").length === 3 && html.includes("const keepOpts = () => ({ firmware,") &&
+       html.includes('SIM_FW || (pool ? "0.22" : "0.15")') && html.includes(".dn2pst,.dn2snd"),
+       "page: every Place passes the FM-1's firmware (the gate); ?fw= sets the simulator's; the picker takes .dn2pst / .dn2snd");
+  }
   // Replace factory (DN-3): an FM-1 with its 128 slots free, FM TONE's 16 factory presets replaced in pool order
   {
     let o0 = simObjects(30, true);

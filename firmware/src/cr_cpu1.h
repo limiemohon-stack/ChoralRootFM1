@@ -109,6 +109,12 @@ typedef struct {
     /* core 1's busy time (c1_busy_cur: its voices' job and the reverb's) over the window the stages use, and the last
      * full second's average and largest half in us: GEEK OUT 2's CORE 1 (cr_ui.c cu_geek2) */
     uint32_t c1w_sum, c1w_max, c1_avg_us, c1_max_us;
+#ifndef FM1_HAVE_CPU1
+    /* the host (tools/emu/perf.sh, EMU_STAGES=1): each core's busy time a half since power-on, as pk_c0_busy /
+     * pk_c1_busy count it (the emulator runs core 1's jobs inline: these split its block into the two cores' shares) */
+    uint64_t c0_tot_sum, c1_tot_sum;
+    uint32_t c0_tot_max, c1_tot_max;
+#endif
 } cr_dbg_t;
 static cr_dbg_t cr_dbg;
 /* Options > Dual Core Off (settings v12; On is the default of a unit with no record since 0.22, Off was from 0.16;
@@ -147,9 +153,11 @@ static uint8_t cr_c1_injected;       /* test builds: 75 CORE1_TEST injected a fa
 static void cr_rails_record(void)                   /* the boot loader's levels (P33 reads only) */
 {
     fm1_power_record();
-    cr_dbg.rail_boot[0] = cr_dbg.rail_now[0] = fm1_power.boot[FM1_RAIL_SYSVDD];   /* (now = boot until a raise:
-                                                                                    * Dual Core Off read 0 before) */
-    cr_dbg.rail_boot[1] = cr_dbg.rail_now[1] = fm1_power.boot[FM1_RAIL_VDC14];
+    cr_dbg.rail_boot[0] = fm1_power.boot[FM1_RAIL_SYSVDD];   /* (now = boot until a raise: Dual Core Off read 0 before;
+                                                             * a radio boot's stock supplies already in now, 3y240) */
+    cr_dbg.rail_now[0] = fm1_power.now[FM1_RAIL_SYSVDD];
+    cr_dbg.rail_boot[1] = fm1_power.boot[FM1_RAIL_VDC14];
+    cr_dbg.rail_now[1] = fm1_power.now[FM1_RAIL_VDC14];
 }
 static void cr_rails_now(void)
 {
@@ -157,9 +165,18 @@ static void cr_rails_now(void)
     cr_dbg.rail_now[1] = fm1_power.now[FM1_RAIL_VDC14];
 }
 static void cr_rails_init(void) { fm1_power_init(); cr_rails_now(); }       /* IRQs off: power-on */
+static int cr_rails_stock(void)                    /* a radio boot (cr_ble.c): stock's supplies, fm1_power.h */
+{
+    int ok;
+    cr_rails_record();
+    ok = fm1_power_stock();
+    cr_rails_now();
+    return ok;
+}
 #define CR_C1_TEST_NOSPLIT 0
 #define CR_C1_TEST_SHARE 0
 #define CR_C1_TEST_FX0 0
+#define CR_C1_TEST_DR0 0
 static uint32_t cr_c1_stack_used(void)              /* the C1MK fill: the deepest word core 1's usp reached */
 {
     uint32_t i = 0;
@@ -187,6 +204,9 @@ static uint8_t cr_c1_test_share;     /* tests: k + 1: core 1 takes k of the chor
 static uint8_t cr_c1_test_fx0;       /* tests (3y50): the effects all on core 0, in xf_block's order (the reference the
                                       * reverb on core 1 must equal) */
 #define CR_C1_TEST_FX0 cr_c1_test_fx0
+static uint8_t cr_c1_test_dr0;       /* tests (3y303): the drums on core 0 after the parts, one core's place (the
+                                      * reference the drums on core 1 must equal) */
+#define CR_C1_TEST_DR0 cr_c1_test_dr0
 static uint32_t cr_c1_test_faults;   /* tests: faults about core 1 (the device's fm1_c1_fault.count) */
 static void (*cr_c1_fn)(uint32_t);
 static uint32_t cr_c1_arg;
@@ -311,6 +331,7 @@ static void cr_rails_init(void)
     if (cr_dbg.rail_now[0] < 14u) cr_dbg.rail_now[0] = 14;
     if (cr_dbg.rail_now[1] < 5u) cr_dbg.rail_now[1] = 5;
 }
+static int cr_rails_stock(void) { cr_rails_record(); cr_rails_init(); return 1; }
 #endif
 
 /* a stage's time without the reading of the clock (the host's counter costs ~6.6 k instructions a reading: measured
@@ -509,6 +530,18 @@ static void cr_prof_half(void)
             cr_dbg.pk_c0_busy = c0;
         if (cr_dbg.c1_busy_cur > cr_dbg.pk_c1_busy)
             cr_dbg.pk_c1_busy = cr_dbg.c1_busy_cur;
+#ifndef FM1_HAVE_CPU1
+        {                                               /* (inline, both of core 1's jobs ran inside core 0's stages) */
+            uint32_t h0 = c0 + cr_dbg.c1v_cur;
+            h0 = h0 > cr_dbg.c1_busy_cur ? h0 - cr_dbg.c1_busy_cur : 0u;
+            cr_dbg.c0_tot_sum += h0;
+            if (h0 > cr_dbg.c0_tot_max)
+                cr_dbg.c0_tot_max = h0;
+        }
+        cr_dbg.c1_tot_sum += cr_dbg.c1_busy_cur;
+        if (cr_dbg.c1_busy_cur > cr_dbg.c1_tot_max)
+            cr_dbg.c1_tot_max = cr_dbg.c1_busy_cur;
+#endif
         cr_dbg.c1w_sum += cr_dbg.c1_busy_cur;           /* (GEEK OUT 2's CORE 1: cr_prof_window) */
         if (cr_dbg.c1_busy_cur > cr_dbg.c1w_max)
             cr_dbg.c1w_max = cr_dbg.c1_busy_cur;

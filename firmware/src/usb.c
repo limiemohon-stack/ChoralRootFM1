@@ -26,6 +26,9 @@
 #ifndef FELUCCA_CDC
 #define FELUCCA_CDC 0
 #endif
+#ifndef CR_USB_HOST
+#define CR_USB_HOST 0                                   /* choralroot.c: 1 on the FM-1; the update loader: never */
+#endif
 #ifndef FELUCCA_UAC
 #define FELUCCA_UAC 0
 #endif
@@ -114,6 +117,8 @@ static uint8_t midi_in_source[MQ];                    /* 1 USB, 2 TRS */
 static volatile uint32_t fm1_ms;                    /* also declared by core.h; parser-only host tests */
 static volatile uint32_t mi_w, mi_r, mo_w, mo_r;
 static volatile uint8_t midi_in_overflow;               /* audio ISR discards a broken stream and releases notes */
+static volatile uint8_t usb_midi_lost;                  /* the USB peer went (a computer unplugged or asleep, a device
+                                                         * gone from USB Host): cr_out.c lets go of the MIDI notes */
 
 static int midi_enqueue(uint32_t pkt, uint32_t source)
 {
@@ -132,9 +137,17 @@ static int midi_enqueue(uint32_t pkt, uint32_t source)
     return 1;
 }
 
+static int usb_midi_out_ready(void);
 static void midi_out_event(uint32_t pkt)            /* from the audio ISR */
 {
-    if (usb.config && mo_w - mo_r < MQ) {
+#if defined(MIDI_OUT_TRS) && !defined(FELUCCA_LOADER)
+    MIDI_OUT_TRS(pkt);                              /* SMK-37: the TRS jack too, with or without a USB host
+                                                     * (hal/smk_uart_tx.h; the device build alone defines it) */
+#endif
+#if CR_BLE
+    (void)cr_ble_emit(pkt);                         /* a connected Bluetooth peer gets it too (cr_ble.c) */
+#endif
+    if (usb_midi_out_ready() && mo_w - mo_r < MQ) {
         midi_out_q[mo_w % MQ] = pkt;
         RING_PUBLISH();
         mo_w++;
@@ -1029,9 +1042,26 @@ static USB_COLD void usb_bus_reset(void)
     sie_wr(S_INTRRX1E, 0);
 }
 
+#include "usb_host.c"                                   /* CR_USB_HOST: the port as a MIDI host (Options > USB Host) */
+
+static int usb_midi_out_ready(void)                     /* MIDI out has somewhere to go: a computer, or a device */
+{
+#if CR_USB_HOST
+    if (uh.on)
+        return uh.run && uh.out_mps;
+#endif
+    return usb.config != 0;
+}
+
 static USB_OUTLINE void usb_poll(void)                  /* TIMER5 ISR, 2 kHz */
 {
     uint32_t iu, it, ir;
+#if CR_USB_HOST
+    if (uh.run) {                                       /* a host: the device's endpoints, nothing of the device side */
+        uh_poll();
+        return;
+    }
+#endif
     if (!usb.up)
         return;
     if (fm1_usb_sof_take()) {                           /* SOF pending: NOT a reliable "host is there" */
@@ -1053,6 +1083,7 @@ static USB_OUTLINE void usb_poll(void)                  /* TIMER5 ISR, 2 kHz */
                 usb.suspended = 0;
             } else if (++usb.frame_same >= 10u && !usb.suspended) {   /* 100 ms frozen: unplugged / host asleep */
                 usb.suspended = 1;
+                usb_midi_lost = 1;                      /* (its held notes can never get their offs now) */
                 usb.frame_stalls++;
             }
         }
@@ -1067,6 +1098,8 @@ static USB_OUTLINE void usb_poll(void)                  /* TIMER5 ISR, 2 kHz */
 #endif
     if (iu & 0x01u) {                                   /* suspend: the bus went idle */
         usb.suspends++;
+        if (usb.config)
+            usb_midi_lost = 1;                          /* (unplugged, asleep: no note-off will come) */
         usb.suspended = 1;
     }
     if (iu & 0x02u)                                     /* resume */
@@ -1136,6 +1169,10 @@ static void usb_retry(uint32_t now_ms)
 #else
     if (usb.up || usb.detached || now_ms - usb.retry_ms < 1000u)
         return;
+#if CR_USB_HOST
+    if (uh.on)
+        return;                                         /* the port is a host: uh_task owns it */
+#endif
     usb.retry_ms = now_ms;
 #endif
     usb.retries++;
@@ -1146,6 +1183,10 @@ static void usb_detach(void)
 {
     usb.detached = 1;
     usb.up = 0;
+#if CR_USB_HOST
+    uh.run = 0;
+    uh.on = uh.want = 0;
+#endif
     fm1_usb_off();
 }
 
@@ -1154,6 +1195,10 @@ static void usb_detach(void)
  * configuration afresh. usb.up = 0 first: TIMER5 (usb_poll, ua_service) leaves the SIE to this context. */
 static void usb_replug(uint32_t now_ms)
 {
+#if CR_USB_HOST
+    if (uh.on)
+        return;                                         /* device settings cannot detach an active host */
+#endif
     if (usb.detached)
         return;
     usb.up = 0;
@@ -1195,6 +1240,10 @@ static void ua_off_set(uint32_t bit, int on, uint32_t now_ms)
 
 static int ua_off_apply(uint32_t now_ms)
 {
+#if CR_USB_HOST
+    if (uh.on)
+        return 0;                                       /* device settings apply after USB Host is Off */
+#endif
     if (ua_off_want == ua_off || now_ms - ua_off_ms < 600u)
         return 0;
 #ifndef FELUCCA_LOADER

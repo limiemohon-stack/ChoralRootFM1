@@ -43,6 +43,7 @@ static uint16_t cr_rgb(uint32_t c, uint16_t def)
     case CR_COL_DIM: return T_DIM;
     case CR_COL_LINE: return T_LINE;
     case CR_COL_REC: return T_REC;
+    case CR_COL_MAGENTA: return CR_RGB(224, 75, 216);
     default: return def;
     }
 }
@@ -288,6 +289,27 @@ static void cr_dial(const cr_screen_t *s)
         cr_disc(CR_DIAL_X, CR_DIAL_Y, CR_DIAL_DOT, CR_RED);
 }
 
+/* the home pages' beat chip (the DRUMS plan's v3, mock-up 1): beat_n blocks 5 x 10 (the beat lit: white, magenta with
+ * Drums; waiting: none lit), and with Drums the roundel after them (r 8, its ring 2 px, 4 at the kick's thump; its
+ * centre white at the snare's flash). x: the chip's left edge; rows 7..21 (strip 0) */
+static int32_t cr_chip_w(const cr_screen_t *s)
+{
+    int32_t n = s->beat_n ? s->beat_n : 4;
+    return n * 7 - 2 + 6 + (s->beat_on == 2u ? 22 : 0);
+}
+static void cr_beat_chip(const cr_screen_t *s, int32_t x)
+{
+    int32_t n = s->beat_n ? s->beat_n : 4, drums = s->beat_on == 2u;
+    if (cr_row0() > 23) return;
+    for (int32_t i = 0; i < n; i++)
+        cr_fill(x + i * 7, 7, 5, 10, i == s->beat_pos - 1 ? (drums ? CR_RGB(224, 75, 216) : CR_WHITE) : T_DIM);
+    if (drums) {
+        int32_t cx = (x + n * 7 + 9) * 16 + 8, cy = 12 * 16;
+        cr_arc(cx, cy, 8 * 16, 32 + s->beat_pulse * 32 / 255, 0, 65536u, 0, 0, 0, CR_RGB(224, 75, 216));
+        cr_disc(cx, cy, 3 * 16, s->beat_flash ? CR_WHITE : CR_RGB(224, 75, 216));
+    }
+}
+
 static void cr_header(const cr_screen_t *s)
 {
     int bare = s->icon == CR_ICON_NONE, px = bare ? 15 : 12;
@@ -308,6 +330,12 @@ static void cr_header(const cr_screen_t *s)
     if (s->dial_on) {
         rx -= CR_DIAL_SHIFT;
         rightw += CR_DIAL_SHIFT;
+    }
+    if (s->beat_on) {                    /* the beat chip, left of the dial (cr_beat_chip) */
+        int32_t w = cr_chip_w(s);
+        cr_beat_chip(s, rx - w + 4);
+        rx -= w;
+        rightw += w;
     }
     if (s->batt != 255u) rightw += 26;
     if (s->right[0]) rightw += (cr_tw(s->right, 12, 1) >> 8) + 8;
@@ -1492,6 +1520,36 @@ static void cr_cvalue(const cr_cell_t *c, int32_t cx, int32_t vy, int32_t w, uin
     cr_text(cx, vy, b, vpx, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, (cut ? 9u : 0u) | flags);
 }
 
+/* CR_CF_WRAP: v on two lines centred at cx (Q8), baselines y1 / y2 (Q8), in a cell w (Q8) wide, broken at the space
+ * nearest the middle (dropped), else after the hyphen nearest it with 4 letters each side (kept; "m6-Dim" stays); 15 px, 2 px smaller while a line is too wide
+ * (to 11). 0: no break point, nothing drawn (the caller draws one line). hot: both lines on one block */
+static int cr_cwrap(const char *v, int32_t cx, int32_t y1, int32_t y2, int32_t w, uint16_t col, int hot)
+{
+    char a[16], b[16];
+    int32_t n = 0, i, k = -1, sp = 0;
+    uint32_t px = 15u;
+    while (v[n] && n < 15) n++;
+    for (i = 1; i < n - 1; i++)                      /* the space nearest the middle; else the hyphen nearest it */
+        if (v[i] == ' ' || (v[i] == '-' && !sp && i >= 3 && n - i > 4)) {   /* (a hyphen: 4 letters each side) */
+            int better = k < 0 || (v[i] == ' ' && !sp) || (i - n / 2) * (i - n / 2) < (k - n / 2) * (k - n / 2);
+            if (better) { k = i; sp = v[i] == ' '; }
+        }
+    if (k < 0) return 0;
+    for (i = 0; i < k + !sp; i++) a[i] = v[i];
+    a[i] = 0;
+    for (i = k + 1; i < n; i++) b[i - k - 1] = v[i];
+    b[n - k - 1] = 0;
+    while (px > 11u && (cr_tw(a, px, 1) > w - P8(6) || cr_tw(b, px, 1) > w - P8(6))) px -= 2u;
+    if (hot) {
+        int32_t x0 = (cx - w / 2 + P8(3) + 128) >> 8, x1 = (cx + w / 2 - P8(3) + 128) >> 8;
+        int32_t t = ((y1 + 128) >> 8) - (int32_t)px - 1, bt = ((y2 + 128) >> 8) + 4;
+        cv_rrect(x0, t, x1 - x0, bt - t, 2, col, T_BG);
+    }
+    cr_text(cx, y1, a, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
+    cr_text(cx, y2, b, px, 1, CR_C, 4096, hot ? T_BG : col, hot ? col : T_BG, 0);
+    return 1;
+}
+
 /* a number centred at cx (Q8) on baseline vy (Q8) in a cell w (Q8) wide at px: too wide, 2 px smaller at a time (to
  * 7 px), never ellipsised; hot: on a block of its colour */
 static void cr_cnum(const char *v, int32_t cx, int32_t vy, int32_t w, uint32_t px, uint16_t col, int hot)
@@ -1982,23 +2040,45 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         /* the response at quarter-octave offsets from the cutoff, the edges extrapolated; 1.4 px a dB round the
          * 0 dB line, clamped to the band with the crossings: <= 13 points */
         static const int8_t Q[7] = {-12, -4, -1, 0, 1, 4, 12};
+        /* FM TONE's combs (wv[7] 5 COMB+, 6 COMB-, 3y217): the teeth at f, 2f .. 6f (COMB-: f / 2, 3f / 2 ..), quarter
+         * octaves x 16 from the cut, peak and notch by turns; their height by RESO (the feedback g: peak (1 - g / 2) /
+         * (1 - g), notch (1 - g / 2) / (1 + g)), the higher ones damped by SHAPE (LPF) */
+        static const int16_t CQ[12] = {-64, 0, 37, 64, 85, 101, 116, 128, 139, 149, 157, 165};
         int32_t cut = s->wv[0], res = s->wv[1], ft = s->wv[2] & 127, dr = s->wv[3], y0db = y0 + 38 * 16;
-        int32_t sg = ft >> 5, fr = ft & 31, wt[3];
-        int32_t ymin = y0 + 4 * 16, ymax = y0 + 90 * 16, cx = L + W * cut / 255, xs[9], ys[9], n = 0, k, j;
+        int32_t sg = ft >> 5, fr = ft & 31, wt[3], comb = s->wv[7] == 5u || s->wv[7] == 6u, np1 = comb ? 12 : 7;
+        int32_t ymin = y0 + 4 * 16, ymax = y0 + 90 * 16, cx = L + W * cut / 255, xs[14], ys[14], n = 0, k, j;
         for (k = 0; k < 3; k++)
             wt[k] = (TW[sg][k] * (32 - fr) + TW[(sg + 1) & 3][k] * fr) * 8;   /* (Q8) */
-        for (k = 0; k < 7; k++) {
-            int32_t db = s->wv[7] == 1u ? 0 : cr_fdb(wt[0], wt[1], wt[2], Q[k], res);   /* (OFF: flat) */
-            xs[n + 1] = cx + Q[k] * W / 36;                          /* (9 octaves across W) */
+        for (k = 0; k < np1; k++) {
+            int32_t db;
+            if (comb) {                                              /* (Q12: g, its damped value at tooth k / 2) */
+                int32_t g = res * 4034 / 255, h = k / 2, pk = (k & 1) == (s->wv[7] == 5u ? 1 : 0), m = 4096 - g / 2;
+                for (j = 0; j < h; j++)
+                    g = g * (3072 + (int32_t)s->wv[8] * 8) / 4096;
+                db = (cr_log2((uint32_t)m << 8) - cr_log2((uint32_t)(pk ? 4096 - g : 4096 + g) << 8)) * 3011 / 256000;   /* (half
+                                                                      * scale: its 30 dB teeth in the band) */
+                xs[n + 1] = cx + CQ[k] * W / 576;
+            } else if (s->wv[7] == 7u) {                             /* EQ: a bell at the cut, GAIN -18 .. +18 dB, its
+                                                                      * width 2 octaves .. 1/4 by SHAPE (Q) */
+                int32_t b = 8 - 7 * (int32_t)s->wv[8] / 127;
+                db = ((int32_t)s->wv[9] - 64) * 9 / 2 * b * b / (b * b + Q[k] * Q[k]);
+                xs[n + 1] = cx + Q[k] * W / 36;
+            } else {
+                db = s->wv[7] == 1u ? 0 : cr_fdb(wt[0], wt[1], wt[2], Q[k], res);   /* (OFF: flat) */
+                xs[n + 1] = cx + Q[k] * W / 36;                      /* (9 octaves across W) */
+            }
             if (s->wv[7] == 3u) db *= 2;                             /* (24 dB: two 12 dB stages, twice the slope) */
             ys[n + 1] = y0db - (db + dr * 96 / 255) * 14 / 10;
+            if (comb) ys[n + 1] = ys[n + 1] < ymin ? ymin : ys[n + 1] > ymax ? ymax : ys[n + 1];
             n++;
         }
-        xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines */
-        ys[0] = ys[1] + (ys[2] - ys[1]) * (xs[0] - xs[1]) / (xs[2] - xs[1]);
-        xs[8] = R > xs[7] ? R : xs[7] + 16;
-        ys[8] = ys[7] + (ys[7] - ys[6]) * (xs[8] - xs[7]) / (xs[7] - xs[6]);
-        for (k = 0; k < 8; k++) {
+        xs[0] = L < xs[1] ? L : xs[1] - 16;                          /* the edges, on the outer lines (a comb's: level,
+                                                                      * between its last tooth and notch) */
+        ys[0] = comb ? (ys[1] + ys[2]) / 2 : ys[1] + (ys[2] - ys[1]) * (xs[0] - xs[1]) / (xs[2] - xs[1]);
+        xs[np1 + 1] = R > xs[np1] ? R : xs[np1] + 16;
+        ys[np1 + 1] = comb ? (ys[np1] + ys[np1 - 1]) / 2
+                           : ys[np1] + (ys[np1] - ys[np1 - 1]) * (xs[np1 + 1] - xs[np1]) / (xs[np1] - xs[np1 - 1]);
+        for (k = 0; k < np1 + 1; k++) {
             int32_t x0 = xs[k], x1 = xs[k + 1], ya, yb, xa, xb, t[2], nt = 0, lim[2];
             if (x1 <= L || x0 >= R || x1 <= x0) continue;
             xa = x0 < L ? L : x0;
@@ -2047,12 +2127,14 @@ static void cr_wide(const cr_screen_t *s, uint16_t segcol)
         }
         cr_poly(p, np, 48, 0, 0, CR_NAMED[CR_COL_ORANGE]);
         {                                            /* the type: the VA's position name; QUAD's (wv[7]) OFF, the
-                                                      * name and its slope "LP12" "HP12" "LP24" */
+                                                      * name and its slope "LP12" "HP12" "LP24", a machine's name */
+            static const char *const MN[4] = {"MULTI", "COMB+", "COMB-", "EQ"};
             char tn[8];
-            const char *nm = s->wv[7] == 1u ? "OFF" : cr_ftype_name((uint32_t)ft);
+            const uint32_t mi = s->wv[7] - 4u;
+            const char *nm = s->wv[7] == 1u ? "OFF" : mi < 4u ? MN[mi] : cr_ftype_name((uint32_t)ft);
             uint32_t i2 = 0;
             while (nm[i2] && i2 < 5u) { tn[i2] = nm[i2]; i2++; }
-            if (s->wv[7] >= 2u) { tn[i2++] = s->wv[7] == 3u ? '2' : '1'; tn[i2++] = s->wv[7] == 3u ? '4' : '2'; }
+            if (s->wv[7] >= 2u && mi >= 4u) { tn[i2++] = s->wv[7] == 3u ? '2' : '1'; tn[i2++] = s->wv[7] == 3u ? '4' : '2'; }
             tn[i2] = 0;
             cr_text(P8(8), P8(24 + 12), tn, 10, 1, CR_L, 4096, T_MID, T_BG, 0);
         }
@@ -2418,7 +2500,9 @@ static void cr_kr_cells(const cr_screen_t *s, int32_t ry, int32_t rh)
         } else {
             if (c.glyph == CR_G_NONE && (c.flags & CR_CF_PCT)) c.glyph = CR_G_BAR;
             if (c.glyph != CR_G_NONE) cr_cglyph(&c, (x + 6) * 16, CR_KY(15) >> 4, 48 * 16, (36 * 16) * rh / CR_KR_ROW, kc);
-            cr_cvalue(&c, cx, CR_KY(66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
+            if (!((c.flags & CR_CF_WRAP) && c.glyph == CR_G_NONE && cr_tw(c.value, 15, 1) > P8(54) &&
+                  cr_cwrap(c.value, cx, CR_KY(46), CR_KY(66), P8(60), hot ? cr_hcol(s, kc) : kc, hot)))
+                cr_cvalue(&c, cx, CR_KY(66), P8(60), 13, hot ? cr_hcol(s, kc) : kc, hot, 0);
         }
         cr_fill(x + 4, ry + rh - 2, 52, 2, kc);
     }
@@ -2478,6 +2562,212 @@ static void cr_p_knobrow(const cr_screen_t *s, const cr_frame_t *fr, int32_t ph)
             cr_pick_marks(n, sel, marks, col);
         }
         if (s->value[0] && !s->kr_band) cr_text_fit(P8(120), P8(marks + 19), s->value, 13, 1, CR_C, col, T_BG, P8(224));
+    }
+    cr_kr_cells(s, ry, CR_KR_ROW);
+}
+
+/* CR_K_DRUM (the SEQ layer: the beat's preset and the drums' pages; the DRUMS plan's v3 mock-ups, design/drums-mockups):
+ * the page band at the top (the page's name 26 px bold in its colour, the neighbours 13 px dim at the edges, the square
+ * marks under it), the middle (rows CR_DR_TOP .. the row), knobrow's row of four knob cells (72 px). The middle:
+ *   page 0  the preset: two tiles 84 x 76, Metronome (four beat bars) and Drums (the roundel), the chosen one lit in
+ *           its colour (white / magenta) with a 3 px frame, the other dim
+ *   page 1  Beat: Grids' 5 x 5 map (tiles 16 px, 4 apart; X to the right, Y up), the four around the dot tinted by their weight in
+ *           the blend, the cross through the dot, the dot (a white ring on magenta); right of it the bar's three lanes
+ *           (BD, SD, HH), a row a step from the top: a hit magenta, an accent white, a rest a dim tick; the step
+ *           playing framed white across the three
+ *   page 2..4  Kick, Snare, Hats: the drum's icon in a magenta roundel (r 34; the ring 3 px, 3 more at a hit's
+ *           thump), its sound as a filled shape right of it: an attack edge as tall as Tune (the lowest half of it at -12,
+ *           the whole at +12), falling over a length set by Decay; Character from smooth (soft) to striped (hard)
+ *   page 5..7  Kick Mix, Snare Mix, Hats Mix (3y303): the drum's roundel, its Level the arc; its three sends as rings
+ *           in the effects' colours on a wire from it (cr_dr_mix) */
+#define CR_DR_TOP 64                     /* the middle's top row */
+#define CR_MAG CR_RGB(224, 75, 216)
+static void cr_dr_band(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    int32_t n = s->n_items, sel = s->sel < n ? s->sel : n - 1, base = P8(CR_PY0 + 24), bw;
+    uint16_t col = cr_rgb(s->col, T_TEXT);
+    if (!cr_in_strip(CR_PY0, CR_DR_TOP) || n < 1) return;
+    bw = cr_tw(cr_item(s, sel), 26, 1);
+    if (bw > P8(150)) bw = P8(150);
+    cr_pick_sides(s, n, sel, base + P8(2), 6, 234, (P8(228) - bw) / 2 - P8(10));
+    cr_pick_item(s, fr, sel, 26, 150, 1, base, P8(CR_PY0), P8(CR_PY0 + 28), col);
+    if (n > 1) cr_pick_marks(n, sel, CR_PY0 + 30, col);
+}
+/* the beat bars (Metronome's icon, the chip's blocks): n bars w x h at (x, y), gap g, bar lit - 1 white, the rest c */
+static void cr_dr_bars(int32_t x, int32_t y, int32_t w, int32_t h, int32_t g, int32_t n, int32_t lit, uint16_t on,
+                       uint16_t c)
+{
+    for (int32_t i = 0; i < n; i++)
+        cr_fill(x + i * (w + g), y, w, h, i == lit - 1 ? on : c);
+}
+/* the drum roundel at (cx, cy) Q4, radius r Q4: the ring (w Q4) in c, a dot in the middle (dot: its radius, Q4) */
+static void cr_dr_roundel(int32_t cx, int32_t cy, int32_t r, int32_t w, int32_t dot, uint16_t c, uint16_t dc)
+{
+    cr_arc(cx, cy, r, w, 0, 65536u, 0, 0, 0, c);
+    if (dot) cr_disc(cx, cy, dot, dc);
+}
+static void cr_dr_tiles(const cr_screen_t *s)
+{
+    static const char *const NM[2] = {"Metronome", "Drums"};
+    int32_t k, y = CR_DR_TOP + 10;
+    for (k = 0; k < 2; k++) {
+        int lit = s->dr_preset == (uint8_t)k, x = k ? 128 : 28;
+        uint16_t c = lit ? (k ? CR_MAG : CR_WHITE) : T_DIM, fc = lit ? c : T_LINE;
+        cr_box(x, y, 84, 82, fc, 6, lit ? 3 : 1);
+        if (!k) cr_dr_bars(x + 21, y + 16, 8, 30, 6, 4, 1, lit ? CR_WHITE : T_DIM, lit ? T_MID : T_LINE);
+        else cr_dr_roundel((x + 42) * 16, (y + 31) * 16, 15 * 16, 3 * 16, 7 * 16, c, c);
+        cr_text(P8(x + 42), P8(y + 72), NM[k], 13, 1, CR_C, 4096, lit ? c : T_DIM, T_BG, 0);
+    }
+}
+static void cr_dr_beat(const cr_screen_t *s)
+{
+    int32_t mx = 8, my = CR_DR_TOP + 2, i, j, d;
+    int32_t fx = ((int32_t)s->dr_x << 2) & 255, fy = ((int32_t)s->dr_y << 2) & 255, ti = s->dr_x >> 6, tj = s->dr_y >> 6;
+    int32_t dx = mx + 8 + (int32_t)s->dr_x * 80 / 256, dy = my + 8 + (255 - (int32_t)s->dr_y) * 80 / 256;
+    int32_t n = s->dr_steps ? s->dr_steps : 32, rh = 96 / n, ly = my + (98 - rh * n) / 2;
+    for (i = 0; i < 5; i++)                      /* the map: x across, y UP (Grids' drum_map[x][y]; the owner: "Map Y
+                                                  * ... should go up when turning CW"): row j from the bottom */
+        for (j = 0; j < 5; j++) {
+            int32_t w = 0;
+            if (i == ti && j == tj) w = (255 - fx) * (255 - fy);
+            else if (i == ti + 1 && j == tj) w = fx * (255 - fy);
+            else if (i == ti && j == tj + 1) w = (255 - fx) * fy;
+            else if (i == ti + 1 && j == tj + 1) w = fx * fy;
+            cr_box(mx + i * 20, my + (4 - j) * 20, 16, 16, w ? ux_mix(T_SURF, CR_MAG, w * 100 / 65025) : T_SURF, 2, 0);
+        }
+    cr_fill(mx, dy, 96, 1, T_MID);               /* the cross */
+    cr_fill(dx, my, 1, 96, T_MID);
+    cr_disc(dx * 16 + 8, dy * 16 + 8, 7 * 16, CR_WHITE);
+    cr_disc(dx * 16 + 8, dy * 16 + 8, 5 * 16, CR_MAG);
+    for (d = 0; d < 3; d++) {                    /* the lanes */
+        int32_t x = 116 + d * 40;
+        for (i = 0; i < n; i++) {
+            uint32_t b = 1u << i;
+            int32_t y = ly + i * rh;
+            if (s->dr_acc[d] & b) cr_fill(x, y, 34, rh - 1, CR_WHITE);
+            else if (s->dr_lane[d] & b) cr_fill(x, y, 34, rh - 1, CR_MAG);
+            else cr_fill(x + 13, y, 8, rh - 1, T_SURF);
+        }
+    }
+    if (s->dr_step && s->dr_step <= n) {         /* the step playing */
+        int32_t y = ly + (s->dr_step - 1) * rh;
+        cr_box(112, y - 2, 122, rh + 3, CR_WHITE, 0, 1);
+    }
+}
+static void cr_dr_icon(uint32_t page, int32_t cx, int32_t cy, uint16_t c)
+{
+    if (page == 2u) {                            /* the kick: a target */
+        cr_disc(cx, cy, 18 * 16, c);
+        cr_disc(cx, cy, 9 * 16, T_BG);
+        cr_disc(cx, cy, 4 * 16, c);
+    } else if (page == 3u) {                     /* the snare: a drum seen from the side, its wires */
+        cr_frect(cx - 18 * 16, cy - 10 * 16, 36 * 16, 20 * 16, c);
+        cr_frect(cx - 18 * 16, cy - 3 * 16, 36 * 16, 2 * 16, T_BG);
+        cr_frect(cx - 18 * 16, cy + 3 * 16, 36 * 16, 2 * 16, T_BG);
+    } else {                                     /* the hats: two cymbals on a stand */
+        cr_frect(cx - 19 * 16, cy - 7 * 16, 38 * 16, 5 * 16, c);
+        cr_frect(cx - 19 * 16, cy + 2 * 16, 38 * 16, 5 * 16, c);
+        cr_frect(cx - 2 * 16, cy - 18 * 16, 4 * 16, 36 * 16, c);
+    }
+}
+static void cr_dr_drum(const cr_screen_t *s)
+{
+    int32_t cx = 46 * 16, cy = (CR_DR_TOP + 48) * 16, x0 = 92, base = CR_DR_TOP + 96, top = CR_DR_TOP + 6;
+    int32_t h = (base - top) * (12 + (int32_t)s->dr_tune) / 36, len = 24 + (int32_t)s->dr_decay * 116 / 127, x;
+    int32_t gap = s->dr_chr < 43 ? 0 : s->dr_chr < 86 ? 1 : 2, pul = s->dr_pulse;
+    cr_dr_roundel(cx, cy, 34 * 16, (3 * 16) + pul * 48 / 255, 0, CR_MAG, CR_MAG);
+    cr_dr_icon(s->dr_page, cx, cy, pul > 128 ? CR_MAG : CR_WHITE);
+    cr_fill(x0, base, 236 - x0, 2, T_LINE);
+    for (x = 0; x < len && x0 + x < 236; x++) {  /* the shape: (1 - t)^2 under the attack edge */
+        int32_t t = (len - x) * 256 / len, v = h * t * t / 65536, y;
+        if (!gap) {
+            cr_fill(x0 + x, base - v, 1, v, CR_MAG);
+            continue;
+        }
+        for (y = base; y > base - v; y -= 5) {   /* (hard: 5 px stripes, the top 1 or 2 px of each cut) */
+            int32_t hh = 5 - gap;
+            if (y - hh < base - v) hh = y - (base - v);
+            cr_fill(x0 + x, y - hh, 1, hh, CR_MAG);
+        }
+    }
+}
+/* pages 5..7, Kick Mix, Snare Mix, Hats Mix (3y303, 3y304): each thing in the colour of what turns it. The drum's icon
+ * in its roundel (r 34 at the left: the track dim, the Level green (KNOB 4) clockwise from 12 o'clock, as full as
+ * Level / 127, so 64 as voiced is half; 3 px, 3 more at the drum's thump; the icon magenta at the hit); round it the
+ * Drive (PRESETS, 3y305) as red spikes, longer and more ragged with more drive, flaring at a hit. A wire from it through a
+ * white box, the Filter (ALGORITHM: the master filter's white; a low-pass curve, the box filled as much of the drum as
+ * goes through it; dim while the master filter is Off or FX is), and its three sends: rings (r 18), Chorus blue (KNOB 1),
+ * Delay orange (KNOB 2), Reverb white (KNOB 3), each as full as its send, its middle a disc on the wire that swells with
+ * the send and at the hit by as much as the send carries it; the wire lights magenta at the hit. FX off: the rings grey.
+ * Under the roundel the Drive's value, under the box the Filter's (13 px; the encoder just turned: underlined) */
+static void cr_dr_mix(const cr_screen_t *s)
+{
+    static const uint8_t COL[3] = {CR_COL_BLUE, CR_COL_ORANGE, CR_COL_WHITE};
+    int32_t k, cy = CR_DR_TOP + 42, pul = s->dr_pulse, drv = s->dr_drv, flt = s->dr_flt;
+    int32_t cx = 46 * 16, w = 3 * 16 + pul * 48 / 255, fx0 = 83, fw = 30, fh = 30, fy = cy - fh / 2;
+    uint32_t sw = (uint32_t)s->dr_lvl * 65536u / 127u;
+    uint16_t fc = s->dr_fon ? CR_WHITE : T_DIM, dc = drv ? ux_mix(CR_RED, CR_WHITE, pul * 40 / 255) : T_DIM;
+    char t[8];
+    cr_fill(80, cy - 1, 132, 3, ux_mix(T_LINE, CR_MAG, pul * 100 / 255));   /* the wire, under the rings */
+    if (drv)                                         /* the Drive: 20 spikes, 2 .. 11 px (+3 at a hit), ragged with it.
+                                                      * Each a short line from r 38 (3y305: was an arc each, and an arc
+                                                      * tests every pixel of its whole box, 76 px square: the page drew
+                                                      * slowly, the owner saw it lag the knobs) */
+        for (k = 0; k < 20; k++) {
+            int32_t len = 2 * 16 + drv * 9 * 16 / 127 - (k * 7 % 5) * drv * 16 / 254 + pul * 3 * 16 / 255;
+            uint32_t a = (uint32_t)k * 3277u + 1574u;    /* (the arc's middle: 1024 + 1100 / 2) */
+            int32_t co = cr_cos(a), si = cr_sin(a), r0 = 38 * 16 + 16, r1 = 38 * 16 + len - 16;
+            int16_t p[4];
+            if (r1 < r0) r1 = r0;
+            p[0] = (int16_t)(cx + ((r0 * co) >> 14)); p[1] = (int16_t)(cy * 16 + ((r0 * si) >> 14));
+            p[2] = (int16_t)(cx + ((r1 * co) >> 14)); p[3] = (int16_t)(cy * 16 + ((r1 * si) >> 14));
+            cr_poly(p, 2u, 3 * 16, 0, 0, dc);
+        }
+    cr_arc(cx, cy * 16, 34 * 16, 3 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+    if (sw) cr_arc(cx, cy * 16, 34 * 16, w, 49152u, sw >= 65536u ? 65535u : sw, 0, 0, 0, CR_NAMED[CR_COL_GREEN]);
+    cr_dr_icon((uint32_t)s->dr_page - 3u, cx, cy * 16, pul > 128 ? CR_MAG : s->dr_lvl ? CR_WHITE : T_DIM);
+    cr_fill(fx0, fy, fw, fh, T_BG);                  /* the Filter: its box on the wire */
+    for (k = 0; k < fw - 6; k++) {                   /* a low-pass: flat, then falling past its corner (2/3 across) */
+        int32_t x = fx0 + 3 + k, top = fy + 5 + (k > (fw - 6) * 2 / 3 ? (k - (fw - 6) * 2 / 3) * 2 : 0);
+        int32_t bot = fy + fh - 3;
+        if (top >= bot) continue;
+        cr_fill(x, top, 1, bot - top, ux_mix(T_BG, fc, 15 + flt * 55 / 127));
+        cr_fill(x, top, 1, 2, fc);
+    }
+    cr_box(fx0, fy, fw, fh, fc, 3, 2);
+    for (k = 0; k < 3; k++) {
+        int32_t x = (135 + k * 41) * 16, v = s->dr_fx[k], r;
+        uint16_t c = s->dr_fxoff ? T_DIM : CR_NAMED[COL[k]];
+        uint32_t a = (uint32_t)v * 65536u / 127u;
+        cr_arc(x, cy * 16, 18 * 16, 4 * 16, 0, 65536u, 0, 0, 0, T_SURF);
+        if (!v) continue;
+        if (a) cr_arc(x, cy * 16, 18 * 16, 4 * 16 + (s->dr_fxoff ? 0 : pul * v * 32 / (255 * 127)), 49152u,
+                      a >= 65536u ? 65535u : a, 0, 0, 0, c);
+        r = 3 * 16 + v * 8 * 16 / 127 + (s->dr_fxoff ? 0 : pul * v * 4 * 16 / (255 * 127));
+        cr_disc(x, cy * 16, r, c);
+    }
+    for (k = 0; k < 2; k++) {                        /* the values: the Drive under the roundel, the Filter under the box */
+        int32_t v = k ? flt : drv, x = k ? fx0 + fw / 2 : 46, n = 0, p = (v * 100 + 63) / 127;
+        uint16_t c = k ? fc : drv ? CR_RED : T_DIM;
+        if (p >= 100) t[n++] = '1';
+        if (p >= 10) t[n++] = (char)('0' + p / 10 % 10);
+        t[n++] = (char)('0' + p % 10);
+        t[n++] = '%';
+        t[n] = 0;
+        cr_text(P8(x), P8(cy + 58), t, 13, 1, CR_C, 4096, c, T_BG, 0);
+        if (s->dr_enc == (uint8_t)(k ? 1 : 2))
+            cr_fill(x - 14, cy + 61, 28, 2, c);
+    }
+}
+static void cr_p_drum(const cr_screen_t *s, const cr_frame_t *fr)
+{
+    int32_t ry = cr_kr_rowy(s);
+    cr_dr_band(s, fr);
+    if (cr_in_strip(CR_DR_TOP, ry)) {
+        if (s->dr_page == 0u) cr_dr_tiles(s);
+        else if (s->dr_page == 1u) cr_dr_beat(s);
+        else if (s->dr_page >= 5u) cr_dr_mix(s);
+        else cr_dr_drum(s);
     }
     cr_kr_cells(s, ry, CR_KR_ROW);
 }
@@ -3296,6 +3586,7 @@ static void cr_compose(const cr_screen_t *s, const cr_frame_t *fr)
     case CR_K_KNOBROW: cr_p_knobrow(s, fr, ph); break;
     case CR_K_LOOPMENU: cr_p_loopmenu(s, fr); break;
     case CR_K_ROUTE: cr_p_route(s, fr); break;
+    case CR_K_DRUM: cr_p_drum(s, fr); break;
 #if CR_LAY_FREE
     case CR_K_FREE: cr_p_free(s); break;
 #endif

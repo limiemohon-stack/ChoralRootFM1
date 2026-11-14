@@ -672,7 +672,7 @@ static void print_stats(void)
                "(EMU_UI_GAP; the keys are %s)\n", (unsigned long long)ugap.max, (double)ugap.max / DEV_INSTR_PER_US,
                emu_hal.pump_off ? "read between frames only, EMU_PUMP=0" : "read inside a redraw");
     {
-        char sb[800];
+        char sb[1000];
         emu_fw_stages(sb, sizeof sb);
         if (sb[0])
             printf("cpu: %s\n", sb);
@@ -891,7 +891,7 @@ static int probe_frames;                         /* script `probe N`: the next N
  * "<ms>" for an absolute time ("1200 down A"). Names: a computer key wins for key/press/hold, a panel control
  * for btn; "note:F3" names the note F3. */
 enum { OP_LEAN = 100 };                  /* a held key's lean (aftertouch), n = 0..100 % */
-enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI, OP_PROBE,
+enum { OP_DOWN, OP_UP, OP_TURN, OP_SHOT, OP_WINDOW, OP_DUMP, OP_USBLOST, OP_REC, OP_QUIT, OP_MASTER, OP_EXPECT_LED, OP_EXPECT_SND, OP_MIDI, OP_PROBE,
        OP_PA2, OP_STRIKE, OP_KNOBS, OP_LCDFILL };
 typedef struct { uint32_t ms, seq; int op, kind, idx, n; const keymap_t *km; char name[96]; } sev_t;
 static sev_t *sev;
@@ -1035,6 +1035,8 @@ static void load_script(const char *path)
         if (!strcmp(cmd, "window")) { sev_add(cur, OP_WINDOW, NULL, 0, 0, 0, arg[0] ? arg : "window"); continue; }
         if (!strcmp(cmd, "probe")) { sev_add(cur, OP_PROBE, NULL, 0, 0, arg[0] ? atoi(arg) : 1, NULL); continue; }
         if (!strcmp(cmd, "dump")) { sev_add(cur, OP_DUMP, NULL, 0, 0, 0, NULL); continue; }
+        if (!strcmp(cmd, "usblost")) { sev_add(cur, OP_USBLOST, NULL, 0, 0, 0, NULL); continue; }   /* the USB peer
+                                                    * went: usb.c's usb_midi_lost, as a suspend raises it (3y261) */
         if (!strcmp(cmd, "rec")) { sev_add(cur, OP_REC, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "quit")) { sev_add(cur, OP_QUIT, NULL, 0, 0, 0, NULL); continue; }
         if (!strcmp(cmd, "midi")) {               /* (USB-MIDI packet: CIN, status, d1, d2) */
@@ -1270,6 +1272,7 @@ static void run_script(uint32_t ms)
             snprintf(strike.name, sizeof strike.name, "%s", e->name);
             break;
         case OP_DUMP: emu_fw_dump(); break;
+        case OP_USBLOST: emu_fw_usb_lost(); break;
         case OP_REC: toggle_record(); break;
         case OP_EXPECT_LED: {
             int lv = e->kind < 0 ? 2 * led_green()
@@ -1342,6 +1345,12 @@ static void bench_tick(void)                      /* bn.ms begins: the timer, th
         strike.state = 0;
     }
     emu_fw_tick(bn.ms);
+    if (opt_midi_log) {                           /* --midi-log headless: what the firmware sends, stamped in ms */
+        uint32_t pkt;
+        while (emu_fw_midi_out_take(&pkt))
+            printf("midi out %u: %02X %02X %02X\n", (unsigned)bn.ms, (unsigned)(pkt >> 8) & 0xFFu,
+                   (unsigned)(pkt >> 16) & 0xFFu, (unsigned)(pkt >> 24) & 0xFFu);
+    }
     run_script(bn.ms);
 }
 static void bench_strip(void)
@@ -1414,6 +1423,8 @@ static void usage(void)
            "  --flash PATH     the flash image file (default build/emu/flash.bin; headless: none unless given):\n"
            "                   settings, user sounds and loops persist in it\n"
            "  --no-flash       RAM-only flash, erased at power-on\n"
+           "  --erase-ms N     a sector erase takes N ms (1..2000, default 45); past 500 it is late: done and\n"
+           "                   counted, as the device's driver does for a slow part (hal/fm1_flash_late.h)\n"
            "  --save-on-exit   save the settings at exit (they also save 1.5 s after a change)\n"
            "  --boot-fail N    the boot guard as a crashed run left it: N failed boots, pending set\n"
            "                   (firmware/src/cr_bootguard.h; with --reset-reason wdt: 1 -> SAFE MODE, 3 -> UBOOT)\n"
@@ -1767,6 +1778,12 @@ int main(int argc, char **argv)
         else if (!strcmp(a, "--demo")) opt_demo = 1;
         else if (!strcmp(a, "--flash") && v) { opt_flash = v; i++; }
         else if (!strcmp(a, "--no-flash")) opt_no_flash = 1;
+        else if (!strcmp(a, "--erase-ms") && v) {
+            int ms = atoi(v);
+            if (ms < 1 || ms > 2000) { fprintf(stderr, "emu: --erase-ms %s: 1..2000\n", v); return 2; }
+            emu_fw_erase_ms(ms);
+            i++;
+        }
         else if (!strcmp(a, "--save-on-exit")) opt_save_on_exit = 1;
         else if (!strcmp(a, "--boot-fail") && v) { opt_boot_fail = atoi(v); i++; }
         else if (!strcmp(a, "--boot-stage") && v) { opt_boot_stage = atoi(v); i++; }

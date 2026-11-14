@@ -16,6 +16,7 @@ host checks found, and the policy the installers follow (`web/fm1ota.js` `classi
 | Felucca 1.0 or later | `FM-1_9XY`, INFO `FELUCCA v1.0`, `v1.0.1`, `v1.1-rc1` ... | **allowed** |
 | Melodee | `FM-1_9...`, INFO `MELODEE v0.11.1` ... | **allowed** |
 | ChoralRoot | `FM-1_920`, INFO `ChoralRoot 0.12` ... | **allowed** |
+| RemoteFM1 0.2 and later | `FM-1_52XXYYZZ` (release X.Y.Z, two digits each: 0.2.1 `FM-1_52000201`), dev builds `FM-1_5200`; no INFO | **allowed** (RemoteFM1 below) |
 | Sloop | INFO `FELUCCA SLOOP 2.2` (dev build), `FELUCCA 2.2 BETA` (release build) | **refused** |
 | Sloop's rescue mode | `FM-1_000` | **refused** |
 | Felucca 0.x betas (0.9-beta and older) | `FM-1_909` ..., INFO `FELUCCA 0.9-BETA`, `FELUCCA 0.5 BETA` | **refused** |
@@ -37,6 +38,52 @@ A refusal says:
 Overrides: `tools/fm1_install.py --force` (exit code 8 without it); on the page an "I understand the risk" box that
 appears only after a refusal, then a second confirm. The return to the official V15 (the page's "Return to official
 V15", or `fm1_install.py FM-1.fwsc`) is never refused: it is the way out.
+
+## RemoteFM1 (2026-10-27)
+
+RemoteFM1 (github.com/Quixotic7/RemoteFM1, the FM-1 as a panel for a computer) 0.1 answered as the official V15
+(`FM-1_015`) and was installed over as stock. 0.2 on is built on fm1-base + felucca-bsp and answers with fm1-base's
+identity: its `fm1.toml` `id_prefix` `FM-1_52` + `00` (a development build) or + XXYYZZ (a release; fm1-base
+`tools/build.py --release`). It does not answer INFO (no `backup` in its `fm1.toml`), so the page asks before
+installing without a backup, as over V15. Its updater is felucca-bsp's `ota_stage`, which stages the package's own
+loader (any well-formed one; ours carries `FELUCCA-LOADER-1`), the same path as over Felucca 1.0. Only RemoteFM1's
+prefix is allowed: other fm1-base firmwares (FIZZ `FM-1_46...`, ...) stay "unknown" until their path is checked.
+
+## A second flash chip: 0xB36014 (2026-11-02, HISTORY 3y222)
+
+A new FM-1 (bought late 2026, the M-VAVE logo printed on the front) took ChoralRoot 0.27 through M-VAVE's own updater
+and ran it, but **Options > Version** read `no unit ID`, every installer "stopped answering after 0 requests; nothing
+was written", the three-button Update Mode went dark, OCT- held gave one long flash (the boot stub's "ROM boot", not
+the loader's three short ones), and MvaveFM1Unbricker `info` printed `Flash ID 0xB36014 (expected 0x856014)`
+(Reddit r/MVaveFM1, u/novorapidd). The chip is a different maker's 1 MiB SPI NOR: same type and capacity bytes
+(`60 14`), a different manufacturer byte (`B3`, not Puya's `85`).
+
+What ChoralRoot does on a chip it does not know (`hal/fm1_flash_map.h FL_JEDEC_OK`, read once at power-on in
+`cr_shim.c persist_boot`): it runs **RAM-only**. Nothing is read from or written to the flash: no settings, no
+sounds, no loops, no unit ID, and `main.c` skips the update session (`if (flash_ok) ota_session()`), so an installer
+sends UPGRADE and the unit never asks for the first block. The update loader and the boot stub never check the chip;
+the stub finds no staged record and leaves to ROM boot, where the Unbricker's `info` reads the id.
+
+**From 0.29.1 on** `FL_JEDEC_OK` accepts 0xB36014 beside 0x856014 (and the SMK-37's 0xEB6014). The RAM flash driver
+uses only the generic SPI NOR commands (9F, 4B, 05/35, 06, 20, 02, 0B) that the SDK firmware those units ship with
+uses on the same chip. A unit already stuck RAM-only on 0.27 or 0.28 cannot take the update over USB (the gate above),
+so the way out is through the chip's ROM boot: hold OCT-, OCT+ and HOME together for 5 s while it runs (the countdown, then the screen goes dark: on such a unit the boot stub finds no update and leaves to the chip's ROM boot), or hold OCT- while switching it on (one long flash), then `python3 fm1_unbrick.py restore FM-1.fwsc --i-know` writes the official V15 (the Unbricker's
+own check of the id needs the override on that chip until it learns the id too), after which the web installer
+installs 0.29.1 over V15 as on any unit. The web installer and `fm1_install.py` do not read the chip id.
+
+**A slower part: the erase waited out (HISTORY 3y264).** The 0xB36014 part (reported as the UC25HQ80) can take longer
+to erase a sector or program a page than the Puya part. Up to 0.31 the driver (`hal/fm1_flash.h`) gave up waiting at
+500 ms (an erase) or 10 ms (a page), returned -4 and switched XIP back on while the part might still be busy: the next
+code fetched from the flash would then be whatever the bus returned. Since 3y264 (felucca-bsp #12, as RemoteFM1 0.3.4)
+the driver never goes back to XIP while the part says busy: it keeps polling to 2 s / 50 ms. Done within that is
+success, the save or the install goes through (3y265, the owner: "Treat late as success"); done after 500 ms / 10 ms
+is counted as late (`--debug`: `flash_late_ops`, `flash_late_max_us`); still busy at 2 s / 50 ms, it resets the part
+(66h, 99h, 20 ms) and then the chip, from RAM. Each erase holds the interrupts for its whole time
+(a silence as long as the erase; the watchdog is 8 s and fed before each erase in the update paths). **Not tried on
+hardware with the slow part:** every unit here has the Puya part (0x856014), where erases take ~18 ms; on those units
+nothing changes but the image. The wait and the reset are checked by a host model (`tests/flash_wait_test.c`) and the
+app's handling of a slow or late erase by the emulator (`tools/emu/test_persist.sh`, `--erase-ms`), late as done by
+`tests/flash_late_test.c`. A unit with the slow part that reads `flash_late_ops` above 0 is worth a report.
 
 ## Bubba Machine (2026-10-17, HISTORY 3y176)
 
@@ -103,8 +150,9 @@ Host evidence (2026-10-07; Sloop f2b44c2 built from a scratch copy with this rep
    slots) and by Felucca 0.9-beta's. It also ran 61 s of preset and algorithm browsing, and a second power-on. Every run
    returned 0, with no out-of-bounds report; only DSP shift/overflow warnings that also appear on an erased image.
    - Sloop's autosave as the FM6 bank: rejected (magic). Its PER3 settings: no size match, defaults used.
-   - Sample data at 0xC8000: ignored as loops. All 32 user records accepted. DIGITAL ones are converted to FM6;
-     SAMPLE / GRAIN ones become INIT on ANALOG (since 0.14: on the VA; ANALOG ones play on the VA with their macros).
+   - Sample data at 0xC8000: ignored as loops. All 32 user records accepted. DIGITAL ones are converted to FM6
+     (until 3y232; since then INIT on the VA, as every retired engine's); SAMPLE / GRAIN ones become INIT on ANALOG
+     (since 0.14: on the VA; ANALOG ones play on the VA with their macros).
    - Static stack: the worst boot path is about 3.2 KB of a 24 KB stack.
 
 **Conclusion.** Not the loader: Sloop's loader handles our package correctly (and is not the one used), the write

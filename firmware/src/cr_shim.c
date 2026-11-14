@@ -40,6 +40,36 @@ static void set_engine_of(track_t *t, uint32_t ei)
 static void apply_preset_to(track_t *t, uint32_t pi) { cu_load(t, t->eng_req, pi, t == &trk[CR_PART_BASS]); }
 static uint32_t steps_sig(const track_t *t) { (void)t; return 0; }
 
+#if CR_RES
+/* the resource region (cr_res.h): this build's? Once, after fl_plain_window_init; cr_res_ok stays 0 otherwise (a cut
+ * install the stub did not catch, a region another firmware erased, a unit whose flash is not the expected part) */
+extern const uint8_t _res_start[], _res_end[];   /* firmware/app.ld .res: XIP FL_RES_DATA .. */
+static void cr_res_boot(void)
+{
+    const cr_res_hdr_t *h = (const cr_res_hdr_t *)fm1_xip_ptr(FL_RES_LO);
+    uint32_t n = (uint32_t)(_res_end - _res_start);
+    cr_res_ok = (uint8_t)((uint32_t)(uintptr_t)_res_start == FM1_XIP(FL_RES_DATA) && n <= FL_RES_HI - FL_RES_DATA &&
+                          h->magic == CR_RES_MAGIC && h->format == CR_RES_FORMAT && h->hcrc == st_crc32(h, 60u) &&
+                          h->len == n && fm1_xip_rd32(CR_RES_MARK_OFF) == CR_RES_MARK_MAGIC &&   /* (the app area:
+                                                                                                  * read decrypted) */
+                          h->body_crc == fm1_xip_rd32(CR_RES_MARK_OFF + 12u) && st_crc32(_res_start, n) == h->crc);
+}
+#endif
+#if CR_RES2
+/* the second region (cr_res.h CR_RES2, HISTORY 3y296): the same checks under its own magic; its data is this build's
+ * .res2 (firmware/app.ld) */
+extern const uint8_t _res2_start[], _res2_end[];   /* XIP FL_RES2_DATA .. */
+static void cr_res2_boot(void)
+{
+    const cr_res_hdr_t *h = (const cr_res_hdr_t *)fm1_xip_ptr(FL_RES2_LO);
+    uint32_t n = (uint32_t)(_res2_end - _res2_start);
+    cr_res2_ok = (uint8_t)((uint32_t)(uintptr_t)_res2_start == FM1_XIP(FL_RES2_DATA) && n <= FL_RES2_HI - FL_RES2_DATA &&
+                           h->magic == CR_RES2_MAGIC && h->format == CR_RES_FORMAT && h->hcrc == st_crc32(h, 60u) &&
+                           h->len == n && fm1_xip_rd32(CR_RES_MARK_OFF) == CR_RES_MARK_MAGIC &&
+                           h->body_crc == fm1_xip_rd32(CR_RES_MARK_OFF + 12u) && st_crc32(_res2_start, n) == h->crc);
+}
+#endif
+
 static void persist_boot(void)         /* before settings_init / panel_init (project.c's, without the stores) */
 {
 #if FELUCCA_FLASH
@@ -58,6 +88,13 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
     if (!uid_rc)
         cr_unit_id_set(uid);
     fl_plain_window_init();                                /* the data region reads as plaintext through XIP */
+#if CR_RES
+    cr_res_boot();                                         /* the resource region: this build's? (cr_res.h) */
+#endif
+#if CR_RES2
+    cr_res2_boot();                                        /* the second region: this build's? (before cr_bank_boot:
+                                                            * the pool's names are the presets') */
+#endif
 #if BOARD_SMK37
     if (!cr_safe)
         st_owner_check();                                  /* SMK: never parse another ported firmware's store
@@ -66,12 +103,7 @@ static void persist_boot(void)         /* before settings_init / panel_init (pro
     /* SAFE MODE (main.c, cr_bootguard.h): flash_ok stays (the installer's update and the backup's reads need it),
      * but no object is read: storage.c st_load / st_save and the loop slots answer "none" (core.h ST_BLOCKED), so
      * the sounds, the stores, the FM6 bank and the settings start as on an erased flash; the flash is not touched */
-#if FELUCCA_SAMPLE
-    for (k = 0; !cr_safe && k < SMP_USER_SLOTS; k++)       /* (user sample sets play from flash through XIP) */
-        smp_user_scan(k);
-#else
     (void)k;                                               /* (no SAMPLE engine: no user sample sets to scan) */
-#endif
     cr_bank_boot();                                        /* the 32 user sounds (upreset.c) and the FM6 bank */
 #if CR_HAVE_SETTINGS
     CR_STAGE(BS_SETTINGS);
@@ -137,6 +169,20 @@ static void cr_splash(void)
     }
     cr_draw(s, CR_ANIM_SETTLED);
     cu_intro_played = 1;
+#if CR_RES
+    if (!cr_res_ok || !cr_res2_ok) {               /* a region is not this build's: the screens lack their big type
+                                                    * (cr_res.h), or the factory presets their lists (the second);
+                                                    * say so in S, which is in the image, for 3 s */
+        uint32_t w;
+        lcd_fill(0, 196, 240, 44, T_BG);
+        draw_text_box(0, 200, 240, &AF_S, !cr_res_ok ? "FONTS MISSING" : "PRESETS MISSING", T_THEME, 1);
+        draw_text_box(0, 218, 240, &AF_S, "INSTALL CHORALROOT AGAIN", T_TEXT, 1);
+        for (w = 0; w < 3000u; w += 10u) {
+            fm1_wdt_feed();
+            fm1_delay_ms(10);
+        }
+    }
+#endif
     cr_draw_invalidate();                          /* the UI's first frame draws everything */
 }
 

@@ -85,6 +85,8 @@ typedef struct {
     /* settings (the UI's, posted) */
     uint8_t sync, quant, count_in, level;      /* 0..5, 0..6, 0/1, 0..100 (loop velocity %) */
     uint8_t sig, metro, metro_vol;             /* CRL_SIG_*, click on, click level 0..100 */
+    uint8_t drums;                             /* the drums on (cr_drum.c; the DRUMS plan): they play, free on the tempo or on
+                                                * the loop's grid while one plays or a take records (crl_tick1) */
     uint8_t mode;                              /* CRL_MODE_*: what REC does with no capture (Advance: the UI's slot jump,
                                                 * then as Overwrite) */
     /* the loop */
@@ -97,10 +99,25 @@ typedef struct {
     uint32_t t, acc, last_ms;
     uint32_t rt;
     uint8_t clk_on;
+    /* MIDI Clock In (cr_loop_ext_pulse): ext_on, pulses are coming; ext_rt, the tempo tick the last pulse is at
+     * (CRL_PPQN / 24 = 4 a pulse). rt then never runs more than a pulse's 3 ticks past it and catches up to it at once:
+     * the master's clock, not the FM-1's, keeps the loop's time (HISTORY 3y224) */
+    uint8_t ext_on;
+    uint32_t ext_rt;
+    /* (HISTORY 3y283) ext_src: the input the pulses are taken from (cr_loop_clock_pulse: 1 USB, 2 TRS, 3 Bluetooth; the
+     * same clock on a second input is not counted twice); ext_first: a Start / Continue armed the lock, its first pulse
+     * is the downbeat at ext_rt; ext_ms: the last pulse (cr_loop_clock_idle's gap) */
+    uint8_t ext_src, ext_first;
+    uint32_t ext_ms;
     uint8_t rate, rate_want, rfrac;            /* CRL_NRATE: in force; asked for (taken at the loop's start); 0..47 */
     uint32_t rrec0, rcyc0;                     /* the take's / the cycle's start in tempo ticks (the click's grid) */
     uint32_t cyc0, scan;                       /* the current cycle's start (abs ticks); next position to play */
     uint32_t rec0, rec_len, cin0, od0, met0;
+    /* the drums' grid (crl_tick1): drum_run, they play (from a beat on); dstep, the step due + 1 (0..31: 32nds of the bar),
+     * taken by the audio block (choralroot.c mix_block: cr_drum.c crd_beat_step); bpos, the beat the click or the drums
+     * are on + 1 (0: none; the home page's beat chip) */
+    uint8_t drum_run, dstep, bpos;
+    uint32_t dr0;                              /* the drums' own grid's start (nothing playing: their free run) */
     struct { uint32_t gid, t0; int16_t root; uint8_t used, q, ext, vel, rep; } open[CRL_OPEN];   /* held gestures
                                                 * (rep: opened while replacing; used 2: its key is up and it sounds on,
                                                 * latched, and the editor has written it: CR_G_KEYUP) */
@@ -155,6 +172,16 @@ void cr_loop_init(cr_loop_t *lp);
 void cr_loop_seed(cr_loop_t *lp, uint32_t seed);   /* the steps' chance rolls: the same seed and the same
                                                 * timing give the same passes (the host tests) */
 void cr_loop_tick(cr_loop_t *lp, cr_t *c, uint32_t now_ms);
+void cr_loop_ext_pulse(cr_loop_t *lp);         /* a 0xF8 in (Clock In): the tempo ticks lock to the pulses */
+void cr_loop_ext_off(cr_loop_t *lp);           /* no pulses (Clock In off, a Stop, a long gap: the next pulse re-anchors) */
+/* MIDI Clock In as cr_out.c feeds it (GitHub issue 39, HISTORY 3y283): every pulse of one input counts (none dropped as
+ * a "duplicate", however close two come); 1: counted (the tempo follower takes it too), 0: another input's copy */
+int  cr_loop_clock_pulse(cr_loop_t *lp, uint32_t src, uint32_t now_ms);
+void cr_loop_clock_start(cr_loop_t *lp, uint32_t now_ms);   /* FA / FB, after the loop started: the next pulse is the
+                                                             * downbeat, where the loop is now */
+void cr_loop_clock_idle(cr_loop_t *lp, uint32_t now_ms);    /* every block: no pulse for CRL_EXT_HOLD_MS, the lock goes */
+#define CRL_EXT_HOLD_MS 1000u                  /* the lock holds through a gap this long (the loop waits a pulse past the
+                                                * last one: a late pulse is caught up, never lost) */
 /* cr_out_t.gesture's body */
 void cr_loop_gesture(cr_loop_t *lp, uint32_t gid, int16_t root, uint8_t q, uint8_t ext, uint8_t vel, int on);
 
@@ -179,6 +206,7 @@ void cr_loop_queue(cr_loop_t *lp, cr_t *c, const crl_data_t *d);  /* playing: at
                                                 * An overdub armed or an undo before then cancels it (the loop
                                                 * being edited stays), as a stop or a clear does */
 void cr_loop_metro(cr_loop_t *lp, int on);     /* the click on / off (its grid restarts) */
+void cr_loop_drums(cr_loop_t *lp, int on);     /* the drums on / off (at once; a loop playing: on its next beat) */
 /* the Rate (0..CRL_NRATE-1: x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 x1 x1.5 x2 x4; out of range: x1): how fast the
  * loop's own time runs against the tempo. Taken
  * at once when nothing plays and no take runs, else at the loop's next start (the end of the cycle): the position

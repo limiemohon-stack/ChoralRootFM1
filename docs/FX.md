@@ -28,7 +28,7 @@ through the presets and experience the effect on each instrument."
 
 | What | Where it lives | Changed by a sound load |
 | --- | --- | --- |
-| each **part's sends** into the reverb, the chorus and the delay, and its **drive** | one value a send (`cr_ui.c cu_send` / `cu_send_set`): the chord part's in `cs.fx_amt[]`, the bass part's in its track (`P_REV`, `P_CHOR`, `P_DLY`, `P_DIST` of `trk[]`), which no load writes (`cr_bank.c param_kept`, as Level and Pan). See "The sends: one value" below | **never** (but FM TONE's Drive, the sound's: "FM TONE's Drive" below) |
+| each **part's sends** into the reverb, the chorus and the delay, and its **drive** | one value a send (`cr_ui.c cu_send` / `cu_send_set`): the chord part's in `cs.fx_amt[]`, the bass part's in its track (`P_REV`, `P_CHOR`, `P_DLY`, `P_DIST` of `trk[]`), which no load writes (`cr_bank.c param_kept`, as Level and Pan). See "The sends: one value" below | **never** (but FM TONE's Drive, the sound's: "FM TONE's Drive" below; and an FM TONE sound with SENDS, version 6: a Digitone import sets its part's three sends, `cr_ui.c cu_sends_load`, 3y203) |
 | every effect's **own parameters** (16 of the delay and the reverb: `cr_fx.c` `xfp[]`; the chorus's rate and depth: `song.g`) | global | never |
 | all of it over a power-off | the session's FX block, by tag (`cr_settings.h`: `fx.amt[]` the chord part's sends, `CSS_FXP_BS_*` the bass part's, `CSS_FXP_*` the parameters; [SETTINGS.md](SETTINGS.md)) | |
 | FX on / off | the settings block (`fx_on`) | no |
@@ -487,8 +487,8 @@ functions are the same 1149 and 155 instructions in both builds). Melodee's note
 run, and ChoralRoot's own count for CZ-1 has an unexplained gap of the same kind (1066 us measured, 630 counted:
 docs/CZ1.md). The effects' four loops in RAM changed nothing in 0.18 (`CR_FX_RAM`, above): small loops that run many
 passes stay in the cache; a 3.3 KB loop body that runs once a sample apparently does not. **That is a hypothesis.**
-What follows is the means to measure it, stage by stage; nothing but `P5_RAM` and (since 3y177) `CR_RAM_VA` is on by
-default.
+What follows is the means to measure it, stage by stage; nothing but `P5_RAM`, (since 3y177) `CR_RAM_VA` and (since
+3y216) `CR_RAM_NOTE` is on by default.
 
 **`P5_RAM` is 1 in a device build since 3y41** (`tools/build.py`; `P5_RAM=0 ./build.sh` is the all-flash build, byte
 for byte 40acb01's default). The host and the emulator never see the flag.
@@ -500,6 +500,16 @@ cores"), MORPH PAD 8 notes + PUNCH BASS: the block 2389 -> 2103 us dry and 2574 
 -> 249, the block 2917 -> 2565 recording and its 10 late halves / 31 sheds gone. So for the VA the flash WAS the cost
 (two cores running `va_render` from XIP at once, or one: the bass alone gains 57 %). RAMTEXT 16 120 of 24 576 with it
 (8456 B left); another CR_RAM_* switch beside it must fit there too, or be built with `CR_RAM_VA=0`.
+
+**`CR_RAM_NOTE` is 1 in a device build since 3y216** (`CR_RAM_NOTE=0 ./build.sh`: the note path from flash). The
+tick's note path: `trk_note_on` (with `voice_alloc` and `mod_note` inlined), what it calls directly, `trk_note_off`,
+`vsq_drop` and FM TONE's `quad_note_on`. A long release (C64 EP) has all 8 voices sounding at every chord change, so
+each note of the chord goes through it twice in one half (the steal, then the start a block later: docs/HISTORY.md
+3y215), all of it from XIP. 5542 B; RAMTEXT 21 660 of 24 576 with VA's (2916 B left). It reads from flash still: the
+engine table (`ENGINES`, each `engine_t`'s hooks) and `QUAD_PHRT_MASK`, a cache line or two a note; it calls the other
+engines' `note_on` through `engine_t` (P5's, VA's, CZ-1's: flash). The callers that stay in flash (the ISR's note
+dispatch and `engine_block`'s waiting notes, MIDI in's callbacks, `trk_all_off`, P5's `p5_pool_enforce` and `p5x_run`,
+`shed_voice`) go through 11 veneers there (88 B of XIP).
 
 ### The switches
 
@@ -515,6 +525,7 @@ second core's loop 128). Environment variables of `./build.sh`, all off unless s
 | `CR_RAM_CZ` | `cz_native_line_mv` 7340, `cz_native_line` 6098, `cz_native_render` 1464, `cz_native_noise` 554, `cz_native_defs` 218, `cz_env_tick` 206, `cz_native_vibrato` 134, `cz_native_pd` 122, `cz_native_krate` 106, `cz_native_amp` 90, `cz_hw_rate` 58 | 16 390 | 23 200 |
 | `CR_RAM_VA` (default 1 since 3y177) | `va_render` 8378 (the oscillators and the filter are inlined in it), `va_morph` 582, `va_render_mono` 24, `memset` 12, the veneer `cr_v_va_fweights` 8 | 9046 | 16 120 |
 | `CR_RAM_FM6` | `fm6_render` 3518 (the operators' kernel is inlined in it), `fm6_control` 2476, `fm6_eg_step` 138, `fm6_mulhi` 74 | 6206 + 28 B of veneers | 13 044 |
+| `CR_RAM_NOTE` (default 1 since 3y216) | `trk_note_on` 1910 (`voice_alloc`, `mod_note` inlined), `quad_note_on` 874, `mono_play` 398, `voice_start` 282, `voice_victim` 270, `trk_note_off` 252, `p5_pool_victim` 220, `p5_part_victim` 172, `voice_room` 158, `voices_busy_of` 118, `p5_sounding` 104, `vsq_push` 102, `vsq_drop` 102, `p5_pool_room` 98, `p5_pool_used` 92, `p5_pool_take` 74, `mono_pick` 66, `mono_remove` 56, `glide_set` 52, `lowest_held` 52, `trk_nvoice` 48, `voice_units` 42 | 5542 + 88 B of veneers in XIP | 12 612 (21 660 with VA's) |
 | `CR_RAM_TABLES_P5` | not code: `P5_TANH_Q15` 4098, `P5_EXP2_Q14` 514, `P5_INV_DEN` 514, `P5_TPT_G` 256, the tables `p5_samples` reads every sample | 5376 B of RAM `.data` | RAM 86 820 of 98 304 |
 
 Together: FX + MASTER 19 072; **FX + MASTER + CORE 23 140** (1436 B spare); every switch at once would need about
@@ -605,6 +616,7 @@ one address must be their target's, on the other side. Anything else fails. Resu
 | `CR_RAM_CZ` | 11 | 0 | 0 |
 | `CR_RAM_VA` | 4 | 0 | 1 (8) |
 | `CR_RAM_FM6` | 4 | 0 | 3 (40) |
+| `CR_RAM_NOTE` (3y216, against `CR_RAM_NOTE=0`) | 22 | 0 | 11 (88) |
 | FX + MASTER (package B) | 20 | 0 | 8 (80) |
 | FX + MASTER + CORE (C) | 29 | 0 | 13 (152) |
 | C + `CR_RAM_TABLES_P5` (D) | 29 | 0 | 13 (152) |
@@ -1020,7 +1032,7 @@ answer there: a final EQ or band-pass in the FX section, apart from the engines;
 
 **What it is**: a **low cut** and a **high cut** on the stereo master, the eighth page of the FX layer, **Filter**
 (SELECT past Drive): Low cut (Off, then 20 Hz .. 2 kHz), High cut (200 Hz .. 16 kHz, then Off), Slope (6 or 12 dB an
-octave) and Filter (Off / On) on KNOB 1 .. 4. Both cuts in is a band-pass. A new unit has it Off with both cuts at
+octave) and Filter (Off / On; since 3y270 Off / All / Chord / Bass, "The part round the filter" below) on KNOB 1 .. 4. Both cuts in is a band-pass. A new unit has it Off with both cuts at
 their Off ends; **turning a cutoff switches the filter on** (and FX, as a send turned does), so the knob is heard at
 once; KNOB 4 switches it off and on again with the cutoffs kept, to compare. FX off takes it out with the effects
 (its cell reads Off). The four are the instrument's, like every effect parameter: no sound load touches them, the
@@ -1090,6 +1102,47 @@ The host's count (`cr_fx_test.c`, a guard): off 132 instructions a half, one 12 
 and a fade's block of 32; 3y194: 528 B, two places, five channels' states before the buses). Before the buses, five
 channels, both cuts at 12 dB cost 2.5 x the two channels' figure: ~143 us a half on the unit by the table (5 x
 5888 instructions / 205), unmeasured there.
+
+**The part round the filter** (3y270; `cr_fx.c xb_*`): Filter is Off (0), **All** (1, the On before it, bit for
+bit), **Chord** (2: the bass part goes round) or **Bass** (3: the chord part goes round); the same byte, tag 34, so a
+kept On (1) loads as All, and a firmware before it reads 2 / 3 as out of range (its default, Off). A cutoff turned
+while Off switches it to All (the knob reaches Off only from All, so "the last choice" would always be All); with
+Chord or Bass a cutoff turned keeps it. The rule, the same at every place the filter can be: with B the bypassed
+part's dry stereo as it went into the mix (after its drive, level, pan and stereo side), the place makes **F(acc -
+B) + B** of what it has. acc holds B wherever the filter sits, because the effects only ever add their wets, so:
+
+- Parallel, the filter after the buses: out = F(dry + returns - B) + B: the returns filtered, the bypassed part's
+  among them; only its dry is not;
+- Parallel, the filter first (`xq_pre`): the dry pair is F(dry - B) + B and the three sends are filtered as before,
+  the bypassed part's too (B is taken out of the pair only);
+- Chain: at the filter's position, F(C_k - B) + B: an effect before the filter is filtered with everything (the
+  bass part's share of its wet included), one after it is not touched.
+
+**The drums' Filter** (3y304; `cr_drum.c crd_render`, `fx.c cr_drum_out`): each drum's Filter 0..127 sends 127 - Filter
+of its dry sound round the filter by the same rule, into the same B (`crd_byp_add`, after the parts' capture), whatever
+part the filter is on: its own share, which moves by 256 a block while the filter sounds (`xb.on`). 127, the default,
+adds nothing: the drums go through the filter whole in every mode and place, as before (they are in the dry mix
+after the parts, in acc; in Chain at the filter's position; first in Parallel their sends with the parts'). The share
+is taken before the drums' bus knee (linear to -6 dBFS). With the filter Off or FX off nothing is taken.
+
+B is taken in `fx.c mix_part_out` (both paths: one core's `mix_part` and `mix_parts_split`, where both parts are
+mixed on core 0 after the join), around the bypassed part's mix loop: the mix before it subtracted, after it added
+(`xb_cap`), exact integers, nothing in the loops themselves. A part with no voice and no tail mixes nothing and
+leaves B at 0. Each part's **share** of B (`xb.g`, Q12) moves by `XQ_STEP` a block, a straight line across each
+block, the cuts' own 16-block fade: Chord <-> Bass <-> All crossfade, never a step (`cr_fx_test.c`: the choice
+cycled every 100 ms under two low tones, no sample step above the dry's own; with the shares switched at once the
+step is 10 x the dry's). The share follows the Filter only while the filter is in (`xq.in`: Filter not Off, FX on, a
+cut in); switched out it holds while the cuts fade out, then drops to 0 at once, and from rest it starts at its
+choice at once while the cuts fade in on acc - B. All, with every share at 0, takes nothing and adds nothing: the
+master is 0.22's On to the bit, Off and FX off too (`cr_fx_test.c` t_bypass, each place).
+
+**Its cost**: B in POOL beside `xq` (zero-filled at power-on), 256 B for the two blocks and 28 B of shares: POOL
++284 B; XIP +704 B; RAM 0. Nothing a block while every share is 0 (two compares in `mix_part_out`, the shares'
+update in `xb_begin`). With Chord or Bass, a block: B cleared (4 instructions a sample), the capture twice (10 a
+sample, both sides) and B out and back at the place that runs (9 a sample, twice): ~43 a sample, ~5400 instructions
+a half of 128, **~26 us of the half's 2902** on the unit by the listing (`tools/fx_loops.py ... xb_begin xq_run
+mix_part_out`), about one 12 dB cut's; the 16 blocks of a fade multiply (27 a sample a capture). The host's count
+(t_bypass, Parallel after, both 12 dB cuts): Off 3545, All 14365, Chord 15181 a half (+816).
 
 **Tests**: `tests/cr_fx_test.c t_filter` (above: Off bit-exact four ways and after a cut was in; each cut at three
 corners x two slopes x three frequencies against the one-pole's own formula within 0.3 dB, both sides the same; both

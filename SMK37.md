@@ -5,11 +5,12 @@ of flash). The FM-1 build is unchanged; everything for the SMK-37 is behind `BOA
 same ChoralRoot: the same sounds and engines (GRAIN among them), screens, boot and [manual](docs/MANUAL.md), with
 velocity-sensitive keys, the chord block and the performance modes on the pads, and the SMK-37's extra controls.
 
-**Status: a community test build of 0.26.** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
+**Status: 0.41-smk37: 0.39-smk37 was tested on SMK-37s by their owners; the resource region new in 0.40-smk37 has not yet run on one (below).** The port is genkigenki's (M. Geisler, genkigenki / makkuro:
 [PR #14](https://github.com/Quixotic7/ChoralRootFM1/pull/14) and the porting guide
 [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37)), brought onto 0.24-beta2 here and built from the FM-1's
-releases since (0.26 now). It is **community-tested, not tested by the maintainer**: the maintainer has no SMK-37, so nothing on
-this page has been tried on a unit by the project. What only a unit can answer is listed under
+releases since (0.41 now). Several SMK-37 owners have run these builds and report that they work, so since 0.29.2-smk37
+they are full releases, not pre-releases. The maintainer still has no SMK-37: the project has not tried anything on
+this page on a unit itself, and new features reach it through the testers. What only a unit can answer is listed under
 [What to test](#what-to-test). Report what you find in the project's issues.
 
 ## Supported models and packages
@@ -19,14 +20,23 @@ factory package afterwards. The test packages (`build/release-smk37/`, see [Buil
 
 | Model | Package | Identity |
 | --- | --- | --- |
-| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.26-smk37.fwsc` | `SMK-37 Pro_920` |
-| SMK-37 Elite | `choralroot-0.26-smk37-elite.fwsc` | `SMK-37 Elite_920` |
-| MKE-P37 | `choralroot-0.26-smk37-mke.fwsc` | `MKE-P37_920` |
+| SMK-37 Pro (and the Starrykey 37 Play) | `choralroot-0.41-smk37.fwsc` | `SMK-37 Pro_920` |
+| SMK-37 Elite | `choralroot-0.41-smk37-elite.fwsc` | `SMK-37 Elite_920` |
+| MKE-P37 | `choralroot-0.41-smk37-mke.fwsc` | `MKE-P37_920` |
 
-Each has a `-1core` twin (`choralroot-0.26-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
+Each has a `-1core` twin (`choralroot-0.41-smk37-1core.fwsc`, ...): the same firmware on one processor core, for
 a unit that crashes or freezes with the standard package (as the FM-1's, [docs/DUALCORE.md](docs/DUALCORE.md)). The
-version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.26-smk37`
-(`... 1-core` for the twin). 0.26-smk37 is the FM-1's 0.26 on the SMK-37 ([docs/releases/0.26.md](docs/releases/0.26.md):
+version a player sees (the splash, Options > Version, `fm1_install.py --info`) is `ChoralRoot 0.41-smk37`
+(`... 1-core` for the twin). 0.41-smk37 is the FM-1's 0.41: each drum's own Chorus, Delay and Reverb sends, Level, Drive and Filter on the Kick, Snare and Hats Mix pages, and the drums on the second core ([docs/releases/0.41.md](docs/releases/0.41.md)). 0.40-smk37 was the FM-1's 0.40: the drums on the metronome's keys (a Grids beat, six CoralFlower kits, the SEQ menu's pages and FX sends), the click following MASTER and the beat off at power-on ([docs/releases/0.40.md](docs/releases/0.40.md)). **New on the SMK-37 and not yet run on one: its own resource region** (flash 0x9D000..0xA8FFF: the fonts M, CRX and CRB, the drums' kits and Grids' map; 35 KB of app space freed), which the installer now writes with the firmware: a new install path. Please report how the first install, the splash, the fonts and the drums look, and anything odd, in the project's issues. 0.39-smk37 was the FM-1's 0.39 without MIDI Roots and MIDI Keys (the FM-1's only): the Options in groups (Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings; SELECT picks a group, OCT+ opens it, OCT- goes back) that reopen where you left them ([docs/releases/0.39.md](docs/releases/0.39.md)). 0.38-smk37 was the FM-1's 0.38: chords that glide into each other in POLY, a Glide of up to 30 s that shows the time it really takes (issue 46), and two notes that could keep sounding after LATCH off with Snap or under Free fixed ([docs/releases/0.38.md](docs/releases/0.38.md)). 0.37-smk37 was the FM-1's 0.37: MIDI note names explained (the screen's C4 is note 60; a DAW that calls 60 C3 reads every note an octave lower), Bass Solo following the octave you play (issues 40 and 43), loops that stay locked to MIDI Clock In however the pulses arrive (issue 39) and the PERF knobs in the same places across modes (issue 26) ([docs/releases/0.37.md](docs/releases/0.37.md)). 0.36-smk37 was the FM-1's 0.36: Key Mode's 21 more scales (the modes, pentatonics, blues, bebop, whole tone, diminished, eastern scales and Barry Harris's 6th-diminished), KNOB 2 in the KEY layer going through all 23 and the MIN / MAJ pads, tapped again, stepping to the next scale of their kind ([docs/releases/0.36.md](docs/releases/0.36.md)). 0.35-smk37 was the FM-1's 0.35: the Bass PERF layer's Follow (the bass performs the chords' mode and parameters, step for step) and ARP held in either PERF layer switching to the other ([docs/releases/0.35.md](docs/releases/0.35.md)). 0.34-smk37 was the FM-1's 0.34: Chord and Bass Perform, the chords and the bass each with their own performance mode (CHORD held + ARP: the bass's), and the BASS layer's keys play until GLO turns them into its shortcuts ([docs/releases/0.34.md](docs/releases/0.34.md)). 0.33-smk37 was the FM-1's 0.33: Options > MIDI CC (In by default) lets a CC set a parameter of the chord or the bass sound, and with Out a knob or a fader turned on one sends its CC; the master filter can work on the chords or the bass alone; the audio starts right after power-on, as on the FM-1, where that took away a pop ([docs/releases/0.33.md](docs/releases/0.33.md)). 0.32-smk37 was the FM-1's 0.32: the flash driver waits out an erase or a write that takes longer than expected instead of cutting it short ([docs/releases/0.32.md](docs/releases/0.32.md)). 0.31-smk37 was the FM-1's 0.31 without its USB Host (the FM-1's only): when the
+computer goes with notes held (a cable pulled, a computer asleep), the keyboard lets go of the notes MIDI was holding
+([docs/releases/0.31.md](docs/releases/0.31.md)). 0.30-smk37 was the FM-1's 0.30 on the SMK-37 without its Bluetooth (the FM-1's only):
+incoming MIDI start, continue and stop work as the PLAY button with MIDI Clock Out too, and a start restarts the Arp
+([docs/releases/0.30.md](docs/releases/0.30.md)); the crash screen reads CHORALROOT CRASH; the sounds of 0.21's
+format are no longer moved into the pool (below). 0.29.2-smk37 added [the TRS jack's MIDI out](#the-trs-jack) (issue 42) and the FM-1's
+0.29.1 and 0.29.2 (the flash chip of newer units, 0xB36014; a loop that follows MIDI Clock In keeps time with the
+pulses: [docs/releases/0.29.2.md](docs/releases/0.29.2.md)) to 0.29-smk37, the FM-1's 0.29 on the SMK-37 ([docs/releases/0.29.md](docs/releases/0.29.md):
+FIZZ's engine in FM TONE, the Digitone II's filter types picked by holding SCALE, the SMK's SEL; FM TONE's chords
+on both cores), with everything of 0.27-smk37.1 (the pedal jack, K1's volume) and 0.27-smk37, the FM-1's 0.27 ([docs/releases/0.27.md](docs/releases/0.27.md):
 with Dual Core On, VA and FM6 chords shared between the two cores and the VA's code in RAM, the same sound bit for bit;
 the screen's background pure black), with everything of 0.25-smk37 (GRAIN's MORPH a blend of the two sources,
 [docs/releases/0.25.md](docs/releases/0.25.md)) and of 0.24-beta3-smk37.1, genkigenki's fix for the stock firmware's
@@ -46,11 +56,12 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Pads 1-4 (top row) | DIM, MIN, MAJ, SUS: the chord types (white) |
 | Pads 9-12 (bottom row) | 6, m7, M7, 9: the extensions (orange) |
 | Pad 13 | LOCK (blue; as B3: tap to switch it, hold for the LOCK layer) |
-| The chord pads and LOCK | they are the FM-1's chord keys: a pad holds its function while it is held, pads combine as the keys do, LOCK latches them as on the FM-1, MIN / MAJ pick the scale in the KEY layer. Bright while held or latched (LOCK: while on), dim otherwise |
+| The chord pads and LOCK | they are the FM-1's chord keys: a pad holds its function while it is held, pads combine as the keys do, LOCK latches them as on the FM-1, MIN / MAJ pick the scale in the KEY layer (tapped again, the next scale of their kind: new in 0.36, [MANUAL.md](docs/MANUAL.md) "Scales"). Bright while held or latched (LOCK: while on), dim otherwise |
 | Pads 5-8 (top row) | the free-timing performance modes: Strum, Strum 2 Octaves, Slop, Harp (cyan) |
 | Pads 14-16 (bottom row) | the tempo-synced performance modes: Arpeggiate, Arp 2 Octaves, Pattern (green) |
-| The mode pads | a tap picks that mode and switches the performance on; the playing mode's pad again switches it off, as a PERF tap. Bright: the mode playing; dim: the others. PERF (ARP) and the PERF layer show the same state |
-| K1 | MASTER (volume) |
+| The mode pads | the chord part's modes: a tap picks that mode and switches the performance on; the playing mode's pad again switches it off, as a PERF tap. Bright: the mode playing; dim: the others (none while the chord part is on Off). PERF (ARP) and the PERF layer show the same state |
+| CHORD held + ARP | the Bass PERF layer (new in 0.34, GitHub issue 41): the bass's own performance mode and parameters, Off first, then Follow (the chords' mode and parameters, new in 0.35), as on the FM-1 with BASS (ENV) held + ARP ([MANUAL.md](docs/MANUAL.md) "Chord and Bass Perform"). The PERF tap is the one switch for both parts; ARP held in either PERF layer switches to the other |
+| K1 | MASTER (volume): a turn shows the level; it is remembered across power-off |
 | K2 / K3 / K4 | SELECT / ALGORITHM / PRESETS |
 | K5..K8 | KNOB 1..4 (the SAVE menu and the naming help say K5..K8) |
 | SCALE / CHORD / NOTE REPEAT | KEY (printed SEL) / BASS (ENV) / LATCH (LFO) |
@@ -65,14 +76,58 @@ so the whole keybed plays roots. The SMK-37's buttons and knobs map onto the FM-
 | Faders 1..4 | the sends into Drive, Chorus, Delay and Reverb (the order of the FX layer's Sends page), shown as they move; a fader takes over only once it moves, also after FADER BANK |
 | Pitch wheel | bends the chord and the bass part (their channels' bend range: 2 semitones unless set over MIDI); also sent on the CHORD and BASS MIDI channels |
 | Mod wheel | vibrato on both parts (5.5 Hz, up to half a semitone at the top) and the sounds' mod wheel source; also sent as CC 1 |
+| Pedal jack | Options > Pedal: `Sustain` (the default), a switch pedal holds the notes of both parts, sent as CC 64; `Expression`, an expression pedal sets both parts' expression, sent as CC 11 ([The pedal jack](#the-pedal-jack)) |
+| TRS jack | MIDI out: everything USB MIDI sends, with or without a computer. Options > TRS MIDI Out: `On` (the default) or `Off` ([The TRS jack](#the-trs-jack)) |
 | Options > Key Touch | `Dynamic` (the SMK-37's default): every key as played, its two contacts through the unit's factory curve; `Fixed`: every key at Options > Velocity (1..127). Velocity Sens shapes how much the velocity changes the level, as on the FM-1 |
 | OCTAVE- held at power-on | update mode (OCTAVE-'s light flashes three times; install a package, or switch off and on) |
 | OCTAVE- + OCTAVE+ held at power-on | HARDWARE CALIBRATION (the screen asks for the FM-1's names, the table above) |
 | OCTAVE- + OCTAVE+ + PATCH held 5 s | update mode |
 
-The SMK-37's TRS jack is a MIDI output, and this build does not use it; there is no TRS MIDI IN. MIDI works over USB.
-The SMK-37's button lights are on or off: the FM-1's dim glow of idle buttons does not show. The pedal input is not
-used.
+The SMK-37's button lights are on or off: the FM-1's dim glow of idle buttons does not show.
+
+### The pedal jack
+
+The 1/4" pedal jack works in one of two ways, set in Options > Pedal (kept by the global save, SAVE held). Nobody on
+the project has an SMK-37, so it has not been tried with a real pedal: it learns what the pedal reads instead of
+assuming it.
+
+- **Sustain** (the default): a switch pedal, of either polarity. The reading at rest is learnt a moment after power-on
+  and again whenever Options > Pedal is changed; the pedal is down when the reading moves far from it. While it is down,
+  the keys' and pads' notes let go keep sounding on both parts (and the parts' notes from MIDI in, as their channel's
+  own CC 64 does), until the pedal comes up; a note struck again under the pedal starts again. CC 64 goes out on the
+  CHORD and BASS MIDI channels, and the notes' MIDI note-offs go out as you let go. Plug the pedal in before switching
+  on: a normally-closed pedal plugged in later reads as held until you switch off and on or change the option.
+- **Expression**: an expression pedal sets both parts' expression (CC 11: full at 127) and sends CC 11 on the CHORD and
+  BASS channels. Toe down (a lower reading, as the stock firmware reads the jack) is more. The range is learnt as you
+  move the pedal: after plugging it in, sweep it once heel to toe. Nothing is sent until the pedal moves, so an empty
+  jack leaves the parts at full expression; pulling the pedal out puts them back at full.
+
+### The TRS jack
+
+The SMK-37's 3.5 mm TRS jack is a MIDI output (there is no TRS MIDI IN). Everything ChoralRoot sends over USB MIDI also
+goes out of it, with or without a computer on USB: the parts' notes on their MIDI channels (Options > MIDI Perform,
+MIDI Bass, MIDI Raw Chord), the wheels, the pedal, and the clock when Options > MIDI Clock is `OUT` (Start, 24 pulses a
+beat, Stop). Backups and sound dumps (SysEx) stay on USB, and nothing that comes in over USB is passed through. A TRS
+Type A to DIN adapter connects a synth's MIDI IN; the SMK-37's jack was seen working with one into a Behringer TD-3
+(issue 42).
+
+Options > TRS MIDI Out turns it `Off` (kept by the global save, SAVE held): the jack then sends only what releases
+notes it already played (note-offs, the sustain pedal up, all notes off, the pitch bend back to the centre), so
+nothing it started is left on. The jack carries about 2,500 bytes a second (a note in about 1.2 ms). A burst bigger
+than its 128-byte buffer drops whole note-ons and wheel steps, never note-offs; the clock goes ahead of waiting notes.
+
+The driver is Skiff's (illuminus5, [Skiff](https://github.com/illuminus5/skiff), GPL-3.0), brought to ChoralRoot by
+finlaysteven1-netizen ([issue 42](https://github.com/Quixotic7/ChoralRootFM1/issues/42)), after genkigenki's hardware
+notes (UART1 TX on PC7, 31250 baud).
+
+### Note names and octaves
+
+The screen names notes with middle C (MIDI note 60) as C4, and the keys, the chords and MIDI out (USB and the TRS jack)
+agree with it: the SMK-37's C4 goes out as note 60. A program that follows Yamaha's naming (Ableton Live, Logic, Cubase
+and others) calls note 60 C3, so it shows every note an octave lower than the screen; nothing is sent wrong (issue 40).
+The bass with Behaviour Solo now plays the chord's root in the octave you play it, the Register moving it by octaves,
+so the three octaves of keys play three octaves of bass (issue 43, new in 0.37; until 0.36 Solo played the bass register's octave
+from every key, two octaves under the keys at Register 0).
 
 ### What the FM-1 has and the SMK-37 does not
 
@@ -93,16 +148,17 @@ an invented meaning:
 
 The SMK-37 build runs in an emulator in the browser, with the SMK-37 Pro's panel: the keys (struck low on a key loud,
 high soft), the pads lit as the firmware lights them, K1..K8, the faders, the wheels, the buttons by their SMK names,
-the computer keyboard and Web MIDI. <https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/> (the SMK-37 test
+the computer keyboard and Web MIDI. <https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/> (the SMK-37
 installer links it too). It is the same firmware as the packages (`BOARD_SMK37`) on a modelled panel
 (`tools/emu/emu_smk_hal.h`): the feel of the real keys and pads is the unit's to tell.
 
 ## Install
 
-Have M-Vave's stock package for your model and M-UPGRADE ready first (see [Going back](#going-back-to-the-stock-firmware)).
+Have [M-Flasher](https://github.com/jvitkauskas/m-flasher) and M-Vave's stock package for your model ready first (see [Going back](#going-back-to-the-stock-firmware)).
 
-**From the browser** (Chrome or Edge on a computer): the SMK-37 test installer, a page of the project's site that no
-other page links (the maintainer sends testers the link). Tick that you accept the risk, connect the keyboard and
+**From the browser** (Chrome or Edge on a computer): the SMK-37 installer at
+<https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/>, linked from the project's site and README. Tick that you
+accept the risk, connect the keyboard and
 press Install: it picks your model's package (a Starrykey 37 Play gets the Pro's), checks its checksum before writing,
 backs up a keyboard that already runs ChoralRoot to a file first, and finishes an interrupted install. It refuses an
 FM-1 and other firmwares' update modes. The Single core choice above the button is for a keyboard that crashes or
@@ -111,7 +167,7 @@ freezes with the standard package.
 **From the command line**: connect the keyboard by USB and run, with the package for your model:
 
 ```sh
-python3 tools/fm1_install.py choralroot-0.26-smk37.fwsc
+python3 tools/fm1_install.py choralroot-0.41-smk37.fwsc
 ```
 
 `fm1_install.py` needs `python-rtmidi` (`pip3 install python-rtmidi`). It checks that the package is for the connected
@@ -125,12 +181,18 @@ again. The project's main web installer offers FM-1 releases only.
 [Storage](#storage)); this takes a few seconds once. The stock firmware's key, knob and fader mapping in USRFLASH is
 kept until ChoralRoot first writes there; just before that write ChoralRoot erases the stock firmware's end marker
 (the sector 0xEA000), so after a return to the stock firmware it rebuilds its factory mapping. A unit that ran genkigenki's earlier ChoralRoot
-build for the SMK-37 keeps its data: its sounds move into 0.24's sound pool, as on an FM-1 updated from 0.21, and a
-Velocity of `keys` becomes Key Touch `Dynamic`.
+build for the SMK-37 keeps its settings, and a Velocity of `keys` becomes Key Touch `Dynamic`; its sounds were moved
+into the sound pool by 0.24-beta2-smk37 .. 0.29.2-smk37 but are no longer by 0.30-smk37 and later (as on an FM-1 coming from 0.21):
+to keep them, install 0.29.2-smk37 first, switch the keyboard on once, then install the newest.
 
 ## Going back to the stock firmware
 
-Install M-Vave's firmware package for your model with M-Vave's updater, M-UPGRADE. It works directly, because the
+**To switch to another firmware** (or from one to ChoralRoot): [M-Flasher](https://github.com/jvitkauskas/m-flasher) with the [M-Bootloader](https://github.com/jvitkauskas/m-bootloader), both for the SMK-37 Pro and
+Elite. M-Flasher works through the chip's USB download mode whatever runs on the keyboard, backs up the whole flash
+first and installs any firmware's `.fwsc` package; the M-Bootloader adds download mode from the keys (SEQ REC while
+switching on) and a recovery menu. Back up ChoralRoot's data in its installer first.
+
+**To restore the stock firmware completely:** install M-Vave's firmware package for your model with M-Vave's updater, M-UPGRADE. It works directly, because the
 installed package keeps the keyboard's model name. The keyboard's calibration (USRTRIM, the factory key, pad and wheel
 curves), Bluetooth pairing and key areas are never written by ChoralRoot, so they are as they were. The key, knob
 and fader mapping is the one the stock firmware had, or its factory one once ChoralRoot has stored something in
@@ -173,13 +235,12 @@ the first start.
 | --- | --- | --- |
 | 0x00000-0x03FFF | head (SPL, boot config) | never |
 | 0x04000-0x9CFFF | the app area: the boot stub, the app, the commit marker | the update loader only |
-| 0x9D000-0xA4FFF | the VA store, the FM6 stores, the CZ-1 tone store's first half (legacy: read once) | FL_DATA |
-| 0xA5000-0xA8FFF | the user sound banks of 0.21 (legacy: read once) | FL_DATA |
-| 0xA9000-0xAAFFF | the FM6 bank | FL_DATA |
+| 0x9D000-0xA8FFF | the resource region (since HISTORY 3y295): the glyph data of the fonts M, CRX and CRB; 0.21's sound stores' place before (free since 3y231) | the update loader only (FL_RES) |
+| 0xA9000-0xAAFFF | the FM6 bank (FL_DATA starts here since 3y295) | FL_DATA |
 | 0xAB000-0xACFFF | the settings | FL_DATA |
 | 0xAD000-0xAEFFF | the session | FL_DATA |
 | 0xAF000 | the store owner tag (`SMK37DATACHORAL`) | FL_DATA |
-| 0xB0000-0xB3FFF | the CZ-1 tone store's second half, the QUAD store (legacy) | FL_DATA |
+| 0xB0000-0xB3FFF | free (0.21's CZ-1 tones 17..32 and FM TONE store's place: not read since 3y231) | FL_DATA |
 | 0xB4000-0xB5FFF | the favourites | FL_DATA |
 | 0xB6000-0xBAFFF | the sound pool, sectors 0..4 | FL_DATA |
 | 0xBB000-0xBFFFF | the update's staging (M-UPGRADE's loader and its record) | FL_OTA |
@@ -195,13 +256,23 @@ the first start.
 | 0xFF000-0xFFFFF | key_mac | never |
 
 Each object has two copies (A / B); the pool's 16 sectors float (each save goes to a free one). Options > Flash Data (in
-SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the staging or anything
-else. `tests/smk_flash_test.c` checks every object's copies and every pool sector against the windows and the
+SAFE MODE) and a change of the store's owner erase exactly the data rows above, never the tag, the resource region, the
+staging or anything else. `tests/smk_flash_test.c` checks every object's copies and every pool sector against the windows and the
 protected ranges, and that no two share a sector.
+
+**The resource region (HISTORY 3y295).** As on the FM-1 (docs/BOOT-SAFETY.md "The resource region"), the three big
+fonts' glyph data (M, CRX, CRB: 36 024 B) lives outside the app slot, which frees about 35 KB of it for new features.
+The package's `flash.bin` runs on past the app area (0x9D000) to 0xA9000: a 64-byte header at 0x9D000, the data from
+0x9D040, plain, read through the plain XIP window that starts there. The update loader writes those 12 sectors with the
+app, before the commit marker, so an interrupted install stays rescuable as before; the firmware checks the region at
+power-on (this build's, whole) and otherwise shows **FONTS MISSING / INSTALL CHORALROOT AGAIN** for 3 s and draws its
+screens without the big type until the next install. An older package (0.39-smk37 and before) leaves the sectors as they
+are, and so does that firmware.
 
 ## Safety
 
-- Have M-Vave's stock package for your model and M-UPGRADE ready before you install.
+- Have [M-Flasher](https://github.com/jvitkauskas/m-flasher) and M-Vave's stock package for your model ready before you install (M-UPGRADE restores the stock
+  firmware completely).
 - Keep the USB cable connected until the install has finished and the keyboard has restarted.
 - ChoralRoot keeps its data apart from other firmwares' (its own data family): the first start clears any other
   firmware's data in ChoralRoot's areas, including 0xEB000-0xF1FFF, flash that the stock firmware's region table does
@@ -227,9 +298,9 @@ models in `build/release-smk37/`, with the `-1core` twins, `SHA256SUMS`, this fi
 [BUILDING.md](BUILDING.md) "An SMK-37 test release"):
 
 ```sh
-BOARD=smk37 ./build.sh --release 0.26-smk37
-BOARD=smk37 MODEL=elite ./build.sh --release 0.26-smk37
-BOARD=smk37 MODEL=mke ./build.sh --release 0.26-smk37
+BOARD=smk37 ./build.sh --release 0.41-smk37
+BOARD=smk37 MODEL=elite ./build.sh --release 0.41-smk37
+BOARD=smk37 MODEL=mke ./build.sh --release 0.41-smk37
 ```
 
 ## What to test
@@ -237,8 +308,8 @@ BOARD=smk37 MODEL=mke ./build.sh --release 0.26-smk37
 What no test here can answer, in the order to try it. Note the model, the package and what you saw.
 
 1. **First boot and the owner change.** From the stock firmware: the first start takes a few seconds longer (the
-   areas cleared, once), then the splash shows `ChoralRoot 0.26-smk37`. A second start is quick. `fm1_install.py
-   --info` names the firmware. From genkigenki's earlier build: your sounds are there (moved into the pool).
+   areas cleared, once), then the splash shows `ChoralRoot 0.41-smk37`. A second start is quick. `fm1_install.py
+   --info` names the firmware. From genkigenki's earlier build through 0.29.2-smk37: your sounds are there (moved into the pool).
 2. **The pads.** Pads 1-4, 9-12 hold the chord types and extensions, pad 13 is LOCK (tap and hold), pads 5-8 and 14-16
    pick and stop the performance modes; their colours as in [Controls](#controls).
 3. **Velocity.** Options > Key Touch reads `Dynamic`: soft and hard strokes sound different on all 37 keys (the ten
@@ -259,6 +330,43 @@ What no test here can answer, in the order to try it. Note the model, the packag
 10. **Going back with M-UPGRADE.** Install your model's stock package with M-UPGRADE: the stock firmware starts, and the
     keys', pads' and wheels' feel (the calibration) is as before ChoralRoot. Every key sends its own note, the pads,
     knobs and faders their factory messages (the mapping kept, or rebuilt after ChoralRoot wrote into USRFLASH).
+11. **FX routing (0.27).** Hold FX, SELECT to the last page, Routing. On the keybed hold C#4, D#4, F#4 or G#4 (the
+    black keys above the chord pads' octave: the SMK's keys 5..31 are the FM-1's note keys, C4 the eighth of them) and
+    turn KNOB 1: the block moves; A#4 taps between Parallel and Chain; the white keys keep playing. In Chain the
+    effects run one into the next; in Parallel, G#4 held and KNOB 1 anticlockwise puts the Filter before the buses.
+    Say whether the boxes draw and slide cleanly on the SMK's screen and whether the black keys land where the
+    footer says.
+12. **The volume (issue 30).** Turn K1 while a chord plays: a popup reads `volume` and the level in per cent, and the
+    sound follows. Turn it down, hold SAVE (BT) for the global save, switch off and on: the level is where you left
+    it, not back at the default.
+
+13. **The pedal jack.** With a switch pedal plugged in before power-on, Options > Pedal `Sustain`: hold a chord, press
+    the pedal, let go of the keys: the chord rings until the pedal comes up. Say whether your pedal is normally open or
+    normally closed (or has a polarity switch) and whether both settings of it work. Then an expression pedal with
+    Options > Pedal `Expression`: sweep it heel to toe once, then hold a chord and move it: the level follows, toe down
+    louder. Say which end is louder, whether it reaches silence and full, whether it jitters at rest, and whether a TRS
+    and a TS cable (or pedal) behave differently. A MIDI monitor shows CC 64 / CC 11 on the CHORD and BASS channels.
+
+14. **FM TONE's new filters (0.29).** Pick an FM TONE sound, EDIT, go to the filter pages and **hold SCALE** (the
+    FM-1's SEL): a list of the eight filter types comes up; turn any knob or SELECT, let go of SCALE to keep it. Try
+    MULTI (the third knob is Morph), COMB+ / COMB- (turn Feedback up to hear the ring) and EQ (turn Gain up). Say
+    whether the hold opens the list, whether a tap of SCALE still goes to the next filter screen, and whether the
+    filter picture names each type. Then play dense FM TONE chords with Dual Core On for a few minutes: any crash or
+    click, say which sound.
+
+15. **The TRS jack (issue 42).** A TRS Type A to DIN adapter into a synth's MIDI IN, Options > MIDI Perform / MIDI
+    Bass on its channel: play chords and the bass, with and without a computer on USB. Seen working on an SMK-37 Pro;
+    an **Elite** or **MKE-P37** report, a `-1core` package's, and a long session's (an hour of playing, the loop
+    running with Options > MIDI Clock `OUT`: notes stuck, the synth's tempo drifting) are what is missing. Then
+    Options > TRS MIDI Out `Off` with a chord held: let go, the synth's notes end and nothing new plays. If your
+    adapter is Type B, say so (a Type B synth stays silent on a Type A jack).
+
+16. **The resource region (3y295, the first build with it).** Install it over the build before (from the web
+    installer and from `fm1_install.py`): the splash is normal, never **FONTS MISSING**, and every screen's big type
+    (the chord name, the key, the values) is drawn, no blank or garbled text. Power-cycle twice. Then pull the USB cable
+    in the middle of that install as in 9: after the resume the fonts are there. Install 0.39-smk37 over it and this
+    build again: both start normally. If you use M-Flasher, say whether its install of this package starts with the
+    fonts (it must write flash.bin to 0xA9000). Options > Flash Data (SAFE MODE), then a restart: the fonts stay.
 
 Also worth a line: whether `fm1_install.py --info` shows a unit ID (`unit ID: XXXXXXXX`) and whether two SMK-37s show
 different ones (it is read from the flash chip, whose maker differs from the FM-1's).
@@ -267,3 +375,6 @@ different ones (it is read from the flash chip, whose maker differs from the FM-
 
 The SMK-37 port, its board layer, flash map, installers' SMK support and this page's first version are genkigenki's
 (M. Geisler, genkigenki / makkuro), from the porting guide [fm1-to-smk37](https://github.com/genkigenki/fm1-to-smk37).
+The TRS jack's MIDI out is Skiff's driver (illuminus5, [Skiff](https://github.com/illuminus5/skiff), GPL-3.0-only),
+brought over and tested on an SMK-37 Pro by finlaysteven1-netizen
+([issue 42](https://github.com/Quixotic7/ChoralRootFM1/issues/42)).

@@ -10,6 +10,8 @@
  *    core 8 in all (the shared 16), the rest given up;
  * 3. the fail-safes: a job that never answers -> core 0 renders part 1 itself in that block (the same samples as
  *    one core), c1 "gave up", the shared budget back; core 1 not answering at start -> "failed", one core;
+ *    (3y303) every render has the drums ringing, their three sends up: core 1's job renders them, and core 0 when it
+ *    reruns the job;
  * 4. reliability (after Melodee PR 21, docs/DUALCORE.md): core 1's mailbox validation (hal/fm1_cpu1.h fm1_c1_poll: a
  *    wrong sequence or check word, a null fn: refused, counted, never run), the escalation (cr_cpu1.h: a first
  *    misread is counted and keeps core 1, a second, a fault or a stall gives up), the rails' steps on a mock P33
@@ -28,22 +30,12 @@
 #ifndef FELUCCA_QUAD
 #define FELUCCA_QUAD 1
 #endif
-#ifndef FELUCCA_ANALOG
-#define FELUCCA_ANALOG 0
-#endif
-#ifndef FELUCCA_PHASE
-#define FELUCCA_PHASE 0          /* as choralroot.c since 0.18: PHASE, LOFI, VOICE, TRIO, NOISE retired */
-#define FELUCCA_LOFI 0
-#define FELUCCA_VOICE 0
-#define FELUCCA_TRIO 0
-#define FELUCCA_NOISE 0
-#endif
-#ifndef FELUCCA_PHYS
-#define FELUCCA_PHYS 0           /* .. and PHYS */
-#endif
 #ifndef FM6_POLY
 #define FM6_POLY 8
 #endif
+#define CR_DRUMS 1                      /* as choralroot.c (3y303): the drums, on core 1 with it (fx.c c1_part1_job) */
+#define CRD_IRQ_OFF() ((void)0)
+#define CRD_IRQ_ON() ((void)0)
 #define main hostsim_main
 #include "hostsim.c"
 #undef main
@@ -57,8 +49,10 @@
 #define FM1_POWER_MOCK 1
 static uint8_t p33[256];
 static uint8_t p33_log[64][2];
-static uint32_t p33_writes, p33_delays;
-static uint8_t fm1_p33_read(uint32_t a) { return p33[a & 255u]; }
+static uint32_t p33_delays;
+static uint32_t fm1_p33_timeouts, p33_fail_at = 0xFFFFFFFFu, p33_settles;   /* (from that write on, reads time out) */
+static uint32_t p33_writes;
+static uint8_t fm1_p33_read(uint32_t a) { if (p33_writes >= p33_fail_at) { fm1_p33_timeouts++; return 0xFF; } return p33[a & 255u]; }
 static void fm1_p33_write(uint32_t a, uint8_t d)
 {
     if (p33_writes < 64u) { p33_log[p33_writes][0] = (uint8_t)a; p33_log[p33_writes][1] = d; }
@@ -66,6 +60,9 @@ static void fm1_p33_write(uint32_t a, uint8_t d)
     p33[a & 255u] = d;
 }
 static void fm1_delay_us(uint32_t us) { (void)us; p33_delays++; }
+static void fm1_p33_or(uint32_t a, uint8_t d) { fm1_p33_write(a, (uint8_t)(p33[a & 255u] | d)); }
+static void fm1_p33_and(uint32_t a, uint8_t d) { fm1_p33_write(a, (uint8_t)(p33[a & 255u] & d)); }
+static void fm1_power_settle(void) { p33_settles++; }
 #include "../firmware/hal/fm1_power.h"
 
 static int fails, checks;
@@ -84,13 +81,18 @@ static const struct { uint32_t e, pi; const char *name; } PRESETS[3] = {
     {ENGI_VA, 19u, "VA"}, {ENGI_FM6, 0u, "FM6"}, {ENGI_CZ, 0u, "CZ-1"}};
 
 static uint64_t hash, given_up;
+static uint32_t drn, drb;                           /* (3y303: the drums' hits, one every 7 blocks; the blocks they
+                                                     * rang in) */
 static void blocks(uint32_t nb)
 {
     int32_t out[2 * CTL];
     uint32_t b, i;
     for (b = 0; b < nb; b++) {
+        if (!(++drn % 7u))
+            crd_hit(drn / 7u % DSS_N, (int)(drn & 1u));
         ua_stage_on = 1;                            /* the computer records: master, CHORD, BASS staged */
         mix_block(out, CTL);
+        drb += crd_out != 0;
         for (i = 0; i < 2u * CTL; i++)
             hash = (hash ^ (uint32_t)out[i]) * 0x100000001B3ull;
         for (i = 0; i < CTL * UA_CAP_CHANNELS; i++)  /* (the CHORD / BASS dry taps; the master pair is choralroot.c's) */
@@ -104,6 +106,17 @@ static void setup(uint32_t p0, uint32_t p1)
     voice_fade_steal = 1;                           /* as ChoralRoot (cr_out.c) */
     host_preset(&trk[0], PRESETS[p0].e, PRESETS[p0].pi);
     host_preset(&trk[1], PRESETS[p1].e, PRESETS[p1].pi);
+    crd_kit_load(1);                                /* the drums (3y303): every drum's three sends up, Levels off 64 */
+    for (k = 0; k < 3u; k++) {
+        crd_fx[k][0] = (uint8_t)(40 + 30 * k);
+        crd_fx[k][1] = (uint8_t)(110 - 20 * k);
+        crd_fx[k][2] = 127;
+        crd_lvl[k] = (uint8_t)(50 + 25 * k);
+        crd_drv[k] = (uint8_t)(20 + 50 * k);       /* (3y304: each drum driven) */
+    }
+    memset(crd_dist, 0, sizeof crd_dist);
+    memset(crd_v, 0, sizeof crd_v);
+    drn = drb = 0;
     for (k = 0; k < 2u; k++) {                      /* S&H LFO -> cutoff: a draw from the shared generator per cycle */
         trk[k].p[P_VOICE] = V_POLY;
         trk[k].p[P_LWAVE] = 4;
@@ -153,6 +166,8 @@ static uint64_t fork_render(uint32_t p0, uint32_t p1, uint8_t c1, uint8_t hang)
     if (!pid) {
         cr_c1_test_hang = hang;
         h = render_pair(p0, p1, c1);
+        if (drb < 500u)
+            h = 0;                                  /* (the drums must ring: most of the 1004 blocks) */
         if (hang)
             h ^= (uint64_t)cr_dbg.c1 << 60;       /* (must read "gave up": C1_GAVE_UP = 3) */
         if (write(fd[1], &h, sizeof h) != sizeof h)
@@ -349,6 +364,49 @@ static void rails(void)
     printf("  rails (mock P33): init VDC14 3 -> 5 then SYSVDD 11 -> 14, a step a write, other bits kept; never lower\n");
 }
 
+/* the stock supply setup for a radio boot (hal/fm1_power.h fm1_power_stock, 3y240; Melodee 5e66df3) */
+static void rails_stock(void)
+{
+    static const uint8_t regs[] = {0x00, 0x00, 0x00, 0x01, 0x05, 0x06, 0x07, 0x08, 0x09, 0x05, 0x06, 0x05, 0x00, 0x16,
+                                   0x02, 0x17, 0x09};
+    uint32_t i, ok = 1;
+    memset(p33, 0, sizeof p33);
+    memset(&fm1_power, 0, sizeof fm1_power);
+    p33[0x09] = 11u;
+    p33[0x06] = 3u;
+    p33[0x05] = 4u;
+    p33[0x00] = 0x04u;                             /* the boot loader's LDO13 */
+    p33[0x17] = 0x20u;
+    p33_writes = p33_settles = 0;
+    CHECK(fm1_power_stock() == 1, "stock supplies: done");
+    for (i = 0; i < sizeof regs; i++)
+        ok &= p33_log[i][0] == regs[i];
+    CHECK(ok && p33_writes == sizeof regs && p33_settles == 3u,
+          "stock supplies: stock's order of 17 P33 writes (LDO13 / DCDC13 / LDO13 off with 3 waits ... SYSVDD last)");
+    CHECK((p33_log[0][1] & 0x04u) && (p33_log[1][1] & 0x0Cu) == 0x0Cu && (p33_log[2][1] & 0x0Cu) == 0x08u,
+          "stock supplies: LDO13 kept on until DCDC13 is on, then off");
+    CHECK((p33[0x00] & 0x8Cu) == 0x88u && (p33[0x05] & 0x37u) == 0x34u && (p33[0x09] & 0x10u) && (p33[0x02] & 0x40u) &&
+          !(p33[0x17] & 0x20u) && !(p33[0x16] & 0x3Fu), "stock supplies: DCDC13, RC_250k, VDDIO 3.2 V, drive, VDDOK_DIS");
+    CHECK((p33[0x06] & 7u) == 5u && (p33[0x09] & 15u) == 14u && fm1_power.now[FM1_RAIL_VDC14] == 5u &&
+          fm1_power.now[FM1_RAIL_SYSVDD] == 14u && fm1_power.boot[FM1_RAIL_VDC14] == 3u,
+          "stock supplies: VDC14 and SYSVDD at ChoralRoot's caps (5 / 14), not stock's 7 / 15 (FM1_POWER_STOCK_LEVELS 0)");
+    CHECK((p33_log[5][1] & 7u) == 4u, "stock supplies: register 6's word as stock's (0x0C: VDC14 4) before the field");
+    fm1_power.recorded = 0;
+    p33[0x09] = 15u;                               /* a soft reset after stock's levels: kept */
+    p33[0x06] = 7u;
+    CHECK(fm1_power_stock() == 1 && (p33[0x06] & 7u) == 7u && (p33[0x09] & 15u) == 15u,
+          "stock supplies: never lowers a rail it found higher");
+    memset(&fm1_power, 0, sizeof fm1_power);
+    p33[0x09] = 11u;
+    p33[0x06] = 3u;
+    p33_writes = 0;
+    p33_fail_at = 1u;                              /* a P33 transfer times out after the first write */
+    CHECK(fm1_power_stock() == 0 && p33_writes < 4u && (p33[0x06] & 7u) == 3u && (p33[0x09] & 15u) == 11u,
+          "stock supplies: a P33 timeout stops the sequence (no rail touched, 0: no radio this boot)");
+    p33_fail_at = 0xFFFFFFFFu;
+    printf("  rails (mock P33): the stock supply setup for a radio boot, in stock's order, capped, never lower\n");
+}
+
 /* ---- 5. the bar ---- */
 static void bar_mock(uint32_t magic, uint32_t ran, uint32_t barred)
 {
@@ -444,7 +502,7 @@ int main(void)
                   (unsigned long long)one);
         }
     printf("  bit for bit: 3 x 3 preset pairs on parts 0 / 1, the job before and after part 0 (S&H LFOs on the matrix and\n"
-           "  straight to filter and pitch, a chord change, releases)\n");
+           "  straight to filter and pitch, a chord change, releases; the drums ringing, every send up: 3y303)\n");
 
     budget(C1_OK, &n0, &n1);
     CHECK(n0 == 8u && n1 == 8u && voice_kills == 0u, "core 1 alive: part 0 %u, part 1 %u voices, %u given up (want 8, 8, 0)",
@@ -519,6 +577,7 @@ int main(void)
     mailbox();
     escalation();
     rails();
+    rails_stock();
     bar();
     printf("cr_cpu1: %d checks, %d failed\n", checks, fails);
     return fails != 0;

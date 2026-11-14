@@ -11,13 +11,16 @@
  * the 1 MiB part ignores the high address bits, so a wrapped range lands low. */
 #define FL_IN(off, n, lo, hi) ((uint32_t)(off) >= (lo) && (uint32_t)(off) <= (hi) && \
                                (uint32_t)(n) <= (hi) - (uint32_t)(off))
-/* The flash chip the storage accepts (JEDEC id from 0x9F: project.c, cr_shim.c); extend it here for another part. */
+/* The flash chip the storage accepts (JEDEC id from 0x9F: project.c, cr_shim.c); extend it here for another part.
+ * FM-1: 0x856014 (Puya P25Q80, 1 MiB) in the units up to 2026; 0xB36014 (another maker's 1 MiB part, same type and
+ * capacity bytes) in units with the logo on the front, found 2026-11-02 (HISTORY 3y222: a unit that ran ChoralRoot
+ * RAM-only, "no unit ID", and took no update). The driver uses only generic SPI NOR commands (9F, 4B, 05/35, 06,
+ * 20, 02, 0B), which the SDK firmware those units shipped with uses on the same chip. */
 #if BOARD_SMK37
-/* SMK-37: 0xEB6014, 1 MiB, read from a unit over the mask-ROM UBOOT. The driver uses only generic SPI NOR
- * commands (9F, 05/35, 06, 20, 02, 0B). */
-#define FL_JEDEC_OK(id) ((id) == 0xEB6014u || (id) == 0x856014u)
+/* SMK-37: 0xEB6014, 1 MiB, read from a unit over the mask-ROM UBOOT. */
+#define FL_JEDEC_OK(id) ((id) == 0xEB6014u || (id) == 0x856014u || (id) == 0xB36014u)
 #else
-#define FL_JEDEC_OK(id) ((id) == 0x856014u)
+#define FL_JEDEC_OK(id) ((id) == 0x856014u || (id) == 0xB36014u)
 #endif
 
 #if BOARD_SMK37
@@ -25,8 +28,11 @@
  *   0x00000-0x03FFF  head (SPL, isd_config)         NEVER
  *   0x04000-0x9CFFF  app area (stock PRCT end)      update loader only (FL_APP): the boot stub, the app and the
  *                    commit marker at the FM-1's places (0x4120, 0x5000, 0x91FE0: docs/BOOT-SAFETY.md)
- *   0x9D000-0xBAFFF  VM: ChoralRoot's store (settings, the sound stores, the user sound banks, the FM6 bank,
- *                    the session, the owner tag, the favourites, the sound pool's sectors 0..4; storage.c)  FL_DATA
+ *   0x9D000-0xA8FFF  VM: the resource region (cr_res.h, HISTORY 3y295): the update loader writes it with the body,
+ *                    the app reads it through the plain window and never writes it                FL_RES
+ *                    (0.21's sound objects until HISTORY 3y231, free since)
+ *   0xA9000-0xBAFFF  VM: ChoralRoot's store (settings, the FM6 bank, the session, the owner tag, the favourites,
+ *                    the sound pool's sectors 0..4; storage.c)                                     FL_DATA
  *   0xBB000-0xBFFFF  VM: M-UPGRADE loader staging + update record (ota.c)          FL_OTA
  *   0xC0000-0xC0FFF  BTIF (BT pairing)              NEVER
  *   0xC1000-0xC1FFF  USRTRIM (key/pad/wheel calibration, "trimdat")   NEVER
@@ -52,7 +58,14 @@
 #define FL_REC_LO       0x0009D000u                /* the update loader: where it may drop records (VM only) */
 #define FL_REC_HI       0x000C0000u
 #define FL_PLAIN_LO     0x0009D000u                /* plain XIP window from the VM start */
-#define FL_DATA_LO      0x0009D000u                /* ChoralRoot's store */
+/* The resource region (HISTORY 3y295; the FM-1's below): the stock VM's first 12 sectors, where 0.21's sound objects
+ * were (free since 3y231). The package carries it after the app area (flash.bin past PRCT 0x9D000), the update loader
+ * writes it with the body, before the commit marker; the app reads it and never writes it: outside FL_RANGE_OK */
+#define FL_RES_LO       0x0009D000u
+#define FL_RES_HI       0x000A9000u
+#define FL_RES_DATA     (FL_RES_LO + 0x40u)
+#define FL_DATA_LO      0x000A9000u                /* ChoralRoot's store (0x9D000 until 3y295: the region took its
+                                                    * first 12 sectors, free since 3y231) */
 #define FL_DATA_HI      0x000BB000u
 #define FL_OTA_LO       0x000BB000u                /* M-UPGRADE loader staging, ota.c */
 #define FL_OTA_HI       0x000C0000u
@@ -86,6 +99,10 @@ _Static_assert(FL_WIN_SAFE(FL_REC_LO, FL_REC_HI), "SMK: FL_REC overlaps a protec
 _Static_assert(FL_REC_HI == FL_CAL_LO && FL_OTA_HI <= FL_REC_HI && FL_OTA_LO >= FL_REC_LO,
                "SMK: the update record (OTA area) must lie in the loader's record window, below BTIF");
 _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows overlap");
+_Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_LO == FL_APP_HI && FL_RES_HI == FL_DATA_LO &&
+               FL_WIN_SAFE(FL_RES_LO, FL_RES_HI) && FL_RES_HI - FL_RES_LO == 0xC000u && FL_RES_LO >= FL_REC_LO &&
+               FL_RES_HI <= FL_OTA_LO,
+               "SMK: the resource region: 48 KB in the plain window after the app area, below the store, the staging");
 /* the update loader (loader.c): the app area, and records only in the VM below BTIF */
 #define FL_LDR_RANGE_OK(off, n) (FL_IN(off, n, FL_APP_LO, FL_APP_HI) || FL_IN(off, n, FL_REC_LO, FL_REC_HI))
 /* ChoralRoot's own store: FL_DATA, USRFLASH and the tail after its last sector */
@@ -104,8 +121,27 @@ _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows
 #define FL_GUARD(off, n) (FL_RANGE_OK(off, n) && !FL_PROTECTED(off, n))
 #else /* FM-1 */
 #define FL_PLAIN_LO     0x00093000u                /* plain XIP window from the FM-1 VM start */
-#define FL_DATA_LO      0x00097000u                /* Felucca main store */
-#define FL_DATA_HI      0x000E0000u
+/* The resource region (HISTORY 3y234, docs/BLE-LINK.md step 1): read-only data the update package carries beside the
+ * app (flash.bin past 0x93000) and the update loader writes with the body, before the commit marker. The app reads it
+ * through the plain window (XIP 0x0208F000..) and never writes it: it lies outside FL_RANGE_OK below. Its first 64
+ * bytes are the header (firmware/src/cr_res.h), the data from FL_RES_DATA. 0x93000..0x96FFF were never used; the rest
+ * held 0.21's sound objects until 3y231 */
+#define FL_RES_LO       0x00093000u
+#define FL_RES_HI       0x0009F000u
+#define FL_RES_DATA     (FL_RES_LO + 0x40u)
+#define FL_DATA_LO      0x0009F000u                /* ChoralRoot's store (0x97000 until 3y234: the region took its
+                                                    * first 8 sectors, free since 3y231) */
+#define FL_DATA_HI      0x000DC000u                /* (0xE0000 until 3y296: the second region took its last 4 sectors,
+                                                    * 0.21's user banks, free since 3y231) */
+/* The second resource region (HISTORY 3y296, cr_res.h CR_RES2): 0.21's user banks, free since 3y231, the last 16 KB
+ * below the update's staging. Read-only tables the main loop reads (the kerning of M and CRB, the factory presets'
+ * lists, the FM6 factory voices). The package carries it in an entry of its own (res2.bin, tools/fm1pkg_make.py), the
+ * update loader writes it with the body, before the commit marker; the app reads it through the plain window (XIP
+ * 0x020D8000..) and never writes it: it lies outside FL_RANGE_OK (FL_DATA ends at it). Its first 64 bytes are its
+ * header (cr_res_hdr_t, magic CR_RES2_MAGIC), the data from FL_RES2_DATA */
+#define FL_RES2_LO      0x000DC000u
+#define FL_RES2_HI      0x000E0000u
+#define FL_RES2_DATA    (FL_RES2_LO + 0x40u)
 #define FL_GLOB_LO      0x000FC000u                /* Felucca superblock / globals */
 #define FL_GLOB_HI      0x000FF000u
 #define FL_OTA_LO       0x000E0000u                /* M-UPGRADE loader staging, ota.c */
@@ -118,4 +154,9 @@ _Static_assert(FL_DATA_HI <= FL_OTA_LO && FL_APP_HI <= FL_DATA_LO, "SMK: windows
 #define FL_RANGE_OK(off, n) (FL_STORE_OK(off, n) || FL_IN(off, n, FL_OTA_LO, FL_OTA_HI))
 #endif
 #define FL_GUARD(off, n) FL_RANGE_OK(off, n)
+_Static_assert(FL_RES_LO == FL_PLAIN_LO && FL_RES_HI <= FL_DATA_LO && FL_RES_HI <= FL_OTA_LO,
+               "FM-1: the resource region lies in the plain window, below the store and the OTA staging");
+_Static_assert(FL_RES2_LO >= FL_PLAIN_LO && FL_RES2_LO == FL_DATA_HI && FL_RES2_HI == FL_OTA_LO &&
+               FL_RES2_LO % 0x1000u == 0u && FL_RES2_HI - FL_RES2_LO == 0x4000u,
+               "FM-1: the second resource region: 16 KB in the plain window, after the store, right below the staging");
 #endif /* BOARD_SMK37 */

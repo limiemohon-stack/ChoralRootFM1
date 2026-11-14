@@ -51,8 +51,12 @@ typedef struct {
 typedef enum { CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_6, CR_MOD_M7, CR_MOD_MAJ7, CR_MOD_9 } cr_mod_t;
 #define CR_NMOD 8
 
-/* chord qualities (ids 1-4 equal the KEYMAP quality codes; 5-7 are the Secret Chords) */
-enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW, CR_Q_MIN4, CR_Q_COUNT };
+/* chord qualities (ids 1-4 equal the KEYMAP quality codes; 5-7 are the Secret Chords; 8-12 (0.36, more scales) only
+ * Key Mode's 6-Dim scales play, rooted on the key pressed, which is their bass: the tonic's 6th chord over its 3rd or
+ * 5th (C6/E = E G A C, C6/G; Cm6/Eb, Cm6/G) and X7b9 (X under the diminished seventh a semitone up). A loop records
+ * them as any quality (its 4-bit field) */
+enum { CR_Q_NONE = 0, CR_Q_DIM, CR_Q_MIN, CR_Q_MAJ, CR_Q_SUS, CR_Q_AUG, CR_Q_POW, CR_Q_MIN4,
+       CR_Q_6_3, CR_Q_6_5, CR_Q_M6_3, CR_Q_M6_5, CR_Q_7B9, CR_Q_COUNT };
 /* extension mask bits (the Lua ext_mask() packing) */
 enum { CR_EXT_6 = 1, CR_EXT_M7 = 2, CR_EXT_MAJ7 = 4, CR_EXT_9 = 8 };
 
@@ -60,7 +64,12 @@ enum { CR_EXT_6 = 1, CR_EXT_M7 = 2, CR_EXT_MAJ7 = 4, CR_EXT_9 = 8 };
 typedef enum { CR_PS_SIMPLE, CR_PS_ADVANCED, CR_PS_FREE } cr_playstyle_t;
 typedef enum { CR_EXTADD_ADD_NOTE, CR_EXTADD_PLAY_CHORD } cr_extadd_t;
 typedef enum { CR_SECRET_OFF, CR_SECRET_SIMPLE, CR_SECRET_ALL } cr_secret_t;
-typedef enum { CR_SCALE_MAJOR, CR_SCALE_MINOR } cr_scale_t;
+/* Key Mode's scales (0.36, GitHub issues 34 and 45): the settings' value (docs/SETTINGS.md); 0 and 1 as ever */
+typedef enum { CR_SCALE_MAJOR, CR_SCALE_MINOR, CR_SCALE_DORIAN, CR_SCALE_PHRYGIAN, CR_SCALE_LYDIAN,
+               CR_SCALE_MIXOLYDIAN, CR_SCALE_LOCRIAN, CR_SCALE_HARM_MINOR, CR_SCALE_MEL_MINOR, CR_SCALE_MAJ_PENT,
+               CR_SCALE_MIN_PENT, CR_SCALE_BLUES, CR_SCALE_PHRYG_DOM, CR_SCALE_DBL_HARM, CR_SCALE_HIRAJOSHI,
+               CR_SCALE_WHOLE_TONE, CR_SCALE_DIM_WH, CR_SCALE_DIM_HW, CR_SCALE_BEBOP_DOM, CR_SCALE_BEBOP_MAJ,
+               CR_SCALE_BEBOP_MIN, CR_SCALE_6DIM, CR_SCALE_M6DIM, CR_SCALE_COUNT } cr_scale_t;
 typedef enum { CR_SINGLE_FULL, CR_SINGLE_SPLIT, CR_SINGLE_SPLIT_BASS } cr_single_t;   /* Single Notes (design.md 8.3):
                                   * Full, Split Oct (below the split an octave lower), Split Bass (below the split key
                                   * the BASS stream alone, from it up the chord streams alone: cr_set_keyboard) */
@@ -101,6 +110,17 @@ typedef struct {
     uint8_t seq[CR_SEQ_MAX];     /* arp order, or the range-expanded notes for pattern */
 } cr_clk_t;
 
+/* one part's performance of a voice (0.34: Chord and Bass Perform, GitHub issue 41) */
+#define CR_NPF 2
+#define CR_PF_CHORD 0          /* the chord's notes on the MAIN stream */
+#define CR_PF_BASS 1           /* the chord's notes in the bass register on the BASS stream (crx_pf_notes) */
+typedef struct {
+    cr_own_t own;                /* the notes it sounds */
+    cr_clk_t clk;
+    uint16_t gate_t;             /* harp gate, ms (0 = sustain) */
+    uint8_t last_note, has_last;
+} cr_pf_t;
+
 typedef struct {
     uint8_t used, pad;           /* pad: chord-pad slot + 1 (not a keyed voice) */
     uint8_t loop;                /* a loop voice (cr_loop_event): slot + 1; | CR_LOOP_FIXV: its voicing is its own
@@ -113,17 +133,15 @@ typedef struct {
     uint8_t rq;                  /* resolved quality (Key Mode / secret) */
     int16_t root;                /* resolved root note, untransposed */
     uint8_t nbase, base[CR_CHORD_MAX], nnotes, notes[CR_CHORD_MAX];
-    uint16_t gate_t;             /* harp gate, ms (0 = sustain) */
-    uint8_t last_note, has_last;
     uint32_t serial;
     uint32_t gid;                /* gesture id (out.gesture): new at note-on and at a same-root retrigger */
-    cr_own_t main;
+    cr_pf_t pf[CR_NPF];          /* the performance of each part: [CR_PF_CHORD] the MAIN stream's (sustained or
+                                  * performed), [CR_PF_BASS] the bass's while the Bass Perform runs (else `bass`) */
     cr_rown_t raw;
-    cr_bown_t bass;
+    cr_bown_t bass;              /* the bass note (Bass Perform off), and bass.live: the bass follows this voice */
     uint8_t fixed;               /* 1: a chord given whole (cr_key_chord, Harmony mode): its notes, root, type and
                                   * extensions were chosen for it -- Key Mode, the chord block (Advanced / Free, LOCK)
-                                  * and the voicing knob leave it as it is (in the struct's padding: no size change) */
-    cr_clk_t clk;
+                                  * and the voicing knob leave it as it is */
 } cr_voice_t;
 
 #define CR_LOOP_FIXV 0x80u       /* cr_voice_t.loop */
@@ -165,6 +183,14 @@ typedef struct {
                                       * sounding (Chord; the scale's when none) instead of nothing (cr_snap_note);
                                       * in the padding after the three streams: cr_t keeps its size */
     int16_t par[CR_PM_COUNT][CR_P_COUNT];
+    /* Chord and Bass Perform (0.34, GitHub issue 41): perform_on is the one switch (the ARP tap); then each part whose
+     * bit is set in perf_parts performs in its own mode with its own parameters: the chord part in perform_mode /
+     * par (as before), the bass part in bperf_mode / bpar. A part not set plays as with Perform off. Default: the
+     * chord only (bit 0), as before 0.34 */
+    uint8_t perf_parts, bperf_mode;
+    uint8_t bfollow;                 /* the bass Follows (after 0.34): it performs in the chord's mode with its parameters,
+                                      * and only while the chord part performs too (its PERF layer not on Off) */
+    int16_t bpar[CR_PM_COUNT][CR_P_COUNT];
     /* runtime */
     cr_out_t out;
     uint32_t now, serial, rng, gid;
@@ -284,22 +310,35 @@ int  cr_snap_note(const cr_t *c, uint8_t note);  /* the note a key out of the sc
 void cr_set_bass(cr_t *c, int enabled);
 void cr_set_bass_mode(cr_t *c, cr_bassmode_t m);
 void cr_set_perform(cr_t *c, int enabled);         /* restarts sounding voices, flushes a Hold latch */
-void cr_set_perform_mode(cr_t *c, cr_pmode_t m);
-void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value);
+void cr_set_perform_mode(cr_t *c, cr_pmode_t m);   /* the chord part's (cr_set_perform_mode_ex part 0) */
+void cr_set_param(cr_t *c, cr_pmode_t m, cr_param_t p, int value);   /* live: rephase / rebuild / restart */
 /* "Quietly" (the knobs and pickers that turn them; the owner, 2026-10-15: turning a perform setting must never be
- * heard on its own -- "that is like playing over whatever chord the person is playing"): the same settings as
- * cr_set_perform / cr_set_perform_mode / cr_set_param, but nothing sounding is re-performed by them. The next gesture
- * (a key, a pad, a loop step) plays with them. A running arp or pattern of the mode turned follows its own parameters
- * as it runs (its rate on its grid, its order: no note struck again, the motion moves with the knob); a strum, slop or
- * harp already played stays as it was played, and a change of mode or on / off waits for the next chord. */
+ * heard on its own -- "that is like playing over whatever chord the person is playing"): the chord part's settings as
+ * cr_set_perform / cr_set_perform_mode / cr_set_param set them, but nothing sounding is re-performed by them. The next
+ * gesture (a key, a pad, a loop step) plays with them. A running arp or pattern of the mode turned follows its own
+ * parameters as it runs (its rate on its grid, its order: no note struck again, the motion moves with the knob; a
+ * Following bass's with it); a strum, slop or harp already played stays as it was played, and a change of mode or on
+ * / off waits for the next chord. */
 void cr_set_perform_quiet(cr_t *c, int enabled);
 void cr_set_perform_mode_quiet(cr_t *c, cr_pmode_t m);
-void cr_set_param_quiet(cr_t *c, cr_pmode_t m, cr_param_t p, int value);   /* live: rephase / rebuild / restart */
+void cr_set_param_quiet(cr_t *c, cr_pmode_t m, cr_param_t p, int value);
 int  cr_get_param(const cr_t *c, cr_pmode_t m, cr_param_t p);
+/* Chord and Bass Perform (0.34): part CR_PF_CHORD / CR_PF_BASS. cr_set_perform_part: that part performs (1) or
+ * plays as with Perform off (0) while Perform is on (perf_parts' bit); the mode and the parameters are each part's.
+ * The Bass Perform plays the voice's chord (its unvoiced notes) moved by whole octaves to where the bass note would
+ * be (the bass register, Unison's played pitch, a Split Bass key's), on the BASS stream, wherever the bass would
+ * sound (Bass on, its Behaviour, the BASS stream on): it replaces the bass note. Both may run at once */
+void cr_set_perform_part(cr_t *c, int part, int on);
+void cr_set_perform_mode_ex(cr_t *c, int part, cr_pmode_t m);
+void cr_set_param_ex(cr_t *c, int part, cr_pmode_t m, cr_param_t p, int value);
+int  cr_get_param_ex(const cr_t *c, int part, cr_pmode_t m, cr_param_t p);
+int  cr_param_default(cr_pmode_t m, cr_param_t p);  /* what cr_init gives both parts */
+void cr_set_perform_follow(cr_t *c, int on);       /* the bass part Follows the chord's mode and parameters (bfollow) */
 void cr_set_sticky(cr_t *c, int on);               /* latch (Sticky Keys) */
 void cr_set_tempo(cr_t *c, int bpm);               /* 20..300; rephases clocked voices */
 void cr_set_stream(cr_t *c, cr_stream_t s, int enabled);   /* gates new gestures; owners finish */
 void cr_clock_reset(cr_t *c);                      /* the global grid restarts now (transport start) */
+void cr_transport_start(cr_t *c);                  /* MIDI Start: the grid restarts and the Arp / Pattern from step 1 */
 uint32_t cr_clock_epoch(const cr_t *c);            /* a grid point of the global clock (ms) */
 int  cr_latching(const cr_t *c);
 
@@ -359,12 +398,17 @@ void cr_chord_numeral(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t s
 void cr_chord_solfege(uint8_t root_pc, uint8_t quality, uint8_t tonic, uint8_t scale, char buf[CR_NUMERAL_MAX]);
 void cr_note_name(uint8_t note, char buf[5]);     /* "C#4" (MIDI 60 = C4) */
 uint16_t cr_scale_mask(const cr_t *c);             /* bit pc = in the scale; 0 when Key Mode is off */
+uint16_t cr_scale_bits(uint8_t tonic, uint8_t scale);   /* .. of any tonic / scale (an unknown scale: Major's) */
+const char *cr_scale_name(uint8_t scale);          /* "Major", "Mixolydian", "6-Dim" (at most 10 characters) */
+int cr_scale_minor(uint8_t scale);                 /* 1: a minor scale (the MIN key's, Minor's numerals), 0: MAJ's */
 uint8_t cr_mods_held(const cr_t *c);               /* bit m = physically held */
 uint8_t cr_mods_active(const cr_t *c);             /* held, or latched in a held voice (Advanced / Free) */
 int  cr_perform_pos(const cr_t *c, uint8_t *note); /* index into the shown chord's notes of the last
                                                     * performed note (-1: none); *note = its pitch */
 int  cr_perform_stepping(const cr_t *c);           /* the shown chord's voice runs a clocked performance (Arp /
                                                     * Pattern: a step is always queued), 0 once it stopped */
+int  cr_perform_shown(const cr_t *c);              /* the part cr_perform_pos / _stepping show: the chord's while it
+                                                    * performs on the shown voice, else the bass's; -1 none */
 int  cr_sounding(const cr_t *c, cr_stream_t s, uint8_t note);   /* registry refcount */
 int  cr_voices(const cr_t *c);                     /* live voices (keyed + pads) */
 int  cr_pending(const cr_t *c);                    /* queued events */

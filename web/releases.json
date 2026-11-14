@@ -8,6 +8,439 @@
   },
   "releases": [
     {
+      "version": "0.41",
+      "date": "2026-11-12",
+      "tag": "v0.41",
+      "sha256": "8da570760712796eef54aa840f7acdaaf5fc5939bb8d46e8432efd1cd1ce0652",
+      "sha256_1core": "adb2d09445a3ccefd0d9d7f9a4ee9853efbbe5273451f0505e3a309e0372a0f4",
+      "title": "Each drum's own mix, and the drums on the second core",
+      "bullets": [
+        "Kick Mix, Snare Mix and Hats Mix: each drum's own Chorus, Delay and Reverb sends and its Level on KNOB 1 to 4.",
+        "Each drum's Drive (PRESETS) and Filter (ALGORITHM: how much of it goes through the master filter) on its Mix page.",
+        "With Dual Core On the second core plays the drums, so a chord over the beat keeps its voices.",
+        "In the SEQ menu ALGORITHM picks Metronome or Drums on the first page only.",
+        "Your settings, sounds, loops and favorites come through the update; 0.40's drum sends come back as the same sound."
+      ],
+      "notes": [
+        "A settings backup does not hold the drums: they live in the session.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core; it plays the drums on that core."
+      ]
+    },
+    {
+      "version": "0.40",
+      "date": "2026-11-11",
+      "tag": "v0.40",
+      "sha256": "ed860ccac8ab1cc60e3f550a0e207b1e484371ffc96fa120722605c70463466c",
+      "sha256_1core": "29ec09b1d16db8746b30878101af09f6d88f396020b94773efc6a41ad150a5a5",
+      "title": "Drums on the metronome's keys",
+      "bullets": [
+        "Drums: hold SEQ and turn ALGORITHM to Drums, PRESETS starts and stops them. A Grids beat you morph on a map, six kits from CoralFlower's drum synth, in step with your loop.",
+        "The SEQ menu's pages: Beat (the map, Density, Chaos), Kick, Snare (turning into a clap), Hats (Tune, Decay, Character, Fill) and Mix (each drum's FX send).",
+        "The metronome's menu: KNOB 1 Level, KNOB 2 Meter; the keys play there; hold SEQ in the loop editor to open it.",
+        "The click follows MASTER, and the beat is off at every power-on.",
+        "A second resource region frees 12 KB of app space; your settings, sounds, loops and favorites come through the update."
+      ],
+      "notes": [
+        "A settings backup does not hold the drums: they live in the session, as the FX layer does.",
+        "M-Flasher writes the firmware alone: the unit starts with PRESETS MISSING until ChoralRoot's own installer has run once.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.40 stores everything else the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "0.40 does not read 0.41's drum settings: the beat comes up on Metronome with the drums' defaults, and the Mix page is one page again.",
+          "Options > Version reads ChoralRoot 0.40 again; the drums play on the first core, and ALGORITHM picks Metronome or Drums on every page of the SEQ menu."
+        ]
+      }
+    },
+    {
+      "version": "0.39",
+      "date": "2026-11-10",
+      "tag": "v0.39",
+      "sha256": "b2e190bf4b5e0c218dbda057368d32c29ef602b1aee06fd25264c0d4c73631e7",
+      "sha256_1core": "25e52f775007bbc4f556b1c9f57358018bcc361e1108e21cf042bff66192fad2",
+      "title": "A whole keyboard plays the chords; Settings in groups",
+      "bullets": [
+        "MIDI Roots (Options > MIDI): every note on that channel is a root at its own pitch, so a whole MIDI keyboard plays the chords, and the home screen shows them as if played on the FM-1.",
+        "Pads hold the chord keys: notes 36 to 44 on the MIDI Keys channel press the chord block, so a pad controller picks the chord while a keyboard plays the roots.",
+        "Settings in groups: Play, Chords, Keys, MIDI, Screen, Audio, System, then Reset Settings. SELECT picks a group, OCT+ opens it, OCT- goes back.",
+        "Settings reopen where you left them: close them inside a group and OPT brings you back to the same setting.",
+        "Every setting, sound, loop and favorite is stored as before."
+      ],
+      "notes": [
+        "Emulator or MIDI scripts that count SELECT steps through the Options: the list is now grouped; pick the group, OCT+, then count inside it.",
+        "Going back to 0.38: the Options are one long list again; with MIDI Roots on, 0.38 reads MIDI Raw Chord as Off until you set it.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.39 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.39 again. The drums are gone and the SEQ menu is the metronome's again (SELECT the time signature, KNOB 1 the click); the drums' settings stay in the session, unread.",
+          "A metronome left on is on again at power-on, and the click no longer follows MASTER. The second resource region is left in place and not read."
+        ]
+      }
+    },
+    {
+      "version": "0.38",
+      "date": "2026-11-09",
+      "tag": "v0.38",
+      "sha256": "a12a4f931abb4d3ae08fb5cb9d973f70c4d9f0eb2388e5505c8c6205bf0c2ec1",
+      "sha256_1core": "120d723f071474635018b2b493734f7c1ec778b6d1289d280925299d8c884d74",
+      "title": "Chords that glide, up to 30 seconds",
+      "bullets": [
+        "Chords glide into each other: in POLY with Glide above 0, each note of the next chord slides from the nearest note of the one you let go (GitHub issue 46).",
+        "Glide goes up to 30 s and the knob shows the time the slide really takes; Gl. mode RATE is the time for an octave, TIME the time for any slide.",
+        "Fixed: a chord left sounding (with its Bass Perform arp) after LATCH off with Snap, and a note left on after Free sounded over the Full keyboard.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Sounds with Glide above 0 now slide for the time the knob shows, so more slowly than before; sounds with Glide at 0 play as before.",
+        "RemoteFM1 and the FM1 plug-in show Glide as a plain number until they are updated.",
+        "Going back to 0.37: Glide slides for at most about 1.5 s again and POLY chords do not glide.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.38 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.38 again, and the Options are one long list with no groups.",
+          "MIDI Roots is gone: with it on, 0.38 reads MIDI Raw Chord as Off (its default) until you set it there. Notes 36 to 44 on MIDI Keys play as notes again."
+        ]
+      }
+    },
+    {
+      "version": "0.37",
+      "date": "2026-11-09",
+      "tag": "v0.37",
+      "sha256": "386be8609f8ace177423cd295a2babf4f9f9d1ed2d42971cf90e4cd8adeb31e3",
+      "sha256_1core": "8bb33865b8ca747a08e9b89a5e5562f23f59032a7b1cdee7ddd4c7e3cde956b2",
+      "title": "Bass Solo in your octave, loops locked to MIDI clock, steadier PERF knobs",
+      "bullets": [
+        "Bass Solo plays the chord's root in the octave you play it; the Register moves it by octaves, -2 is about the old range (GitHub issues 40 and 43).",
+        "Loops stay locked to MIDI Clock In however the pulses arrive: none dropped, hiccups caught up, the tempo steady (GitHub issue 39).",
+        "The PERF knobs sit in the same places across modes: Slop is Rate, Direction, Range, Amount and Pattern is Division, Pattern, Gate, Swing (GitHub issue 26).",
+        "The screen's C4 is MIDI note 60; programs that call 60 C3 show every note an octave lower.",
+        "Your settings, sounds, loops and favorites are stored as before; the Slop and Pattern values keep their values."
+      ],
+      "notes": [
+        "The Bass PERF layer's own Slop and Pattern values saved by 0.34 to 0.36 may come back on another parameter; set them again once.",
+        "Going back to 0.36: Bass Solo plays in the bass register again and Slop and Pattern have their old knob order.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.37 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.37 again. Glide reads up to 10 s but slides for at most about 1.5 s, and POLY chords do not glide.",
+          "A chord latched under Snap may keep sounding after LATCH off, and a note may stay on after Free over the Full keyboard, as in 0.37."
+        ]
+      }
+    },
+    {
+      "version": "0.36",
+      "date": "2026-11-09",
+      "tag": "v0.36",
+      "sha256": "190a9425df105e956e0287a830154b406d35e1a6bbfdb7e673978d87cc7bdbe3",
+      "sha256_1core": "178e936b0269b312cfbd5155044f8625903d0f32ebaacc529b6365db69597b11",
+      "title": "21 more Key Mode scales",
+      "bullets": [
+        "Key Mode has 21 more scales besides Major and Minor: the modes, the pentatonics, Blues, Bebop, Whole Tone, the Diminished scales, eastern scales and Barry Harris's 6-Dim (GitHub issues 34 and 45).",
+        "Each note of the scale plays the chord built from the scale's own notes; the 6, m7, M7 and 9 keys add to it as ever.",
+        "6-Dim plays the tonic's 6th chord with the key you press in the bass (E: C6/E), diminished sevenths between, and a 7b9 chord on the keys outside the scale.",
+        "In the KEY layer KNOB 2 goes through all 23; MIN and MAJ tapped again step to the next scale of their kind.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.35 or older: a scale other than Major or Minor reads as Major there, and a loop slot holding a 6-Dim inverted or 7b9 chord reads as empty (it plays again on 0.36).",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.36 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.36 again. Bass Solo plays in the bass register, the same octave from every key.",
+          "Slop and Pattern have their old knob order; the chord's values stay on their parameters. The Bass PERF layer's Slop and Pattern values set on 0.37 may come back on another parameter.",
+          "The loop follows MIDI Clock In as 0.36 did."
+        ]
+      }
+    },
+    {
+      "version": "0.35",
+      "date": "2026-11-09",
+      "tag": "v0.35",
+      "sha256": "98b82fa724403ec1ef68e9e5792dcad315724af8264ccde1dcc1a1d6e1895d1b",
+      "sha256_1core": "9bff4d404ab9bf226f8e6e7fe678b4e48b515dc1f9551fce70e988d3b146ba52",
+      "title": "The bass Follows the chords' performance",
+      "bullets": [
+        "The Bass PERF layer has a new entry after Off, Follow: the bass performs the chords' mode with their parameters, each step together with the chords'.",
+        "The chords' layer is the master: change its mode or turn its knobs and a following bass follows at once.",
+        "With the chords on Off, a following bass plays its plain note; the bass's own mode and parameters are kept for later.",
+        "Holding ARP inside either PERF layer switches to the other one, chords to bass and back.",
+        "OCT-, OCT+ or HOME closes a PERF layer.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.34: a bass on Follow plays its own mode there, and holding ARP in a PERF layer closes it again.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.35 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.35 again. Key Mode has Major and Minor only: a saved scale it does not know (any other) reads as Major, the tonic and Key Mode kept.",
+          "A loop slot holding a 6-Dim or m6-Dim chord over its 3rd or 5th, or a 7b9 chord, reads as empty; it is still stored and plays again on 0.36 unless you record or save into that slot.",
+          "A global save on 0.35 stores Major."
+        ]
+      }
+    },
+    {
+      "version": "0.34",
+      "date": "2026-11-09",
+      "tag": "v0.34",
+      "sha256": "3ae553e3676ef9f7bb304309393dd4d32f30a87d4470b90f251d77e9b1e3c3a6",
+      "sha256_1core": "35e486ca57d21ef16a581e024c461845c98ff7b51c91c992e7b1a1e12c6bc031",
+      "title": "Chord and Bass Perform",
+      "bullets": [
+        "Chord and Bass Perform: the chords and the bass each have their own performance mode, so sustained chords can sit over an arpeggiated bass, or both can perform at once (GitHub issue 41, by etyrnal).",
+        "BASS (ENV) held + ARP opens the Bass PERF layer: the same modes and knobs in orange, with the bass's own settings.",
+        "Both PERF pickers start with Off. The chords start on their mode and the bass on Off, so the FM-1 plays as before until you pick one.",
+        "An ARP tap is still the one switch for both parts.",
+        "A BASS tap turns the bass, and its arpeggio, on and off at once, also under a chord you are holding.",
+        "The BASS layer's keys now play by default; a GLO tap in the layer turns them into its Behaviour shortcuts.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.33: the bass plays its plain note, a chord part set to Off performs again, and the BASS layer's keys pick the Behaviour.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.34 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.34 again. No Follow: a bass on Follow plays its own mode (Strum, or the one you last picked for it).",
+          "Holding ARP in a PERF layer closes it again instead of switching to the other one.",
+          "A global save on 0.34 forgets Follow."
+        ]
+      }
+    },
+    {
+      "version": "0.33",
+      "date": "2026-11-09",
+      "tag": "v0.33",
+      "sha256": "fee7577cf418beb92b36cab637da60d413547944eb9f5bdfadfdf4d9c790b577",
+      "sha256_1core": "f4ccce4ee65dd611aa5bc833a33453f40956841a73548c58c8d6f28a894552c0",
+      "title": "No pop at power-on, MIDI CC on the sounds, the filter on one part",
+      "bullets": [
+        "No more pop from the speaker a few seconds after switching on: the audio now starts right after power-on, silent until the FM-1 is ready.",
+        "Options > MIDI CC (In by default): a CC on the Perform or Bass channel sets a parameter of that part's sound, as turning its knob in the sound editor would.",
+        "The common CCs mean the same on every engine (pan, the drive send, filter cutoff and resonance, the amp envelope, LFO 1); MANUAL section 15 has each engine's map.",
+        "With MIDI CC on Out or In + Out, turning a knob on such a parameter sends its CC.",
+        "Incoming CCs change values quietly: no popup.",
+        "The master filter's KNOB 4 is now Off, All, Chord or Bass: filter the chords or the bass alone, the other part going round it.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "Going back to 0.32: the filter on Chord or Bass reads as Off there, and MIDI CC set to anything but In makes 0.32 read Raw Chord Sound and MIDI Keys as Off.",
+        "The supplies are now set to the stock levels on every start, as FM1-Base and Melodee do.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.33 stores everything the same way, so your settings, sounds, loops and favorites stay; only the new Perform settings are not read there.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.33 again. No Bass Perform: the bass plays its plain note.",
+          "A chord part set to Off in its PERF layer performs again with its last mode on 0.33.",
+          "A global save on 0.33 sets the bass's Perform settings back to their defaults, and the BASS layer's keys pick the Behaviour there."
+        ]
+      }
+    },
+    {
+      "version": "0.32",
+      "date": "2026-11-08",
+      "tag": "v0.32",
+      "sha256": "a4f88c00142141a40b645162f360696c319f78c0ce032a87d4d014f52ddd12b0",
+      "sha256_1core": "f79b0f1666c1696f8fc5677ae880f86da4fe00e4628245287ea1e058a2c7d971",
+      "title": "A safer flash driver for the newer FM-1s",
+      "bullets": [
+        "For the FM-1s made from late 2026 with the slower flash chip: an erase or a write that takes longer than expected is now waited out (up to 2 s / 50 ms) instead of cut short.",
+        "The FM-1 never goes back to running from the flash while the chip is still busy. Before, a slow erase could leave it reading garbage.",
+        "Late but finished counts as done: the save, the update or the restore goes through. fm1_install.py --debug counts the late ones.",
+        "A chip still busy at 2 s / 50 ms is reset, and the FM-1 restarts.",
+        "Nothing you play changes. Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "The fix is felucca-bsp's (#12, by Julius Vitkauskas), as RemoteFM1 0.3.4 took it. Its two files keep their MPL-2.0 licence.",
+        "Not yet tried on a unit with the slow chip: none here has one. If --debug shows flash_late_ops above 0, please report it.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.32 stores everything the same way, so your settings, sounds, loops and favorites stay, but for two settings below.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.32 again. No MIDI CC on the sounds' parameters, and the pop at power-on can come back.",
+          "The filter set to Chord or Bass reads as Off on 0.32 (All reads as On).",
+          "Options > MIDI CC on In (the default) is fine. Set to Off, Out or In + Out, 0.32 reads Raw Chord Sound and MIDI Keys as Off: put MIDI CC back on In first, or set them again on 0.32."
+        ]
+      }
+    },
+    {
+      "version": "0.31",
+      "date": "2026-11-08",
+      "tag": "v0.31",
+      "sha256": "12704d5b91b8ce9b70c397faccb43642e909af29f9287b61e108989a7e4420cd",
+      "sha256_1core": "655de62e347889df548f30c5a2b217e452b63742b1864c8d76c43f37f678496b",
+      "title": "USB Host: two FM-1s on one USB-C cable",
+      "bullets": [
+        "Options > USB Host: the FM-1's USB-C port becomes the host of a USB MIDI device. Never saved: every start-up is a normal USB device again, so updates always work.",
+        "Two FM-1s play each other over one plain USB-C to USB-C cable, on their batteries: notes both ways, and MIDI clock and start / stop in either direction.",
+        "USB Host Off gives the port back to the computer without a restart.",
+        "When USB goes with notes held (a cable pulled, a computer asleep, the other FM-1 gone), the FM-1 now lets go of the notes MIDI was holding. Its own keys and the loop keep theirs.",
+        "Your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "USB Host comes from Melodee (Kerem Kilic), with recursivefieldinstruments' work.",
+        "Not yet tried on a unit: USB MIDI keyboards, controllers and hubs. They need power of their own (a powered hub or OTG adapter); full-speed devices only.",
+        "A USB loss also stops notes held from Bluetooth or the TRS jack at that moment.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.31 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.31 again.",
+          "Its flash driver gives up on a slow erase or write after 500 ms / 10 ms again (the newer FM-1s' slower flash chip)."
+        ]
+      }
+    },
+    {
+      "version": "0.30",
+      "date": "2026-11-07",
+      "tag": "v0.30",
+      "sha256": "872ed7a7ac2384b9a53e5408d79aa83fadaf01982f92be0a062941860de59a01",
+      "sha256_1core": "438d1e45456481169032dec90dce9b2f7f758d119eeebce98142daf08e946b63",
+      "title": "Bluetooth MIDI, and MIDI start and stop with Clock Out",
+      "bullets": [
+        "Bluetooth MIDI: Options > Bluetooth On, switch the FM-1 off and on, then connect to ChoralRoot XXXX from a Mac's Audio MIDI Setup or an iPad's or iPhone's music app. The same MIDI as USB, both ways; SysEx stays on USB.",
+        "The radio measures itself at every start: on a unit with both cores it connected within 10 seconds and held the link for minutes with nothing lost.",
+        "Incoming MIDI Start, Continue and Stop (USB, Bluetooth, the TRS jack) now work like the LOOP (PLAY) button with MIDI Clock set to Out as well as In, and a Start takes the Arp and Pattern back to their first step.",
+        "With MIDI Clock Out, a start or stop that came in is not sent back, so a master that echoes never loops.",
+        "The crash screen reads CHORALROOT CRASH. The fonts moved into their own area of the flash, which the installer writes with the firmware.",
+        "Your settings, sounds, loops and favorites are stored as before. Bluetooth starts Off."
+      ],
+      "notes": [
+        "Bluetooth comes from Melodee (Kerem Kilic): the Optimist stack and Charles Vestal's radio calibration.",
+        "A Mac delivers Bluetooth MIDI on 7.5 ms steps: for tight clock sync, use USB or the TRS jack.",
+        "An FM-1 still on ChoralRoot 0.21 or older: install 0.29.2 first and switch on once to keep 0.21's sounds (the installer asks).",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.30 stores everything the same way, so your settings, sounds, loops and favorites stay. It has no USB Host.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.30 again.",
+          "No USB Host: the USB-C port talks to a computer only.",
+          "A note held over USB stays on when the computer or the other FM-1 goes, until PANIC."
+        ]
+      }
+    },
+    {
+      "version": "0.29.2",
+      "date": "2026-11-02",
+      "tag": "v0.29.2",
+      "sha256": "b96afe10c09ba241b25d18ceff9570183495412ccf94050f1e1cb9a75ace09cc",
+      "sha256_1core": "96302c71c26c4007ee43e1bb534925aa5672cdd9a7b8d37b365531b1223116ae",
+      "title": "Loops stay in time with an incoming MIDI clock",
+      "bullets": [
+        "With Options > MIDI Clock set to In, a loop now keeps time with the incoming clock's pulses themselves, so it stays with the master however long it plays.",
+        "Before, the loop ran at the clock's tempo rounded to a whole BPM: a master at 120.4 BPM left it about 2 seconds behind after 10 minutes.",
+        "If the incoming clock stops, the loop plays on at the tempo, and locks again when the clock comes back.",
+        "Everything else is 0.29.1's, and your settings, sounds, loops and favorites are stored as before."
+      ],
+      "notes": [
+        "The arpeggiator still follows the incoming tempo as a whole BPM.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "0.29.2 stores everything the same way, so your settings, sounds, loops and favorites stay. It has no Bluetooth.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.29.2 again.",
+          "No Bluetooth MIDI: the FM-1 is no longer visible; the paired computer can forget it.",
+          "With MIDI Clock set to Out, incoming Start, Continue and Stop are ignored again."
+        ]
+      }
+    },
+    {
+      "version": "0.29.1",
+      "date": "2026-11-02",
+      "tag": "v0.29.1",
+      "sha256": "646b77ef770e3e82772dea8be919424602788dead2c613a861ddb471611234a1",
+      "sha256_1core": "48a7180e11c4fbbd8848693bdbb01aa9bce203b587ba949d33bdc308c11d86cf",
+      "title": "0.29 for the newer FM-1s (the second flash chip)",
+      "bullets": [
+        "The FM-1s sold from late 2026 (the M-VAVE logo on the front) have a different flash chip. ChoralRoot up to 0.29 did not know it: on those units it kept no settings, sounds or loops and refused every update.",
+        "0.29.1 knows the chip. On such a unit Options > Version now shows a unit ID, and settings, sounds and loops are kept.",
+        "The same firmware as 0.29 otherwise: the same sound and features, with your settings, sounds, loops and favorites stored as before. Only the version line reads 0.29.1.",
+        "A unit already stuck on 0.27 to 0.29 ('no unit ID' under Options > Version) cannot take this update over USB: hold OCT-, OCT+ and HOME 5 s until the screen goes dark, restore V15 with MvaveFM1Unbricker 1.2.1, then install 0.29.1 here."
+      ],
+      "notes": [
+        "On an FM-1 with the older chip, updating from 0.29 is optional: nothing changes but the version line.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "Nothing changes but MIDI Clock In's timing: 0.29.1 stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.29.1 again.",
+          "With MIDI Clock set to In, a loop drifts from the incoming clock again when the master's tempo is between two whole BPMs."
+        ]
+      }
+    },
+    {
+      "version": "0.29",
+      "date": "2026-11-01",
+      "tag": "v0.29",
+      "sha256": "b0f10a772b0c155eb08aa04dc88912bd2fe1b92637b036c20e44ca65a082297c",
+      "sha256_1core": "725a38b93eecceb755402b9c512bee7d702adbc06334d6fdcdd7db3ca14e07e0",
+      "title": "FIZZ's engine in FM TONE, Digitone II sounds",
+      "bullets": [
+        "FM TONE gets the Digitone II's filter types: MULTI (with Morph), COMB+, COMB- and EQ. Hold SEL in the sound editor to pick one; the FILTER screen's third knob follows the type.",
+        "DRIVE before the filter, the AHD amp envelope and CRUSH (bit and sample-rate reduction) for FM TONE, as in FIZZ.",
+        "An imported Digitone sound brings its own reverb, delay and chorus sends; any other sound leaves the sends as they are.",
+        "The web device manager and the installer's Sounds section import Digitone II FM TONE sounds (.dn2pst, .dn2snd) with their filter, envelope, crush, drive, sends and glide.",
+        "FM TONE's chord voices share the two cores, so the heavier sounds play without clicks.",
+        "Your settings, sounds, loops, favorites and FX routing stay; factory presets and saved FM TONE sounds sound as before."
+      ],
+      "notes": [
+        "Onto 0.28 or older the web pages write a Digitone sound without the new filter types, AHD, crush and sends: update to 0.29 first to get the whole sound.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "On an FM-1 with the older flash chip nothing changes: 0.29 is the same firmware and stores everything the same way, so your settings, sounds, loops and favorites stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.29 again.",
+          "On an FM-1 with the second flash chip (the units with the logo on the front, late 2026) 0.29 runs without the flash again: it keeps nothing and takes no update, and the way back is the Unbricker's restore of V15 (releases/0.29.1.md)."
+        ]
+      }
+    },
+    {
+      "version": "0.28",
+      "date": "2026-10-31",
+      "tag": "v0.28",
+      "sha256": "8adefde995a2db700803e54d9cd10bb4b9cde070ec5e37914e92bdc742c0575b",
+      "sha256_1core": "88c4f22b51eab407f5e3c28386837278e1b968affdb6474049ff6ee9a678a200",
+      "title": "Digitone sounds from .syx dumps and every record version",
+      "bullets": [
+        "The web device manager and the installer's Sounds section read Digitone .syx dumps: one sound, a bank or a project, each sound converted as from a .dnsnd file, with the same notes.",
+        "Sounds of every record version import: the ones saved on Digitone OS 1.31 and 1.42 were refused as a newer format; a version newer than the known ones is read with the known layout and says so.",
+        "A record cut short gets FM TONE's defaults for what is missing instead of a silent level and a shut filter.",
+        "The installers recognise an FM-1 running RemoteFM1 0.2 or later and install ChoralRoot over it.",
+        "The firmware is 0.27's: the same sound and features, your settings, sounds, loops, favorites and FX routing stored as before. Only the version line reads 0.28."
+      ],
+      "notes": [
+        "Updating from 0.27 is optional: nothing changes but the version line, and the new importing is on the web pages. From 0.26.1 or older, this is 0.27's update with the FX routing.",
+        "The Single core package is the same firmware on one core."
+      ],
+      "going_back": {
+        "short": "Your settings, sounds, loops, favorites and FX routing stay, but an FM TONE sound that uses something new in 0.29 plays as FM TONE's INIT sound on 0.28.",
+        "points": [
+          "That means the new filter types, DRIVE before the filter, the AHD envelope, crush, the base-width filter after the main one, or a sound's own sends (every imported Digitone sound has them).",
+          "The sound stays in its slot, untouched: install 0.29 again and it is back.",
+          "Options > Version reads ChoralRoot 0.28 again."
+        ]
+      }
+    },
+    {
       "version": "0.27",
       "date": "2026-10-25",
       "tag": "v0.27",
@@ -24,8 +457,15 @@
       ],
       "notes": [
         "Updating from 0.26.1 or 0.26 keeps your settings, sounds, loops and favorites; the effects sound as they did until you open the Routing page. From 0.25.1 or older, your FM-1 also moves to the FM-1 chord keys once.",
-        "The Single core package has the routing too. The SMK-37 test build stays 0.26-smk37."
-      ]
+        "The Single core package has the routing too. 0.27 also comes as a community test build for the M-Vave SMK-37 (see SMK37.md in the repository)."
+      ],
+      "going_back": {
+        "short": "Nothing changes: 0.28 is the same firmware as 0.27 and stores everything the same way, so your settings, sounds, loops, favorites and FX routing stay.",
+        "points": [
+          "Options > Version reads ChoralRoot 0.27 again.",
+          "Sounds imported from .syx files or newer records are ordinary FM TONE sounds on the FM-1 and stay."
+        ]
+      }
     },
     {
       "version": "0.26.1",

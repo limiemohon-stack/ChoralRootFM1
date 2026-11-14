@@ -370,6 +370,29 @@ if (existsSync(built920)) ok(productOf(readFileSync(built920)) === META.product,
   ok(p.downloads.length === 1 && /^choralroot-backup-/.test(p.downloads[0].name) && !p.confirms.length && !cr.log.length && p.$.status.textContent === en.done,
     "ChoralRoot over ChoralRoot: backed up, no restore offered");
 }
+// HISTORY 3y231: a release after 0.29.2 no longer moves 0.21's 32 sounds into the pool. An FM-1 on ChoralRoot 0.21 or
+// older is asked first (install 0.29.2 first to keep them); declined: nothing written. 0.22 and later, or 0.29.2 itself
+// as the target: no question
+{
+  const relPage = (v) => scriptOf(html.split("/*LIB*/").join(lib).split("/*META*/").join(JSON.stringify(
+    { ...META, version: v, releases: [{ ...META.releases[0], version: v, tag: "v" + v }] })));
+  const stepText = (from, v) => en.poolStepConfirm.split("{from}").join(from).split("{version}").join(v).split("{via}").join("0.29.2");
+  for (const [unitV, relV, answer, asked] of [["0.21", "0.30", false, true], ["0.21", "0.30", true, true],
+                                               ["0.20", "0.30", true, true], ["0.22", "0.30", true, false],
+                                               ["0.22-beta1", "0.30", true, false], ["0.21", "0.29.2", true, false]]) {
+    const cr = backupSide("ChoralRoot " + unitV, CR_BACKUP_IDS, crData());
+    const dev = new FakeFM1(image, { identity: "FM-1_920", bk: (id) => (id.startsWith("ota-") ? null : cr) });
+    const p = runPage({ navigator: midiOf(dev), fetch: pkgFetch(raw), confirm: () => answer, page: relPage(relV) });
+    await settle();
+    await p.$.go.fire("click");
+    const q = p.confirms.filter((m) => m === stepText(unitV, relV));
+    const what = `ChoralRoot ${unitV} -> ${relV}`;
+    if (!asked) ok(!q.length && !p.confirms.length && p.$.status.textContent === en.done, `${what}: no pool question, installed`);
+    else if (answer) ok(q.length === 1 && p.confirms.length === 1 && p.$.status.textContent === en.done, `${what}: asked (via 0.29.2), confirmed, installed`);
+    else ok(q.length === 1 && dev.upgrades === 0 && !p.downloads.length && p.$.status.textContent === en.cancelled && !p.$.go.disabled,
+            `${what}: asked (via 0.29.2), declined: nothing written, unlocked`);
+  }
+}
 // Back up and Restore buttons
 {
   const cr = backupSide("ChoralRoot 0.1", CR_BACKUP_IDS, crData());
@@ -441,7 +464,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   let { p, dev } = await over("FM-1_900", "FELUCCA SLOOP 2.2");
   const text = refusal("Sloop");
   ok(p.$.status.textContent === text && text.startsWith("Installing over Sloop is not supported: ") &&
-     text.includes("Return to the official V15 firmware with the installer you used for Sloop first, then install ChoralRoot.") &&
+     text.includes("Switch firmwares with M-Flasher and the M-Bootloader instead (https://github.com/jvitkauskas/m-flasher)") && !/V15/.test(text) &&
      text.includes("https://github.com/Quixotic7/MvaveFM1Unbricker"), "guard: over Sloop -> refused with the message and the recovery link");
   ok(dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden === false && !p.$.go.disabled,
     "guard: ... nothing written, no backup, no question; the override box appears");
@@ -460,9 +483,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
   // Bubba Machine (FM-1_003 on the port "FM-1 Bubba Machine"): its updater refuses our loader, so no override is offered
   const bubbaText = en.bubba.replace("{name}", "Bubba Machine (FM-1_003)");
   ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine" }));
-  ok(p.$.status.textContent === bubbaText && bubbaText.includes("Return to official V15") && bubbaText.includes("FM-1.fwsc") &&
+  ok(p.$.status.textContent === bubbaText && bubbaText.includes("M-Flasher and the M-Bootloader") && bubbaText.includes("github.com/jvitkauskas/m-flasher") && !/V15/.test(bubbaText) &&
      dev.upgrades === 0 && !p.downloads.length && !p.confirms.length && p.$["force-box"].hidden !== false && !p.$.go.disabled,
-     "guard: over Bubba Machine -> refused, the way back to V15 said; nothing written, no backup, no override box");
+     "guard: over Bubba Machine -> refused, M-Flasher named as the way (no V15 detour); nothing written, no backup, no override box");
   ({ p, dev } = await over("FM-1_003", null, { name: "FM-1 Bubba Machine", force: true }));
   ok(p.$.status.textContent === bubbaText && dev.upgrades === 0 && !p.confirms.length,
      "guard: over Bubba Machine with the override ticked -> still refused, nothing written");
@@ -472,7 +495,7 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
     await settle();
     await bp.$["check-go"].fire("click");
     ok(bp.$.unit.textContent === bubbaText && bp.$.unit.className === "unit bad" && bd.upgrades === 0,
-       'check: "What is on my FM-1?" on Bubba Machine names it and says the way back to V15, writes nothing');
+       'check: "What is on my FM-1?" on Bubba Machine names it and says M-Flasher, writes nothing');
   }
   for (const [identity, version] of [["FM-1_910", "FELUCCA v1.0.1"], ["FM-1_90111", "MELODEE v0.11.1"], ["FM-1_920", "ChoralRoot 0.12"], ["FM-1_015", null], ["FM-1_003", null]]) {
     ({ p, dev } = await over(identity, version, { skip: true }));
@@ -770,9 +793,9 @@ ok(html.includes('data-t="darkRescue"') && /hold OCT- alone and switch it on/.te
 {
   // .syx (docs/SOUNDS.md ".syx export and import"): the fixtures of tests/sound_templates.c (factory F1 TINE EP's blob,
   // Casio's A-1 BRASS 1)
-  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,.dnsnd,application/json"') && html.includes('"export-syx"') &&
-     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes", "parseDnsnd", "soundFromDnsnd", "sndDnConfirm"].every((f) => html.includes(f)),
-     "page: Export .syx on the rows, the Import picker accepts .json, .syx and .dnsnd (asks with the notes)");
+  ok(html.includes('id="snd-file" type="file" accept=".json,.syx,.dnsnd,.dn2pst,.dn2snd,application/json"') && html.includes('"export-syx"') &&
+     ["exportSyx", "parseSyx", "soundFromSyx", "syxCount", "saveBytes", "parseDnsnd", "soundFromDnsnd", "sndDnConfirm", "quadV6Of(ctx.info.version)"].every((f) => html.includes(f)),
+     "page: Export .syx on the rows, the Import picker accepts .json, .syx, .dnsnd, .dn2pst and .dn2snd (asks with the notes, gates FM TONE version 6)");
   ok(["sndExportSyx", "sndSyxText", "sndSyxSaved", "sndSyxPick", "sndSyxBadPick"].every((k) => en[k]) && dataT.includes("sndSyxText") &&
      en.sndExportSyx === "Export .syx", "texts: the .syx button, its section text, the statuses and the voice prompt");
   const B = (x) => Uint8Array.from(Buffer.from(x, "base64"));

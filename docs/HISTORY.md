@@ -6453,3 +6453,2209 @@ RAM 80 560, RAMTEXT 16 120, POOL 310 336 of 344 064 (90.2 %).
 package's bytes (a09f9e19..). On the owner's unit E81CE2F7: f3d63cd's build (the same firmware, read as 0.26.1).
 Pushed to main and tagged v0.27: release.yml builds, signs and publishes, then pages.yml the site.
 
+3y198. **0.27-smk37, the SMK-37 test build of 0.27 (the owner: "Please add the FX routing to the SMK-37 build"), and
+K1's volume shown and remembered (GitHub issue 30, from Reddit: "Is there a way to lower the volume output ... I about
+blasted my ears off"; the owner: "there's no volume control").** The Routing page needs nothing of its own on the
+SMK: the keybed keys 5..31 are the FM-1's 27 note keys in the same numbering (hal/smk_input.h SMK_KEY_F3), so C#4 D#4
+F#4 G#4 A#4 are its black keys above the pads' octave and `cu_rt_block_of` finds them. **The volume**: K1 stands in
+for the FM-1's MASTER pot as a virtual pot (hal/smk_input.h `smk_master`, 0..1023, 24 a detent, 724 at power-on) and
+nothing said so. Now `smk_master_seq` counts the reads that took a detent, `cr_ui.c cu_smk_input` sees it once a
+frame and shows "volume NN %" (the click level's popup), and the session record keeps the level: `cr_session_t
+smk_master[2]` (bytes 22, 23 of the old reserve, the level + 1, 0 = not stored: an older record or an FM-1's leaves
+724; `css_capture` / `css_apply` under BOARD_SMK37; the comment's reserve count corrected to 120). The FM-1 build
+neither writes nor reads it and its package is byte for byte v0.27's (a09f9e19.., checked after the change).
+`tools/emu/web/build_web.sh`: the dev version's sed left the line's comment in the string (pre-existing: `.*` after
+the closing quote now). `tests/cr_fx_test.c`: the Parallel cost guard at 5 % (it tripped at 3.4 % under the loaded
+suite; the samples are proven bit for bit beside it). `web/make_site.py smk_site`: with no SMK build offered it
+removes a previous build's firmware/smk37/ and webapp/smk37/ in the same folder (site_test's release-site links
+failed on leftovers). The tree: `web/releases-smk37.json` with 0.27-smk37 first (base 0.27, dated 2026-10-25, pro
+e9a34a51.. / dfebf477.., elite b3e6cf55.. / a8a6d3c5.., mke c786f00c.. / 9ac2888f..; eight bullets, the notes asking
+the testers for the Routing page and K1); SMK37.md at 0.27-smk37 (the status, the packages, the commands, the
+splash, K1's row) with "What to test" items 11 (the routing) and 12 (the volume); docs/releases/0.27.md's SMK line
+and `web/releases.json`'s 0.27 note name the test build (without the lower-case string pages.yml's link check greps).
+**Built** twice, `BOARD=smk37 ./build.sh --release 0.27-smk37` for the three models and then `tools/hub_build.sh
+0.27-smk37`: the same `SHA256SUMS` (twelve files), "web/releases-smk37.json: 0.27-smk37's 6 sha256s match". Pro: XIP 548 332 B of 573 440 (95.6 %), RAM 81 372, RAMTEXT 16 260, POOL 310 336.
+**Checked**: `CR_SMK_PACKAGES_DIR=build/scratch/smk-packages python3 tests/releases_test.py` releases ALL OK;
+`web/make_site.py .. --require-all` with every FM-1 and SMK package: the SMK page offers 0.27-smk37 first, no public
+page holds "smk37"; `node tools/emu/web/test_web_emu_smk.mjs` PASS with the volume's case (K1 down 724 -> 508 in
+detents of 24, "volume 50 %" read on the screen, SAVE held, a power cycle: 508 again, no popup at power-on);
+`sh tests/run_cr_tests.sh`, `test_cr.sh`, `test_persist.sh` green; CR_VERSION=0.27 `sh tests/run_all.sh`
+ALL SUITES PASSED (23 suites, 105 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the FM-1 dev build still a09f9e19..). Not run on an SMK-37 (the maintainer has none): the testers' build. Tagged v0.27-smk37 on main.
+
+## 2026-10-29 (the SMK-37's pedal jack)
+
+3y199. **The SMK-37's pedal jack: Options > Pedal, Sustain or Expression (SMK-37 only).** The jack (mux C address 6,
+`fm1_in.pedal`, ~985 empty: a pull-up, no plug detect) was read and never used. Nobody here has a unit, so both modes
+learn what the pedal reads: `cr_ui.c cr_smk_pedal` (with the wheels, once per scan frame, after the readings settle)
+smooths it and, in **Sustain**, learns the rest at power-on and at every change of the option (either polarity: down
+400 counts away from it, up within 250, 8 frames steady); in **Expression** it learns the range the pedal reaches
+(once it has rested plugged in ~0.3 s; nothing sent until it has moved 48 counts, the empty jack's 940 and up = no
+pedal, back to full), lower raw = more as the stock firmware's inversion, a dead band at each end and a step of 2.
+`cr_out.c cr_smk_pedal_block` (the audio ISR, after the wheels) plays it: a stream's note let go under the pedal keeps
+its part's note-off back (`cr_smk_held`, CR_OPART kept so the transposition's count stays right; the MIDI note-off
+goes at once), the pedal up ends them, a re-struck held note ends the held one first, a panic forgets the marks; the
+parts' MIDI-in notes are held too (`CR_MPEDAL`: the jack or the channel's CC 64, either holds); CC 64 / CC 11 go out
+on the CHORD and BASS channels; Expression sets both parts' EXPR (`mod_midi` CC 11). Leaving a mode lets go of what
+it held. The option is in the session (`smk_pedal`, byte 24 of the old reserve, 0 = Sustain; the reserve 119). The
+emulators: `emu_smk.pedal_raw`, `web_smk_pedal`, a Pedal button on the SMK page; `test_web_emu_smk.mjs` checks a
+key held by the pedal past its release and ended by it, CC 64, and Expression's CC 11 and ex_off. The FM-1 package
+is byte for byte origin/main's. Not tried on an SMK-37 (SMK37.md "What to test" 13).
+
+## 2026-10-31 (Digitone import: FIZZ's fixes, .syx dumps)
+
+3y200. **The Digitone import takes FIZZ's fix and Digitone SysEx dumps.** The owner: "Not sure we have the resources
+to bring the Digitone II support features like the new Filter types to ChoralRoot, but it would be good to update the
+importer to bring in the Import fixes from FIZZ for the Digitone Presets ... It would also be nice to be able to load
+in presets from Digitone .syx files, example .../Dissonant-World-Vol-1/SysEx/DW_Play.syx". FIZZ's copy of
+`web/fm1dnsnd.js` (forked at 9b69580) and its site's `digitone.js` were compared with ours. **Ported**: a version-4
+record (a sound saved on OS 1.31 / 1.42, payload header "0095") is read with version 5's layout, with a note
+(FIZZ b67df20; `DN_LAYOUT`, `fileVersion`); it was refused as "a newer Digitone format (version 4)", which turned away
+every `.dnsnd` of the Dissonant World pack. **Left out** (engine work ChoralRoot has not taken): the DRIVE before the
+filter (FIZZ 0f3032e, its version-6 blob with DRIVE ROUTE PRE): a DRIVE above 0 now gets a note instead ("DRIVE n: the
+FM-1 drives after the filter (the Digitone before it)"); the pan / sends / tags kept with the preset (FIZZ 56bb5fe:
+ChoralRoot already keeps PAN and DRIVE in the record; the sends stay notes, the effects being global here; its sounds
+have no tags); everything Digitone II (`.dn2pst`: the filter machines, AHD, portamento, the modulation slots), which
+ChoralRoot does not read at all. **New**: Digitone `.syx` dumps (`parseDnSyx`, framing in SOUNDS.md ".dnsnd import"):
+the device manager's library lists each sound with its notes, the installer page asks which one; other messages of a
+project dump are skipped with a note. Checked on `DW_Play.syx` (read in place, not in the repo: the pack has no
+licence file): 128 sounds, the names as on the Digitone, and the 123 that have a `.dnsnd` in the pack give the same
+FM TONE blob from either. Tests (`web/test_dnsnd.mjs`): version 4 = version 5's blob and its note; the 8:7 packing; a
+synthetic dump of our own records (a 283-byte version 1, a version 5, a kit message) read, each sound as its `.dnsnd`;
+checksum / length notes; a record it cannot read skipped; errors; the manager's items. **Imported sounds that change**:
+version-4 `.dnsnd` now import (before: refused); a sound with DRIVE above 0 has one more note (its blob, PAN, DRIVE
+unchanged). No golden changed.
+
+## 2026-10-31 (Digitone import: any record version, the Haunted Hearts pack)
+
+3y201. **No Digitone sound is refused for its version; the Haunted Hearts pack imports.** The owner: "Presets with a
+newer format should still import." and "I also have these presets
+/Volumes/Q7Media-2025/Projects/Github/ChoralRootFM1/Presets/Digitone/haunted-hearts-acbift/Haunted-Hearts which don't
+import." **The pack**: `Sounds/` (128 `.dnsnd`, record version 4, saved on OS 1.31: manifest firmware "1.31", product
+`["20","28"]`, payload build "0051"), `SysEx/` (one `.syx` of 128 sound messages, 339 bytes, version-1 records of 283
+bytes) and `instructions.txt` (a link to Elektron's install page). **What refused it**: every released build (and
+main before 3y200) refused the 128 `.dnsnd` as "a newer Digitone format (version 4)" and had no Digitone `.syx`
+reader; 3y200 (d9464dd, not yet in a release) reads both: all 128 `.dnsnd` and the 128 sounds of the `.syx` import,
+and each `.dnsnd` gives the same FM TONE blob as its `.syx` twin (128 of 128). **The version rule** (fm1dnsnd.js
+`dnRecord`): a record version not known (2, 3, 6 and up) is read with the newest layout, version 5's, with one note ("a
+version-7 sound (newer than the versions known, 1 4 5): read as version 5; fields the FM-1 does not know were
+skipped"). FIZZ's Digitone II reader (`research/DN2-FORMAT.md`, `site/js/dn2pst.js`) showed what a newer layout does:
+the parameters stay at 28 + 2 x id, the record grows at its tail (the machine bytes, twenty mod records, the
+arpeggiator; 359 bytes), the OCTAVE moves with the tail; so the head is read in place and the tail found from the end
+marker `ba ce f0 0c` (the OCTAVE 18 bytes before it, as in version 5); FIZZ itself still refuses a DN II record version
+above 3 and reads 1 / 3 with version 2's layout and a note: the same safe reading. A record cut short (no end marker,
+shorter than its layout) gives the fields it holds, FM TONE's defaults for the rest, with a note. Still refused: what is
+not a Digitone sound by its framing, and a Digitone II sound (device 15, or a body with its 5-byte prefix: other
+parameter numbers). **The container** is now read as FIZZ's research decoded it: the body's length u32be at 0x19 and
+the compressed flag at 0x1d (a raw body, an LZ4 chain of blocks), not a u16le at 0x1c that held 302 by luck; the
+"payload header is not the 0097 kind" warning is gone (the 4 bytes at 9 are the saving OS's build: every Haunted Hearts
+sound carried it). **The whole Presets/Digitone tree** (525 files: 512 `.dnsnd`, 13 `.syx`), read in place, nothing
+of it in the repo: before 3y200 256 files / 256 sounds; at 3y200 524 files / 1,856 sounds (refused: a 2018 third-party
+`.syx` of 159 version-3 sounds, 282 bytes); now 525 / 2,015. The 1,856 sounds that imported give the same blob but
+ten. **Imported sounds that change**: the version-3 dump's 159 now import (head read in place, OCTAVE at 260: only
+multiples of 12 there; the note on each); the ten 113-byte messages of `Revealed.syx` (SPACE NAVIGATIO, WAIT AND SEE,
+MIN7 PAD, MUMBLIN FM, LORD OF, ORION, RATIOPAD, DEAD ANGEL, METAL PERC, TV07 KICK: checksum and length wrong, the sound
+cut short) keep FM TONE's defaults past byte 112 with a note ("the sound is cut short (113 bytes, no end marker): 22 of
+its settings not in it, FM TONE's defaults instead"), where the missing bytes were read as zeros (LEVEL 0, the filter
+shut); the Haunted Hearts and every other sound as at 3y200, one note fewer (the "0097" one). Tests
+(`web/test_dnsnd.mjs`, our own records): a version 7 of 330 bytes (its OCTAVE from the marker, the same blob as version
+5), a version 7 of 302 bytes without a marker, a version-3 `.syx` record of 282 bytes, a 113-byte message, a raw body,
+a two-block LZ4 chain, a Digitone II payload and body refused, a version 2 in a `.syx` read; the test encoders
+(`test_dnsnd.mjs`, `test_manager.mjs`) now write the real header. No golden changed.
+
+## 2026-10-31 (FM TONE: FIZZ's engine, the sound's sends)
+
+3y202. **FM TONE's sound gets version 6: room for FIZZ's engine values and the sound's own sends.** The owner: "Ok,
+I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into bringing in the
+engine updates?" and "Ok, lets let these presets change the FX send amounts when you load." The format first, alone,
+so the web's Digitone II importer can be built on it (docs/QUAD.md "Version 6"): the blob stays 96 bytes; bytes
+87..91 (zeros in version 5) hold HOLD | AMOD, FSHAPE | BWPOST, FGAIN | DRPRE, BITS | CRPRE, SRR | SENDS (a 7-bit value
+and a flag each, every default 0), FTYPE takes 0..7 (MULTI, COMB+, COMB-, EQ after LP24). `quad_patch` 73 -> 83 values
+a part (`QP_NP5` = 73: version 5's). A sound with none of them set is still written as version 5, byte for byte, so
+the factory presets, saved sounds and goldens do not move and 0.27 still plays them; an older firmware refuses a
+version-6 blob (`quad_blob_ok`'s version test: INIT, the slot untouched). The engine does not use the new values yet
+(the stages after this one). Web: `fm1dnsnd.js` packs and reads version 6 (`dnQuadPack`, `dnQuadValues`, `DN_QP.AMOD
+.. SENDS`, `DN_QF6`), `quadToV5` writes a version-5 copy for 0.27 and older with a note per value dropped,
+`quadToV3` goes through it; the Digitone importer now marks DRIVE before the filter (DRPRE, as FIZZ's `digitone.js`)
+and the sends as the sound's (SENDS, the three amounts in the record's P_REV P_DLY P_CHOR) instead of dropping them
+with notes; `fm1sounds.js` and tools/fm1_install.py take a version-6 file. Size: XIP 549,076 -> 549,556 B (+480),
+POOL +40 B. Tests: `cr_quad_test` `t_blob6` (each value alone at its ends, the byte layout, version 5 when none set,
+FTYPE 4..7 in version 6 only, bytes 92..95, 2000 random patches), `web/test_dnsnd.mjs` (the round trip, the layout,
+`quadToV5`'s notes); no golden changed.
+
+3y203. **An imported Digitone sound brings its sends.** The owner: "Ok, lets let these presets change the FX send
+amounts when you load." The 0.18 rule (the sends are the part's, no load writes them: `cr_bank.c param_kept`) stays
+for every sound but one kind: an FM TONE sound whose patch has SENDS (version 6, 3y202; the Digitone importer sets it
+on every import and writes the preset's reverb, delay and chorus into the record's P_REV P_DLY P_CHOR, which were
+there all along and ignored). Its load (a user slot or a pool entry, `cu_load_user` -> `cu_sends_load`) sets its
+part's three sends: the chord part's `cs.fx_amt[]` (FX on or off left as it is), the bass part's track values; Drive as
+ever (`cu_drive_load`). A sound without SENDS (every factory preset, every sound saved before) leaves the sends where
+they are, as before. A save of a chord-part sound with SENDS writes the part's amounts into the record (`cu_store` ->
+`cr_bank.c cb_store_s`), not the zeros FX off leaves in the track; `upool.c up_patch_of`, which finds the part a
+record came from by its values, now leaves the sends out of the comparison. Size: XIP +272 B (549,828). Tests:
+`cr_pool_test` (saved with FX off: the amounts in the record; loaded: the chord part's sends set, FX still off; a
+factory preset after it: kept; on the bass part: its track's). docs/MANUAL.md (FX), docs/FX.md. No golden changed.
+
+3y204. **SEL held in the sound editor: the filter type picker.** The owner: "For changing the filter mode, when you are
+in the edit mode, then hold down the SEL key(Filter pages), which should bring up page for filter selection." SEL
+(printed; FILT in the editor) held past the hold time on an engine with a filter TYPE column (the FILT section's
+F_ENUM "TYPE": FM TONE's FILTER+ TYPE; no other engine has one) opens the FILT group and a picker of the types
+(`CR_K_PICKER`, the current one big in orange, its neighbours above and below, "filter type"); while SEL is down
+KNOB 1..4 or SELECT step the type, a detent a type, heard at once (the same `quad_set` as KNOB 3, the sound marked
+edited); the release closes it on FILT with the type kept and no tap. A knob turned while SEL is down before the hold
+time opens it at once (FIZZ's FILTERS key does the same: `ctl_snd.c`). A tap of SEL still cycles FILT's screens. As
+built: `cr_edit.c` `ce_ftype` / `ce_fheld` / `ce_fpick`, `ce_kmod` 4, `ce_select`, `ce_screen` (the picker while
+`cx.fpick` and SEL held). The four types today; MULTI, COMB+, COMB-, EQ join it when the engine has them. Size: XIP
++640 B (550,468). Tests: `tools/emu/scripts/cr_quad_fpick.txt` (test_cr.sh: the hold, KNOB 1, SELECT, the release
+with no tap, a tap, a knob before the hold time; the screenshots differ). docs/MANUAL.md (the editor, the buttons
+table). No golden changed (the picker is `cr_draw.c`'s existing `CR_K_PICKER`).
+
+3y205. **FM TONE's DRIVE before the filter, per voice (DRIVE ROUTE PRE).** The owner: "they sound quite a bit better
+with FIZZ's engine". The survey's first finding: 62 % of the owner's Digitone sounds have DRIVE, and the Digitone
+drives each voice before its filter, where ChoralRoot drove the part's chord after it (docs/QUAD.md "DRIVE ROUTE").
+AMP+ gets a fourth cell, `Route` (POST / PRE: version 6's DRPRE, no page inserted); PRE runs the part's DIST in every
+voice before the multimode filter (FIZZ's place), the LFOs' DRIVE on it, and the part's own DIST then stands aside
+(fx.c `track_dist` -> `quad_drive_pre`). The DIST loop moved from fx.c into dsp.c (`dsp_dist`, the same code) so the
+part and the voices share it. With it, FIZZ's FREQ / RESO glide on a live change (P2.6b: no zipper or click on a
+resonant filter turned while a note sounds; a note whose FREQ and RESO stay put is bit-identical) and its `quad_bwk`
+guard (no read past `QUAD_BW_K` at BASE 127.00). The importer has set PRE for driven sounds since 3y202. Goldens: 317
+unchanged (`tests/golden.txt`), `tests/quad_goldens` unchanged. Tests: `cr_quad_test t_drive_pre` (DRPRE 0 and DRIVE 0
+as before; PRE drives; a chord equals its notes driven alone; LFO -> DRIVE; FREQ's glide 40.00 -> 80.00 a quarter a
+block, a new note at its own; `quad_bwk(127.00)`). CPU (host, `run_quad_test.sh`): WOBBLE 8 voices DRIVE 80 PRE 1,939
+instructions a sample, 33.0 % of the half, +5.8 % (~+170 us) over WOBBLE: with the unit's WOBBLE + BASS 2,345 us that
+crosses the 2,467 us shed line, so 3y206 splits FM TONE's chord over both cores. Size: XIP 550,516 B (+48 over
+3y204: the DIST loop shared), POOL +256 B (16 voices' drive and glide state).
+
+3y206. **FM TONE's chord voices on both cores** (the survey's stage 1b; FM6's 3y187 the model). Why: DRIVE PRE
+(3y205) adds one DIST loop a driven voice, ~+170 us of the half for an 8-note chord (host), and the unit's FM TONE
+WOBBLE + BASS already took 2,345 of the 2,467 us shed line. `ENG_QUAD.split` 20 (`QUAD_VOICE_US` 200). **The audit**
+(docs/DUALCORE.md, docs/QUAD.md "Two cores"): one shared read, DRIVE PRE's LFO offset from `quad_fx_off`, which the
+latest voice writes in the same block, perhaps on the other core: now `quad_dro`, the last block's, kept by
+`quad_block` on core 0. Without it the DRIVE-PRE pair's thread render differs from the inline one (tried). **Tests**:
+`tests/cr_c1_thread_test.c` 24 pairs (+2: FM TONE WOBBLE over a VA bass; DRIVE 80 PRE with LFO 1 on DRIVE over an FM
+TONE bass; the FM TONE / FM TONE pair now split too): inline = thread = unsplit = every voice to core 1 = none, every
+sample; ThreadSanitizer 0 reports. test_cr.sh `cr_quad_eight` (new): eight EP voices at DRIVE 127 PRE over DEEP SUB,
+inline = `EMU_C1=thread` bit for bit; the emulator's estimate (device us a half, avg / max) part0 114 / 591, part1
+113 / 436 (one core, `EMU_C1=nostart`: part0 179 / 766, and 7 + 1 voices: eight FM TONE voices are the 16-unit
+budget, as before). The 317 goldens unchanged. **Not measured on the unit** (no flashing in this session): by FM6's
+3y187 readings (part0 1524 -> 1023 us, the worst half -456 us) FM TONE's 8-voice worst half should fall by a similar
+300 .. 500 us, which more than pays for DRIVE PRE. Size: XIP 550,532 B (+16).
+
+3y207. **FM TONE's filter machines MULTI and EQ, and the base-width after the filter** (FIZZ's E2; the owner: "they
+sound quite a bit better with FIZZ's engine"). TYPE now 0..7: OFF LP12 HP12 LP24 MULTI COMB+ COMB- EQ (version 6's
+FTYPE; the combs run MULTI until 3y208, as FIZZ's do when no line is free). MULTI morphs the SVF's LP / BP / HP by
+SHAPE, EQ is a bell at FREQ (SHAPE its Q, GAIN -18 .. +17.7 dB): `quad_machine`, the SVF's arithmetic in
+`quad_svf_tick`, FIZZ's tables. BWPOST puts the base-width poles after the filter (`quad_bw_post`). The free cells
+(no page inserted): FILT 2 Shape and Gain, FILT 2+ BW route; the SEL picker lists the eight; the band draws MULTI by
+its SHAPE (EQ and the combs flat). docs/QUAD.md "The filter machines", docs/MANUAL.md (FM TONE). Goldens: 317
+unchanged, `tests/quad_goldens` unchanged (TYPE 0..3 untouched). Tests: `cr_quad_test t_machines` (FIZZ's checks:
+MULTI 0 / 127 = LP12 / HP12 within 1 LSB; EQ within 0.3 dB of its table at four gains; BWPOST; no overflow at the
+extremes). Web: `DN_QUAD_RANGES` FTYPE 0..7 (= the firmware's), a Digitone 1 type clamped to 0..3. Size: XIP 552,196 B
+(+1,664).
+
+3y208. **FM TONE's COMB+ and COMB- with 8 lent lines** (FIZZ's E2 combs, as its device build lends them). TYPE 5 / 6
+now run the comb: FREQ its pitch, RESO its feedback, SHAPE its damping (`quad_comb`, FIZZ's `QE_COMB_LEN`; the line
+length's ramp over a block in 32-bit steps instead of FIZZ's 64-bit division a sample). 8 lines of 1024 (16 KB of
+POOL) for the two parts' 16 voices, lent in `quad_block` (`quad_comb_lend`: a sounding comb voice takes a free line,
+its own place's first; gives it back when it ends or leaves the combs; a part off FM TONE gives back its lines); no
+line: MULTI, sample for sample. The lending is on each part's own core before its voices, so the chord's voices on two
+cores (3y206) only read their own line. docs/QUAD.md "The filter machines". Goldens: 317 unchanged. Tests:
+`cr_quad_test t_combs` (COMB+'s pitch on noise at 110 / 440 / 1760 Hz within ~1 %, COMB-'s odd harmonics, COMB+'s every
+harmonic, 8 voices 8 lines and the other part's comb voice MULTI, a line given back goes to it, a part off FM TONE
+frees its line, no line = MULTI's samples, full resonance with DRIVE 127: no overflow); `cr_c1_thread_test` 25 pairs
+(+1: COMB+ chord over a COMB- bass; inline = thread = unsplit; ThreadSanitizer 0). Size: XIP 553,876 B (+1,680), POOL
+327,212 of 344,064 (+16,576: 16.5 KB spare).
+
+3y209. **FM TONE's AHD amp envelope and CRUSH** (FIZZ's E1 AHD and E3; the last of the engine values version 6
+carries). AHD: attack, a hold (a time or NOTE: while the key is down), a decay to 0, on the Digitone's amp tables
+(`quad_ahd`, FIZZ's `fz_ahd_step`); a switch mid-note keeps the level. CRUSH: bit reduction (16 .. 1 bits) and a
+sample-rate reduction (1 / 1 .. 1 / 64), before or after the filter (`quad_crush`). No free cell was left for five
+values, so two pages are APPENDED (20 `AMP 2`: Amp mode, Hold; 21 `CRUSH`: Bits, Rate, Route), each a screen of its
+own at the end of ENV and FILT; the twenty pages before keep their numbers (layouts, the web editor, CC maps). Every
+version-6 value but SENDS is now on exactly one page column (`cr_quad_test t_pages`). Mod slots and FIZZ's
+portamento are not ported (the brief: Digitone II mod records and PORT go to ChoralRoot's mod.c and part glide in the
+web importer). docs/QUAD.md "AHD and CRUSH", docs/MANUAL.md (FM TONE's screens). Goldens: 317 unchanged. Tests:
+`cr_quad_test t_ahd_crush` (ATK 20 / HOLD 40 / DEC 40 on their tables, the key up in a timed hold changes nothing, the
+voice ends; HOLD NOTE at the top 2 s, DEC INF endless; AHD -> ADSR mid-note; SRR 127 = 64 new values in 4096; BITS 127
+one bit, BITS 64 steps of 128; CRUSH PRE and POST differ). Size: XIP 555,188 B (+1,312; 18,252 B free).
+
+3y210. **The dev build reads "ChoralRoot 0.28".** The first firmware that plays FM TONE version 6 (3y202..3y209); the
+web device manager (claude/dn2-import) writes version-6 sounds only to a unit whose version string reads 0.28 or later
+and a version-5 copy (`quadToV5`) to older ones, so the dev build now reads as the next tag (choralroot.c
+`FELUCCA_VERSION`, as 0.27's tree did). No tag, no release notes, no releases.json entry.
+
+3y211. **The device manager and the installer read Digitone II sounds; FM TONE's version 6 only goes to a firmware
+that plays it.** The owner: "Ok, lets let these presets change the FX send amounts when you load. Lets build the whole
+thing and also the Digitone II import features into the web manager." Web only, no firmware change. **The reader**
+(`fm1dnsnd.js` "Digitone II sounds"): FIZZ's `site/js/dn2pst.js` (the owner's, MPL-2.0) ported into the Digitone
+importer, so `parseDnsnd` takes a `.dn2pst` (the same ZIP and container, the device 15), a `.dn2snd` (the container
+alone, a +Drive backup's file) and a Digitone II body met in a Digitone container or dump (its 5-byte prefix): the
+359-byte record by FIZZ's field table (`DN2_FIELDS`, 28 + 2 x id, the DN1's laws; RATIO A the firmware's table, LFO
+MULT in its runs of six, LFO 3, KEY TRACK A B1 B2 and the filter's), into FM TONE version 6: the filter machines
+(LOWPASS 4 LP24, LEGACY LP / HP / OFF, MULTI-MODE, COMB+, COMB-, EQUALIZER as FTYPE 4..7, TYPE into FSHAPE, EQ's GAIN
+from RESO), BW ROUTING into BWPOST, AMP MODE AHD and HOLD, BIT and SAMPLE RATE REDUCTION with SRR ROUTING (CRPRE),
+OVERDRIVE with OD ROUTING 0 as DRIVE ROUTE PRE, the sends with the sound (SENDS, the record's P_REV P_DLY P_CHOR, as
+3y202 does for the Digitone). Into the record beside the patch: PORTAMENTO (64 ON) as the part's GLIDE in TIME mode,
+and the modulation records (FIZZ's reading: 24 of 3 bytes at 252, six sources of four) as mod.c's matrix where an
+equivalent exists (VEL into slot 3 and AT into slot 4, the sound's EXPR routings; MW and KEY into 1 and 2; PITCH ALL,
+VOL as AMP, PAN, OVERDRIVE as DIST, the sends, FM TONE's eight macros), a note for each that has none (pitch bend,
+breath, the filter's FREQ: the matrix's CUT does not reach FM TONE's filter). A version other than 2 is read with
+version 2's layout and a note (as 3y201), a record cut short or longer with a note; refused only what has no FM TONE
+sound in a Digitone framing: another machine (WAVETONE, FM DRUM, SWARMER, MIDI), a "DN1S" body, no record. A
+container's kind other than 3 is now a note (all 512 `.dnsnd` here say 3). **The gate**: every Digitone import is
+version 6, which ChoralRoot 0.22 .. 0.27 refuse (INIT); `importSound` / `placeSound` take `quadV6` and write
+`quadToV5`'s copy without it, its notes after "On this firmware:"; `fm1sounds.js quadV6Of` reads INFO's version (0.28
+and later: version 6); the manager's Place, Place all and Replace factory pass the unit's version, the installer's
+Import its INFO's; the simulator says 0.22 (`?sim=pool&fw=0.28` for a newer one). The pages accept `.dn2pst` and
+`.dn2snd`, the manager counts the Digitone II sounds read. **The owner's two files** (Digitone2Presets, read in place):
+BASSSINE: MULTI, FSHAPE 127, BWPOST, DRIVE 1 PRE, OCTAVE -2, four notes; crackle (BACKHANDED, version 1): LP12, SRR
+84, DRIVE 69 PRE, the sends 56 / 20 / 41, three notes; neither has portamento or a modulation record. The whole
+Presets/Digitone tree (524 files, 2,015 sounds) gives the same blobs, notes and warnings as before. Tests: the new
+`web/test_dn2.mjs` (suite `web_dn2` in tests/run_all.sh; our own records: 63 values through their laws, the machines,
+AHD, CRUSH, the routes, the glide and the matrix in the record, the versions, sizes and containers, the refusals, the
+library item, `quadV6Of`, the pool written as version 5 / 6; 19 blobs through the firmware's `quad_blob_ok`),
+`web/test_manager.mjs` (the gate through Place, Place all, Replace factory and the 0.22 simulator, the page passing
+the version), `web/test_dnsnd.mjs` (a device-15 container and a prefixed body are read now). Not done: a Digitone II
+`.syx` (its framing is not known), `.dn2prj` projects, the DN1's PORTAMENTO and KEY TRACK bytes.
+
+3y212. **The early hand-over, tried and reverted** (c5cf380, reverted by 064a848). The owner: "Yes, rebalance". The
+bass part went to core 1 before core 0 prepared the chord, and core 1 took its four chord voices in the same job
+(`mix_parts_split`, a token between the cores): bit for bit the one job's samples on the host. **On the unit**
+(tools/perf_unit.py, 8 notes on part 0 + a bass note on part 1, 15 s; half 2,902 us, shed line ~2,467) it gained
+nothing: WOBBLE + BASS (no DRIVE PRE) block 2,510 .. 2,640 us, late 0 .. 1, c0busy ~2,520 .. 2,630, c1busy ~1,660 ..
+1,820; C64 EP (a Digitone import, DRIVE 120 ROUTE PRE) + BASS block 2,720 .. 2,780, 7 late in 15 s, tick ~480, part0
+~1,600, part1 ~1,400: as before it. What core 0 carries more is its own work, which no overlap shortens; what C64 EP
+costs over WOBBLE is mostly DRIVE PRE on its eight voices (~150 .. 250 us on core 0's path). So the owner: "Yes, do
+that" to making DRIVE before the filter cheaper instead (3y213). Kept from it, put back on their own: the pairs'
+array of `tests/cr_c1_thread_test.c` 24 -> 32 (3y208 put a 25th pair in it, one past its end) and its pair FM TONE
+chord with CRUSH PRE and DRIVE PRE over an FM TONE bass with COMB- and CRUSH (26 pairs: inline = thread = unsplit = all
+to core 1 = none; ThreadSanitizer 0 reports).
+
+3y213. **FM TONE's DRIVE before the filter at about half its cost** (the owner: "Yes, do that", to making DRIVE PRE
+cheaper instead of 3y212's rebalance). The unit (3y212): C64 EP (DRIVE 120 PRE) + BASS 2,720 .. 2,780 us a block, 7
+late in 15 s, against WOBBLE + BASS 2,510 .. 2,640; DRIVE PRE ~150 .. 250 us of core 0's path. **What it cost**: a
+pass of `dsp_dist` a driven voice, a call 270 KB away in XIP, 40 pi32v2 instructions a sample (the soft clip's sign
+and interpolation from TANH_Q15 in flash, the make-up's multiply, the voice's samples loaded and stored again), after
+the DC blocker's pass (22: its 64-bit step). **Now** `eng_quad.c quad_drv_run`: the clip, its bias's offset and the
+make-up one table on the clip's input (`quad_drv_t.tab`, a part's, signed, 514 nodes at TANH_Q15's places, so the
+same line between them; built by `quad_block` only when the part's drive changes: 257 steps), its input clamped to
+the table (the clip is flat past it, as `dsp_dist`'s +-230000 was), the drive's gain shift folded (g / 2, >> 11); and
+the drive in the DC blocker's and the base-width's loop (the blocker there in 32 bits, its mean before the sample's
+step: within 0.1 % of the 64-bit one), a loop without the base-width when it is off; a block in which a base-width
+pole fades runs them as before and the drive alone after. A function of its own beside `quad_render` (in it, the
+compiler moved quad_render's blocks about). The listing: the DC blocker and the drive 62 -> 40 instructions a voice
+and sample (the drive's own 40 -> 18, no flash read, no far call). Host (`tests/run_quad_test.sh`): WOBBLE's 8 voices
+DRIVE 80 PRE 1,964 -> 1,799 instructions a sample (+342 -> +177 over WOBBLE: +5.8 % -> +3.1 % of the half, ~+170 ->
+~+89 us). The emulator (`cr_quad_eight`, DRIVE 127 PRE, EMU_STAGES, three runs): part0 avg 117 -> 104 us, part1 113 ->
+103, the block avg 2,288 -> 2,264 us and max 3,715 -> 3,536 (one core, EMU_C1=nostart: part0 181 -> 162); the thread's
+WAV the inline one's, bit for bit. **Expected on the unit** (not flashed here): ~55 % off what DRIVE PRE costs, ~17 us
+a driven voice of the survey's ~32, ~70 us off each core's four chord voices: C64 EP + BASS about 2,620 .. 2,700 us,
+near WOBBLE + BASS; a late block or two in 15 s may remain. **The sound**: against `dsp_dist` alone, a sweep 30 Hz ..
+15 kHz at three levels and every 7th drive, -71.2 dB RMS, 11 LSB at most (`cr_quad_test t_drive_pre`, new); whole
+voices against 3y212's (EP, WOBBLE, BELL, BASS at DRIVE 10, 40, 80, 120, 127; WOBBLE with LFO 1 on DRIVE; EP notes 24 ..
+96 at DRIVE 120): -58.6 .. -70.7 dB RMS, peak errors 15 .. 171 on peaks of 13,500 .. 170,000. (A low cut in the DC
+blocker's place, tried first, was 15 .. 28 dB off on low notes: its 8 Hz pole's phase.) Goldens: 317 unchanged
+(`tests/golden.txt`), `tests/quad_goldens` unchanged (none drives before the filter). Budget
+(`tests/target_budget.py`): `quad_drv_run` watched (137); `quad_render` 5,606 -> 10,511 with no loop grown: two of its
+algorithms' loop ends now share a tail the compiler placed before them, and the tool reads the branch back as a
+6,900-byte loop (counted only where a branch back closes a cycle, the same listing reads 3,840 -> 3,827; fm6_render's
+42,969, va_render's 88,220 and cz_native_line's 45,287 are mostly such tails too: 3,096, 2,715, 6,273). Size: XIP
+556,020 B (+832 over 3y212), POOL +4,152 B (the two tables: 331,492 of 344,064).
+
+3y214. **The combs' lines only lent in a comb's blocks; `quad_block`'s budget.** `tests/target_budget.py` failed on
+`quad_block`: cost 128, budget 37. Since 3y208, `quad_comb_lend` (inlined in it) walked the 8 lines and the 8 voices
+in every block of every FM TONE part, comb or none (and 3y206's `quad_dro` and 3y213's `quad_drv_set` beside them);
+real work only while a comb runs. Now `quad_block` calls it (noinline) while the part's TYPE is COMB+ / COMB- and
+once after (`quad_comb_was`: to give the lines back); a part on no comb holds none, and a part that left FM TONE has its
+lines freed by the next part that lends, as before. `quad_block` 128 -> 48 (its macro and LFO loops; the budget 37 ->
+48: 3y206's `quad_dro` and the drive's table call are in it now), `quad_comb_lend` watched (81). Tests:
+`cr_quad_test` (the lending, a part leaving FM TONE, no line free) unchanged; `cr_c1_thread_test` 26 pairs (COMB+ / COMB-
+across the parts) unchanged. Goldens unchanged.
+
+3y215. **What made C64 EP's tick heavy: its voices stolen at every chord change; the note path's budget scan cut.** The
+owner: "Yes, find it" (to "Should I find out what makes C64 EP's tick stage so heavy?"). On the unit
+(`tools/perf_unit.py`'s pattern: 8 notes moved up a semitone every 2 s, the note-offs 50 ms before the note-ons, the
+bass under it) WOBBLE's tick was 348 .. 369 us and C64 EP's (a Digitone import) 492 .. 508, with DRIVE PRE or without.
+The tick stage is everything before the parts render (choralroot.c's `mix_block` shim to fx.c's `CR_PROF(CRP_TICK)`):
+`cr_audio_block` (the UI's events, MIDI in, the engine, the loop: every note-on and its voice allocation) and
+`events_block` (engine switches and the notes waiting for a stolen voice), summed over a half's four blocks. Nothing
+of FM TONE's sound is in it but `quad_note_on` (about 200 host instructions a note, the same for both sounds); the
+LFOs, the drive's table, the combs are `quad_block`'s, in the part's render. The emulator, with the sound in a pool
+slot and the same MIDI, counted the tick's host instructions per half at each chord change: WOBBLE 11,169 .. 11,347,
+C64 EP 16,365 .. 16,543 (+47 %, the unit's +41 %; the unit runs this flash code at about 8 x the emulator's
+estimate: 358 / 44 us, 500 / 64). The cause: C64 EP's amp release still sounds 50 ms after the note-off, so each of
+the 8 new notes finds all 8 voices busy and steals one; ChoralRoot never restarts a sounding voice in place (voice.c
+`voice_fade_steal`): the voice fades over a block and the note waits in `vsq` and starts in the next block's
+`events_block`. Every note of the chord goes through `trk_note_on` and `voice_alloc` twice (56 steals in 15 s);
+WOBBLE's voices are silent by then (0 steals). Confirmed: the same C64 EP with 3 s between the note-offs and the
+note-ons (no steal) has WOBBLE's tick (11,698 .. 11,923). Both passes usually land in one half (the waiting notes start
+one block later), which is the peak. Where `voice_alloc`'s instructions went: `voices_busy_of`, the shared budget's
+count, about 490 host instructions for every note that finds a free voice (16 voice slots of each part sharing the
+budget: with two cores parts 0, 2 and 3, of which 2 and 3 never sound in ChoralRoot), and a stolen note's search for a
+free voice that cannot be there. Now: `voices_busy_of` counts parts 0..1 in ChoralRoot (`VB_NPART`: cr_out.c gives no
+note to parts 2..3, fx.c never renders them; Felucca's build counts four) and skips `voice_units` of a part with no
+voice sounding; `voice_alloc` skips the free-voice searches when its first loop found none free (`nfree` 0: ROTATE's
+pointer still moves on, as the loop moved it). The same choices, the same samples: both scenarios' WAVs byte for byte
+the same before and after. The emulator's tick at a chord change: WOBBLE 11,169 .. 11,347 -> 9,027 .. 9,205 (-20 %),
+C64 EP 16,365 .. 16,543 -> 13,519 .. 13,697 (-18 %), C64 EP without steals 9,131 .. 9,216. On the unit, if its 8 x
+holds for loop iterations too: WOBBLE's tick ~285 us, C64 EP's ~410 (its block ~2,660 .. 2,780); less if the tick's cost
+there is the flash cache's cold lines rather than instructions (the loops removed run warm after their first pass):
+to be measured. What stays is the steal itself (C64 EP's tick ~4,500 host instructions over WOBBLE's: the second pass
+of 8 notes), what a long release asks for under this design. Options, not done: start the waiting notes at the next
+half's first block, so the steal's pass and the start are never in one half (the peak becomes the larger of the two;
+a stolen note's start 0.7 .. 2.9 ms after its key instead of 0.7 .. 1.5, the samples move: goldens with steals change);
+or the note path (`trk_note_on`, `voice_alloc`, `voice_start`, `vsq`) in RAM (RAMTEXT has 8,456 B free; the tick runs
+it from XIP). Size: XIP 556,036 B (+16 over 3y214), POOL 331,492 of 344,064 (96.3 %, unchanged). Tests:
+`run_all.sh` all PASS but the two release checks (v0.28 not tagged / not in the list); `test_cr` 1114 ok; no budget
+over (`target_budget.py`).
+3y216. **The note path in RAM (`CR_RAM_NOTE`, on in a device build).** The owner: "Note path in RAM", chosen over
+delaying the stolen notes, after: "Run the note-start code from RAM: right now it runs from flash. There's room in RAM
+for it (8 KB free) and the sound stays exactly the same." On the unit after 3y215: C64 EP's tick 450 .. 455 us (its
+block 2,650 .. 2,670, 4 .. 5 late halves in 15 s), WOBBLE's 323 .. 331 (block 2,530, none late); every note of C64
+EP's chord goes through `trk_note_on` twice in one half (3y215), from XIP. Now a CR_RAM_* switch like the VA's
+(firmware/src/cr_ram.h, docs/FX.md "Code in RAM"): the `CR_HOT_NOTE` markers in voice.c and eng_quad.c, and
+tools/build.py renames those 22 functions' sections in the object, so they link at RAMTEXT: `trk_note_on` 1910
+(`voice_alloc` and `mod_note` inlined in it), `quad_note_on` 874, `mono_play` 398, `voice_start` 282, `voice_victim`
+270, `trk_note_off` 252, P5's pool (`p5_pool_victim` 220, `p5_part_victim` 172, `p5_sounding` 104, `p5_pool_room`
+98, `p5_pool_used` 92, `p5_pool_take` 74: in `trk_note_on`'s own calls, and P5's chord is stolen at every change
+too), `voice_room` 158, `voices_busy_of` 118, `vsq_push` 102, `vsq_drop` 102, `mono_pick` 66, `mono_remove` 56,
+`glide_set` 52, `lowest_held` 52, `trk_nvoice` 48, `voice_units` 42: 5542 B, every function the note path reaches
+by a direct call (`tools/ram_code.py reach`), so no call from it goes back to flash. The callers that stay in flash
+(the ISR's note dispatch and `engine_block`'s waiting notes, both inlined in `fm1_alnk0_irq`; MIDI in's callbacks;
+`trk_all_off`; `p5_pool_enforce`, `shed_p5_bass`, `p5x_run`, `shed_voice`) reach them through 11 veneers (88 B of
+XIP). Still read from flash by the moved code: the engine table (`ENGINES` and each `engine_t`'s hooks) and
+`QUAD_PHRT_MASK` (a line or two a note, not copied); the other engines' `note_on` (P5, VA, CZ-1, FM6) are called
+through `engine_t` and stay in flash; `events_block` / `engine_block`'s loop over the waiting notes is the ISR's
+own body (flash under every switch). The same code: `tools/ram_code.py cmp` against `CR_RAM_NOTE=0` (whose listing
+is df70460's byte for byte): 22 moved, 0 functions differ (`quad_note_on` gains a `nop` after its return: the
+section's alignment), 11 veneers. Host and emulator builds never see the switch: the goldens are unchanged. RAMTEXT
+16,120 -> 21,660 of 24,576 (2,916 B left), XIP 556,036 -> 556,120 (the veneers), RAM and POOL unchanged; the
+single-core package and `BOARD=smk37` build (RAMTEXT 21,468 / 21,816). What it saves on the unit is not known until
+measured (no tool here weighs XIP against RAM): the C64 EP tick's excess over WOBBLE (~125 us) is mostly this code's
+second pass, and WOBBLE's tick runs its first pass, so both should drop if the 8 x is the flash's stalls.
+3y217. **FM TONE's filter machines heard and named; FILTER+'s third cell by the type.** The owner, testing on the unit:
+"This engine has new selectable filters but none are working, COMB and EQ display OFF. For Multi we need to be able to
+morph it, but the slot where morph would go is being used for the Filter type which is why I asked for the hold
+shortcut to change filter types. For the new filters you should not be able to use that third param slot to change
+the filter type." Every link from the picker to the sound checked: the TYPE cell's range and names (0..7), the picker,
+`quad_set` / `quad_clampv`, the version 5 / 6 blob, the engine's switch on FTYPE, the comb lines (POOL) all carried
+the type; the machines rendered (`t_machines`, `t_combs`). Two causes. The display: `ce_band_plan` gave EQ and the
+combs the flat slope whose name is OFF. The sound: the machines' own values were on FILT 2, and the init sound's
+(RESO 0, SHAPE 0, GAIN 0) leave them nothing to do: COMB+ / COMB- with no feedback and EQ at 0 dB pass the sound
+within 3 LSB of OFF, MULTI at SHAPE 0 is LP12. Now, as FIZZ's FILTER page by machine (ctl_snd.c SND_FILTER_IDS):
+FILTER+ (page 4) by the type through `quad_ix` and `quad_desc` (eng_deep_t.desc): OFF LP12 HP12 LP24 FREQ RESO TYPE
+DEPTH (the TYPE cell steps OFF .. LP24 only, as FIZZ's LEGACY KNOB 3); MULTI FREQ RESO MORPH DEPTH; COMB+ / COMB- FREQ
+FEEDBACK LPF DEPTH; EQ FREQ GAIN Q DEPTH (MORPH / LPF / Q = SHAPE, GAIN = FGAIN; FILT 2's SHAPE and GAIN stay, no page
+moved). A machine's cell never changes the type: the SEL hold picker reads and sets it through `ENG_COL_RAW` (core.h;
+only where desc shows the cell as another value, and on through a compiled layout, `cp_lay_raw`), the way in and back
+to LP / HP / OFF. The cell's label is the descriptor's (`ce_cell_plan`), the band names each machine and draws MULTI's
+morph, EQ's bell (GAIN, Q) and the combs' teeth (RESO, LPF; `wv[7]` 4..7, `wv[8]` SHAPE, `wv[9]` GAIN + 64).
+design/layouts/fm-tone.json regenerated (its cells `by_mode`, the params hash unchanged). Tests: `cr_quad_test
+t_ftype_cells` (the init values: COMB+ COMB- EQ within 64 of OFF; FREQ 50 RESO 80 SHAPE 64 GAIN +40: the eight types
+eight sounds; the cells by the type; each type saved and loaded, version 5 / 6, the same samples), 24,839 checks;
+`cr_draw_test` (OFF MULTI COMB+ COMB- EQ: five band pictures, new; P5's goldens unchanged); `cr_quad_fpick` step 4
+(the cell stops at LP24; the picker into MULTI, COMB+, COMB-, EQ, their cells, back to LP12 and TYPE), `test_cr` 1119
+ok; the 317 goldens and tests/quad_goldens unchanged. Size: XIP 556,120 -> 557,336 (97.2 %), RAMTEXT 21,660 of 24,576
+and POOL 96.3 % unchanged. `run_all.sh`: all PASS but the two release checks (v0.28 not tagged / not in the list). Not
+tried on the unit: how the machines sound there (the comb lines lent on two cores are the thread test's, not heard).
+
+## 2026-10-31 (0.28, the release tree)
+
+3y218. **0.28, the release tree (numbered 3y202 on main and in v0.28's tree, 5b52de2; renumbered at the merge into claude/fizz-engine, where 3y202 is FM TONE's version 6) (the owner: "Cut 0.28"): the Digitone importing of 3y200 and 3y201 (every record
+version, .syx dumps, records cut short), the installers' RemoteFM1 rule (bd7f431), FM-1 only; the SMK-37 build stays
+v0.27-smk37.1.** From origin/main de3a479. The firmware's source since v0.27 differs under BOARD_SMK37 alone (3y198's
+volume, 3y199's pedal: SMK-37 code) and in `FELUCCA_VERSION` ("ChoralRoot 0.28"): the FM-1 package is 0.27's
+firmware with the version line, as 0.26.1 was 0.26's. `docs/releases/0.28.md` for players (the importing, RemoteFM1,
+Installing, "Going back to 0.27": nothing changes); README's "New in 0.28"; the manual's first line.
+`web/releases.json`: 0.28 first, dated 2026-10-31, sha256 8adefde995a2db700803e54d9cd10bb4b9cde070ec5e37914e92bdc742c0575b, 1-core 88c4f22b51eab407f5e3c28386837278e1b968affdb6474049ff6ee9a678a200, five bullets; 0.27's entry gets
+its `going_back`. `web/releases-smk37.json` unchanged: 0.27-smk37.1 first on base 0.27, still a listed version.
+**Built** twice, `./build.sh --release 0.28` and then `tools/hub_build.sh 0.28` (the hub's command, Docker), in the
+worktree .claude/worktrees/rel-028 on main: the same `SHA256SUMS` (the four files), "web/releases.json: 0.28's 2 sha256s match".
+**Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.28 `sh tests/run_all.sh` ALL SUITES PASSED (23 suites, 118 s; test_cr 1106 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the dev build the release package's bytes, 8adefde9..).
+Pushed to main and tagged v0.28: release.yml builds, signs and publishes, then pages.yml the site with the new
+device manager and installer.
+
+## 2026-11-01 (0.29, the release tree)
+
+3y219. **0.29, the release tree: FIZZ's engine in FM TONE (3y202..3y217) and the Digitone II importing (3y211).** The
+owner, after the filter fix (3y217): "This seems good, lets get it released". 0.28 had been released from main
+meanwhile (3y218: 0.27's firmware with the web's Digitone importing), so this branch ships as 0.29: main merged in
+(its 3y202 renumbered 3y218), `FELUCCA_VERSION` "ChoralRoot 0.29", and **the version gate moved to 0.29**:
+`fm1sounds.js QUAD_V6_FROM` [0, 29], since a unit on the released 0.28 runs 0.27's `quad_blob_ok` and plays INIT for a
+version-6 sound; `quadToV5`'s note says "0.28 or older"; `web/test_dn2.mjs` (0.28 and 0.28 1-core refused, 0.29
+taken) and `web/test_manager.mjs` (Place onto 0.28 -> version 5, onto 0.29 -> version 6); DEVICE-MANAGER.md,
+SOUNDS.md, QUAD.md, MANUAL.md, the pages' comments and `?sim=pool&fw=0.29` to match. `docs/releases/0.29.md` for
+players (FIZZ's engine, the sound's sends, Digitone II in the web pages, Installing, "Going back to 0.28": a sound
+that uses something new plays INIT there, untouched in its slot); README's "New in 0.29"; the manual's first line.
+`web/releases.json`: 0.29 first, dated 2026-11-01, sha256 b0f10a772b0c155eb08aa04dc88912bd2fe1b92637b036c20e44ca65a082297c,
+1-core 725a38b93eecceb755402b9c512bee7d702adbc06334d6fdcdd7db3ca14e07e0, six bullets; 0.28's entry gets its
+`going_back`. `web/releases-smk37.json` unchanged (0.27-smk37.1). **Built** twice, `./build.sh --release 0.29` and
+`tools/hub_build.sh 0.29`: the same `SHA256SUMS`. Size: XIP 557,336 of 573,440 (97.2 %), RAMTEXT 21,660 of 24,576,
+POOL 96.3 %.
+**Checked**: `python3 tests/releases_test.py` releases ALL OK; CR_VERSION=0.29 `sh tests/run_all.sh` ALL SUITES PASSED
+(24 suites, 95 s; test_cr 1119 ok, test_persist 119; 317 golden renders, 0 changed; 0 lint; the browser emulator
+test). Pushed to main and tagged v0.29: release.yml builds, signs and publishes, then pages.yml the site.
+
+3y220. **The device manager's status line after Place: one summary instead of every sound's notes.** The owner, after
+placing 128 Digitone sounds onto the unit's dev build (which reads 0.28, so the gate wrote version 5) and getting a
+screenful of "this firmware has none" per sound: "When importing in the FIZZ manager, each preset themselve in the list
+has a nice little summary of what imported and what did not. But yes shorten the main summary". `fm1manager.js
+managerNotesSummary(notes, firmware, many)`: what was left out counted per kind (new filter types, DRIVE before the
+filter, own sends, the AHD envelope, base-width after the filter, CRUSH; anything else "other changes"), the unit's
+version and what to install ("0.29 or later" for the version-6 kinds, "the newest ChoralRoot" otherwise); manager.html's
+`downText` uses it for Place, Place all and Replace factory (one sound: "it was written without ..."), the whole list
+to the browser console. Each library row keeps its own Digitone notes, as FIZZ's manager does. Tests:
+`web/test_manager.mjs` (128 sounds' notes -> 211 characters, counted per kind; one sound; none; a pre-pool firmware);
+the built page with `?sim=pool&fw=0.28` (three made-up Digitone II sounds: "Placed 3 sounds. Your FM-1 runs ChoralRoot
+0.28, so these were written without what it cannot play: new filter types (1), DRIVE before the filter (2), own sends
+(2), the AHD envelope (1), CRUSH (2). Install 0.29 or later and place again for the whole sound.") and `fw=0.29`
+("Placed 3 sounds."). Web only: the firmware and the 0.29 packages are unchanged; pages.yml rebuilds the site.
+
+3y221. **0.29-smk37: the SMK-37 test build of 0.29.** The owner: "Can we get these 0.29 updates in to the SMK-37
+version?" The source is 0.29's (8ce8c90 and the web-only 36915cf); nothing SMK-specific changed: the SMK's SCALE is the
+FM-1's SEL (panel.c), so the filter type picker is SCALE held in the sound editor. Built for the three models
+(`BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.29-smk37`): XIP 558,208 / 558,224 of 573,440 (97.3 %), RAMTEXT
+21,816 of 24,576. Then `tools/hub_build.sh 0.29-smk37`: the same `SHA256SUMS` (twelve files).
+`web/releases-smk37.json`: 0.29-smk37 first, base 0.29, four bullets and three notes (untried on an SMK; going back to
+0.27-smk37.1 plays a sound using 0.29's new values as INIT; the Digitone importing is in the FM-1's web pages, which do
+not connect to an SMK-37 yet). SMK37.md: the status, the package names and version line, and What to test item 14
+(the SCALE hold, MULTI / the combs / EQ, dense FM TONE chords on two cores). `python3 tests/releases_test.py` ALL OK.
+Tagged v0.29-smk37: release.yml builds, signs and publishes the pre-release, pages.yml the SMK-37 test installer.
+
+3y222. **A second flash chip, 0xB36014: ChoralRoot ran RAM-only on a new FM-1.** Reddit r/MVaveFM1 (u/novorapidd): a
+new FM-1 with the logo on the front took 0.27 through M-VAVE's updater and ran it, but Options > Version read `no
+unit ID`, every installer stopped "after 0 requests", Update Mode went dark, OCT- held gave the stub's one long flash,
+and MvaveFM1Unbricker `info` read `Flash ID 0xB36014 (expected 0x856014)`. `FL_JEDEC_OK` (fm1_flash_map.h) now
+accepts 0xB36014 beside 0x856014 (and the SMK's 0xEB6014): same type and capacity bytes, another maker, and the driver
+uses only generic SPI NOR commands. `tests/smk_flash_test.c` checks both ids and rejects 0xB36015. INSTALL-COMPAT.md
+"A second flash chip" says what a RAM-only unit does (no stores, no unit ID, `main.c` skips `ota_session`) and the
+way out of one already stuck: ROM boot, the Unbricker's `restore` of V15 with `--i-know`, then the web installer.
+
+3y223. **0.29.1, the release for the newer FM-1s.** The owner: "Yes, release 0.29.1" (asked as 0.28.1; 0.29 was out
+since 2026-11-01). 0.29's firmware with 3y222's `FL_JEDEC_OK` (the chip 0xB36014); only the version line differs.
+`./build.sh --release 0.29.1` and `tools/hub_build.sh 0.29.1` (the same `SHA256SUMS`), `web/releases.json` first with
+the sha256s, 0.29's entry given its going-back note, `docs/releases/0.29.1.md` (which units, what changed, the way out
+of a unit already stuck: ROM boot, the Unbricker's restore of V15, then the installer), MANUAL.md's first line.
+MvaveFM1Unbricker 1.2.1 accepts the id too (`info`, `restore`, the Transporter tool). `python3 tests/releases_test.py`,
+`CR_VERSION=0.29.1 sh tests/run_all.sh`. Tagged v0.29.1: release.yml builds, signs and publishes, pages.yml the site.
+
+3y224. **Clock In: the loop drifted from the master; it now keeps time with the pulses.** Users: the loop drifts over
+time against the gear clocking it. Felucca fixed its own external-clock drift in ebdf867 (merged as 440e62c,
+"Preserve external MIDI-clock phase"): its clock advanced by `beat_samples()/24` per pulse, so the whole-sample periods
+and each tempo change lost phase; the fix advances a fixed grid per pulse and carries the fractions. ChoralRoot does
+not build that code (FELUCCA_SEQ 0) and its own clocks already keep their remainders (samples -> ms in cr_out.c, ms ->
+ticks in `cr_loop_tick`, the arp anchors), so the FM-1 never drifted from itself. The drift was Clock In: `cr_midi.c`
+only measures the tempo, applies it as a whole BPM and holds it within 0.8 BPM, and the loop then ran on the FM-1's
+clock at that BPM. A master at 120.4 BPM: 0.4 beat a minute, 2.0 s behind after 10 minutes; at 120.7, 3.5 s
+(`tests/cr_loop_test.c` `s_extclock`, which failed so before the fix). Now each 0xF8 is `cr_loop_ext_pulse` (4 tempo
+ticks a pulse, Felucca's fixed grid); `cr_loop_tick`'s ms clock only fills in between, at most 3 ticks past the last
+pulse (Felucca's `midi_clock_advance` cap) and catching up to it at once. FA / FB, Clock In off and a 150 ms gap
+(the follower's) end the lock: the next pulse anchors it again, and without pulses the loop runs on the ms clock as
+before. A duplicate pulse (< 2 ms, USB and TRS both) is not counted. After: within 3 ticks (15 ms) of the master
+for 10 minutes at 120.0, 120.4 and 120.7. Nothing stored changes (two RAM fields in `cr_loop_t`). Not covered: the
+arp and the clocked voices (cr_engine.c) still run at the whole BPM under Clock In. `sh tests/run_all.sh --only
+cr_tests`, target budget ok; XIP 557,640 of 573,440 (97.2 %). MANUAL.md "the loop" (Clock In).
+
+3y225. **0.29.2, Clock In's loop timing.** The owner: "Yes, 0.29.2". 0.29.1 with 3y224 (the loop locked to MIDI Clock
+In's pulses). Measured on a unit first (FM-1_920 from this branch, `--force` over FM-1_4600 at the owner's word): MIDI
+Clock Out steady, 116.05 BPM at a tempo of 116 (+447 ppm against the Mac, no lost pulses over 3 minutes); a 2-bar loop
+7.9997 beats a cycle over 42 bars, its start within 3 ms; the "drift after 8 bars" a player heard was a Free loop of
+19.28 beats, which keeps its length by design. `./build.sh --release 0.29.2` and `tools/hub_build.sh 0.29.2` (the same
+`SHA256SUMS`): XIP 557,640 of 573,440 (97.2 %), 1-core 554,500. `web/releases.json` first with the sha256s, 0.29.1's
+entry given its going-back note, `docs/releases/0.29.2.md`, MANUAL.md's first line. `python3 tests/releases_test.py`,
+`CR_VERSION=0.29.2 sh tests/run_all.sh`. Tagged v0.29.2: release.yml builds, signs and publishes, pages.yml the site.
+
+## 2026-11-06 (SMK-37: the TRS jack's MIDI out)
+
+3y226. **SMK-37: the TRS jack is a MIDI out (GitHub issue 42).** finlaysteven1-netizen (2026-11-07): "TRS MIDI out
+works on the SMK-37 Pro", a patch on the current source with a Behringer TD-3 on a TRS Type A to DIN cable; the owner:
+"Please see this". Their commit (07a57d1f, kept as theirs): Skiff's `firmware/hal/smk_uart_tx.h` as it is (illuminus5,
+GPL-3.0-only, Skiff 2.2 commit 76b5f9c: UART1 TX on PC7 at 31250 baud as genkigenki's hardware notes set it up, a
+128-byte ring drained by the 10 kHz TIMER5 tick, a realtime slot ahead of it, a 2 ms timeout), its init before
+TIMER5 starts, its tick at the top of `fm1_timer5_irq`, and `usb.c midi_out_trs` from `midi_out_event`: every USB-MIDI
+packet ChoralRoot sends also goes out of the jack, with or without a USB host. Skiff's own notes list the driver as not
+yet checked on a unit: this is its first seen working. Review (on hardware no one here has): PC7 is free on the SMK
+(the FM-1's LCD CS; the SMK's LCD is PC8 / PB5..7, its pad LEDs PC10, the codec PC0/1/2/6, mux B PC9; nothing writes
+PORTC at run time but the LCD's and pad LEDs' own bits), the registers are genkigenki's (01-hardware.md section 9), the
+FM-1's TRS MIDI IN stays off on the SMK (choralroot.c FELUCCA_UART). One producer (the audio ISR: the engine's
+callbacks, the wheels, the pedal, the clock) and one consumer (TIMER5, priority 4 above ALNK0's 3, on core 0 as the
+audio ISR is) make the ring safe with a compiler barrier. The tick, from the listing: 8 instructions idle, 12 while a
+byte is on the wire (one UART read), about 28 when it starts the next (two reads, a read-modify-write, the write), so
+under 0.5 us of each 100 us, about 6 us of a 2.9 ms audio block at worst; nothing in it waits. The update loader
+leaves it out. Found and fixed (7f3e6073): the SMK-37 browser emulator no longer built (`tests/hostsim.c` takes `usb.c`
+with BOARD_SMK37 but not the header: `smk_ut_w` undeclared), so the packet's bytes moved into the header
+(`smk_uart_tx_pkt`), which defines `MIDI_OUT_TRS`, and `usb.c` calls it only where that is defined (the device's
+choralroot.c alone includes the header); a sustain pedal up and the bend back to the centre join the note-offs and CC
+120 / 123 that get in whenever their bytes fit (the patch could drop a pedal-up near a full ring: the synth's notes
+held); the pace stated as it is (a byte every fourth tick, about 2,500 bytes a second, not the wire's 3,125); Skiff's
+THRU notes dropped (ChoralRoot has no MIDI thru; SysEx stays on USB's own ring). No running status: every message keeps
+its status byte, so a message dropped whole never leaves the next under the wrong one. Added (0db58af2): **Options >
+TRS MIDI Out**, `On` (the default) / `Off`, after MIDI Clock, the SMK-37's list only: Off lets only the releases
+through, so nothing the jack started is left on; the session's byte 25 (`smk_trs_off`, 0 = On: an older or FM-1 record
+reads On; the reserve 118). Tests: `tests/smk_trs_test.c` (run_tests.sh, a modelled UART: bytes in order, the clock
+ahead, a 100-note burst that never blocks or cuts a message while the releases get in, Off, CIN sizes, a UART that
+never answers), `test_web_emu_smk.mjs` (the entry after MIDI Clock, On, Off, kept over SAVE held and a power cycle),
+`cr_settings_test` (byte 25). The FM-1 build is byte for byte main's (`choralroot.fwsc` b96afe10...09cc before and
+after). SMK-37 Pro XIP 559,696 of 573,440 (97.6 %, +832 B), RAM +160 B; 1-core 555,940 (the MKE-P37's 555,924: its name); the Elite and MKE-P37 the
+Pro's code with their names. LICENSING.md (Skiff's row), SMK37.md ("The TRS jack", the controls table, What to test
+15, Credits), SETTINGS.md. Not tested on a unit: the Elite, the MKE-P37, a 1-core package, a long session, Off.
+
+3y227. **0.29.2-smk37: the SMK-37 test build with the TRS jack's MIDI out; genkigenki in LICENSING.md.** The owner:
+"Add genkigenki to the licensing credits. Please get this in an SMK build out". LICENSING.md had no row for the SMK-37
+port itself (SMK37.md credited it alone): now genkigenki's board layer (their Felucca SMK-37 port, brought here in PR
+#14, 187b2e5: the input HAL, the LCD and pad LED pins, the flash map and its guards, the owner tag, the stub's and the
+loader's SMK places, the identities, the package layout, the installers' SMK support, the stock mapping's fix of
+0.24-beta3-smk37.1, SMK37.md's first version; GPL-3.0-only), their fm1-to-smk37 hardware notes (CC BY-NC 4.0, credit
+only: the SMK build and its TRS out were checked against them) and their Vector37 simulator (GPL-3.0, the SMK
+emulator panel's arrangement, credit only). The build: main's 0.29.2 with 3y226 (the TRS jack, Options > TRS MIDI
+Out) on the three models, `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.29.2-smk37` and then
+`tools/hub_build.sh 0.29.2-smk37`: the same `SHA256SUMS` (twelve files), the six sha256s the list's. XIP 559,696 of
+573,440 (97.6 %; the Elite 559,712, its longer name), 1-core 555,940 .. 555,956. The SMK build also takes 0.29.1's
+second flash chip (0xB36014, in the SMK's `FL_JEDEC_OK` too) and 0.29.2's Clock In loop timing. `web/releases-smk37.json`:
+0.29.2-smk37 first, base 0.29.2, five bullets, three notes (the jack seen on a Pro only; going back to 0.29-smk37
+silences it; the jack's pace). SMK37.md: the status, the package names, the version line. `python3
+tests/releases_test.py` ALL OK. Tagged v0.29.2-smk37: release.yml builds, signs and publishes the pre-release,
+pages.yml the SMK-37 test installer.
+
+3y228. **SMK-37 builds are full releases now.** The owner, while 3y227 published: "SMK versions have now been tested
+by multiple people and work so we no longer need to consider it a pre-release." v0.29.2-smk37 made a full release
+by hand (`gh release edit --prerelease=false --latest=false`), its title without "(community test)" and its notes'
+first lines reworded (tested on SMK-37s by their owners; the web installer by SMK37.md's Install). GitHub's latest
+release stays the FM-1's v0.29.2: the hub, RemoteFM1 and the Releases page take the latest as the FM-1's. release.yml
+for the next SMK tag: a full release, a pre-release only on a beta or rc base (`X.Y-betaN-smk37`), published with
+`--latest=false`, the same title and notes; `actionlint` clean. BUILDING.md "An SMK-37 test release" and SMK37.md's
+status say so (the maintainer still has no SMK-37). Unchanged: the SMK-37 installer page stays unlinked from the site,
+and the release's signed `SMK37.md` keeps its tag's wording (published files are never replaced).
+
+3y229. **The SMK-37 installer linked from the site and the README.** The owner: "Please make the SMK installer linked
+from the main site and readme" (after 3y228: the SMK builds tested by several owners). The landing page gets a
+"Got an M-Vave SMK-37?" cell at the end of its Get it grid (`web/site/index.html` `{{SMK}}`, `make_site.py`
+`SMK_LINK`), filled only when the site writes `webapp/smk37/` (an SMK build offered), so a local build without the
+SMK packages has no dead link. The README's SMK line links the installer, its emulator and SMK37.md. The SMK pages
+lose `noindex` (the installer, its emulator, `firmware/smk37/`), and their words lose "test" (the installer's title,
+its line under the heading, its first warning: tested by SMK-37 owners, the maintainer has none). Still never linked
+from the FM-1 installer, `firmware/` or the FM-1 emulator. pages.yml's check turned round: the job fails when the
+landing page does not link the SMK page, and still when those FM-1 pages do. `tests/site_test.py` (the landing page
+links it once; none without SMK packages; the pages indexable) and `web/test_smk_installer.mjs` follow; site_test
+ALL OK, the SMK installer tests passed; the page seen in the browser (a local site with 0.29.2-smk37's packages).
+BUILDING.md, SMK37.md's Install, the SMK emulator's line.
+
+## 2026-11-06 (a plan for Bluetooth MIDI and the two-FM-1 USB link)
+
+3y230. **docs/BLE-LINK.md: how Bluetooth MIDI and the USB link from Melodee could come to ChoralRoot (a plan; no
+firmware change).** The owner: "I'd like to see about adding those features to ChoralRoot". Melodee (Kerem Kilic,
+GPL-3.0-only; main 165d177, nightly 3fe570d) has Bluetooth MIDI since fef995c (2026-10-26): Optimist's bare-metal BLE
+stack (w0ts/optimist 498a3ae4, no JieLi Bluetooth library), with Charles Vestal's self-calibration (89b746c) and a
+resource region for read-only data (438ef0c). Its "link" is a general USB HOST mode (PR #75, recursivefieldinstruments,
+0d705bf, 2026-10-21): one FM-1 is the host, the other an ordinary USB device, through a powered hub or OTG adapter
+(the FM-1 cannot power the cable). Measured: Melodee's whole Bluetooth compiled with ChoralRoot's toolchain (a
+throwaway probe, not committed) is XIP 49,908 B (code 41,920, constants 2,193, the radio program 5,795), RAM 3,464,
+POOL 4,792, RAMTEXT 36; the peripheral role alone about 42.4 KB. Main has 15,800 B of XIP free (557,640 of 573,440;
+SMK-37 558,864): **it does not fit as things are.** It fits in one package if the fonts M, CRB, CRX and the 16 px
+icons (42,697 B) move to a 48 KB resource region at flash 0x93000..0x9EFFF (16 KB unused + the VA / FM6 / CZ-1 stores
+that are read-only leftovers since 0.22). CPU: the heavy cases have 615..890 us of room in the worst half (VA 2,103 /
+2,287, FM6 2,012 / 2,124); the BLE interrupts sit below the audio; the risks are the radio start (interrupts held),
+flash writes starving the link, and the cache. The FM-1's radio trims (stock VM at 0xE8000) are never written by
+ChoralRoot; the SMK's are overwritten by its store. Eleven decisions for the owner in section 8; recommended: one
+package with the region, then the FM-1 as Bluetooth peripheral, then USB host, then connecting out; the SMK later;
+first try Melodee 1.6.1's radio on a spare unit.
+
+## 2026-11-06 (0.21's sound objects retired: the migration, 80 IMPORT, the four stores)
+
+3y231. **The pre-0.22 migration retired: nothing reads 0.21's sound objects, and their 64 KB of flash are free.** The
+owner, after the flash inventory of the Bluetooth plan (3y230): "Yes, retire the pre-0.22 migration support and then
+clean this up". 0.22 .. 0.29.2 copied 0.21's 32 sounds (the user banks OBJ_UPRESET0 / 1 and the VA, FM6, CZ-1 tone and
+FM TONE stores) into the pool at their first power-on (`upool.c upool_import`), took them from an older backup's ids 6,
+7, 9..13, 22 (`cr_backup.c crb_legacy`) and had the device manager's **Import the 0.21 slots** (SysEx 80 IMPORT). All
+three are gone, with `va_store.c`, `fm6_ustore.c`, `cz_ustore.c`, `quad_store.c` and `UP_LEGACY`. `storage.c` keeps the
+object numbers reserved (every record's header names its object: OBJ_X_PROJECT0 .. OBJ_X_QUADSTORE) and, with the pool
+on (`ST_RETIRED`), refuses to load or save them and maps them to no sector (`ST_NOWHERE`, outside every write window);
+Felucca's configuration (its host tests, tests/storage_test.c) keeps its projects and user presets live until
+Felucca's tree goes. `cr_backup.c` now builds only in ChoralRoot's configuration (pool, CZ-1, FM TONE): the old ids are
+refused like any unlisted id (PUT begin rc 1; the pages report them skipped), 80 gets no reply. **Freed**:
+0x97000..0x9EFFF, 0xA0000..0xA1FFF, 0xB2000..0xB3FFF, 0xDC000..0xDFFFF on the FM-1 (0x9D000..0xA8FFF, 0xB0000..0xB3FFF
+on the SMK-37); SAFE MODE's Flash Data erases the live objects only, 60 sectors (was 76). Going back to 0.21 still finds
+its slots (nothing writes those sectors). **The way in from 0.21**: the web installer asks an FM-1 on ChoralRoot 0.21 or
+older before installing anything newer than 0.29.2 (`index_pkg.html needsPoolStep`, `POOL_VIA` 0.29.2: install it
+first, switch on once, then the newest); a backup of 0.21 restores its settings, banks and loops but not its sounds.
+**Not done, by decision during the work**: (1) Felucca's 37 unbuilt files and (2) the DIGITAL -> FM6 converter
+(`fm4_convert.c`) were also asked for, but `tests/hostsim.c` (base of most host tests and of the emulator) builds with
+Felucca's sequencer and engines on, 58 of the 317 goldens are Felucca engines, `test_retired.sh` compiles the retired
+engines to make its old images, and Felucca's UI and projects call the converter: a task of its own (the survey: the
+side-session notes, felucca-removal-survey-3y231.md). `cz_legacy.h` is not a converter (the CZ-1 editor's live panel
+table) and stays. **Size** against main a9422d74: FM-1 XIP 557 640 -> 555 604 B (-2 036), RAM 80 592 -> 80 512 (-80),
+POOL unchanged, RAMTEXT 21 660 -> 21 720 (+60: the compiler regrouped its merged small globals, so `vsq_push` /
+`vsq_drop` / `trk_note_on` address `vsq` at a larger offset, +10 instructions a note, none a sample); SMK-37 XIP
+559 696 -> 556 848 (-2 848), RAM 81 644 -> 81 564. **Tests**: tests/cr_backup_test.c on pool-bank PUTs (the fixture,
+the sounds, SELECT and reload; new: the old ids refused at their sizes and at 0, nothing written, 80 unanswered, 0.21's
+sectors planted and never read), cr_settings_test (the retired objects refused both ways, in `ST_RETIRED`),
+cr_cz_test, cr_pool_test, cr_va_test (the whole-store conversions gone, the blob versions kept), test_cr.sh (Flash Data:
+60 sectors), web/test_installer.mjs (six cases of the 0.29.2 question), `tools/emu/test_pool.sh` (the migration from a
+377264f image) removed with `pool_legacy.c` and `pool_image.py`'s legacy commands. `sh tests/run_all.sh` on the merged
+tree: 23 suites passed, 317 goldens unchanged, test_cr 1119 ok. Docs: FLASH.md "What the flash holds" (the inventory),
+PRESETS.md, SOUNDS.md, SETTINGS.md, HANDOFF.md, MANUAL.md ("From 0.21 or older"), SMK37.md, BLE-LINK.md (decision 2).
+
+3y232. **Felucca's tree goes: its 38 unbuilt files, the host tests that compiled them, and the DIGITAL -> FM6
+converter.** The owner, with 3y231 ("clean this up": Felucca's unbuilt sources and the retired-engine converters, left
+for their own task there; the survey: the side-session notes, felucca-removal-survey-3y231.md). **Gone**: the 38
+Felucca files `choralroot.c` never included (the UI `ui*.c`, `icons.c`; the sequencer `seq.c`, `song_chain.c`,
+`chord.c`, `motion.c`, `midi_control.c`, `midi_clock.c`, the FX layer `perform.c`; the editor `editor*.c`, `project.c`,
+`favorites.c`, `felucca.c`; the engines ANALOG, DIGITAL, PHASE, LOFI, SAMPLE, VOICE, TRIO, PHYS (`phys_dsp.c`,
+`phys_symp.c`), DRUM (`drum_voice.c`), NOISE, SLICE (`slice_store.c`); ~15 400 lines), `fm4_convert.c`, and the 26 host
+test files only they kept alive (scale, chord, project, motion, MIDI control, DIGITAL and its FM6 conversion, `fm4_div0`,
+the UI and its renders, persistence, backup, editor, SLICER, swing, the FX layer, REVERB TYPE, `descdump`, PHYS and its
+DaisySP reference, DRUM, NOISE, SLICE). **The host-test base is ChoralRoot's**: `core.h`'s defaults are the unit's (the
+sequencer's and the retired engines' switches 0 and setting one 1 an `#error`; the VA, CZ-1 and FM TONE in every build,
+so `UP_POOL` is 1 everywhere); `tests/hostsim.c` is the sound side with ChoralRoot's flags and, unless its includer
+says `HOST_CR_OUT` (the emulator, `cr_trans_test.c`: `cr_out.c` follows), host stand-ins for `cr_out.c`'s names
+(`events_block`: the engine switches and the releases asked for) and its helpers (`host_tracks_init`, `host_preset`,
+`wav_hdr`, `now_ns`, `busy_now`) outside any `#if`; its own main (the ANALOG render, the TRACKS demo) went with
+the sequencer. The dead branches of the kept files (`#if FELUCCA_SEQ` .. `FELUCCA_PHYS`, `FELUCCA_PERFORM`, `!UP_POOL`,
+storage.c's `!ST_RETIRED`, `FELUCCA_FAVORITES`, `FELUCCA_ICONS`) were taken out with `unifdef`; `fx.c` has no FX
+layer (its `FELUCCA_PERFORM` default and `#error` with it); `engines.c` keeps the retired slots as one `ENG_GONE`.
+**The firmware is byte-identical** for that part (`./build.sh` and `BOARD=smk37 ./build.sh`: both packages `cmp`-equal
+to the ones before). **The converter**: a DIGITAL record (engine 1) now takes `cr_ui.c cu_load_user`'s retired path
+(the VA's init sound, "engine retired: init sound", the trace line names DIGITAL), is an added preset of the VA's pool
+and binds nothing (`cr_bank.c cb_pool_of` / `cb_bind_of`; until now FM6's pool, bound there); `upreset.c`, `params.c`,
+`core.h` follow, engine 1 is the generic `ENG_GONE`, `FELUCCA_FM4` 1 is an error; the record formats (`P_COUNT`, the
+DIGITAL operator values 61..80) are unchanged. `web/fm1sounds.js poolOf` / `sndBindRaw` and `tools/fm1_install.py
+pool_of` / `_bind_raw` follow the firmware (so on a unit still on 0.29.2 or older they list a DIGITAL record in the VA's
+pool where that firmware shows it in FM6's: a DIGITAL record is one a Felucca 0.x unit left). **Size**: FM-1 XIP 555 604
+-> 552 804 B (-2 800), SMK-37 556 848 -> 554 064 (-2 784); RAM, RAMTEXT, POOL unchanged. What changed in the listing:
+the converter's functions and tables (`fm4_*`, `FM4_ALG`, `FM4_TO_FM6`, `DIGITAL_PRESETS`), `fm6_carriers` and
+`fm6_scaleout` (FM6 helpers only it called), `ENG_FM4_GONE` -> `ENG_GONE` (the same 272 B), and its three callers
+(`cu_pool_load` -2 024 B, where it was inlined; `cb_pool_of`, `cb_bind_of`); the rest moved by address only. The
+generic `ENG_GONE` keeps `ENG_FM4_GONE`'s parameter ranges: a retired record is clamped to them before `cu_load_user`
+reads it, and ANALOG's macros carried to the VA need their 0..127 (tests/cr_fm6_test.c caught the all-zero first try).
+**The goldens** (`tests/regress.c` in ChoralRoot's configuration: one core, Felucca's FX buses as before, two parts):
+317 -> 279. The 259 of ChoralRoot's engines keep their hashes (four FM6 entries renamed to the names the unit shows, as
+SAMPLE 0 names them: 01_FM_BELL, 04_FM_PAD, 06_FM_ORGAN, 07_FM_PLUCK, their hashes the same), the SLICER's GATE on
+VA SYNC BASS too; 57 of Felucca's engines, the GM kit and the 4-track mix are gone; new: FM6 24 PIANO (ChoralRoot's
+F25, in the build since SAMPLE left), the voice modes on the VA, FM6 and P5 (12) and the sends on the VA (6), which were
+on PHASE. The voice checks run on the chord and bass parts (only they sound: `ENG_STATE_NPART` 2): the budget (VA and
+FM6), reuse before a stolen tail fades (P5's cap of 4 full), mode changes, key-ups after them (caps 8 / 4: the VA, P5),
+a stolen voice fades (CZ-1's INIT TONE: a sine), MONO / LEGATO / UNISON keep their note with the budget full, P5's cap
+(VOICE's was); "no hanging notes" (Felucca's MIDI channel routing and ARP) and the SAMPLE one-shot ends went.
+`tests/cpu_baseline.txt`: Felucca's entries out, FM6 PIANO and `cpu/mix/2parts_full` (FM6 8 + VA 8) in, the rest as it
+was. **The other tests rebuilt**: `audio_test` (the VA; the DRUM one-shot case gone), `mod_test` (the VA, FM6, P5,
+WHEEL instead of ANALOG, DIGITAL, TRIO, PHYS, LOFI; its MIDI part on `mod.c mod_midi`, which `cr_out.c` hands a part's
+CC1 / CC11 / AT; the TRS parsing is `midi_uart_test`'s), `speaker_test`, `fm6_test`, `rt_cr_usbtap_test`,
+`cr_cpu1_test`, `cr_trans_test` (as they were, in the new base), `storage_test` (CZ-1's banks as its A/B object; 0.21's
+objects refused, no flash access), `smk_flash_test` (12 objects stored, 0.21's 8 nowhere, 60 data sectors; the owner
+change's regions hold their freed sectors), `upreset_test` (a RAM table of slots for the pool, `up_migrate` on a read
+as `upool.c up_rec` does), `cr_favs_test` (the pool's layout: 128 user slots, 84 bytes of marks, 664 marks in 102 bytes,
+304 bytes typed; it was built without core.h and so checked 0.21's), `target_budget.py` (the gone functions' lines),
+`web/test_web.mjs` (its comparisons with `build/host/desc.json` went with `descdump`; `run_all.sh` no longer waits for
+it), `web/test_sounds.mjs` and `tests/install_test.py` (DIGITAL: the VA's pool, added). **`tools/emu/test_retired.sh`**
+makes its pre-0.18 images with v0.29.2's tree: `git archive v0.29.2` into build/scratch/retired/v0.29.2, its own
+generated headers and emulator, its firmware with PHASE .. PHYS on, as test_pool.sh did with 377264f. **Also**:
+`tools/build.py` passes none of the removed switches (nor `FELUCCA_CZ` / `_QUAD`) and copies no sample attribution;
+`tools/size_fns.py`'s list without the gone files; LICENSING.md (the PHASE, DRUM, DaisySP, Rings, klattsch rows: in the
+tags); `LICENSES/MIT-DaisySP.txt` and `MIT-Rings.txt` **stay**: the site still offers 0.16 and 0.17, whose images hold
+PHYS, and publishes LICENSES/ for them. Docs: BUILDING.md (the switch table, the tests), FLASH.md, HANDOFF.md,
+INTEGRATION.md, SOUNDS.md, INSTALL-COMPAT.md. **Left for later**: the generators and assets only Felucca's engines
+and UI read (`tools/gen_samples.py` -> `felucca_samples.h`, `assets/samples-cc0/`, `tools/fetch_cc0.py`,
+`tools/gen_waves.py`, `tools/gen_aa_icons.py` -> `ui_icons.h`, `tools/gen_aa_keycaps.py` and `gfx.c`'s
+`FELUCCA_KEYCAPS` code) and Felucca's web editor (`web/editor.html`, its mock device, its DIGITAL converter in JS, most of
+`web/test_web.mjs`; not in the site). **Tests**: `sh tests/run_all.sh`: 23 suites passed (279 goldens, 0
+changed; test_cr 1119 ok, test_persist 119, test_retired 18); a run before had one failure of tests/install_test.py
+in a phase that imports numpy ("Could not parse python long as longdouble", the host's numpy, not this change), which
+passed in the run after.
+
+
+## 2026-11-06 (Bluetooth: the owner's decisions; step 1, the resource region)
+
+3y233. **docs/BLE-LINK.md's decisions: "Go with all".** The owner, through the orchestration session, on section 8:
+every recommendation taken. One package, made to fit by the resource region; 0.21's stores retired (3y231); the order
+region -> the FM-1 as Bluetooth peripheral (steps 2..4) -> USB host -> connecting out; the port from Melodee's copy
+(3fe570d) crediting Optimist, Melodee and Charles Vestal; the V15-derived radio program shipped with Melodee's
+provenance note; Just Works bonding; the radio Off by default, saved, started before the audio; MIDI only in version 1;
+27-octet packets; FM-1 only for now; step 0 (Melodee 1.6.1 on a spare FM-1) yes, run by the device session. Recorded at
+the top of section 8.
+
+3y234. **Step 1: the resource region. The fonts M, CRX and CRB leave the app slot for flash 0x93000..0x9EFFF.**
+`firmware/src/cr_res.h` holds the design; docs/BOOT-SAFETY.md "The resource region" the update path. **The data**:
+`tools/gen_aa_font.py` gives the three faces' `AF_<N>_DATA` an `AF_RES` attribute (choralroot.c, FM-1 only: the section
+.res.font), `firmware/app.ld` links `.res` at XIP 0x0208F040 (memory RES, 49 088 B), `tools/build.py` takes it alone
+(build/res.bin; checked: at 0x0208F040, 1 .. 49 088 B on the FM-1, empty on the SMK-37) and prints `RES n B of 49088`.
+**The package**: `tools/fm1pkg_make.py --res` (build.py passes it) lets `flash.bin` run on from 0x93000 to 0x9F000,
+plain, a 64-byte header at 0x93000 ("CRES", format 1, the data's length and CRC-32, the app body's CRC-32 from the
+commit marker, the radio program's slot 0 / 0, its own CRC-32) and the data from 0x93040; the PRCT descriptor and the
+app area are as before. **The update path**: `firmware/loader/ldr_core.c` writes the region's sectors when the package
+carries them, in the body's pass (after the marker's sector went blank, before the marker), and its record sweep skips
+them; an older package (0x93000) writes none. The current firmware stages the new package's own loader (ota.c), so the
+loader that writes is always the one that knows the region. **The app**: `cr_shim.c cr_res_boot` (after
+`fl_plain_window_init`) accepts the region only when its header, length (this build's `.res`), data CRC-32 and body
+CRC-32 (this build's own marker at 0x91FE0) all match; otherwise `cr_res_ok` stays 0: `gfx.c` / `cr_gfx.c` draw no
+glyph from it, the crash screen, UBOOT and UPDATE draw in S (`CR_FONT_M`), the splash says FONTS MISSING / INSTALL
+CHORALROOT AGAIN in S for 3 s. `hal/fm1_flash_map.h`: FL_RES_LO / HI, the store's window from 0x9F000 (was 0x97000:
+the app can never write the region), asserted; `cu_flash_erase` asserted clear of it. **The hosts**: `web/fm1pkg.js
+flashSizeOf` (the installer's bar: +96 reads), the Transporter shims accept a ChoralRoot flash.bin of 0x9F000 and keep
+writing 0x4000..0x92FFF (a note says to install again). **Tests**: `tests/ldr_test.c` with the region (every base holds
+stale bytes there; the stub boots only the finished install with the region whole; 2381 / 2398 cut points, the
+unprotected windows unchanged: 0 for the same stub, 16 for a first stub, 17 for the dark unit; 1245 requests) and the
+downgrade (a 0x93000 package leaves the region byte for byte); `tools/emu/test_res.sh` (new suite): 0.29.2's and
+0.26.1's firmware, each built from its tag, boot beside the region with their settings and sound as saved and never
+write it, and on a unit with an empty pool migrate nothing from its bytes; `tests/transporter_shim_test.py`.
+**Size** against e8f4b360: FM-1 XIP 552 804 -> 517 364 B (-35 440: 96.4 -> 90.2 %), RAM 80 512 -> 80 528 (+16),
+POOL and RAMTEXT unchanged, RES 36 024 of 49 088 B (73.4 %); the SMK-37 unchanged (XIP 554 064). The screens are drawn
+from the same bytes: the host renders and the draw goldens do not see the region (AF_RES empty there). **Not done**:
+the 16 px icons stay in the slot (the plan moved them too: 6.7 KB more when needed); nothing run on a unit (the first
+install of this build on the owner's unit is the check that the plain window reads the region as the host says);
+returning to V15 with a region present is not seen yet (V15's VM starts at 0x93000); a package made from V15 and an
+app.bin alone would carry no region (no ChoralRoot page does that; the release's -app.bin files stay for the Hub).
+
+## 2026-11-06 (step 1 and step 0 on a unit; going back to stock through M-Updater)
+
+3y235. **The resource region on a unit, Melodee's radio on these units, and V15 through M-Updater.** From the device
+session, on the spare E81CE2F7: (1) step 1 (ecd842bf) installed over Melodee 1.6.1: it found Melodee's 816-byte
+settings in object 1 with no ChoralRoot record and booted on the defaults; the settings backup then restored byte for
+byte; the owner: the splash normal, every font drawn, no garbled text (the region read through the plain window).
+(2) Step 0: Melodee 1.6.1's Bluetooth works on these units: VISIBLE, connected from the Mac's Audio MIDI Setup (the
+note tests' details: the device session's). (3) The installer's "Return to official V15" over the step-1 build gave V15
+with its text fine but no presets (V15's data gone). The owner: "We don't really need to worry about supporting V15,
+using the official M-Vave M-Updater will restore and reflash everything." So MANUAL.md ("Back to the stock firmware",
+"Not the stock firmware with additions") and the installer's stock card (`stockWarn`, `stockBack`) now send players to
+M-VAVE's M-Updater and say that this page's return writes the firmware without the presets. Recorded in
+docs/BOOT-SAFETY.md "The resource region" and docs/BLE-LINK.md section 8. Next: step 2, the Bluetooth peripheral.
+
+## 2026-11-06 (step 2: Bluetooth MIDI, the FM-1 as a peripheral)
+
+3y236. **Bluetooth LE MIDI on the FM-1** (docs/BLE-LINK.md steps 2..4 as one; MANUAL.md "Bluetooth MIDI"). Ported
+from Melodee nightly 3fe570d with credit (LICENSING.md): Optimist's stack (`firmware/src/ble/`, 33 files as Melodee
+carries them), the WL82 driver and radio access (`hal/fm1_ble.h`, `fm1_ble_rf.h`), Charles Vestal's calibration
+(`hal/fm1_rf_cal.h`, Apache-2.0), the radio's start-up program (`hal/ble_rf_tables.h`, V15-derived data, shipped in the
+resource region's `.res.ble`, 5 795 B, with Melodee's provenance note), the docs (`docs/ble/`). ChoralRoot's changes
+to them: the driver's interrupt attach (no dual-config), the program's section macro. The glue is new,
+`firmware/src/cr_ble.c` / `cr_ble.h` after Melodee's `midi_ble.c`: the peripheral only ("ChoralRoot XXXX", no
+scanning), legacy Just Works pairing with a bond, 27-octet packets, MIDI only (channel messages, clock, start /
+continue / stop, Song Position; no SysEx). Out: `usb.c midi_out_event` hands the peer what USB MIDI gets (clock and
+transport in a ring of their own, sent ahead of the notes); in: the BLE interrupts fill a ring that TIMER5 drains
+into the MIDI input queue as source 3, stamped with the packet's own time, so it routes as USB and TRS do (Perform,
+Bass, MIDI Keys, the CCs, Clock In). The notes a peer held end with note-offs when the link goes or Bluetooth goes Off.
+**Options**: Bluetooth (Off by default; its line shows `ChoralRoot 1A2B: visible`, `connected`, `starts when nothing
+plays`), Forget Bluetooth (OCT+ twice). **Saved** in a storage object of its own, `OBJ_BLE` (20) at 0xA0000 / 0xA1000
+(free since 3y231): On / Off, the address, the bond, a copy of the radio's trims; never in a backup, untouched by Reset
+Settings, cleared by Flash Data, saved only when nothing sounds and no loop runs. **Started** at power-on before the
+audio and core 1 when On was saved, the region present and the boot guard counted no failed start; switched On later,
+the start (which holds the interrupts, ~160 ms when the radio must calibrate itself) waits for a quiet moment. SAFE
+MODE never reads or starts it. The SMK-37 builds without it (`CR_BLE` is the FM-1's; its image differs from 771edeea's
+by 4 bytes, storage's object count). `CR_BLE=0 ./build.sh` builds the FM-1 without it.
+
+**Size** (FM-1, `./build.sh`): `XIP 547688 B of 573440 (95.5%), RAM 84256 B of 98304 (85.7%), POOL 334184 B of 344064
+(97.1%), NOINIT 276 B, RAMTEXT 21756 of 24576, RES 41820 B of 49088 (85.2%)`. Against `CR_BLE=0`: XIP +30 308,
+RAM +3 728, POOL +2 692 (9 880 B left, 1 688 above the 8 KiB rule), RAMTEXT +36, RES +5 796. 25 752 B of XIP left.
+
+**The audio with the radio off.** `CR_BLE=0` against 771edeea (the listing, function by function, addresses and
+immediates masked): 4 functions differ, all storage or Options (`st_sector`, `st_live`, `cu_btn_release`,
+`cp_lay_mod_dst`); every audio function is the same code. With `CR_BLE=1` and the radio off, the C the audio runs is
+unchanged but for two early returns: `midi_out_event` calls `cr_ble_emit` (inlined: a load of `ready` and `on`, then
+back) and TIMER5 calls `cr_ble_drain` (inlined: a load of `started`, then back). The compiler lays the data out anew
+around the new state, so 174 functions change by a few instructions (register choice, merged loads): the audio
+interrupt's call tree is 15 111 -> 15 112 instructions, the engines' functions 29 198 -> 29 153. The host goldens (the
+draw goldens of `run_cr_draw.sh`, run_tests' 279 renders: 0 changed) run the same C and pass; the unit's `perf_unit.py` with Bluetooth Off against
+the step-1 build is the check of the timing (the device session).
+
+**The radio's interrupts with it on** (the listing, `scratchpad irqcost.py`: the direct call tree, an upper bound of
+one entry's straight-line work): IRQ 45 (event) and IRQ 29 (RX) at priority 2, below the audio (3) and TIMER5 (4), so
+they never delay a half; their code runs from flash. `isr_ble_event`: 38 functions, 4 488 instructions reachable,
+deepest stack 696 B; `isr_ble_rx`: 37 functions, 4 153 instructions, 688 B. At ~205 instructions a microsecond that
+bounds one entry's straight-line path at ~22 us; an encrypted MIDI notification adds AES-CCM, 7 blocks of ~4 000
+instructions, ~135 us, at most one or two per 7.5..11.25 ms connection event. Nested under the audio and TIMER5 the
+deepest stack is 696 + 904 + 232 = ~1.8 KB of the ~7.9 KB system stack. TIMER5 (10 kHz) gains the drain: idle one load,
+connected a few packets a tick.
+
+**Tests**: `tests/cr_ble_test.c` (47 checks: the rings and their order, MIDI only, the timestamps, the release on loss
+with a full queue, On / Off and the quiet start, the record's saves, the bond, forget, the boot rules, the status
+lines) with the real stack on the fake radio; Melodee's stack fixtures, `tests/ble_tests.py` (11 builds, with ASan and UBSan: primitives,
+the stack plain and encrypted with legacy pairing, the driver both ways, central, scan, the VM reader; the radio
+program's replay against the pinned Optimist interpreter), both in `run_cr_tests.sh`. The SMK and storage tests count
+21 objects. Not done here (no unit): the radio on a unit, a Mac and an iPhone, reconnect after a power cycle, the
+timing with Bluetooth Off / advertising / connected, the soak (docs/BLE-LINK.md step 3's list).
+`sh tests/run_all.sh`: all 24 suites pass (`cr_favs_test` now expects OBJ_BLE after the favourites; test_cr's SAFE MODE
+erase 62 sectors, Bluetooth's 2 added). The emulator builds without Bluetooth (no radio there: no Bluetooth entries in
+its Options).
+
+## 2026-11-06 (switching firmwares: M-Flasher and the M-Bootloader)
+
+3y237. **The way to switch firmwares is M-Flasher with the M-Bootloader.** The owner, through the orchestration
+session: "My official advice to anyone switching firmwares is to use M-Flasher and install the M-Bootloader
+https://github.com/jvitkauskas/m-flasher and to use that to flash another firmware." From their READMEs: M-Flasher
+(MIT, Windows / macOS / Linux, unofficial) backs up, restores and installs `.fwsc` packages (M-VAVE's, or a custom one
+in that format) through the chip's ROM download mode, so it works whatever runs on the unit; it reaches download mode
+by its DOWNLOAD MODE button (the SysEx F0 22 24 35 7D F7, which ChoralRoot answers: main.c) or, with the M-Bootloader,
+by holding REC (SMK-37: SEQ REC) while switching on. The M-Bootloader (MIT) replaces M-VAVE's boot area, adds that key,
+a recovery menu (PLAY) and a checked start; M-VAVE's updates put the stock one back. So: MANUAL.md "Switching
+firmwares" (was "Back to the stock firmware"), the README, SMK37.md, the site's Recovery section, BOOT-SAFETY.md, both
+installers (the refusals over Sloop, Bubba Machine and unknown firmwares, the stock card, the SMK page's risks, accept
+box and Going back), `tools/fm1_install.py`'s refusals and BUILDING.md's release-notes step now name M-Flasher and the
+M-Bootloader with the link. M-VAVE's M-Updater (M-UPGRADE on the SMK-37) stays only as the way to restore the stock
+firmware completely; no "return to V15 first" advice is left for ChoralRoot (the installer's own "Return to official
+V15" stays, described as writing V15 without the presets). Tests: the refusal texts in `test_installer.mjs`,
+`test_web.mjs` and `install_test.py` now require the M-Flasher link and no V15; install, web_installer, web_web,
+web_emu_smk, releases, run_tests (the site) and `test_smk_installer.mjs` pass. **Not tried on a unit**: ChoralRoot
+starting under the M-Bootloader (its stub, the marker, the boot guard) and M-Flasher installing `choralroot.fwsc` with
+the resource region (docs/BOOT-SAFETY.md).
+
+## 2026-11-07 (Bluetooth: the radio started only at power-on)
+
+3y238. **The first unit try of 3y236, and the fix.** The device session put 93312ac7 on the spare E81CE2F7. The owner:
+"No font issues. When turning on Bluetooth the device froze then reset and showed 'Dual Core Hang' then going back to
+the options it shows Bluetooth is on: 8FC2. I do not see the device under MIDI and Audio setup." Read from the code
+(the unit's crash record is still to come): "Dual Core Hang" is the bar's C1_BAR_HANG, a watchdog reset (8 s without
+the main loop) while core 1 had run; that boot switched Dual Core Off **and saved it** (cr_c1_bar_boot), so the unit
+now runs one core until Options > Dual Core is set On again. Two starts, two failures:
+(1) **Switched On while running**: cr_ble_poll started the radio at the first quiet moment, the interrupts held for
+the program and, with no trims stored, ~160 ms of self-calibration, while core 1, the audio DMA, USB and its audio
+streaming were live. Melodee starts at run time too but also refuses while USB audio streams (`ua.play_alt ||
+ua.cap_alt`) and silences the audio buffer first; its unit had its own stored trims (no self-calibration). Which of
+these hung is for the crash record (the stage, the radio's step breadcrumbs); the start returned at least once,
+since On was saved after it. (2) **At the restart**: On saved, cr_ble_boot started the radio before core 1, the rails,
+the audio, USB and the timers, and the interrupts then stayed off for the rest of the start-up (the splash, ~1 s): the
+link layer's first advertising events went unserved, and the unit showed its name (`ChoralRoot 8FC2`) but was never
+seen. Melodee never starts the radio and then leaves its interrupts off.
+**The fix** (`cr_ble.c`, `main.c`): the radio is never started while the unit runs. Switched On in the Options it is
+saved ("Bluetooth: switch off and on"; the line under it `on at the next power-on`); at power-on `cr_ble_boot` only
+reads the record and the trims, and the start is the last step with the interrupts off (`cr_ble_start_boot`, a new
+boot stage `bluetooth`, 31), after core 1 (idle in its RAM loop), the rails, the audio, USB and TIMER5 are set up and
+right before `fm1_irq_enable_all`: the state Melodee's run-time start sees, with no audio half due and the radio's
+interrupts served at once. A start that hangs there is counted by the boot guard and the next boot leaves the radio
+off (switching off and on tries again). Off and On again while started only stop and resume the advertising
+(ble_enable), as before. `tests/cr_ble_test.c`: 53 checks (On while running never starts it, even quiet; saved; the
+start only in the last step, once; a failed boot leaves it owed). MANUAL.md "Bluetooth MIDI" says to switch off and on.
+`sh tests/run_all.sh`: all 24 suites pass (install's numpy "longdouble" flake on the first run, passing again).
+**To check on the unit**: Dual Core On again first; Bluetooth On, off and on; visible in Audio MIDI Setup; the
+crash record's stage if it hangs (`bluetooth` = the start itself).
+
+3y239. **81 BLE in `--debug`.** The device session's dumps after the hang (side-session-notes `ble-step2/`) had no
+radio values. What they did show: `boot_stage 1` (loop: input), the window that holds `ui_input` and `cr_ble_poll`,
+so the watchdog reset came during or right after 3y236's run-time start, which 3y238 removed; `c1_bar 2` (the
+bar's hang); no crash record. The radio's own breadcrumb (`fm1_ble_bc`, .noinit) survives a watchdog reset but nothing
+read it, and the next reset overwrote it. Now `cr_ble_debug` answers a new read-only command, **81 BLE** (`cr_backup.c`;
+80 was IMPORT), which `fm1_install.py --debug` prints as `ble_*` and a summary line: On, started, a start owed, where
+the trims came from (none / the stock VM / our copy / measured at the start), the start's time with the interrupts
+held, connected, subscribed, packets in and out, links lost, the breadcrumb now and its interrupts, what the run
+before left when a reset ended it (word, interrupts, op, burst op, address, stop), the boot guard's failed count, the
+start-up step. Asked only of a firmware that answers 79 USB (0.19 and later). `cr_ble_test`: 55 checks. All suites
+pass (install's timing check caught the extra request on old firmware first).
+
+## 2026-11-07 (Bluetooth with both cores: stock's supplies; "CHORALROOT CRASH")
+
+3y240. **The crash at a radio boot with both cores, and stock's supply setup.** On E81CE2F7, b79e87e5 with Dual Core
+Off started the radio at power-on in 13.5 ms on the stock VM's trims (`ble_cal 1`) and advertised (200 radio
+interrupts in 21 s). With Dual Core On and a power cycle the owner saw the crash screen; the record was lost to the
+next power-off (the dump after it: one core again, `boot_reset` a power-on, `crash_count 0`). Read from the code and
+Melodee: what differs at a radio boot with both cores is the supply. ChoralRoot's dual-core rails (hal/fm1_power.h,
+Melodee PR 21 as fm1-x0x ships it) raise VDC14 to 5 (1.50 V) and SYSVDD to 14 (1.35 V) and leave the 1.3 V rail on its
+LDO; with one core the boot loader's 3 / 11 stay. Stock V15 runs its radio on DCDC13 with VDC14 7 (1.60 V), VDDIO
+3.2 V and SYSVDD 15, and Melodee replaced PR 21's ladder by exactly that sequence on 2026-10-15 (5e66df3, "fix(power):
+match stock V15 supply startup"; its BUILDING.md "The stock supply setup"): Melodee 1.6.1, the build whose Bluetooth
+worked on this unit with both cores in step 0, runs it at every boot. **The change**: a boot that will start the radio
+(Bluetooth On saved, the region, trims, no failed boot) applies stock's supply sequence before core 1 starts
+(`fm1_power_stock`, ported from Melodee 5e66df3 with its credit: LDO13 on, DCDC13 on, LDO13 off with stock's
+1,000-pass waits, the analog words 1, 5, 6, 7, 8, SYSVDD drive, VDDIOM / VDDIOW 3.2 V, VDC14, stock's reads,
+RC_250k_EN, analog keep, VDDOK_DIS, register 0x17 bit 5, SYSVDD last); the dual-core ladder then has nothing to raise.
+**VDC14 and SYSVDD stay at ChoralRoot's caps (5 / 14) by default**: the caps are Charles Vestal's review's (the
+datasheet's 1.55 V on VDC14), so lifting them to stock's 7 / 15 is the owner's call; `FM1_POWER_STOCK_LEVELS=1
+./build.sh` builds that variant. A P33 timeout stops the sequence and leaves the radio off this boot (81 BLE
+`ble_supplies`: 0 not asked, 1 applied, 2 a timeout). A boot without the radio is unchanged. Tests: `cr_cpu1_test`
+(the mock P33: stock's 17 writes in stock's order, LDO13 held until DCDC13 is on, the caps, never lower, a timeout
+stops it; 86 checks), `cr_ble_test` (the hook; 59 checks); `sh tests/run_all.sh`: all 24 suites pass. Not settled
+without the crash record: whether the supply is the cause. If the capped build still crashes with both cores, the
+next try is the stock-levels build, then a radio boot with core 1 held until the radio has started.
+
+**"CHORALROOT CRASH".** The owner: "also make that read 'ChoralRoot Flash' we are no longer Felucca" (the crash
+screen's title, main.c fm1_fault: "FELUCCA CRASH" -> "CHORALROOT CRASH"). It was the only on-screen Felucca string
+(grep of firmware/: SAFE MODE, UPDATE MODE, USB BOOT and UBOOT never said it). Kept, being protocol: the update
+loader's package tag "FELUCCA-LOADER-1" (crt0_ldr.S, stub_core.h, ota.c) and its USB identity "ota-FM-1_900"; the
+credits in the docs and LICENSING.md. No golden draws that screen (the emulator has no crash screen).
+
+3y241. **Bluetooth not seen with one core: Melodee compared end to end, and a debug build.** The owner: "Even still
+with 1 core and bluetooth nothing shows up that I can connect to on my mac" (b79e87e5, Dual Core Off: the radio
+started at power-on in 13.5 ms on the stock VM's trims, ~10 radio interrupts a second); Melodee 1.6.1 on the same unit
+and Mac was seen and connected. Compared with Melodee 3fe570d: **the same** advertising (ADV_IND with the flags 0x06 and
+the BLE-MIDI service 03B80E5A-EDE8-4B33-A751-6CE34EC4C700, the name in the SCAN_RSP: "ChoralRoot XXXX", 17 of 31
+octets), interval, link layer and driver (the files are Melodee's; ChoralRoot's only change there is the interrupt
+attach), the radio program (the same bytes, from the resource region as Melodee 1.6 has it), the calibration path
+(the VM first, our copy, else self-calibration: the unit has its stock VM, `ble_cal 1`, as Melodee would), the TX
+power (the driver's constants), the start sequence (radio, ble_init, advertise, the bond, ble_enable) and the stack's
+calls; no GPIO or RF switch is driven by either firmware (the WL82's front end is internal). `BLE_CENTRAL 0` only
+compiles the scanner out (the stack's fixtures pass both ways). `ble_step 10` is FM1_BLE_STEP_ADV_STARTED: advertising
+was started, and ~10 interrupts a second fit an event every ~100 ms. **What differs is the supply**: with one core
+ChoralRoot left the boot loader's (the 1.3 V rail on its LDO, VDC14 1.40 V, SYSVDD 1.26 V), Melodee 1.6.1 runs stock
+V15's (DCDC13, VDC14 1.60 V, VDDIO 3.2 V) at every boot since 5e66df3; a radio on the wrong analog supply would take
+its interrupts and send nothing usable. 3y240's `fm1_power_stock` already applies stock's sequence at every radio
+boot, one core or two, so it addresses this too, with VDC14 at the 1.50 V cap or, in the stock-levels build, 1.60 V.
+**To see it on the unit**: `BLE_DIAG=1 ./build.sh` builds the driver's own counters into 81 BLE (`fm1_install.py
+--debug`: advertising starts and events, packets heard, **SCAN_REQs** (a Mac or phone scanning nearby sends them when it
+hears the FM-1: 0 means nobody hears it), drops, CONNECT_INDs received / accepted / refused and why, the link's
+interrupts, events, good and bad packets, closes, timeouts) and a summary line; XIP grows by the diagnostics only in that
+build. `cr_ble_test` runs both ways (`cr_ble_diag_test`). All 24 suites pass.
+
+3y242. **The diagnostic build on the unit: the radio sends, and hears nothing.** The owner, on 3y241's
+`choralroot-diag-capped.fwsc`: "Dual core now on without crashing. ChoralRoot shows up in Audio MIDI devices only with
+single core, and it fails to connect." The crash is gone with stock's supply sequence. The driver's counters (side-session
+notes `ble-step2/debug-5`, one core, 10 s; `debug-6`, two cores, 89 s): advertising runs (`ble_adv_events` 86 and 841,
+one per ~100 ms), and **nothing is ever received**: `ble_adv_rx 0`, `ble_scan_req 0` (macOS scans actively: a SCAN_REQ
+follows every advertisement it hears, and the engine would store it), `ble_cind_rx 0`, `ble_rx_irqs 0`. So the Mac's
+CONNECT_IND never reaches the FM-1 and the connection fails; with two cores the advertisements themselves are not
+heard either. Not the interrupt: IRQ 29 is attached and unmasked as IRQ 45 is (every ICFG write in the tree is a
+read-modify-write), and an RX interrupt only follows a packet the engine stored; not the audio's latency (the engine
+receives by itself; nothing reached software to be late). What still differs from Melodee 1.6.1, whose radio sends and
+receives on this unit: the supply levels. The capped build runs VDC14 at 1.50 V and SYSVDD at 1.35 V; stock V15 and
+Melodee run 1.60 V / 1.38 V, and the radio's analog front end runs off VDC14 (the receiver's LNA and mixer before the
+transmitter's last stage). Next on the unit: `choralroot-diag-stock-levels.fwsc` (3y241, sha256
+2786af62d3e9dfeeaf226f99aa591c94048b7302be5f02936cf6e540a9825f55), Dual Core Off then On, a connection tried from Audio
+MIDI Setup, then `--debug`: `ble_scan_req` and `ble_cind_rx` above 0 settle it. Lifting the caps is the owner's call
+(the caps are Charles Vestal's review's, the datasheet's 1.55 V on VDC14); if it is what the radio needs, the choice
+is between stock's levels at radio boots only and a measured lower level that still receives.
+
+3y243. **Bisection without reflashing: 82 BLE_TEST.** The stock-levels build (SYSVDD 15 / VDC14 7) was not seen with
+one core or two, so the supply level is not what the radio lacks. Checked against Melodee 1.6.1, which works on this
+unit: the radio program in our package's region is byte for byte the source array (5,795 bytes at region offset
+36,024, sha256 df0b4e68..., the same as Melodee's `ble_rf_tables.h`), and the plain XIP window covers it (0x93000 to the
+end of the flash); neither firmware changes the system clock or PLL (Melodee's `clock_boot` only reads it); the radio's
+start-up and calibration (the VM's trims, our VCO scan, `fm1_rf_cal.h` only without trims) are the same files; the one
+Melodee commit between 1.6.1 and 3fe570d that touches the stack (ca6c583) is pairing-key handling, and its `main.c`
+changes between the two are not the radio's. What is left is ChoralRoot's environment around the radio. A `BLE_DIAG=1`
+build now takes a mask (`fm1_install.py --ble-test MASK`, command 82, saved in the Bluetooth record's spare byte,
+applied at the next power-on) that leaves one ChoralRoot subsystem off at a time: 1 the analog key scan (the rows PA7 /
+PA8 and the PA10 probe driven and sampled every tick: Melodee has none), 2 the audio (no ALNK DMA, no audio ISR, no
+core 1 jobs), 4 the TRS MIDI UART, 8 the radio started in the main loop as Melodee's `ble_boot_poll` does, 16 no stock
+supply sequence. 81 BLE reports the mask in force (`ble_test`). A release build refuses 82 and reads 0. `cr_ble_test`
+both ways; all 24 suites pass. The plan (side-session notes `ble-step2/bisect-plan.md`): one install, then a power cycle
+and `--debug` per step, Dual Core Off; `ble_scan_req` / `ble_cind_rx` above 0 with the Mac's Bluetooth window open is
+the verdict.
+
+3y244. **Bluetooth MIDI works with one core.** On E81CE2F7, the bisect build (3y243) at mask 0 with Dual Core Off,
+the Mac's Bluetooth window opened before the power-on: deaf for the first ~27 s (no scan requests, likely the Mac's own
+scan cadence), then scan requests, 4 CONNECT_INDs accepted, connected: listed after ~40 s, connected ~20 s later, "a peer
+subscribed", CoreMIDI port "ChoralRoot 8FC2 Bluetooth", MIDI both ways (device session: ble-step2/
+poll-bisect-S0-mask0-dualcore-off.log, debug-9). Mac -> FM-1: 10 of 10 notes, +24 ms median against USB (sd 26; Melodee
++18, sd 12), 118 of 120 in a 2-minute soak. FM-1 -> Mac (Clock Out, 48 Hz): no pulse lost (5,800 in 125 s) but
+bursty: max gap 274 ms, sd 38 ms (Melodee: 60 ms, sd 7). The link: 133 events a second (7.5 ms), 21 % of the RX
+interrupts bad CRC, 3 drops in 5 minutes, each re-established. With the link up and one core, `perf_unit va fm6`:
+VA 12 late halves of 20 s, no stale half; FM6 none late. Open: two cores (the earlier "not seen"; next, Dual Core On at
+mask 0, then mask 2 to tell core 1's work from core 1 running), then the bad-CRC rate, the drops and the TX bursts.
+
+3y245. **Two cores: the receiver fades, and the link never let go.** D1 (the bisect build, mask 0, Dual Core On, the Mac
+bonded and scanning; device session: ble-step2/poll-bisect-D1-mask0-dualcore-on.log, debug-10): listed ~3 s after the
+power-on, connected by ~15 s, then the RX interrupts fell, ~50 a second (20 % bad CRC) at 20-40 s, ~35 at 60-85 s, ~10 at
+93-103 s, none from 103 s, while the connection events ran on (~133 a second) and the unit still said "connected" to a
+Mac that had dropped it, never advertising again. With one core (S0) the RX rate stayed ~50-60 a second for 30 minutes.
+**The link that never let go** (fixed): the driver counted a reception in an event when EVTCOUNT had followed it
+(`rx_any && CB->evtcount == counter`), and on the FM-1 EVTCOUNT keeps following the events with nothing received, so
+the link layer's supervision timer never ran. Now EVTCOUNT alone counts only within 1 s of a real RX interrupt
+(`HW_RX_ALIVE_US`; a healthy link takes ~50 a second): a deaf link closes by supervision (0x08) and advertises again.
+`ble_driver_test` gains the case (O_DEAF: deaf from event 600 with EVTCOUNT moving: closed at event 656, advertising).
+**The fade** (a hypothesis to test): the program's group 8 writes the VCO band and fine code of stock's capture after our
+scan, whose result is "reported only" (hal/fm1_ble_rf.h), so the radio runs on the band the emulator's capture found,
+not one chosen for this chip; a band at its edge would show as ~20 % bad CRC cool and a slow fade as the chip warms (two
+cores). Mask 32 (82 BLE_TEST) runs the scan again after the program and keeps its band (the captured one back when it
+finds none); 81 BLE now reports the scan's verdict, band and comparator word, the captured band, and the band in the
+register. All 24 suites pass.
+
+3y246. **FM-1 -> Mac timing: each event stamped when it went in.** S0's clock-out test (3y244) found the Bluetooth clock
+bursty on the Mac (pulse intervals median 1.2 ms, sd 38 ms; Melodee sd 7). The stack sends the queued MIDI once a
+connection event and gives every event in a notification a BLE-MIDI timestamp, which CoreMIDI uses to play them at
+their original spacing. Melodee's `ble_app_midi_peek` returns the time each event was queued (`mb.ms`); 3y236's returned
+the time of the send (`fm1_ms`), so the events batched into one notification all carried one stamp and the Mac played
+them together. Now `cr_ble_emit` stamps each event as it goes in (`tx_ms`, `rt_ms`; 320 B of RAM) and peek returns
+it. `cr_ble_test` checks it (an event queued at 1000 ms and sent at 1025 ms carries 1000). The longest gaps (274 ms)
+are likely the link's (sends wait while the queue waits for acknowledgements), so they follow the reception's quality:
+the ~21 % bad CRC and 3y245's fade, whose likely cause (the captured VCO band) mask 32 tests. All 24 suites pass.
+
+3y247. **The VCO band: a full sweep and the flip.** After the bisect2 and bisect3 installs (soft resets, two cores) the
+radio went deaf within ~13 s and never connected; their 81 BLE said why the band matters: our scan found **no band in
+range** on E81CE2F7 (`ble_vco_found 0`, comparator word 0x20081: low), its bisection ending between band 56 (low) and 57
+(high), while the program's captured band is 54, two below that flip. So 3y245's mask 32 (keep the scan's band when it
+finds one) would have kept 54. Now masks 32 and 64 sweep all 64 bands after the program, record each band's comparator
+(81 BLE `ble_vco_low0/1`, `ble_vco_high0/1`: a map, bit b of word b / 32) and keep the first band that reads neither,
+else at the flip the last low band (32: 56 here) or the first high one (64: 57); `ble_vco_chosen` says which. The choice
+is `hal/fm1_vco_pick.h`, pure, tested in `cr_ble_test` (E81CE2F7's map: 56 / 57; a band in range first; all high: the
+captured one back for 32). Every soft-reset boot with two cores so far went deaf within 13 s and the one power-on
+lasted ~100 s: the map from both kinds of boot will show whether the flip moves. All 24 suites pass.
+
+3y248. **The sweep where the comparator answers.** bisect4's mask 32 on E81CE2F7 (a soft-reset boot, two cores): an
+empty map (`ble_vco_low0/1`, `ble_vco_high0/1` all 0), band 0 kept (`ble_vco_now 0`), 9 scan requests in the first
+~9 s, then nothing for 3 minutes. 3y247 swept after the whole program, when its later groups have switched the
+calibration path off: every band read neither low nor high, and the first such band, 0, won. Now the sweep runs at
+group 7 right after our scan, where the comparator answers (the scan read 0x20081 there), and `fm1_ble_vco_apply`
+writes the picked band into 0x11938 [25:19] after the program, in place of the captured one, by the plain write the
+program itself makes; an empty map keeps the captured band. 81 BLE: `ble_vco_rescanned` 1 swept, 2 applied. The
+VCO pieces moved into `hal/fm1_ble_rf.h` beside the scan; `tests/ble_rf_replay_test.py`'s prelude stubs the new
+switch (off: the replay unchanged). All 24 suites pass.
+
+3y249. **The radio measured at start, as a test bit.** On E81CE2F7 bisect5 (cd3eedc4) under mask 0 the Mac never saw
+it on cold or warm power-ons; a phone's BLE scanner (nRF Connect) saw "ChoralRoot 8FC2" for a few adverts in the
+first ~3-16 s and the unit heard 4 of its scan requests, then nothing either way and no CONNECT_IND, while
+`ble_adv_events` counted normally and nothing crashed: the radio drifts off within seconds of its start, as the soft
+resets (~10-13 s) and D1 (~100 s) did. Mask 32 (band 56) heard nothing. Under mask 0 bisect5 drives
+the radio as b5844571 did (since then only a read of the band register), which was seen and connected in D1: the
+same code, seen one day and silent the next, so a marginal radio set-up rather than a code change. The radio runs on
+the stored record 187 and the captured band and fine code, and our scan finds no band in lock range on this chip
+(56 low, 57 high). JieLi's own calibration (`hal/fm1_rf_cal.h`: the VCO bank scan, the trim, the RF-die table's
+banks and RX DC from what it measured) already runs at start when no calibration is stored; this unit has one in
+the stock VM, so it never ran. Bit 64 of `--ble-test` (a BLE_DIAG build) now runs it even so: 106..108 stay the
+stored ones, the 187 and the banks are measured. It takes bit 64 from the band-57 sweep (`CRBL_T_VCO_HI`; the
+requests' bytes are 7 bits, so the mask stays 0..127). 81 BLE adds four values (CRBL_DBG_N 60): `ble_cal_scan` and
+`ble_cal_trim` (the return code | ran << 16), `ble_cal_banks` (mid | top << 8 | bank 121's << 16 | mid found
+<< 24) and `ble_cal_us`. `tests/cr_ble_test.c`: a stored copy is used under mask 0 and measured under 64. All 24 suites pass.
+
+3y250. **The radio measures itself at every start.** bisect6 (e9758d9e) mask 64 on E81CE2F7, a power-on with two
+cores: the measured calibration ran clean (`ble_cal_scan` / `ble_cal_trim` 0, 107 ms, band 50 in place of the
+captured 54), 4 scan requests by 2.8 s, connected by 7.7 s ("Connected on Mac"), and the link held 236 s with no
+loss: 98 of 100 notes Mac -> FM-1 heard (the capture's own gap the likely two), Clock Out 6 962 of 6 963 ticks over
+Bluetooth (17.2 ms median behind USB, p95 32.7 ms), 1 197 bad CRCs in 28 447 receptions (4.2 %, against ~20 % on
+the stored record). So the measured calibration is now the default: `cr_ble_boot` sets `fm1_rf_cal_on` on every
+radio boot and keeps only 106..108 from the stored trims (ChoralRoot's copy or the stock VM; the SDK's constants
+when neither); 81 BLE's `ble_cal` reads 3. A BLE_DIAG build's bit 64 is now the reverse, `CRBL_T_STORED`: the stored
+record 187, to compare. The two-core fade, the soft-reset deafness and most bad CRCs were this one cause (the
+soft-reset case is still to be seen on the unit). docs/BLE-LINK.md 2.6. All 24 suites pass.
+
+3y251. **The release build on the unit.** a0fcb697's release package on E81CE2F7, Dual Core On: after the install's
+soft reset (`boot_reset` 257, `ble_cal` 3, the start 163 ms) the Mac connected at ~38 s and the link held to 315 s
+with no loss; on a power-on it connected by 10 s and held to 310 s (14 084 packets out, no loss, no crash). The
+soft-reset deafness is gone with the rest. Still open: Clock Out reaches the Mac bunched (BLE 17 ms median behind
+USB, 162 gaps over two ticks in 150 s; Melodee: 13.4 ms, 59 in 5 min).
+
+3y252. **Why Clock Out bunches over Bluetooth, and two probes.** F2's capture (bisect6, Clock Out 150 s): USB ticks
+arrive 20-24 ms apart, but every Bluetooth tick arrives on the 7.5 ms connection-event grid (86 % exactly on it):
+the Mac stamps BLE-MIDI by arrival and does not use the packet timestamps we send (3y246), so a tick can only land
+on an event, and the spread below one interval (+-3.75 ms) is the floor on this link. The bunching on top of it
+(4.5 % of intervals 0 to 7 ms, 5 % of ticks more than 32.7 ms late) comes from link events that carried nothing:
+of 30 875 events, 2 428 (7.9 %) brought no reception at all and 1 197 more a bad CRC, and a tick waits for the next
+good exchange. Not our queue (the LL ring is 1 KB and never full) and not the CPU (the worst audio half 405 us, BLE
+interrupts never late). Two probes in a BLE_DIAG build: bit 32 of `--ble-test` (was the band sweep, now moot) runs
+the measured calibration's TX DC, gain and phase steps too (`FM1_RF_CAL_FULL` as a run-time switch,
+`FM1_RF_CAL_FULL_SW` = BLE_DIAG; never run on a unit before), and 81 BLE adds `ble_tx_ack1..4`: our packets
+acknowledged 1, 2, 3, 4+ events after loading (CRBL_DBG_N 64), the Mac's side of the loss.  All 24 suites pass.
+
+3y253. **MIDI start / continue / stop work as the LOOP (PLAY) button, with MIDI Clock Out too.** The owner: "ChoralRoot
+does not respond to MIDI Clock in or MIDI Transport". Their MIDI Clock was Out, the default, where 0xFA / FB / FC
+were ignored; with In they already reached the loop on every input (USB, Bluetooth, the FM-1's TRS; the SMK-37 has
+no TRS input: its RX pin is a key row), all through usb.c's one queue. Now `cr_midi_in` takes start / continue /
+stop with Out as well as In (Off still ignores them) and does what LOOP does (`crm_transport`, the LP_PLAY path), and
+a Start also starts the Arp and Pattern again from their first step on a new grid (`cr_transport_start`; a step due
+"now" counts as passed in `crx_phase_clocked`, so the restart sets step 0 itself). The pulses (0xF8) still set the
+tempo only with In. No echo: with Out, the loop start or stop an incoming message caused (within 1 s) is not sent
+back as FA / FC, so a master that echoes never loops; the LOOP button's own still is. Song Position stays ignored.
+Tests: `tools/emu/scripts/cr_midi_transport.txt` 15 LED checks (In, Out, the button, Off) and the transport traces
+(Out: only the button's FA / FC), `tests/cr_engine_test.c` s_transport (Retrig on and off: 48 52 55 again, the first
+at once). MANUAL: Recording and playing, Options, MIDI in. The no-echo check clears its flag on every change, not
+in a branch of its own: the compiler laid that one store before the block loop and jumped back to it, and
+tests/target_budget.py read the jump as a loop around 720 instructions (fm1_alnk0_irq 14 349 -> 28 476; now 14 194).
+The RemoteFM1 AUv3 (RemoteFM1IOS, its host-clock setting on by default) already turns the DAW's tempo and transport
+into 0xF8 / FA / F2 + FB / FC into this same USB path (RFMHostClock.cpp); its vendored core (FM1VST
+cores/ChoralRootFM1, v0.29.2) needs this change to follow transport with Out. The desktop FM1VST reads no play head. All 24 suites
+pass (install_test once more after a numpy import error of the host Python, as before).
+
+3y254. **Clock Out over Bluetooth on the unit: at Melodee's level, the rest is the Mac's grid.** E81CE2F7, two cores,
+power-ons, Clock Out ~150 s each (the F2 listener). C1 (mask 0, AirPods connected): 6 963 of 6 963 ticks, Bluetooth
+13.2 ms median behind USB, p95 23.0, max 47.3, 53 gaps over two ticks; link events with no reception 5.8 %, bad
+CRCs 3.4 %; our packets acknowledged 1 / 2 / 3 / 4+ events after loading 74.7 / 21.8 / 3.1 / 0.4 %. C2 (AirPods
+off, the Mac idle): 13.5 ms, p95 23.1, 37 gaps; no reception 4.3 %, bad CRCs 4.0 %, acks 68.7 / 27.5 / 3.5 / 0.4 %.
+C3 (bit 32, the full TX calibration, 526 ms at start against 107): 13.8 ms, p95 27.7, 58 gaps and one 3.1 s stall;
+no reception 5.5 %, bad CRCs 5.0 %, acks 66.0 / 28.0 / 5.4 / 0.7 %: no better, so bit 32 stays a diagnostic.
+F2's 17.2 ms and 162 gaps were that session's link; Melodee measured 13.4 ms and 59 gaps in 5 minutes. What is left
+is the Mac stamping BLE-MIDI by arrival on its 7.5 ms events (3y252) and the quarter of our packets that need a
+second event: other devices on the Mac are not the cause. Nothing changed in the firmware.
+
+3y255. **MIDI transport on the unit, every input.** 38f48378's diagnostic package on E81CE2F7, MIDI Clock Out (T1-T4)
+and In (T5); the loop recorded by the owner, the messages from a script (and an OMX-27 for TRS). T1 USB: Start /
+Stop / Start / Stop, the loop followed; with the Arp latched each Start took it back to its first note. T2 Bluetooth:
+followed. T3 TRS (the OMX-27's Play / Stop into MIDI IN): followed. T4: no FA / FB / FC came back on USB or Bluetooth
+in any of them, and LOOP pressed 9 times sent start / stop each time on both. T5 (In): a 97 BPM clock over USB, the
+tempo 97 and the loop following Start / Stop. MANUAL: the incoming tempo is shown in the Geek Out view.
+
+## 2026-11-07 (0.30 and 0.30-smk37)
+
+3y256. **0.30: Bluetooth MIDI, and incoming start and stop with Clock Out; 0.30-smk37 beside it.** The owner, through
+the orchestration session: tag and release main (b629efa9). 0.30 is 3y231..3y255 on the FM-1: Bluetooth MIDI as a
+peripheral with the radio measuring itself at every start (3y236..3y250), each Clock Out event stamped when queued
+(3y246), start / continue / stop as LOOP with MIDI Clock Out or In and a Start restarting the Arp and Pattern (3y253,
+on the unit 3y255), the crash screen's CHORALROOT CRASH (3y240), the resource region (3y234), 0.21's sounds no longer
+moved (3y231), Felucca's unbuilt tree gone (3y232), M-Flasher and the M-Bootloader as the way between firmwares
+(3y237). `./build.sh --release 0.30` and `tools/hub_build.sh 0.30`: the same `SHA256SUMS`; XIP 548,984 of 573,440
+(95.7 %), 1-core 546,760, RES 41,820 of 49,088. `choralroot-0.30.fwsc` 872ed7a7...6a01, `-1core` 438d1e45...6b63.
+`web/releases.json` first with the sha256s, 0.29.2's entry given its going-back note (no Bluetooth; start / stop
+ignored with Out again), `docs/releases/0.30.md`, MANUAL.md's first line, `choralroot.c`'s dev version.
+**0.30-smk37** (base 0.30; no Bluetooth there): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.30-smk37` and
+`tools/hub_build.sh 0.30-smk37`, the same `SHA256SUMS` (twelve files); XIP 554,368 (Pro and Elite), 554,352 (MKE-P37).
+`web/releases-smk37.json` first, five bullets, four notes. SMK37.md: the status, the package names, the version line,
+and a correction: since 3y231 a unit coming from genkigenki's earlier build no longer has its sounds moved into the
+pool (install 0.29.2-smk37 first to keep them), which SMK37.md still promised. `python3 tests/releases_test.py` ALL
+OK; `CR_VERSION=0.30 sh tests/run_all.sh`: 24 suites, all passed but install_test on the host's numpy "longdouble"
+import error, which passed run again (279 goldens, 0 changed; test_cr 1120 ok; web_emu_build and web_emu_test, the
+browser emulator as 0.30, passed). **On a unit**: 5BD75BE3 was not connected (an FM-1 with no unit ID, not on ChoralRoot,
+was left alone); at the owner's word ("Yes, flash 5473E6AA") the package went on their FM-1 5473E6AA, from ChoralRoot
+0.26.1: a full backup first (`~/fm1-backups/fm1-backup-5473E6AA-2026-11-07-before-0.30.json`, 69,394 B: settings,
+sounds 001..128), `caffeinate -dimsu fm1_install.py choralroot-0.30.fwsc --unit 5473E6AA --yes` (sha256 872ed7a7...),
+exit 0, the same unit after the restart. After: `--info` ChoralRoot 0.30, 5473E6AA; `--sounds` 128 slots, U001
+Tooropulse .. U128 TX BASS 1 MF as before; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, boot
+stub v3 64.2 ms marker ok, `ble_on 0` (Bluetooth Off by default), stale_halves 5 on the first read (the peak since
+power-on) and 0 on the next, the deadline 0 halves.
+
+3y260. **USB Host: the FM-1's USB-C as a MIDI host (docs/BLE-LINK.md step 5).** Melodee nightly 3fe570d's USB MIDI host
+(Kerem Kilic, Ellic Studio, with recursivefieldinstruments' enumeration, input and descriptor parsing; GPL-3.0-only),
+ported: `firmware/src/usb_host.c` (the port's changes in its header), `usb_host_desc.h` unchanged, `fm1_usb.h` gains
+`fm1_usb_host_attach` and `fm1_usb_line`. Options > **USB Host** (the FM-1 only, `CR_USB_HOST` 1 in choralroot.c,
+never saved: every power-on is a USB device, so updates always work) turns the port into the host of a USB-MIDI
+device, alone or behind a hub (one level, a hub chip on a hub's port too); the main loop enumerates (`uh_task`),
+TIMER5 moves the packets (`uh_poll`, out of line). In: channel messages, clock, start / continue / stop and Song
+Position into usb.c's one queue as source 1, so everything USB MIDI does from a computer works from the device (MIDI
+Keys, Clock In, 3y253's transport). Out: what USB MIDI sends, from ChoralRoot's one out ring (`midi_out_q`, the clock
+in it in order; Melodee keeps a ring for the clock), released only on the device's ACK. When a session ends (unplug,
+a fault, Off) `midi_in_overflow` rises and the audio interrupt's recovery releases every part. Not driven: VBUS (the
+port needs power from outside: a powered hub or OTG adapter), low-speed devices, SysEx. The line under USB Host reads
+`connected, in N` or `looking` with Melodee's search letters (`uh.dg`: the port's only report while the computer
+cannot reach the unit); main.c's message box says what happened. XIP +5 344 B, RAM +176 B. `tests/usb_host_test.c`:
+Melodee's test of the code against a model of the SIE, a keyboard, hubs, a stick and synths, its 16 cases kept (the
+clock's ring checks now the one ring's order; every session end checked to raise `midi_in_overflow`), and its
+`FELUCCA_OTA` variant. MANUAL "USB Host", the Options table; LICENSING.md; BLE-LINK.md step 5. All 24 suites
+pass.
+
+3y261. **Two FM-1s on a plain cable; the device side lets go of its notes too.** On the units (the owner, 2026-11-08):
+the spare E81CE2F7 on 3y260's package as USB Host, 5473E6AA on 0.30 as it is, **one plain USB-C to USB-C cable, both
+on battery** (no 5 V on the cable: the device FM-1 forces VBUS-valid in software and its PHY runs from the battery):
+the second FM-1 played the host's MIDI, and the other way; MIDI clock and start / stop passed in both directions; on
+unplug the host's note stopped. But the device kept the note the host had sent it until PANIC: a USB device never
+hears its host go. Now usb.c raises `usb_midi_lost` when a configured device's bus suspends (the SIE's suspend
+interrupt, or 100 ms of frozen frame numbers: a cable pulled, a computer asleep) and when a USB Host session ends (in
+place of 3y260's `midi_in_overflow`, which released every part); the audio interrupt (`cr_out.c cr_mlost`) then
+releases every note MIDI holds on both parts, lets the pedal and the bend go and puts MIDI Keys' keys up. The FM-1's
+own keys and the loop keep theirs. Every MIDI input's notes go (the queue keeps no source per note): CC 123 and the
+pedal off on both channels, in effect. It helps a computer unplugged mid-note as much. Tests: `tests/usb_host_test.c`
+checks every session end raises it (and nothing is dropped) and a new case, a configured device's suspend raises it,
+an unconfigured one's not; `tools/emu/scripts/cr_usb_lost.txt` (the emulator's new `usblost`): a MIDI C4 held, a chord
+on the keys, the peer goes: part 0's voices 1, 4, 3, 0. MANUAL: USB Host (the plain cable, both directions), MIDI in.
+fm1_alnk0_irq 13 943 (budget 13 890). All 24 suites pass.
+
+3y262. **USB Host Off gives the port back cleanly.** 3y260's U5 on the spare: USB Host set Off and the cable moved to
+the Mac, the Mac saw nothing on the port (not in CoreMIDI, nothing in its USB tree) without a power cycle. Host mode
+writes SIE registers the device driver never writes: DEVCTL's session and host request, EP1's host transfer types,
+intervals and TX mode, the function address, the bus-reset bit; Off only switched the port off and on again (the
+SIE's reset line, CON0 bit 2), which need not clear the OTG block. Now Off (`uh_host_down`) clears them first, then
+leaves the port off the bus for a second (as `usb_replug` does) before `usb_retry` starts the device, so a computer
+already on the cable sees a clean attach. `tests/usb_host_test.c` checks DEVCTL, FADDR, POWER and EP1's host
+registers after Off, and the second off the bus. All 24 suites pass. On the unit (a7d94d7b's package on the spare):
+on 7c38211b a Mac replug alone had not brought the port back, a power cycle had (the stuck host state); now, with
+the cable left in the Mac, USB Host On and Off twice: the spare left the Mac's USB tree and came back each time
+(~6-11 s), `--debug` at once with no rescan; the two-unit link (5473E6AA on 0.30, plain cable) both ways, then Off and
+the Mac at once, no reboot, no crash. 3y261's release on the unit: a Mac's held C4 stopped when its cable was pulled
+while a chord held on the spare's keys kept sounding.
+
+## 2026-11-08 (0.31 and 0.31-smk37)
+
+3y263. **0.31: USB Host, two FM-1s on one cable, held notes let go when USB goes; 0.31-smk37 beside it.** The owner,
+through the orchestration session: "Merge and tag." 0.31 is 0.30 with 3y260..3y262: Options > USB Host (Melodee's
+host, never saved), two FM-1s over a plain USB-C cable both ways with clock and transport, the device side releasing
+MIDI's held notes when its USB peer goes (`usb_midi_lost`), USB Host Off giving the port back without a restart.
+`./build.sh --release 0.31` and `tools/hub_build.sh 0.31`: the same `SHA256SUMS`; XIP 554,568 of 573,440 (96.7 %),
+1-core 551,384, RES 41,820. `choralroot-0.31.fwsc` 12704d5b...20cd, `-1core` 655de62e...496b. `web/releases.json`
+first, 0.30's entry given its going-back note (no USB Host; a USB-held note stays on until PANIC),
+`docs/releases/0.31.md` (with the limits: keyboards, controllers and hubs not yet tried on a unit; a USB loss also
+stops notes held from Bluetooth or TRS), MANUAL.md's first line, `choralroot.c`'s dev version. **0.31-smk37** (base
+0.31; no USB Host or Bluetooth there, the USB-loss release is board-independent usb.c / cr_out.c): the three models
+and `tools/hub_build.sh 0.31-smk37`, the same `SHA256SUMS` (twelve files); XIP 554,512 (Pro, Elite), 554,496 (MKE-P37).
+`web/releases-smk37.json` first, three bullets, three notes; SMK37.md's status, package names and version line.
+`python3 tests/releases_test.py` ALL OK; `CR_VERSION=0.31 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0
+changed; test_cr 1122 ok; the browser emulators as 0.31). **On a unit**: the spare E81CE2F7 (on a7d94d7b's build,
+reading 0.30; no user sounds), a backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.31.json`, its
+settings), `caffeinate -dimsu fm1_install.py choralroot-0.31.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after
+the restart. After: `--info` ChoralRoot 0.31, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count
+0, boot stub v3 64.4 ms marker ok, Bluetooth On and started (`ble_cal` 3, the start 163 ms with the interrupts held);
+stale_halves 55 on the first read, the radio's start at boot (163 ms of 2.9 ms halves), 0 over the next 26 s (worst
+half 391 us of 2,902, the deadline 0). Not tried here: USB Host with this package (3y261 / 3y262 ran its code).
+
+## 2026-11-08 (flash: a busy erase or page waited out, for the slower part)
+
+3y264. **The flash driver never goes back to XIP while the part is busy (felucca-bsp #12).** The orchestration session,
+for the owner: the same fix RemoteFM1 0.3.4 took, for the late-2026 FM-1s' 0xB36014 part (accepted since 3y222).
+`hal/fm1_flash.h fl_erase4k_ram` / `fl_prog_ram` waited with `fl_wait_ready(500 ms / 10 ms)`: a part still busy at the
+bound got -4 and `fl_exit` turned XIP back on mid-erase. Now felucca-bsp 2d37ec8 (Julius Vitkauskas, merged by Charles
+Vestal), ported unchanged: `hal/fm1_flash_wait.h fl_wait_issued` (MPL-2.0, LICENSING.md) counts from TIMER4 read before
+the command and returns only once SR1.BUSY reads clear: 0 within 500 ms / 10 ms, -4 later (the old code for the same
+case: callers unchanged), and at 2 s / 50 ms `fl_reset_busy`: 66h, 99h, 20 ms, PWR_CON core reset, all from RAM.
+Upstream's later `fl_wait_split` (its fast loader) is not taken: ChoralRoot's loader has no split erase.
+Callers checked: the stub writes no flash; the update loader (`loader.c`, the same header: its image changes) and the
+OTA staging (`ota_hw.c`) now feed the watchdog (8 s) before each erase, since `ota_unstage` and the loader's
+record-clearing loop run erases back to back ignoring their result (5 x 2 s would pass 8 s); every storage save stops
+at its first failed erase (at most two late ones, 4 s, between main-loop feeds); safe mode's erase-all and the SMK's
+clear feed per sector. With the interrupts held up to 2 s: core 1 waits in RAM (`.c1_text`) and only works inside the
+audio interrupt, so it never runs while XIP is off; the audio buffer is zeroed first (a silence as long as the erase,
+as today's 18 ms); USB's host-gone check (`usb.c`, 100 ms of a frozen frame number) counts polls, and none run
+while the interrupts are held, so a long erase does not read as an unplug.
+Tests: `tests/flash_wait_test.c` (upstream's host model of the part and TIMER4, on this header: never XIP while busy,
+-4 past the bound, the reset at and only at 2 s / 50 ms, across the TIMER4 wrap, 20,000 random cases; the old wait
+fails it, 16 checks) and a source check that both waits use it, in `run_tests.sh`; the emulator's `--erase-ms N`
+(1..2000; past 500 the erase returns -4) and `test_persist.sh`'s two runs: 450 ms saves and survives a relaunch, 1900 ms
+refuses the save, the unit runs on, the relaunch reads the defaults. `./build.sh` and `BOARD=smk37 ./build.sh`: OK; the
+disassembly of `fl_erase4k_ram` has the 48,000,000-tick (2 s) bound and the 66h / 99h sequence, `.ram_text` no calls.
+**Not tried on the slow part:** every unit here has the Puya part. **On a unit**: the spare E81CE2F7, which was
+running FIZZ (`FM-1_4600`, no INFO answer); FIZZ's store backed up first (`FIZZ-saves/2026-11-08-before-choralroot-
+erase-wait-store.bin`, 200,704 B, CRC-32 71297ecd as the unit's), then the owner ran `caffeinate -dimsu fm1_install.py
+build/choralroot.fwsc --yes --force` (sha256 f1785842...2f25; `--force`: the tool refuses FIZZ, INSTALL-COMPAT). After:
+`--info` ChoralRoot 0.31, unit ID E81CE2F7; `--debug` crash_count 0, c1_state 1, c1_faults 0, boot stub v3 64.4 ms
+marker ok: a clean start over FIZZ's leftover store, ChoralRoot's own settings still there (34 objects backed up,
+`fm1-backup-E81CE2F7-2026-11-08-after-erase-wait-over-fizz.json`). Writes: a DX7 voice imported into U128 and deleted
+five times (page program 1,972 us at most, read back each time), then that backup restored: 14 erases, all saves rc 0,
+the unit restarted cleanly (crash_count 0) and backs up the same objects (U121-128 now a written bank of empty slots).
+The first restore stopped once with "no answer to backup command 67" (a PUT not answered in 4 s) after its 14 erases,
+the unit fine (no crash, no USB timeout, no stale half); the second ran through. Not explained; not seen again.
+
+3y265. **A late erase or page program is done (the owner: "Treat late as success").** Through the orchestration
+session, after 3y264: an erase or page program the part finishes after the normal bound (500 ms / 10 ms) but before the
+extended one (2 s / 50 ms) is success, and counted. `hal/fm1_flash_late.h fl_late_ok` (GPL; felucca-bsp's
+`fm1_flash_wait.h` stays unchanged) turns `fl_wait_issued`'s -4 into 0 inside `fm1_flash.h`'s `fl_erase4k_ram` and
+`fl_prog_ram`, so every caller takes it: the app's saves (`storage_hw.c`), the OTA staging (`ota_hw.c` through
+`fl_erase4k` / `fl_write`) and the update loader (`loader.c ldr_erase` / `ldr_prog`, whose sector verify still reads
+every sector back). It counts them in RAM (`fl_late_ops`, `fl_late_max_us`, both in the loader's and the app's .bss:
+the RAM driver writes them with XIP off). Still busy at the extended bound: the reset, as 3y264. 78 PEAK appends
+`flash_late_ops`, `flash_late_max_us` (79 -> 81 values; `fm1_install.py --debug` names them and adds them to the
+quiet-writes line). The emulator's `--erase-ms` past 500 now saves and prints `flash late:`; `test_persist.sh`'s
+1900 ms run: the save goes through, the erases counted late (the longest 1,900,000 us), 137 BPM after a relaunch.
+`tests/flash_late_test.c` (felucca-bsp's wait and the late mapping on the host model: in time 0 and not counted, late 0
+and counted with the longest kept, stuck the reset and not counted, -1..-3 unchanged; returning -4 fails 4 checks),
+the source check in `run_tests.sh` (both waits map late; the loader and the OTA hooks call those routines),
+`install_test.py` (a 79-value firmware: no word of it; 81: the values and the line). `./build.sh` (loader 7,572 B) and
+`BOARD=smk37 ./build.sh`: OK, `.ram_text` no calls. Not tried on the slow part: no unit here has one. `run_all.sh`:
+the 24 suites passed (cr_tests on its own after `cr_backup_test.c`'s PEAK count went to 81). **On a unit**: the spare
+E81CE2F7 (ChoralRoot 3y264), a backup first (`fm1-backup-E81CE2F7-2026-11-08-before-late-success.json`), `caffeinate
+-dimsu fm1_install.py build/choralroot.fwsc --unit E81CE2F7 --yes` (sha256 3291dda0...7de6), the same unit after the
+restart. `--debug`: crash_count 0, c1_faults 0, boot stub v3 marker ok, `flash_late_ops 0`, `flash_late_max_us 0`
+and the new words on the quiet-writes line. Writes: U128 imported and deleted seven times, the backup restored (first
+try, the unit restarted cleanly), then 9 erases and pages up to 1,972 us, every save rc 0, none late (the Puya part).
+
+## 2026-11-08 (0.32 and 0.32-smk37)
+
+3y266. **0.32: the flash driver waits out a slow erase or page program; 0.32-smk37 beside it.** The owner, through the
+orchestration session ("Please release these"): main 4812b5c9. 0.32 is 0.31 with 3y264..3y265: felucca-bsp #12's
+busy-safe wait (Julius Vitkauskas; `hal/fm1_flash_wait.h` and its host model MPL-2.0, LICENSING.md), never back to XIP
+while the part is busy, done within 2 s / 50 ms is success and counted (`flash_late_ops`, `flash_late_max_us` in
+`--debug`), still busy at the bound the part and the chip reset; for the late-2026 FM-1s' 0xB36014 part, not tried
+on one (every unit here has the Puya part). The driver is shared, so the SMK-37 build has it too. `./build.sh --release
+0.32` and `tools/hub_build.sh 0.32`: the same `SHA256SUMS`; XIP 554,880 of 573,440 (96.8 %), 1-core 551,296, RES
+41,820 of 49,088. `choralroot-0.32.fwsc` a4f88c00...12b0, `-1core` f79b0f16...c971. `web/releases.json` first with
+the sha256s, 0.31's entry given its going-back note (the old 500 ms / 10 ms bound), `docs/releases/0.32.md`,
+MANUAL.md's first line, `choralroot.c`'s dev version. **0.32-smk37** (base 0.32): `BOARD=smk37 [MODEL=elite|mke]
+./build.sh --release 0.32-smk37` and `tools/hub_build.sh 0.32-smk37`, the same `SHA256SUMS` (twelve files); XIP
+554,848 (Pro and Elite), 554,832 (MKE-P37). Pro 02e30f81...59ae, Elite a6104d14...e4ce, MKE-P37 4d676c5c...76da.
+`web/releases-smk37.json` first, three bullets, three notes; SMK37.md's status, package names and version line.
+`python3 tests/releases_test.py` ALL OK; `CR_VERSION=0.32 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0
+changed; test_cr 1122 ok; test_persist 121 ok; the browser emulators as 0.32). **On a unit**: the spare E81CE2F7 (on
+3y265's build, reading 0.31; FM-1_5200, another unit, was on USB earlier and left alone, and gone by the install), a
+backup first (`~/fm1-backups/fm1-backup-E81CE2F7-2026-11-08-before-0.32.json`, settings and U121-128), `caffeinate
+-dimsu fm1_install.py choralroot-0.32.fwsc --unit E81CE2F7 --yes`, exit 0, the same unit after the restart. After:
+`--info` ChoralRoot 0.32, E81CE2F7; `--debug` c1_state 1, c1_faults 0, c1_fallback 0, crash_count 0, stub v3 64.4 ms,
+stale_halves 0, `flash_late_ops 0`, `flash_late_max_us 0` (the Puya part), Bluetooth Off.
+
+## 2026-11-08 (the power-on pop: not found yet)
+
+3y267. **The power-on pop, round 1: FM1-Base has no pop fix to port; neither the stub's rail nor the supplies is it.**
+The owner, through the orchestration session: a loud pop from the speaker on ChoralRoot's power-on for a long time,
+the volume knob at zero too; "FM1-Base fixed it"; never on FIZZ or RemoteFM1; not every time, more often from a cold
+start (off a while); Bluetooth and Dual Core Off do not stop it. **FM1-Base**: its audio start is felucca-bsp's
+`boards/fm1/fm1_audio.h`, the same sequence as `hal/fm1_audio.h` here (PC0/1/2 the clocks, PC6 held low 5 ms, then the
+DMA), with checks added (the buffer, the audio PLL, a `csync`); no amplifier enable or mute anywhere (its
+headphone-jack commit only reads PB5); no commit or issue in fm1-base, felucca-bsp, FIZZ or RemoteFM1 about a power-on
+pop (FIZZ's "popfix" of 2026-10-26 is a playback pop). What the ROM loader reads is the same for both: flash
+0..0x3FFF of `choralroot.fwsc` and FIZZ 0.12.0's `fizz.fwsc` are byte for byte the same but the directory's CRCs.
+The HAL's pin writes are felucca-bsp's (but the LED lines' high drive on port A and the LCD's pin group). ChoralRoot's
+output is digital zero from power-on (the emulator, MASTER 0 and 512: no sample other than 0 in 3 s). Three tries on
+the spare E81CE2F7, each installed with `--unit E81CE2F7` (a backup first:
+`FIZZ-saves/2026-11-08-E81CE2F7-before-boot-pop-stub4.json`, settings and U121-128):
+1. **Boot stub 4**: the stub's PA2 rail (the backlight, the 595s, the LEDs) 200 ms in instead of within a millisecond
+   (the owner first placed the pop at "switch on, screen dark"). Stub 264 ms, `--stub test` ok. **Still pops.**
+   Reverted (b0d7f177): `stub.lock` is 3 again, no unit rewrites its stub.
+2. **A timed diagnostic** (not committed): the stub's rail at 2 s, the app's start 1.5 s later. The owner: the pop
+   "about 6 seconds in while the splash was playing", so at the audio start or near it, not at the rail.
+3. **Stock supplies first on every FM-1 boot** (48b7be7e, kept): `fm1_main` runs `cr_rails_stock` (`fm1_power_stock`:
+   the 1.3 V rail's DC-DC, VDDIO 3.2 V, the core rails at ChoralRoot's caps) before anything, as FM1-Base's
+   `main_fm1.c` does on every boot (Charles Vestal, fm1-base 5e1e79f) and Melodee 1.6.1; until now only a Bluetooth
+   boot set them, and the spare (Bluetooth and Dual Core Off) started the I2S clocks on the boot loader's supplies
+   (`--debug` rails 11 / 3; now 14 / 5). Not in SAFE MODE; a Bluetooth boot takes the result (`cr_ble_supplies`).
+   FM-1 only. **The owner: "It is the same still."** Kept: it is what FM1-Base, Melodee and stock V15 run on every
+   boot, and the Bluetooth boots ran it already.
+Suites green after each (`sh tests/run_cr_tests.sh`: cr_bootguard 95, cr_stub 16,143, stub_pkg 265), `BOARD=smk37`
+builds. Next: a diagnostic with the steps after the splash 3 s apart, each named on the screen, to place the pop on one
+step (the keys' and knob's pins, the audio start, USB and the timer, the running loop).
+
+3y268. **The power-on pop is gone: the I2S clocks start ~0.1 s after power-on, not 1.5 s or more.** Round 2 of
+3y267, on the spare E81CE2F7 (Bluetooth and Dual Core Off), each install with `--unit E81CE2F7`:
+1. **A labelled diagnostic** (not committed): the steps after the splash 3 s apart, each named on the screen
+   (A the keys' and knob's pins, B `master_boot`, C `audio_init`, D USB and the timer). The owner: "Every time it
+   happens as soon as C starts". So the pop is the I2S clocks' start, ALNK0's MCLK / SCLK / LRCK reaching the DAC,
+   not a sample: the output is digital zero then (3y267), and the start is the same code as FM1-Base's.
+2. **The audio start first** (kept): `fm1_main` runs `audio_init` right after the stock supplies (3y267 try 3), before
+   the flash, the screen and the splash, about 0.1 s after power-on, as FM1-Base starts its audio early. Before this
+   ChoralRoot started the clocks after the splash, 1.5 to 2 s in; at 6 s (the timed diagnostic) it popped every
+   time, and a cold start (the board longer at rest) more often. The DMA loops `audio_init`'s zeroed buffer until
+   the interrupts come on (`fm1_irq_enable_all`), so the output is silence until then; the first rendered block is
+   after `master_boot`, at the knob's level, as before. Core 1 (Dual Core On) and the radio (Bluetooth On) now start
+   with the DMA already running; both still start before the interrupts. `CRBL_T_NOAUDIO` (3y243's bisection switch)
+   is retired: `audio_init` now runs before the Bluetooth record is read. **The owner: "Pop gone".**
+Install exit 0, `--debug` halves 9297, late 0, stale halves 0, crash count 0, stub v3 64.4 ms, rails 14 / 5. Suites
+green (`sh tests/run_cr_tests.sh`), `BOARD=smk37` builds (its `audio_init` moves the same way; the SMK-37 had no
+report of a pop). Then a boot with Dual Core On and one with Bluetooth On (the owner): "No pops in either case. BLE
+showed up and connected and working as I expect." `--debug` after (`--unit E81CE2F7`, the only FM-1 on USB):
+c1_state 1, c1_jobs 155180, c1_faults 0, c1_fallback 0, crash_count 0, Bluetooth On, the radio started in 160.7 ms, a
+peer subscribed, late 0. The first read (power-on to 105 s) had 59 stale halves, the radio's start at boot as 0.31's
+55 (3y263), one TIMER5 gap of 17.3 ms and a UI frame of 70 ms (not placed); the second read (9.3 s) stale 0, worst half
+400 us of 2,902, the ISR at most 52 us late.
+
+## 2026-11-08 (MIDI CC on the sounds' parameters, in and out)
+
+3y269. **MIDI CC sets the sounds' parameters, and a knob turn sends it.** The owner's design (2026-11-08, its
+sections 1 and 1b): a CC on MIDI Perform's channel sets a parameter of the chord sound, on MIDI Bass's the bass
+sound's (one channel for both: both), as a knob turn on that cell would; the CCs ChoralRoot used keep their meaning
+(1 2 4 5 7 11 64 65 91 93 94 120..123, RPN 6 / 38 / 100 / 101). Two kinds. The common CCs, one meaning on every
+engine that has the thing: 10 Pan, 92 the Drive send (the fourth beside 91 93 94; FM TONE: the sound's Drive, as the
+FX group's cell), 74 / 71 cutoff / resonance, 73 75 79 72 the amp envelope, 76 / 77 LFO 1's rate / depth; a small
+const table of built-in (page title, column label) pairs (`cr_edit.c CE_CCC`, P5's compiled rows reach the column
+they bind), WHEEL (no deep pages) the platform's ENV and LFO, FM6 and CZ-1 no filter and no ADSR. The editor's
+blocks: OSC 16..31, FILT 32..47, ENV 48..63, LFO 102..113, MOD 80..90, the group's lanes in SELECT order across its
+screens, four CCs a lane = KNOB 1..4, what does not fit has no CC, an empty cell keeps its slot. No per-engine table:
+`ce_view` is now `ce_view_at(g, k, ln)` (the view of any screen and lane; `ce_view` calls it with the part's own),
+and `ce_cc_lane` walks `ce_scr` / `ce_lanes`, so a CC is always the cell the editor shows there. CC 38 is FILT's
+like its neighbours unless RPN 0 is selected on the part (then the bend range's cents, as before). The value: 0..127
+over the descriptor's range, rounded; a list (F_ENUM, F_ONOFF) in equal slices; out the reverse, rounded to the
+nearest CC (a list: its slice's middle), so value -> CC -> value is exact for 128 steps or fewer (`cr_midi.c
+crm_cc_val` / `crm_cc_out`, pure). In: the audio interrupt's MIDI in (`cr_out.c cr_cc_post`) keeps the latest value
+per part and CC (`cr_ccv[2][81]`, bit 7 pending) and posts one `cr_minq` entry (kind `CRM_CC | cc`) only when a slot
+becomes pending; a full queue asks the UI to sweep every slot (`cr_cc_sweep`): a fast knob or a DAW's snapshot of
+every CC never overflows and never leaves a stale value. The main loop (`cu_midi_poll` -> `ce_cc_in`) sets the cell
+the three ways `ce_knob` does (a deep column, a send through `cu_send_set`, a track parameter), marks the sound
+edited, and shows it as a knob turn: the hot cell when the editor shows that cell of that part, else the knobs'
+popup (a send's as CC 91's; else the value big, its unit under it, "bass attack"). Out (`cu_cc_send`, posted as
+`CRE_CCOUT` to the audio interrupt, which sends it with the notes: USB, TRS on the SMK-37, Bluetooth): the editor's
+knobs (a cell's block CC and its common CC: the VA's cutoff sends 32 and 74), the FX layer's and the FX group's sends
+(91..94), KNOB 4, the bass level both ways (7), the MIX group's Level / Pan (7 / 10), the SMK-37's faders; not on a
+preset load or an engine change; nothing on a part whose channel is Off. The echo guard: the last eight CCs sent
+(channel, CC, value, ms / 8; `crm_echo_*`): one coming back equal to one of them within a second is ignored, CC 7 /
+91 / 93 / 94 too. Options > **MIDI CC** Off / In / Out / In + Out (In + Out the default), after MIDI Clock, in
+`raw_sound` bits 6 / 7 (set = that direction off: 0, every older record's, is In + Out, no version; automatic as the
+other MIDI Options); a firmware before it reads a non-default byte as Raw Chord Sound and MIDI Keys Off. With In off
+those CCs are forwarded as before. Static state +198 B in RAM (`cr_ccv` 162, the echo ring 33, two flags, the
+option's byte), none in .pool. `./build.sh`: XIP 554,880 -> 558,788 (+3,908), RAM 84,784 -> 85,008, POOL 334,184
+unchanged; `BOARD=smk37 ./build.sh`: XIP 554,832 -> 558,816, RAM 81,580 -> 81,772, POOL 331,492 unchanged. Tests:
+`tests/cr_midi_test.c` (which CCs, the blocks both ways, the scaling's round trip for every range of 2..128 steps and
+the wide ones, the echo guard, MIDI CC In off; 65 checks), `tests/cr_cc_test.c` in `run_cr_tests.sh` (on the
+emulator's firmware: the common CCs on the seven engines, every block CC on every engine the cell SELECT reaches at
+its lane, FM TONE and VA pairs, CCs in through usb.c's queue (coalesced, the sweep, the hot cell, the popup, CC 38
+with RPN 0), out from the editor, the FX group, MIX, KNOB 4, the echo guard, the option's four values, a channel Off;
+32 checks; `--map` prints MANUAL section 15's tables), `tests/cr_settings_test.c t_midi_cc`. `sh
+tests/run_cr_tests.sh`: all pass. The emulators (`tools/emu/build.sh`, `tools/emu/web/build_web.sh`) build: they run
+the same firmware, so a CC into the emulator's MIDI in does the same. MANUAL section 15 "MIDI CC" (the common table,
+the block rule, each engine's map), Options; SETTINGS.md. Not tried on a unit.
+
+## 2026-11-08 (the master filter: Chord or Bass alone)
+
+3y270. **Filter: Off / All / Chord / Bass, one part round the master filter.** The owner's design (the CC and bypass
+session's notes, section 2): KNOB 4 of the FX layer's Filter page, Off / On to 0.32, is now Off / **All** (0.32's On,
+bit for bit) / **Chord** (the chord part filtered, the bass part's dry round it) / **Bass** (the other way). The same
+byte (`xfp[XP_FON]`, 0..3; the session's tag 34), so a kept On loads as All; a firmware before this one reads 2 / 3 as
+out of range and keeps its default, Off. A cutoff turned while Off switches it to All (the knob reaches Off only from
+All, so "the last choice" would be All every time: not kept); with Chord or Bass a cutoff turned keeps it. One rule at
+every place the filter can be (`cr_fx.c` "The part round the filter"): with B the bypassed part's dry stereo as it
+went into the mix (drive, level, pan, stereo side applied), the place makes F(acc - B) + B. The effects only add their
+wets, so acc holds B everywhere: Parallel with the filter after the buses filters the returns, the bypassed part's
+too; with the Filter first (`xq_pre`) B comes out of the dry pair only and the sends are filtered as before, its own
+too; in Chain the filter's position filters what reached it but B. B is taken in `fx.c mix_part_out` around the
+bypassed part's mix loop (the mix before it subtracted, after it added: `xb_cap`, inline, exact; both paths, one
+core's and `mix_parts_split`'s, mix on core 0), each part's share (`xb.g`) moving by `XQ_STEP` a block, the cuts' own
+16-block fade: Chord, Bass and All crossfade. The share follows the choice only while a cut is in; switched out it
+holds through the cuts' fade, then goes to 0; from rest it starts at the choice at once. All with the shares at 0
+takes and adds nothing. POOL +284 B (`xb`: B's two blocks, 256 B, beside `xq`), XIP +704 B, RAM 0
+(`./build.sh`: XIP 555,584, RAM 84,784, POOL 334,468 of 344,064). On the unit by the listing (`tools/fx_loops.py`
+`xb_begin xq_run mix_part_out`): with Chord or Bass ~43 instructions a sample, ~26 us of the half's 2,902 (one 12 dB
+cut's); nothing while every share is 0. Tests: `cr_fx_test.c t_bypass` (Chord and Bass at each of the three places:
+the bypassed part alone comes out as it went in every sample, the other is All's every sample and 20 dB down; the
+bass part's 9 kHz into the reverb with Chord: its wet 53 dB under Filter Off's at each place; All and Off the stage
+without the bypass every sample, both parts sent; FX off with Chord the dry; the choice cycled All, Chord, Bass, All,
+Off every 100 ms under 440 / 330 Hz tones, no sample step above the dry's own 1,716, where switching the shares at once
+steps 16,855; the host cost, +816 a half on 14,365); `cr_fm6_test.c` (tag 34: 1 loads as All, 2 and 3 round-trip, 4
+refused; a cutoff turned while Off gives All, while Chord keeps Chord). MANUAL.md 8 (The Filter page: the four
+choices and what each place does with the effects; Routing's note), FX.md "The master filter", SETTINGS.md tag 34.
+`sh tests/run_cr_tests.sh` passes; `./build.sh` and `BOARD=smk37 ./build.sh` OK; the emulator builds. Not tried on a
+unit; the Routing page's Filter box does not show the choice.
+
+3y271. **An incoming CC changes its value quietly: no popup.** The owner tried 3y269 / 3y270 on the spare (CC in and out
+and the filter bypass work) and asked that a CC arriving not put a popup on the screen: the value shows only when the
+edit page shows that part's cell. `cr_edit.c ce_cc_show` keeps only the hot cell (the editor on that part, the cell in
+its view); the popup fallback is gone. The older CC 7 (level) and CC 91 / 93 / 94 (sends) popups of `cu_midi_poll`
+go too, so no CC brings one up; a program change still shows the sound's. XIP -528 B. Tests: `cr_cc_test` (CC 74 and
+CC 92 outside the editor: the value set, no popup; the editor on FILT: CC 71's cell hot, no popup).
+
+3y272. **Options > MIDI CC defaults to In.** The owner: "Default the CCs to in." New units and an Options reset start on
+In: incoming CCs set the sounds' parameters, knob turns send nothing until Out or In + Out is chosen. The two bits in
+`raw_sound` are now bit 6 Out ON, bit 7 In OFF (3y269 had bit 6 In off, bit 7 Out off), so the byte's 0 is In: every
+record from 0.32 or before reads as In, and a firmware before 3y269 (which checks the byte against 0 .. 0x3F) reads
+Raw Chord Sound and MIDI Keys cleanly with the default. Only Off, Out and In + Out still make an older firmware read
+those two as Off; that can't be avoided in this byte (three of the four choices need a bit an older firmware rejects).
+A record written by the 3y269 dev build (only the spare E81CE2F7) with its default In + Out (bits 0) now reads In;
+one it wrote as In (bit 6) reads In + Out. No migration: no unit outside the dev build has the bits. Tests:
+`cr_settings_test t_midi_cc` (default In, byte 0; the four round-trip; only In passes an older firmware's check),
+`cr_cc_test` (the default: a knob sends nothing; then In + Out for the out checks).
+
+3y273. **Main green again after 3y269 .. 3y272: the audio ISR's static cost back in budget, the tests on the new
+Options entry.** The release flow's 24 suites on main 2569643a failed 4. (1) `run_tests`: `fm1_alnk0_irq` cost 23,566
+against 13,890 (`tests/target_budget.py`, +70 %). Measured on builds of each commit: 478c75c6 (before) 13,942,
+cf3a5a59 (3y269, the CCs) 23,562, 985d10e1 (3y270, the filter bypass) 13,946. The CC handling inlined into the ISR's
+MIDI-in loop (`cr_out.c cr_midi_in`: the CC 38 test and `cr_cc_post`) made the compiler lay the loop out with backward
+jumps the script reads as loops eleven deep (x4 a level); the work a message does was unchanged. `cr_cc_post` is now
+out of line (`noinline`, as `midi_event`), with the CC 38 / RPN test inside it: 14,109 (+1.6 % on the budget, inside
+the 10 %; the budget is not raised). The filter bypass costs no per-sample work at Off or All (`xb_want` false: no
+capture; `xb_begin` a two-part check a block). (2) `test_cr` (45), `test_persist` (12), `web_emu_smk` (1): the MIDI CC
+entry after MIDI Clock moved every later Options entry by one (the emulator lists 34, 35 with the SUS Window). The
+scripts' SELECT moves past Clock one turn more (`+34` for "past the end"; `cr_loop_glow`'s way back to MIDI Clock
+`-5`; `cr_opt_keys`'s walk one entry longer), the expected entry numbers and counts one more; the CC 91 popup checks
+expect no popup (3y271); the SMK test finds TRS MIDI Out after MIDI Clock and MIDI CC. `sh tests/run_all.sh`: all 24
+suites pass; `./build.sh` and `BOARD=smk37 ./build.sh` OK.
+
+## 2026-11-09 (0.33 and 0.33-smk37)
+
+3y274. **0.33: no pop at power-on, MIDI CC on the sounds' parameters, the filter on one part; 0.33-smk37 beside it.**
+The owner, through the orchestration session ("Yes, lets tag and release this"): 2565da82 (claude/cc-fix-suites, on
+origin/main 2569643a). 0.33 is 0.32 with 3y267..3y273: the stock supplies first on every FM-1 boot and the I2S clocks
+~0.1 s after power-on (3y267 / 3y268, the owner: "Pop gone"), MIDI CC in and out on the sounds' parameters with Options
+> MIDI CC defaulting to In (3y269, 3y272), Filter Off / All / Chord / Bass (3y270), no popup for an incoming CC
+(3y271), the suites on the new Options entry and the audio ISR back in budget (3y273). The first try, on 2569643a,
+stopped at the suites (4 of 24 failed on main itself, 3y273); this is the rebuild on 2565da82. `./build.sh --release
+0.33` and `tools/hub_build.sh 0.33`: the same `SHA256SUMS`; XIP 558,920 of 573,440 (97.5 %), 1-core 554,996, RES
+41,820 of 49,088. `choralroot-0.33.fwsc` fee7577c...b577, `-1core` f4ccce4e...52c0. `web/releases.json` first with the
+sha256s, 0.32's entry given its going-back note (Chord / Bass read as Off there; MIDI CC other than In makes 0.32 read
+Raw Chord Sound and MIDI Keys Off, 3y272), `docs/releases/0.33.md`, MANUAL.md's first line and its two "New after
+0.32" now "New in 0.33", `choralroot.c`'s dev version. **0.33-smk37** (base 0.33; the CCs, the faders' CCs out, the
+filter choice and the early audio start, no supplies step: FM-1 only): `BOARD=smk37 [MODEL=elite|mke] ./build.sh
+--release 0.33-smk37` and `tools/hub_build.sh 0.33-smk37`, the same `SHA256SUMS` (twelve files); XIP 558,752 (each
+model), 1-core 554,836. Pro 80d33348...cd59, Elite 225cecdb...d5e2, MKE-P37 daabf9b0...a819. `web/releases-smk37.json`
+first, four bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py`
+ALL OK; `CR_VERSION=0.33 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1122 ok;
+test_persist 121 ok; `fm1_alnk0_irq` 14,109 of 13,890, inside the 10 %; the browser emulators as 0.33). Not installed
+on a unit: the spare E81CE2F7 ran each feature's dev build (3y268, 3y271).
+
+## 2026-11-09 (Chord and Bass Perform, GitHub issue 41)
+
+3y275. **Chord and Bass Perform: each part its own performance mode, under the one PERF switch.** Issue 41 (etyrnal:
+"ARP 1 settings go to CHORDS, ARP 2 settings go to BASS. BOTH can run at the same time") and the owner's design: "2
+perf modes, the bass one accessed using ENV + ARP shortcut ... the option at the beginning in front of Strum to turn
+off ... The quick click of ARP button would still turn on/off." **The engine** (`cr_engine.c`): a voice's performance
+state is now `pf[2]` (`cr_pf_t`: owner, clock, harp gate, last note), [0] the chord's (the MAIN stream, as before), [1]
+the bass's (the BASS stream); every performance function takes the part, the scheduler's owners carry it
+(`CR_OWN_V / _C(vi, part)`, `CR_OWN_PART`). `perform_on` stays the one switch; `perf_parts` says which parts perform
+(default the chord only), `bperf_mode` / `bpar` are the bass's mode and parameters (`cr_set_perform_part`,
+`cr_set_perform_mode_ex`, `cr_set_param_ex`; the old setters are the chord's). A part not performing plays as with
+Perform off: the chord holds its chord, the bass its note. **What the bass performs** (`crx_pf_notes`): the voice's
+unvoiced chord moved by whole octaves so that its root lands nearest the bass note it replaces (`crx_bass_pitch`: the
+BASS layer's Register; Unison's played key; a Split Bass key's own note), wherever that bass note would sound (Bass on,
+its Behaviour, the BASS stream on): Bass off or a single note under Chords Only has no bass arp, Solo arps the bass
+alone, a Split Bass key arps its note over the range. A chord change (Advanced, Free, LOCK) restarts a bass strum and
+substitutes into a running bass arp with Retrig off, as the chord's; a same-root retrigger keeps a no-Retrig bass arp
+running. Either part's Hold latches the gesture (`cr_latching`); MIDI Start, the tempo and the Register rephase or
+restart both. The Chord view and the PERF layer's band show the chord's arp, or the bass's while only it performs
+(`cr_perform_shown`; the bass's note matched to the chord's by name; its hop orange). **The UI** (`cr_ui.c`): ARP held
+opens the chord's PERF layer as before, BASS (ENV) held + ARP the **Bass PERF layer** (orange picker, `bass perform ·
+on`, the same knob rows on `cs.bpar`); ARP held alone there switches to the chord's. Both pickers start with **Off**
+(eight entries; SELECT moves are relative, so the emulator scripts' `+3` still land on Arpeggiate). An ARP tap is the
+switch for both; picking a mode switches Perform on, Off does not touch it. The top right says `Bass Arp` in orange
+while only the bass performs; KNOB 3 of the view turns that part's first parameter; LATCH's gesture clears either
+part's Hold. The SMK-37's mode pads stay the chord part's. **No GLO + ARP page**: nothing is shared that needs one
+(the switch is ARP's tap, the tempo the metronome's, LATCH its own), so the shortcut stays free. **Saving**: the 192-byte
+block is full, so the bass's are in the session record's end reserve (`perf_x`, `bperf_sel`, `bpar[5][4]`: the four
+knobs of each mode's row, bytes 964 .. 1005; 76 bytes of reserve left): 0 in every older record = the chord performs,
+the bass Off, the defaults, exactly as 0.33. The chord's Off is there too (the block's `perf_sel` keeps its last mode),
+so an older firmware plays the chord's Perform as before. Reset Settings sets the bass back to Off. **Cost**
+(`./build.sh`): XIP 560,472 (+1,552, 97.7 %), RAM 89,048 (+4,036: the second owner and clock of 32 voices, 90.6 %),
+POOL 334,468 (unchanged); SMK-37 (`BOARD=smk37 ./build.sh`) XIP 560,304, RAM 85,776. `fm1_alnk0_irq` 14,018 (14,109 before; budget 13,890);
+`fm1_timer5_irq` 4,800 (4,711 before, budget 4,511: register allocation moved with the RAM layout; it calls nothing
+of the engine). Tests: `cr_engine_test s_bassperf` (31 checks x 4 tick rates: the default as before, chord Off + bass
+Arp 36 40 43 on the 1/8 grid, both at once, Perform off / on, the bass's own Direction, Register, Chords Only, Solo,
+Bass off, the bass's Hold, Advanced following, Split Bass, MIDI Start, the part turned off), `cr_settings_test` (the
+fields' bytes, defaults 0, round trip), `tools/emu/scripts/cr_bass_perf.txt` + `test_cr.sh` (BASS + ARP opens the Bass
+PERF layer on Off, SELECT picks the bass's Arpeggiate, ARP held there: the chord's layer, SELECT -1: Off; D major held:
+the bass arps 38 42 45 under the sustained chord; ARP tap: the plain 38; again: the arp; silent after). MANUAL.md 7
+("Chord and Bass Perform"), 3, 5, 14, 15 and 18; SETTINGS.md; SMK37.md. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr
+1131 ok, test_persist 121 ok); `BOARD=smk37 ./build.sh` OK. A dev build on the spare E81CE2F7 (backup
+`fm1-backups/E81CE2F7-before-perf-split-20261109.json`), before the last change (ARP held in the Bass PERF layer
+switched to the chord's; until then it closed the layer, as a layer's own button does). **Bass on / off under a held chord** (owner, after trying it:
+"I quick click ENV to turn off the Bass, the Bass keeps playing through the arp until I press a new key"):
+`cr_set_bass` now applies at once to every held voice: off releases its bass note or stops its Bass Perform, on starts
+it again by its Behaviour (`crx_bass_sync`); until now a toggle applied from the next gesture. A bass-side key of Split
+Bass is unchanged (it plays whatever Bass says). `cr_engine_test`: the old "bass off while held: no change" check now
+expects the bass to stop; `s_bassperf` +5 (the arp stops and comes back under a held chord, the plain note too);
+`cr_bass_perf.txt` + `test_cr.sh` (ENV tap: no bass sounding for 800 ms, the chord held; again: 38 42 45). **The BASS layer's keys play by default** (owner: "Keybed shortcuts should be off by
+default and use the GLO button to turn on, same as it is done in the In-Key Menu"): `cs.bass_keys` (0 play, 1 pick),
+GLO tapped in the layer toggles it (no Options from there), the GLO LED lit on pick, the header `bass · keys play` /
+`keys pick`, the footer `GLO: pick` / `GLO: play`; saved in the session record's `perf_x` (`CSS_BASS_KEYS` 0x04; 0 in
+older records = play). Until now the white keys D4 .. G4 picked the Behaviour and every root was silent in the layer.
+`cr_bass_row.txt` (F4 first plays, GLO, F4 picks Single) + a `test_cr.sh` check; `cr_bass_both.txt` taps GLO before G4
+(its WAV windows +0.2 s).
+
+## 2026-11-09 (0.34 and 0.34-smk37)
+
+3y276. **0.34: Chord and Bass Perform; 0.34-smk37 beside it.** The owner, through the orchestration session ("The
+feature works great, lets merge, tag and release this!"): claude/perf-split at c9fc6289 (on origin/main 252f4552, 0.33).
+0.34 is 0.33 with 3y275: the chords and the bass each their own performance mode under the one ARP switch (GitHub
+issue 41, by etyrnal; BASS held + ARP the Bass PERF layer, Off first in both pickers), a BASS tap acting at once under
+a held chord, and the BASS layer's keys playing by default (GLO in the layer: they pick the Behaviour). `./build.sh
+--release 0.34` and `tools/hub_build.sh 0.34`: the same `SHA256SUMS`; XIP 560,472 of 573,440 (97.7 %), 1-core 556,964,
+RES 41,820 of 49,088. `choralroot-0.34.fwsc` 3ae553e3...c3a6, `-1core` 35e486ca...c031. `web/releases.json` first
+with the sha256s, 0.33's entry given its going-back note (no Bass Perform there; a chord part on Off performs again;
+a global save on 0.33 resets the bass's Perform settings; the BASS layer's keys pick), `docs/releases/0.34.md`,
+MANUAL.md's first line and "new after 0.33" now "new in 0.34" (MANUAL, SETTINGS.md, SMK37.md), `choralroot.c`'s dev
+version. **0.34-smk37** (base 0.34; CHORD held + ARP the Bass PERF layer): `BOARD=smk37 [MODEL=elite|mke] ./build.sh
+--release 0.34-smk37` and `tools/hub_build.sh 0.34-smk37`, the same `SHA256SUMS` (twelve files); XIP 560,480 (Pro),
+1-core 557,156. Pro 94747b4c...7594, Elite 01f6af47...8b6c, MKE-P37 c62a9b9e...c085. `web/releases-smk37.json` first,
+four bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py` ALL
+OK, `tools/hub_build.sh --check` both lists match; `CR_VERSION=0.34 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279
+goldens, 0 changed; test_cr 1134 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,010 of 13,890 and `fm1_timer5_irq` 4,800
+of 4,511, both inside the 10 %). Not installed as 0.34 on a unit: the spare E81CE2F7 ran c9fc6289's dev build.
+
+3y277. **After 0.34: ARP held switches the PERF layers; the bass's Follow.** The owner, through the orchestration
+session: "once in there, you could just hold ARP to switch between the layers ... on the BASS Perf layer only after OFF
+should be an option to follow the chord perf layer, meaning chord perf layer is the master and both the chord and bass
+synth get the same performance." **The layers** (`cr_ui.c`): ARP held alone in either PERF layer shows the other
+part's (`cu_perf_layer_part`, trace `perf: layer chord|bass`); OCT-, OCT+ and HOME close it (a PERF hold no longer
+does); from outside, ARP held is the chord's and BASS + ARP the bass's, as before; ARP held + a knob in the layer keeps
+its part. **Follow**: the Bass PERF picker is Off, **Follow**, then the seven modes (nine entries; the chord's stays at
+eight). The engine's `bfollow` (`cr_set_perform_follow`, event `CRE_PERFORM_FOLLOW` at the end of the list):
+`crx_pf_mode` / `crx_pf_par` give a following bass the chord's mode and parameters, and `crx_pf_on` lets it perform
+only while the chord part does (the chords on Off: the plain bass note). A chord mode, parameter or Off change
+restarts / rephases a following bass with the chord; both clocks start on the same note-on, so the steps fall on the
+same milliseconds. The bass's own `bperf_mode` / `bpar` are kept for when it leaves Follow. In the layer, Follow reads
+`bass perform · follows chord`, the knob row shows the chord's values, and a knob turned there only shows `follows
+chord` (read-only: the chords' layer is the master). LATCH's gesture clears the chord's Hold for both. Saved in the
+session's `perf_x` bit 3 (`CSS_BASS_FOLLOW`; 0 in every older record: not following). **Tests**: `cr_engine_test
+s_bassfollow` (14 checks x 4 tick rates: the bass's steps at the chord's times, 36 40 43 under 48 52 55, Direction
+followed live, its own parameters kept and unused, the chords Off: plain 36, Follow off: its own Strum, the chord's
+Hold latches both); `cr_settings_test` (the bit's round trip); `tools/emu/scripts/cr_bass_follow.txt` + `test_cr.sh`
+(SELECT +1: Follow, ARP held: chord / bass / chord without BASS, the bass arps 38 42 45 with the chord);
+`cr_perf_toggle.txt` (ARP held again: the Bass PERF layer, HOME closes) and `cr_bass_perf.txt` (SELECT +5 past Follow);
+the emulator's `perf:` line gains `follow`. MANUAL 7 and 18, SETTINGS.md, SMK37.md. **Cost** (`./build.sh`): XIP 561,304
+(+832, 97.9 %), RAM 89,048 (unchanged: the flag sits in padding); SMK-37 XIP 561,280. `fm1_alnk0_irq` 14,030 (14,010
+before; budget 13,890, inside the 10 %), `fm1_timer5_irq` 4,800. `sh tests/run_all.sh`: ALL SUITES PASSED (24;
+test_cr 1140 ok, test_persist 121 ok). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.34.
+
+## 2026-11-09 (0.35 and 0.35-smk37)
+
+3y278. **0.35: the bass Follows the chords' performance, PERF held switches the PERF layers; 0.35-smk37 beside it.**
+The owner, in the perf-split session: "This checks out, lets merge and tag release": claude/perf-follow at 30d20d35 (on
+origin/main b23f325a, 0.34). 0.35 is 0.34 with 3y277. `./build.sh --release 0.35` and `tools/hub_build.sh 0.35`: the
+same `SHA256SUMS`; XIP 561,304 of 573,440 (97.9 %), 1-core 557,908, RES 41,820 of 49,088. `choralroot-0.35.fwsc`
+98b82fa7...5d1b, `-1core` 9bff4d40...ba52. `web/releases.json` first with the sha256s, 0.34's entry given its
+going-back note (Follow plays the bass's own mode there; ARP held closes a PERF layer; a global save on 0.34 forgets
+Follow), `docs/releases/0.35.md`, MANUAL.md's first line and "new after 0.34" now "new in 0.35" (MANUAL, SETTINGS.md,
+SMK37.md), `choralroot.c`'s dev version. **0.35-smk37** (base 0.35): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release
+0.35-smk37` and `tools/hub_build.sh 0.35-smk37`, the same `SHA256SUMS` (twelve files); XIP 561,280 (Pro), 1-core
+558,004. Pro 3d4d5f44...16cd, Elite e406b6b1...03e2, MKE-P37 0a0fe922...74b0. `web/releases-smk37.json` first, four
+bullets, three notes; SMK37.md's status, package names and version line. `python3 tests/releases_test.py` ALL OK,
+`tools/hub_build.sh --check` both lists match; `CR_VERSION=0.35 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1140 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Fast-forwarded
+onto main and tagged v0.35 / v0.35-smk37 (release.yml builds, signs and publishes). The spare E81CE2F7 ran 30d20d35's
+dev build.
+
+## 2026-11-09 (more Key Mode scales, GitHub issues 34 and 45)
+
+3y279. **Key Mode gets 21 more scales: the modes, Harm / Mel Minor, the pentatonics, Blues, Phryg Dom, Dbl Harm,
+Hirajoshi, Whole Tone, Dim W-H / H-W, Bebop Dom / Maj / Min and Barry Harris's 6-Dim and m6-Dim.** Issue 34 asked for
+more scales than Major and Minor (a comment: "at least all of the modes", blues, eastern scales), issue 45 for the
+6th-diminished scale. The owner: "I think it's a reasonable request to add in more scales"; on the proposal (in the
+more-scales session): whole tone, diminished and bebop as well, and "No need to build in support for rolling back to
+older versions". **Engine**: `CR_KEYMAP` is per scale (`cr_scale_t`, 23) with 16-bit entries: the quality (4 bits),
+the root shift, and extensions the scale adds (the 6th of C6 and of the diminished seventh, the 7th of C7 / C+7),
+OR-ed into the voice's `sx` when no Chord Type is held, so the name, a loop's record and a rebuild see them;
+`CR_SCALE_MASK` holds the notes (5 to 8) for the lights, Notes and Snap. Major and Minor are 0.35's tables
+re-encoded. Five qualities (8 .. 12: 6/3, 6/5, m6/3, m6/5, 7b9) are the 6-Dim scales' chords rooted on the key
+pressed, which is their bass (C6/E = E G A C; C#7b9 = C# under Ddim7): `CR_QUALITY` became 32-bit for their 4 and 5
+notes; a loop's 4-bit quality field holds them. Names: "C6/E", "Cm6/D#", "C#7b9" in both namings; numerals: Major's
+degrees for a MAJ scale, Minor's for a MIN one (`cr_scale_minor`), C6/E reads I. `tools/gen_scales.py` generates the
+tables. **UI**: KNOB 2 walks the 23 (no wrap); MAJ / MIN pick Major / Minor when the scale is of the other kind, and
+when it is already theirs step to the next of their kind at the release, unless a root was pressed while held (MIN
+held + a root keeps the minor scale there is); the chord-key LEDs light the kind's key; the Scale cell and the top
+line name the scale (`Key: D# mixolydian`, which fits beside `Split Bass`). The SMK-37's MIN / MAJ pads do the same.
+**Settings**: `scale` bits 0 .. 6 had room (0.22 left it for more scales): values 2 .. 22, no version, nothing to
+migrate; 23 and up read Major. MANUAL "Scales" (a table of the 23 in C), the KEY layer's table, §18; SETTINGS.md;
+SMK37.md; CR_ENGINE.md.
+**Tests**: `cr_engine_test s_scales` (23 scales x 12 keys in C named as `tools/gen_scales.py`'s table, the 6-Dim notes
+E G A C / G A C E / C# D F G# B and C6/E's bass E, a held chord key overriding, D 6-Dim's D6/F#, m6-Dim, Whole Tone,
+Dim H-W, a loop's replay of C6/E, the masks, the clamp, the numerals; the tests' copies of 0.35's tables loop over the
+8 old qualities, `CR_Q_OLD`); `cr_settings_test` (the 23 round-trip beside Solfege, 23 reads Major);
+`tools/emu/scripts/cr_key_scales.txt` + `test_cr.sh` (MIN: Minor Dorian Phrygian, MAJ: Major Lydian, MIN held + a root,
+KNOB 2 to 6-Dim and the list's end, E 6-Dim's G#4 = E6/G#); `cr_draw_test`'s chord-name fit counts the 12 qualities
+(384 names, all whole). **Cost** (`./build.sh`): XIP 562,824 (+1,520, 98.1 %), RAM 89,048 and POOL unchanged;
+SMK-37 builds. `fm1_alnk0_irq` 14,030 (unchanged), `fm1_timer5_irq` 4,800. `sh tests/run_all.sh`: 23 suites passed,
+cr_draw failed on its fixed 224-name count, fixed and passed alone (test_cr 1146 ok, test_persist 121 ok, 279 goldens
+unchanged). Flashed on the spare E81CE2F7 (`--unit`): it boots, `--info` ChoralRoot 0.35 (the dev version). On branch
+claude/more-scales, not pushed.
+
+3y280. **The Scale cell: a long name on two lines.** The owner, trying 3y279 on E81CE2F7: "scales with long names get a
+really small font displayed. Since we have the whole parameter box available, I believe we could keep a larger font
+and display scale on two lines when long." Until then the knob row's value shrank 2 px at a time and lost its space
+(`HarmMinor` at 9 px). New cell flag `CR_CF_WRAP` (cr_screen.h, knobrow only, the KEY layer's Scale cell sets it): a
+value too wide for one line at 15 px goes on two lines at 15 px in the glyph's empty box, broken at the space (dropped)
+or else at a hyphen with 4 letters each side (kept): Harm / Minor, Maj / Pent, Dim / W-H, Bebop / Dom, Mixo- / lydian
+(the cell writes "Mixo-lydian"); Major, Hirajoshi, 6-Dim and m6-Dim stay one line at 13 px. The hot block covers both
+lines. Test: `cr_key_scales.txt` shoots Harm Minor and Major, `test_cr.sh` counts ink in the cell's upper half (173 px
+and 0).
+
+## 2026-11-09 (0.36 and 0.36-smk37)
+
+3y281. **0.36: 21 more Key Mode scales (GitHub issues 34 and 45); 0.36-smk37 beside it.** The owner, through the
+orchestration session: "Scales feature checks out, push, merge, tag, release please". The release commit on
+claude/more-scales over 7002be2f (3y279, 3y280), on origin/main 8a6f6866 (0.35). `./build.sh --release 0.36` and
+`tools/hub_build.sh 0.36`: the same `SHA256SUMS`; XIP 563,448 of 573,440 (98.3 %), 1-core 559,684.
+`choralroot-0.36.fwsc` 190a9425...bdbe3, `-1core` 178e936b...97b11. `web/releases.json` first with the sha256s (a
+first bullet over the test's 240 characters shortened), 0.35's entry given its going-back note (a scale other than
+Major or Minor reads as Major there, crs_sanitize since 0.23 and `CRS_FIX(scale, 0, 1)` before; a loop slot holding
+a 6-Dim inverted or 7b9 chord, quality 8 .. 12, fails 0.35's `cr_loop_unpack` and reads empty, still stored; a global
+save on 0.35 stores Major), `docs/releases/0.36.md` (crediting issues 34 and 45), MANUAL.md's first line and "new
+after 0.35" now "new in 0.36" (MANUAL, SETTINGS.md, SMK37.md, CR_ENGINE.md), `choralroot.c`'s dev version.
+**0.36-smk37** (base 0.36): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.36-smk37` and
+`tools/hub_build.sh 0.36-smk37`, the same `SHA256SUMS` (twelve files); XIP 563,472 (Pro), 1-core 560,084. Pro
+be86be3d...59c0, Elite 60c5821d...4100, MKE-P37 a547a47c...1c2b. `web/releases-smk37.json` first, four bullets,
+three notes; SMK37.md's status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK,
+`tools/hub_build.sh --check` both lists match; `CR_VERSION=0.36 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 14,030 of 13,890, `fm1_timer5_irq` 4,800 of 4,511, both inside the 10 %). Not pushed, tagged or flashed here (the orchestration session's).
+## 2026-11-09 (issues 40, 43, 39, 26 and 44)
+
+3y282. **Bass Solo follows the keys' octaves; the note names checked against MIDI (GitHub issues 40 and 43).** trs-alt
+(0.29-smk37 / 0.29.2-smk37, the SMK-37's USB and TRS MIDI into a DAW and an FM-1): "When I play C4 according to the
+SMK37 screen my DAW ... is registering a C3", and with the bass in Solo at register 0 the screen's C4 arrived as C1;
+"The three octaves on the keyboard all just play octave 2". **Which side**: neither for the chords. The screen
+(`cr_note_name`: `note / 12 - 1`) and MIDI out (`cr_cb_note_on` sends the engine's note as it is, on both boards)
+read the same number, and the SMK-37's C4 key is note 60 (`test_web_emu_smk.mjs`: C4 + MAJ plays 60 64 67): middle C =
+60 = C4, the usual convention. The DAW names 60 C3 (Yamaha's convention: Ableton Live, Logic, Cubase), so it reads
+every note an octave lower; nothing changes there, and MANUAL 15 / SMK37.md now say so. **The bug** was Solo:
+`crx_bass_pitch` gave it the Chords Only pitch, the root's pitch class in the bass register ((2 + Register + 1) x 12:
+C2..B2 at Register 0, "C1" in that DAW), so every octave of the keys sounded the same one. Solo now plays the root in
+the octave it was played (`v->root`, the resolved root with its octave) moved by the Register, as Unison does with the
+key; the Bass Perform in Solo follows (`crx_pf_notes` takes its octave from that pitch). On both boards (the FM-1's
+Solo had the same single octave), so the FM-1's bass MIDI out in Solo changes with it: Register 0 is now the played
+octave, -2 is where Solo was for keys around C4. Nothing stored changes (the Register keeps its value). **Tests**:
+`cr_engine_test` (Solo: 48 -> 48, 72 -> 72, Register -2: 60 -> 36; the Solo Bass Perform arps Dm where it was played,
+50 53 57; x 4 tick rates). `cr_bass_both` (test_cr.sh's Solo checks) unchanged. MANUAL 6 (Solo) and 15 (note names),
+SMK37.md "Note names and octaves".
+
+3y283. **Clock In: every pulse counts; the loop cannot slide behind the master (GitHub issue 39).** harrykaden: clocked
+from Reaper (a Focusrite 18i20's MIDI out into the TRS jack, and over USB) or a Sonicware Deconstruct, "the choralroot
+sequence desyncs after a few passes of the loop"; USB "seems to work better ... but it still eventually slides out of
+time"; and with Clock In a SELECT turn made the tempo "jump between 119bpm and 121bpm". Reported the day 3y224 was
+made, and 3y224 locked the loop to the pulses, but its glue kept two ways to lose them. **Causes**: (1) `cr_out.c`
+dropped a pulse that came within 2 ms of the one before, meant for one clock on USB and TRS both. A USB-MIDI packet
+carries several pulses with one stamp, and a DAW that sends its clock once an audio buffer bunches them: at 120 BPM
+with 1024-sample buffers 36 of 1536 pulses come that close (`cr_midi_test`), and each one dropped put the loop 1/24
+beat behind for good (1.5 beats in 64). The loop test's jittery master: 266 such pulses in 10 minutes, 11 beats. (2) A
+gap of 150 ms ended the lock: the loop ran on the FM-1's whole-BPM clock and re-anchored wherever that had taken it.
+(3) The follower averaged one beat of stamps, so a buffer's late stamps swung it 117..121; every change was
+`cr_set_tempo` (a clock reset; the Arp and Pattern rephased) and the 119 / 121 on screen. **Now**: `cr_loop.c`
+`cr_loop_clock_pulse` takes every pulse of one input (`midi_in_source`: USB, TRS, Bluetooth; the first input that
+sends pulses keeps the lock, another's copy is ignored), so none is dropped and none counted twice; the follower gets
+the same pulses and no longer ignores close ones. A gap holds the lock for `CRL_EXT_HOLD_MS` (1 s): the loop waits a
+pulse past the last one and a late burst is caught up; only a longer silence without a Stop lets the FM-1's clock run
+it. FA / FB arm the lock where the loop starts (`cr_loop_clock_start`): the next pulse is its downbeat, not where the
+ms clock had got to. `crm_clock_pulse` averages four beats (96 pulses), the stamps of the window's first and last
+quarter each averaged, and the last beat alone restarts the window when it is more than 6 % away (a jump still
+settles within about a beat): bunched 120 BPM reads 119.6..120.3 and stays at 120. SELECT under a running Clock In shows
+the clock's tempo (`bpm` / `clock in`) and changes nothing. **Tests**: `cr_loop_test s_extclock_jitter` (10 minutes at
+120.4 BPM, each pulse 0..3 ms late or sent once a 21.3 ms buffer, copied onto TRS 1 ms later, a 300 ms hiccup every
+30 s delivered as a burst, a Start at 5 minutes: the loop within 3 ticks of the master throughout and on its last
+pulse at the end, 28,883 pulses each counted once; a gap waits, a long silence lets go); `cr_midi_test` (the bunched
+clock: 120, no change over 60 beats; the old checks: 120, 90 within 2 beats, 300, 20, garbage). `cr_midi_in`'s
+emulator checks unchanged. Not covered, as in 3y224: the Arp and Pattern run at the whole BPM between chords (each
+chord restarts them). RAM: the follower's window +288 bytes, the loop +6. `tools/emu/emu.c`: `--midi-log` headless
+prints the firmware's MIDI out with its ms (as used for issue 44). MANUAL 9 (SELECT under Clock In) and 10 (the loop
+with Clock In).
+
+3y284. **The PERF layers: a shared parameter on the same knob in every mode (GitHub issue 26).** dphaine: "In Strum and
+Strum x Octaves mode, rate, direction and range are assigned to knobs 1 through 3. But in Slop mode they're assigned
+(and colorized) to knobs 2 through 4", and the same between Arpeggiate and Pattern; the owner: "there's no good reason
+for this inconsistency". `cr_ui.c CU_PERF_KNOB` (the rows of both PERF layers, the chord's and the bass's; a cell's
+colour is its knob's): KNOB 1 the timing (Rate, Division), KNOB 2 the order (Direction; Pattern's figure), KNOB 3
+Range in Strum and Slop, Gate in Arpeggiate, Pattern and Harp, KNOB 4 the mode's own. Strum Rate / Direction / Range / Hold and
+Arpeggiate Division / Direction / Gate / Swing as they were; Slop Rate / Direction / Range / Amount (was Amount / Rate /
+Direction / Range), Pattern Division / Pattern / Gate / Swing (was Pattern / Division / ...); Harp stays Rate / Direction /
+Gate / Range (the owner: "For Harp I would switch Range and Gate, feels odd moving from Pattern with Gate on Knob 3 to
+Harp with Gate on Knob 4", after a first try had Range / Gate). KNOB 3 on the view keeps each mode's main parameter (`CU_PERF_MAIN`: the slop
+amount, the pattern), as MANUAL 3 and 7 say. **Stored values**: the chord's are kept per parameter, so they load as
+before (a 0.35 emulator's flash: Slop 42 ms / Down / 2 oct / 37 %, Pattern 1/16 / 04 / 75 % / 54 %, Harp 11 ms /
+Up-down / 88 % / 4 oct, each on its parameter at its knob). The session's `bpar` (the bass's, 0.34) had been
+written through the knob table itself; it now has its own, `CU_BPAR_SLOT`, set to the new rows, so a later knob move
+leaves it alone. The owner: "I wouldn't worry about old saves with the Bass perform, just move it to it's own table":
+a 0.34..0.36 save's bass Strum, Arpeggiate and Harp load as before (their rows did not change), its bass Slop and Pattern
+values may land on another parameter of the mode (each still checked against that parameter's range). **Tests**: `cr_perf_row` + `test_cr.sh` (the cells: Rate Direction
+Range Amount, Division Pattern Gate Swing; KNOB 3 in Slop: its range). MANUAL 3 (KNOB 3) and 7 (the table, a line on
+the layout).
+
+3y285. **The Arp's first step, checked (GitHub issue 44): not reproduced; pinned by a test.** trs-alt (0.29.2-smk37):
+"in all the ARP modes ... in both 1/8 and 1/16 time, the initial note struck when the key is pressed is longer than it
+should be", in Key Mode and out, through a chord progression. Measured, nowhere longer: the engine on the host (1 ms
+ticks: step 0 at the press, 174 ms then 177 ms gates, 249 / 250 ms apart; Retrig on and off; legato and gapped chord
+changes); the FM-1 emulator's MIDI out (`--midi-log` headless, 3y283) and its WAV's envelope (a 2-bar progression with
+MAJ held, legato, LATCH: every step 247..252 ms after the one before, every gate 174..177 ms); the SMK-37 browser
+emulator of this tree and of the v0.29.2-smk37 tag, the reporter's build (its keys' two contacts: C4 at velocity 100
+sounds 12 ms after the key, step 1 250 ms later; at velocity 5, 90 ms after the key, then even steps). The one
+difference found runs the other way: a key lands between the audio blocks and is stamped at the block before, so step
+0 can come out up to one block (2.9 ms) shorter. Not looked at on a unit (the spare FM-1 has no way to press keys from
+the Mac without changing its settings). What the engine shares with the bass is the same code (`crx_clocked_step`),
+so the Follow is in the test too. Left open for the reporter: whether the bass was on (Chords Only holds the root under
+the arp for the whole chord, on its own channel), and what played the notes. **Test**: `cr_engine_test s_arp_first`
+(Arp 1/8 and 1/16, four chords with gaps and legato, the chord and the bass's Follow, x 4 tick rates: each chord's
+first step at its press, as long as its second, a step before it).
+
+## 2026-11-09 (0.37 and 0.37-smk37)
+
+3y286. **0.37: Bass Solo in the played octave, loops locked to MIDI Clock In, the PERF knobs in the same places; 0.37-smk37
+beside it.** The owner, through the orchestration session: "Works, release it". The release commit on claude/bug-batch
+over 625b7a60 (3y282 .. 3y285 and the Harp row), on origin/main fd9e82c2 (0.36). `./build.sh --release 0.37` and
+`tools/hub_build.sh 0.37`: the same `SHA256SUMS`; XIP 563,944 of 573,440 (98.3 %), 1-core 560,328.
+`choralroot-0.37.fwsc` 386be860...31e3, `-1core` 8bb33865...56b2. `web/releases.json` first with the sha256s, 0.36's
+entry given its going-back note (Solo in the bass register, Slop and Pattern in their old knob order with the chord's
+values on their parameters, the Bass PERF layer's Slop and Pattern values set on 0.37 possibly on another parameter,
+the loop following Clock In as before), `docs/releases/0.37.md` (crediting trs-alt for issues 40 and 43, harrykaden for
+39, dphaine for 26; Solo now in the played octave, Register -2 about the old range; the knob order of Slop and Pattern
+changed with the values kept; issue 44 only as "could not be reproduced"), MANUAL.md's first line and the 0.37 marks
+(Solo, note names, the loop with Clock In, SELECT under Clock In, the knob layout), SMK37.md, `choralroot.c`'s dev
+version. Harp's row ended as it was before issue 26 (the owner's change), so the notes name Slop and Pattern only.
+**0.37-smk37** (base 0.37): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.37-smk37` and `tools/hub_build.sh
+0.37-smk37`, the same `SHA256SUMS` (twelve files); XIP 564,320 (Pro). Pro c8a78ac6...1271, Elite bfee8c5c...d031,
+MKE-P37 20fbca6f...c4b2. `web/releases-smk37.json` first, four bullets, three notes; SMK37.md's status, package
+names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh --check` both lists
+match; `CR_VERSION=0.37 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestration
+session's).
+
+## 2026-11-09 (Glide Length, GitHub issue 46)
+
+3y287. **Glide: up to 30 s, the time the screen shows, and chords that glide in POLY.** The owner on 0.37: Glide
+read up to 10 s but slid far shorter, and only glided on MONO; they want chords to slide into each other over long
+times. Why it was short: the pitch moved in whole 1/16 semitones a control tick (`voice.c`, 32 samples), at least one,
+so RATE's slowest octave took 0.14 s and TIME's `1 + g*g/8` ticks topped out at 1.46 s, while the knob showed F_TIME's
+1 ms .. 10 s. POLY took only free voices for a glide, so the chord's own voices (released, still ringing) never slid.
+**Now**: the glide's position is Q16 of 1/16 st (`voice_t.gpos`; `pitch_cur` its whole part, the rest added to the
+voice's fine residual in 1/4096, so the slide is smooth at any speed); GLIDE's time is 3 x F_TIME's, 3 ms .. 30 s (a
+new format `F_GLIDE`, the editor protocol's fmt 20; `web/editor.html` shows it), the step from `ENV_LIN` (`glide_step`,
+flash, through a veneer from the RAM note path): RATE = an octave in that time, TIME = any interval in it. **Chord
+glide** (no new parameter: POLY with GLIDE above 0): `glide_voice` gives a note the part's released, still sounding
+voice nearest it (`gpos`), restarted in place from its level and phases (as a steal in place: no click) and sliding
+from where it is; never a held voice or one fading for another note; none: a free voice as before. Not for sampled
+engines (GRAIN, the samples) or one-shots; FM6 keeps Dexed's own portamento (its own allocation). GLIDE 0: nothing
+changes (the sequencer's slide too, bit for bit). **Golden renders**: 279, 6 changed, the MONO / LEGATO jobs of VA,
+FM6 and P5 that set GLIDE 30 (`regress.c job_mode`: now 26 ms an octave in RATE, was 1.7 ms); every POLY and GLIDE 0
+render the same. **Test**: `tests/glide_test.c` (run_tests.sh): the screen (3.0 ms, 30.0 s), TIME and RATE at GLIDE
+40 / 64 / 100 / 127 within 2 % of the shown time (127: a fifth in 30.09 s) with equal steps and an exact landing, POLY
+C E G -> D F A on the same three voices half way at half the time (with and without ChoralRoot's steal fade), C E G ->
+E G C' keeping E and G, GLIDE 0's allocation, a note over a held chord on its own voice. MANUAL (the editor's MIX group: Glide and
+Gl. mode), EDITOR.md (MIX); the layout tool knows the format ("glide": layout_web.c, gen_layout.py, design/layouts/*.json regenerated). XIP 564,268 (+292 B), RAM +256 B (`gpos`), `fm1_alnk0_irq` 13,610 of 13,890 (unchanged); run_all ALL SUITES PASSED (24).
+
+## 2026-11-09 (0.38 and 0.38-smk37)
+
+3y288. **0.38: chords that glide, a Glide of up to 30 s as shown, two notes that kept sounding; 0.38-smk37 beside
+it.** The owner, through the orchestration session, after trying af409242 on E81CE2F7: "This checks out, lets merge,
+tag, release". The release commit on claude/rel-038 over origin/main af409242 (3y287, GitHub issue 46, PR 48; and
+460ab6bf, PR 47: LATCH off ends a latched voice its key no longer plays under Snap, and a key's release ends its own
+voice before a Free copy, `cr_engine_test s_orphans`). `./build.sh --release 0.38` and `tools/hub_build.sh 0.38`: the
+same `SHA256SUMS`; XIP 564,316 of 573,440 (98.4 %), 1-core 560,684. `choralroot-0.38.fwsc` a12a4f93...2ec1, `-1core`
+120d723f...4d74. `web/releases.json` first with the sha256s, 0.37's entry given its going-back note (Glide at most
+about 1.5 s, no chord glide, the two latch notes as in 0.37), `docs/releases/0.38.md` (crediting jhussung-ux for issue
+46; old sounds with Glide above 0 slide for the time shown, so more slowly; RemoteFM1 and the plug-in show Glide as a
+number until they know format 20), MANUAL.md's first line and the Glide mark (new in 0.38), `choralroot.c`'s dev
+version. **0.38-smk37** (base 0.38): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.38-smk37` and
+`tools/hub_build.sh 0.38-smk37`, the same `SHA256SUMS` (twelve files); XIP 564,696 (Pro). Pro c3af27fc...5591, Elite
+8dcc28d8...41d2, MKE-P37 82e08555...12fd. `web/releases-smk37.json` first, three bullets, three notes; SMK37.md's
+status, package names, version line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both
+lists match; `CR_VERSION=0.38 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1147 ok;
+test_persist 121 ok; `fm1_alnk0_irq` 13,610 of 13,890). Not pushed, tagged or flashed here (the orchestrator's).
+
+3y289. **MIDI Roots: a whole keyboard plays the chords; pads hold the chord keys.** The owner (through the
+orchestration session): "Sending Midi in if on the home menu does not show any of the notes like you would get if you
+were pressing the FM-1's keys. ... Would also be good if there was dedicated Midi for the chord modifier keys, so you
+could have a full keyboard send in the notes, then have a pad controller setup to drive the chord modifiers." Notes on
+the MIDI Perform channel play the chord sound as a plain synth (no chord is built), so the home view had nothing to
+show. The design, OKed by the owner before the build ("Build it as proposed"; the Perform channel's own notes stay
+unshown, "MIDI Roots covers it"): **Options > MIDI Roots** (Off, ch 1 .. 16, after MIDI CC so no earlier entry moves),
+every note on that channel a root at its own pitch, posted as a root key's (`CRE_KEY` with the note: `cr_ui.c
+cu_mroot`), so the chord, the home view's name and notes and the keys' lights are the key's; it waits for FM-1's
+open type-key gesture as a root key does (`cmr.w`, flushed by `cu_tk_flush`, dropped by `cu_tk_quiet`), plays in
+every layer, takes the note's velocity, and CC 120 / 123 there let every root go (`crm_root`, `CRM_ROOT_ALLUP`). The
+chord keys from pads: **MIDI Keys' notes 36 .. 44** (most pad controllers' first pads) press F3 .. C#4 as 53 .. 61 do.
+MIDI Keys and MIDI Roots skip the parts' channels and each other's; a part set to MIDI Roots' channel switches it off.
+Stored in `midi_en[2]` bits 1 .. 5 (no version; an older firmware reads MIDI Raw Chord Off there). The ISR: both
+channels' parsing moved into one noinline helper (`cr_out.c cr_in_keys`, called only while one is on), so
+`fm1_alnk0_irq` is smaller than before (13,518 of 13,890, was 13,610); the queue to the UI is MIDI Keys' own
+(`CRM_ROOT` events beside the keys', `CR_MKQ_EVERY` on an overflow or a lost USB peer). XIP 565,068 (98.5 %, +752).
+Tests: `cr_midi_test t_roots` and the pads, `cr_settings_test t_midi_roots`, `tools/emu/scripts/cr_midi_roots.txt`
+(the home view's name: the emulator dump's new `screen name:` line; `mroots` on its `chord keys:` line); the Options
+walk (`cr_opt_keys`) and every script that jumps past MIDI CC moved by one entry. MANUAL.md "MIDI in" and the Options
+table, SETTINGS.md. Not on the SMK-37 (hidden with MIDI Keys).
+
+3y290. **The Options in groups.** The owner, trying MIDI Roots (3y289) on 5473E6AA: "The Global settings has a bunch
+of options now. It would be nice to clean this up, so the settings get organized into Groups. So Enter Settings,
+select a group, OCT+ to enter the group, OCT- To exit the group." The grouping as proposed, with the owner's two
+changes ("I would separate Play Style, Extension Addition, Secret Chords into it's own goup at the front. I'd also add
+the "Reset Settings" option at end of root level"), and OCT+ on a setting does nothing (their choice): **Play** (Play
+Style, Extension Addition, Secret Chords), **Chords** (Chord Keys, SUS Window, Full K Shorts, 6th with 7th, Bass
+Behaviour, Single Notes, Split Point), **Keys** (Velocity, Key Touch, the two Sens, Velocity Curve, Hold Time; the
+SMK-37's Pedal), **MIDI** (Perform, Bass, Raw Chord, Raw Chord Sound, MIDI Keys, MIDI Roots, Clock, CC, Bluetooth,
+Forget Bluetooth, USB Host; the SMK-37's TRS MIDI Out), **Screen** (View, Motion, Chord Names, LEDs), **Audio**
+(Output, USB Record, USB Level, USB Rate), **System** (Dual Core, Version, Calibrate), then **Reset Settings** as the
+group list's last item (OCT+ twice there, as before). SAFE MODE adds a Safe Mode group (Safe Mode, Flash Data) and
+opens inside it, on Safe Mode, as before. OPT opens the group list on the group last used (the same picker screen,
+"N settings" under the group); SELECT or KNOB 1 picks, OCT+ enters, OCT- goes back, OCT- on the list leaves; OPT and
+HOME close from anywhere. A Reset Settings goes back to the list on Play. `cr_ui.c`: `O_ORD` (the entries in the
+order shown, per group), `cu_opt_next` / `cu_opt_root` / `cu_opt_enter` / `cu_options_list` (noinline); every O_*
+and every stored bit unchanged. The emulator's `options:` line is the place at the level shown, and a new `options
+group:` line says the group. 38 scripts that went to an entry by counting SELECT steps rewritten to the group moves
+(timing kept: an inserted OCT press's 30 ms comes off the next wait), `cr_opt_keys`'s walk now goes group by group,
+`lp_run`'s preamble enters Play. XIP 565,980 (98.7 %, +912). MANUAL.md section 14 (a table per group), SETTINGS.md.
+
+3y291. **The Options reopen where they were closed.** The owner, trying 3y290 on 5473E6AA: "if I leave using Home then
+come back I have to dig back through to find whichever setting I was on, would be nice if that was saved so opening up
+the settings again I can pick up where I was." Closed from inside a group (HOME, OPT, a layer button, a page), OPT
+reopens inside that group on the same setting; closed from the group list, the group list on that group, as before.
+RAM only (until power-off): no stored bit. SAFE MODE still opens on Safe Mode. A setting hidden since (SUS Window after
+Chord Keys went Classic) reopens on the group's first. `cr_ui.c`: GLO's opening calls `cu_opt_root` only when it was
+closed on the group list. 8 emulator scripts that reopened the Options and went on from the group list now go on from
+inside the group (the same entries reached, timing kept); new `cr_opt_resume` script and test_cr check.
+
+
+## 2026-11-10 (0.39 and 0.39-smk37)
+
+3y292. **0.39: MIDI Roots, pads on the chord keys, the Options in groups that reopen where they were left; 0.39-smk37
+beside it.** The owner, through the orchestration session, after trying de8d2c53 on 5473E6AA: "This is good, push,
+merge, tag, and release please". The release commit on claude/midi-in-home over de8d2c53 (3y289 MIDI Roots and the
+MIDI Keys pads, 3y290 the Options in groups, 3y291 reopening where they were closed; a fast-forward of main 3cb2e8fd).
+`./build.sh --release 0.39` and `tools/hub_build.sh 0.39`: the same `SHA256SUMS`; XIP 566,012 of 573,440 (98.7 %),
+1-core 562,412. `choralroot-0.39.fwsc` b2e190bf...31e7, `-1core` 25e52f77...6fd2. `web/releases.json` first with the
+sha256s, 0.38's entry given its going-back note (one long Options list; with MIDI Roots on, 0.38 reads MIDI Raw Chord
+Off until set; pads 36-44 as notes), `docs/releases/0.39.md` (every setting stored as before; scripts that count
+SELECT steps: the list is grouped), MANUAL.md's first line, `choralroot.c`'s dev version. **0.39-smk37** (base 0.39;
+the groups and the reopening, no MIDI Roots or MIDI Keys): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release
+0.39-smk37` and `tools/hub_build.sh 0.39-smk37`, the same `SHA256SUMS` (twelve files). Pro d6e31b2b...a089, Elite
+cd7a7035...12ae, MKE-P37 ed6902a1...983d. `web/releases-smk37.json` first; SMK37.md's status, package names, version
+line and splash. `python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.39 sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `fm1_alnk0_irq` 13,518 of 13,890). Not pushed, tagged or
+flashed here (the orchestrator's).
+
+3y293. **Casio's CZ-1 tones into the resource region (the drums' flash, step 1).** The drums (the owner, 2026-11-10: a
+Grids-style beat for the metronome's keys) need about 8.5 KB of the app's flash against 7,428 B free. The first room
+comes from the one big table only the main loop reads: `CZ_FACTORY_LZ4`, Casio's 64 tones packed (4660 B), now carries
+`CZ_RES` (`tools/gen_cz1_factory.py`), the section `.res.cz` on the FM-1 (`choralroot.c`), as the fonts' `AF_RES`.
+The SMK-37, the emulator and the host tests keep it in their image (`CR_RES` 0). Guarded like the fonts (`cr_res.h`
+`CR_RES_GONE`): with the region refused, `eng_cz.c cz_factory_bank` reads nothing and says so; a factory CZ-1 load
+keeps the part's tone and the message box says "install ChoralRoot again" (Bluetooth's words then, `cz_store.c
+cz_gone_message`); a CZ-1 bank A..D never saved stays empty (its slots load nothing, `cz_bank.c`). FM-1: XIP 561,484
+of 573,440 (97.9 %, -4,528), RES 46,480 of 49,088 (94.7 %: 2,608 B left, room for the Grids map's 1,200). SMK-37 XIP
+566,360, unchanged. `run_tests.sh`: 279 goldens, 0 changed; `run_cr_tests.sh` passed (`cr_cz_test` 48: every factory
+tone unpacked as it is). BOOT-SAFETY.md, CZ1.md.
+
+3y294. **The drums' voices and their CPU test (the DRUMS plan, Phase 3's gate).** `cr_drum.c`: three drums from
+Felucca's `drum_voice.c` (removed in e8f4b360; its kick, snare, clap, hat and metal run loops as they were): KICK
+(Character 0 Felucca's ROUND .. 127 PUNCH), SNARE (Character 0..64 dark .. snappy, 64..127 crossfading to the CLAP),
+HATS (closed and open on one six-square metal source, the closed one choking the open one); Tune +-12 semitones, Decay
+over each voice's designed span, Level. Each voice stops computing at -66 dB. No UI, no beat, no settings yet: only
+`CR_DRUM_TEST=1 ./build.sh` puts them in, dry into the master's mix before the limiter (`fx.c mix_block`), with a
+fixed busy bar on the tempo's 16ths (kick on the quarters, snare + clap on 2 and 4, a hat every 16th, the open one on
+the 8ths); default 0, never in the SMK-37 build. Host (`tests/cr_drum_test.c`, in `run_cr_tests.sh`; `--cpu` the
+counts): instructions a sample while ringing, kick 88, snare 120, clap 62, a hat with the metal 66, all five at once
+336, the test bar 213 on average, nothing ringing 3.4 (a VA voice is about 225). pi32v2 loop costs
+(`target_budget.py`'s count): `cr_drum_kick` 149, `cr_drum_snare` 154, `cr_drum_clap` 76, `cr_drum_hat` 62,
+`cr_drum_metal` 25, `cr_drum_mix` 174; `fm1_alnk0_irq` 13,535 of 13,890 with the test in (13,518 without: the drums
+are out of line, one call). XIP 566,364 with the test, +4,880 over 3y293. The default build is 3y293's byte for byte.
+The unit's Geek Out figure is the gate.
+
+## 2026-11-10 (the SMK-37's resource region)
+
+3y295. **The SMK-37 gets a resource region of its own; its fonts M, CRX and CRB move there (35 KB of its app slot
+free for the drums).** The owner chose option A of the DRUMS plan's Phase 2 (2026-11-10). On claude/smk-res from main
+36867e5c (0.39); 3y293 / 3y294 are claude/drums'. The region is the FM-1's (3y234, docs/BOOT-SAFETY.md) at the SMK's
+place: **0x9D000..0xA8FFF**, the stock VM's first 12 sectors (0.21's sound objects until 3y231, nothing since), right
+after its app area (PRCT 0x9D000) and at the start of its plain XIP window (the data from 0x9D040, XIP 0x02099040).
+`hal/fm1_flash_map.h`: the SMK's `FL_RES_LO` / `FL_RES_HI`, its `FL_DATA` from 0xA9000 (the app cannot write the
+region). `storage.c`: no object moves; `ST_SMK_REGIONS` (an owner change and Flash Data) starts at 0xA9000, not
+0x9D000, else the first start over another firmware's store would erase the fonts just installed. `ldr_core.c`
+`LDR_RES_HI` 0xA9000 on the SMK; the stub unchanged (its plain window already starts there; `stub_smk37.lock` holds).
+`fm1pkg_make.py`: the region per board (`RES_AT`), `--res` for both. `tools/build.py`: BOARD=smk37 links with
+`build/app-smk37.ld` (app.ld's RES line at the SMK's origin) and packs `build/res.bin`. `choralroot.c`: `CR_RES 1` and
+`AF_RES` for the SMK in a block of their own (the FM-1's block untouched, for claude/drums). `web/smk37.html`'s
+progress bar counts the longer package. **Sizes**: SMK XIP 566,360 -> 531,032 of 573,440 B (35,328 B freed, 42,408 of
+margin), RES 36,024 of 49,088 B; the package 651,914 -> 701,061 B (flash.bin 0xA9000). The FM-1 package is byte for
+byte 0.39's (b2e190bf...31e7). **Tests**: `smk_flash_test` (the region: the loader's to write, never the app's, never
+cleared), `smk_owner_test` (an owner change leaves it), `smk_pkg_test.py` (header, CRCs, body CRC = the marker's),
+`ldr_test` SMK build over a package with the region (every cut a rescue or the finished boot, 1325 requests) and a
+downgrade that leaves it. `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok;
+test_persist 121 ok); `BOARD=smk37 ./build.sh` builds. **Not tried on a unit** (no SMK-37 here): SMK37.md "What to
+test" 16, before it ships. Not pushed, tagged or flashed.
+
+## 2026-11-10 (the FM-1's second resource region)
+
+3y296. **The FM-1 gets a second resource region at 0xDC000..0xDFFFF; 12.5 KB of read-only tables move there (12,096 B
+of app slot freed).** The owner chose, for the drums (2026-11-10): two kits now, and a second FM-1 region in unused
+flash so the other four kits and later features fit. On claude/fm1-res2 from claude/smk-res 27422c1b (3y295; 3y293 /
+3y294 are claude/drums'). **The place**: of the FM-1's free flash (docs/FLASH.md: 0xB2000..0xB3FFF, 0xDC000..0xDFFFF,
+0xE5000..0xE7FFF) the one contiguous 16 KB run in the plain window right below the staging (0xE0000), 0.21's user banks
+until 3y231 and nothing since; checked against `fm1_flash_map.h`, `storage.c`'s FM-1 map, `cr_ui.c cu_flash_erase`
+(its list ends at the loop slots, 0xDBFFF: now asserted) and `ota.c` (staging 0xE0000..0xE4FFF). **The pieces**:
+`fm1_flash_map.h` `FL_RES2_*`, `FL_DATA` ends at 0xDC000; `cr_res.h` `CR_RES2`, `cr_res2_ok`, `CR_RES2_GONE`, magic
+"CRE2", entry type 200; `cr_shim.c cr_res2_boot` (the first region's checks, its own magic) after `cr_res_boot`;
+`app.ld` RES2 at XIP 0x020D8040 and `.res2` (`.res`'s pattern narrowed to `.res.*`); `choralroot.c` `CR_RES2`,
+`AF_RES2`, `RES2_PRESET`, `RES2_FM6`, `RES2_DRUM` (the drum kits' place, unused here) for the FM-1 in a block of its
+own; `build.py` takes `.res2` (`_res2_start` checked, empty on the SMK), prints RES2 and packs it;
+`fm1pkg_make.py res2_image` / `--res2`: the package's entry `res2.bin` after `ota.bin` (not a longer `flash.bin`: the
+store lies between the regions), refused if a sector would start with "FELU"; `ldr_core.c` writes its four sectors
+after the first region's and before the marker, skips them in the record sweep, refuses an entry of another length.
+**What moved** (FM-1 only): the kerning of M and CRB (3,476 B; `gen_aa_font.py RES2`), the factory presets' lists of
+PROPHET, CZ-1, VA and FM6 (5,544 B), FM6's factory voices (`FM6_FACTORY`, `FM6_ROM`: 3,520 B). Every reader checked:
+the UI, the pool and the console read the lists through `core.h eng_preset`; `va_track_loaded`, `fm6_slot_get`,
+`fm6_blob_preset` and `gfx.c kern` check `CR_RES2_GONE`; all main loop, and no RAM code or second-core code refers to
+the region (the image scanned for its addresses). **Refused** (a cut install the stub missed, the Transporter's rescue,
+another build's): M and CRB unkerned; each factory preset of those lists "NO PRESET" with the engine's defaults (the
+counts, places and bindings unchanged); FM6's F1..F24 the init voice; the splash PRESETS MISSING / INSTALL CHORALROOT
+AGAIN. **Sizes**: FM-1 XIP 566,012 -> 553,916 of 573,440 B (19,524 B of margin), RES2 12,540 of 16,320 B (3,780 free:
+four drum kits are 2,056), the package 659,880 -> 676,628 B. SMK-37 XIP 531,032 -> 531,064 (its splash's second
+message; its tables stay in its image). docs/FLASH.md lists what else only the main loop reads and is big (`P5_FPACK`
+6,325, `cr_ring` 6,100, the `*_PAGES` 14,112). **Tests**: `tests/ldr_test.c` (both regions over stale bytes and a
+record-like sector end: every cut a rescue or the finished boot, the unprotected windows as before, 1277 requests; a
+downgrade leaves the region, also its record-like bytes, which a loader without the sweep's skip erases);
+`tests/cr_res2_test.c` (new, in run_cr_tests.sh: the emulator's firmware with `CR_RES2` 1, the region refused: 25
+checks); the web installer's bar counts the 32 reads (`fm1pkg.js res2SizeOf`). `sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1155 ok; test_persist 121 ok; `tests/text_spacing_test.py` reads `AF_RES2` too); `BOARD=smk37 ./build.sh` builds; `build/choralroot.fwsc` sha256 0af5b430...3072. **Not tried on a unit**:
+an install over 0.39 (no PRESETS MISSING, M kerned, the factory sounds named), a cut install resumed, a downgrade to
+0.39 and back, the first install from V15 with a three-entry package, M-Flasher (it writes `flash.bin` only: the unit
+starts with PRESETS MISSING until ChoralRoot's own installer runs once; docs/BOOT-SAFETY.md). Not pushed, tagged or flashed.
+
+## 2026-11-10 (the drums, continued)
+
+3y297. **The drums' voices are CoralFlower's morph drum synth (the CPU gate, second step).** The lean voices of
+3y294 ran on the unit at Geek Out 80-90 % peaks with FM TONE / P5 chords and every effect on, the same as without
+them; the owner then chose CoralFlower's engine (FicusFicusov's `drum_synth.c`, 0.6, GPL-3.0-only; LICENSING.md) for
+its sound, with two of its kits for now: X Club (909-ish) and X Deep (808-ish). `cr_drum.c` is that engine with five
+sounds (kick, snare, clap, closed and open hat: the tom, rim, bell and cymbal rows and the TRI / FM / SQ2 waves only
+they played left out: 416 B of the region, 320 B of XIP) and each drum's own morph: Character (KICK; SNARE x2 up to
+64, then the snare fading out as the clap fades in, its morph 0..127; HATS both hats), Tune +-12 semitones (pitch,
+metal, filter), Decay +-2 octaves, Level; VARY at the kit's. The open hat is choked by the closed one. The kits
+(`cr_drum_kits.h`, 532 B) are in the resource region (`CRD_RES`, `.res.drum`) on the FM-1: `crd_kit_load` copies one
+into RAM in the main loop and refuses a region that is not there (`CR_RES_GONE`); the CR_DRUM_TEST bar then turns the
+metronome's click on instead. Out of line as before (`ds_strike` at a hit, `cr_drum_mix` a block). CR_DRUM_TEST=1
+(X Club, the snare at 96, the same busy bar): XIP 566,472 (+4,988 over 3y293), RES 47,012 of 49,088 (2,076 free:
+876 after the Grids map's 1,200); `fm1_alnk0_irq` 13,544 of 13,890 (+26). Host instructions a sample while ringing,
+X Club / X Deep: kick 134 / 93, snare 134 / 137, clap 116 / 116, closed hat 115 / 87, open hat 114 / 86; all five
+643 / 537; the bar 362 on average (the lean voices: 336 all five, 213 the bar). pi32v2 loop costs: `ds_osc` 77,
+`ds_noise` 980 (the clap's loop nested in the block's), `ds_filter` 113, `ds_out` 94, `ds_fmetal` 50, `ds_metal` 27,
+`ds_run` 59, `cr_drum_mix` 105. `tests/cr_drum_test.c` rewritten for it (both kits, 34 checks, the sanitizer). The
+default build is 3y293's byte for byte; the SMK-37 has no drums.
+
+3y298. **The drums (the DRUMS plan, Phases 4 and 5).** The morph engine passed on a unit (3y297: Geek Out 2 peaks 70-80 %
+with FM TONE and P5 chords and every effect on); the owner, 2026-11-10: all six kits, both resource-region branches
+merged (3y295, 3y296), and the rest of the drums. **The kits**: all six of CoralFlower's (X Club, X Deep, X Lo-Fi, X
+Live, X Tech, X Break; their kick, snare, clap and hat rows, 1,596 B) in the FM-1's second region (`.res2.drum`) and the
+SMK-37's own (`.res.drum`), which now builds the drums too. **The beat** (`cr_drum.c crd_beat_*`): Mutable Instruments
+Grids' pattern generator, GPL-3.0-or-later (LICENSING.md): its 25 nodes as resources.cc has them (`cr_grids_map.h`,
+2,400 B unpacked: the FM-1's first region, the SMK-37's), blended at Map X / Y in the main loop into 96 bytes of RAM
+(the ISR never reads a region; a region refused: the beat is the click); each drum's Fill its density, Density shifts
+the three, Chaos Grids' per-bar perturbation, an accent (level > 192) louder for the kick and the snare, the open hat
+for the hats (choked by the next closed one); the snare's Character past 64 crossfades to the clap. 32 steps a bar
+(32nds, as Grids); 3/4 and 6/8 play the first 24 (the plan's open question 1, option a). **The transport**
+(`cr_loop.c crl_tick1`, LOOPER.md "The drums"): the drums play while a loop plays or a take records (not the
+count-in), on its grid from the take's or the cycle's start, joining on a beat: LOOP starts them at bar 1, stops them;
+GLO + SEQ while a loop plays: the next beat, in step; on with nothing playing: they wait. Never in a loop or a slot.
+**The UI** (`cr_ui.c cu_drum_*`, `cr_draw.c cr_p_drum`, `CR_K_DRUM`): the SEQ layer's preset page (the Metronome and
+Drums tiles; KNOB 1 Preset, 2 Level, 3 Meter (D4 E4 F4 too), 4 Kit), with Drums SELECT to Beat (the 5 x 5 map, the
+dot, the tinted tiles, the live BD / SD / HH lanes, the step playing; Map X, Map Y, Density, Chaos), Kick, Snare,
+Hats (the drum's icon in a magenta roundel thumping on its hits, its sound as a shape; Tune +-12, Decay, Character,
+Fill); GLO + SEQ "drums on / off"; the PLAY menu's page 2 KNOB 2 relabelled Beat; the home view's beat chip (the
+beats' blocks, the roundel with Drums). Magenta #E04BD8 is `CR_COL_MAGENTA`. Until now SELECT picked the time
+signature in the SEQ layer and KNOB 1 was the click. **Saved**: the session's drum block (bytes 26..45, its own
+version: an older record loads Metronome; each field checked), by the global save; not in a backup (the session never
+is). **Sizes**: FM-1 XIP 560,040 of 573,440 (97.7 %; the merge's base 549,388, +10,652), RES 48,880 of 49,088 (208 free: the map unpacked), RES2 14,136 of 16,320 (2,184 free); SMK-37 XIP 541,732 (94.5 %), RES 40,020 of 49,088.
+`fm1_alnk0_irq` 13,531 of 13,890 (the drums' RAM in sections of its own: merged with the unit's statics it pushed
+usb.c's past one-instruction offsets, usb_poll +5 %). **Tests**: `cr_drum_test` (the blend against Grids' own
+ReadDrumMap at 257 places, the beat's Fill / Density / accents / clap / Chaos, every kit's sounds), `cr_settings_test`
+and `cr_backup_test` (the drum block, an older record), test_cr `cr_drums` (the layer's pages, the toggle, waiting,
+playing with the loop, stopping, the WAV), test_persist (the drums after a relaunch), gen_cr_screens (the preset page,
+Beat, Kick, Hats, the home chip); `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok, the web emulator's two). Two builds of the FM-1 package: the same bytes. The CR_DRUM_TEST harness is gone.
+
+3y299. **The drums after the owner's first play (drums-dev on a unit: it runs, the second region works).** Eight notes,
+fixed in their order. (1) "I would make the ALGO knob change between Metronome and Drums ... with the PRESETS knob it
+should start/stop": in the SEQ layer, on every page, ALGORITHM picks the preset (a detent right Drums, left
+Metronome) and PRESETS starts / stops the beat (right on, left off: a direction, as the PLAY menu's Beat cell, so a
+fast turn lands where it points); both encoders turn and have no press. The preset page's knobs: KNOB 1 Level, 2
+Meter, 3 Kit, 4 Beat (on / off). (2) SEQ held from the loop editor opens the SEQ layer (the editor closed); a knob
+inside the hold time is still the editor's; EDIT keeps the editor / PLAY menu switch (LOOPER.md, `cr_seq.txt`). (3)
+"if there is no loop the drums don't start": the beat on = the drums play: free on the tempo from the moment they
+are turned on, taken over by a loop (its start is their bar 1; the count-in's grid before a take), running on in
+step when it stops (`cr_loop.c crl_tick1`, `dr0`). (4) "The volume of the metronome does not change when reducing
+the master volume": the click and the count-in take MASTER (`cr_out.c cr_click_mix`; with USB Level Fixed audio.c
+applies it after), still out of the limiter and the recording; the drums were always in the mix, under MASTER. (5)
+Map Y up: the map drawn with Y from the bottom (`cr_draw.c cr_dr_beat`); X right, as it was. (6) The keys play in
+the SEQ layer (`cu_layer_keys`); D4 E4 F4 no longer pick the meter. (7) The top row's dim LEDs (C#5, D#5 and the
+white keys to F5, Key Mode off): the PA10 probe of Key Touch (3y123), in 0.39 too, nothing of the drums or the
+regions: its tick makes the LED line of row PA6 an input with its pull-up, a little current through each top-row LED,
+one tick in 33. Not changed (the reading is that current); Key Touch Fixed, the default, has no probe (VELOCITY.md).
+(8) Each drum's FX send: a sixth page, **Mix** (Kick FX, Snare FX with the clap, Hats FX), the same amount into the
+delay's and the reverb's buses; the drums now go into the mix with the parts, before the effects (`fx.c mix_block`),
+so the master filter sees them too; FX off closes the sends; 0 by default (dry, as before); saved in the drum block
+(24 bytes now: the sends in the reserve's bytes, 0 in a first-build record: no new version). Sizes: FM-1 XIP 561,464
+(97.9 %), RES 48,880, RES2 14,136; SMK-37 XIP 542,516, RES 40,020. `fm1_alnk0_irq` 13,485 of 13,890 (the click's loop
+out of line now; the drums' anchor and the sends' call in). Host: the busy beat 448 instructions a sample, all five
+ringing 547 .. 683 by kit. `sh tests/run_all.sh`: ALL SUITES PASSED (24; test_cr 1164 ok, test_persist 124 ok).
+
+3y300. **The kits' names without the X** (the owner: "Not sure why all the drum kits names start with an 'X', I would
+just rename to 'Club', 'Tech', ..."): Club, Deep, Lo-Fi, Live, Tech, Break (`cr_drum_kits.h CRD_KIT_NAME`; CoralFlower
+calls them X Club .. X Break). The screens, the MANUAL, the tests and gen_cr_screens follow; the kits themselves and
+the stored kit number are unchanged. (A model with the beat only arming the drums and LOOP playing them
+was tried on the branch and dropped at the owner's word: "Once I'm in the drum menu then I can quickly toggle drums
+using seq key and the loop with play so I think this actually works well": 3y299's transport stays.)
+
+3y301. **The beat off at power-on** (the owner: "the metronome and drums should always default to being off when
+powering on"): `cr_settings.c` no longer applies the block's `metro_on` (still written): the click and the drums are
+off at every power-on, restore and revert; the preset, kit, levels, meter, map, drums' knobs and sends stay remembered
+(test_persist: the drums back after a relaunch, the beat off; MANUAL, SETTINGS.md).
+
+## 2026-11-11 (0.40 and 0.40-smk37)
+
+3y302. **0.40: drums on the metronome's keys, the click following MASTER, the beat off at power-on, two resource
+regions; 0.40-smk37 beside it.** The owner, through the orchestration session, after trying 71b9ed9a: "Push, merge,
+tag and release this please." The release commit on claude/drums over 71b9ed9a (3y293 .. 3y301: the CZ-1 tones and
+the drum kits and Grids' map in the regions, the SMK-37's region 3y295 and the FM-1's second 3y296, CoralFlower's
+morph drum synth, the Grids beat, the SEQ menu's pages and Mix, the owner's notes, the kits' names, the beat off at
+power-on; a fast-forward of main 36867e5c). `./build.sh --release 0.40` and `tools/hub_build.sh 0.40`: the same
+`SHA256SUMS`; XIP 561,448 of 573,440 (97.9 %), RES 48,880, RES2 14,136. `choralroot-0.40.fwsc` ed860cca...466c,
+`-1core` 29ec09b1...a5a5. `web/releases.json` first with the sha256s, 0.39's entry given its going-back note (the
+drums gone, the SEQ menu the metronome's, their settings kept unread; a metronome left on is on at power-on; the
+second region left unread), `docs/releases/0.40.md` (what a backup does not hold: the drums are the session's;
+M-Flasher: PRESETS MISSING until ChoralRoot's installer runs once), MANUAL.md's first line and its "new in 0.40"
+marks, `choralroot.c`'s dev version. **0.40-smk37** (base 0.40; its own resource region, new and not yet run on an
+SMK-37: SMK37.md asks the testers): `BOARD=smk37 [MODEL=elite|mke] ./build.sh --release 0.40-smk37` and
+`tools/hub_build.sh 0.40-smk37`, the same `SHA256SUMS` (twelve files). Pro 8f3ba23d...0b56, Elite 100d1f76...a20a,
+MKE-P37 b02aaa8d...7de7853. `web/releases-smk37.json` first; SMK37.md's status, package names, version line.
+`python3 tests/releases_test.py` ALL OK, `tools/hub_build.sh` both lists match; `CR_VERSION=0.40 sh tests/run_all.sh`:
+ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok; `fm1_alnk0_irq` 13,485 of
+13,890). Not pushed, tagged or flashed here (the orchestrator's).
+
+## 2026-11-11 (the drums: a send a bus, on the second core)
+
+3y303. **Each drum's three sends and its Level; the drums on core 1.** Users of 0.40, through the owner: "Being able to
+individually send each drum voice to each FX send", and "The drum voices are consuming the same voices used for the
+chord and bass engines, meaning it can be difficult to play chords over them. There's definitely room on the second
+CPU to handle the drums." The drums took no voice slots: they rendered on core 0 after join 1 (`cr_drum_mix` in
+`fx.c mix_block`), in the audio ISR's serial stretch, and the overload shed then faded chord voices. On
+claude/drums-sends-c1 from main bebd69d1 (0.40).
+**The sends** (`cr_drum.c crd_fx[3][3]`): each drum into the chorus's, the delay's and the reverb's buses, Q15 as
+the parts' sends; the clap takes the snare's, both hats the hats'; FX off none. Until now one send a drum fed the
+delay and the reverb alike and never the chorus. **The Level** (`crd_lvl[3]`, 0..127, 64 as voiced): x lv / 64 on a
+hit's output gain (`crd_hit`, after `ds_strike`; 0 silent, no hit, no choke); no per-drum level existed (the kit's
+per-sound LEVEL and the drums' Level 0..100 of the preset page are the others). **The pages** (the owner's layout):
+the one Mix page is three, **Kick Mix, Snare Mix, Hats Mix** after Hats (SELECT: Drums > Beat > Kick > Snare > Hats >
+Kick Mix > Snare Mix > Hats Mix; `CU_DR_NPAGE` 8): KNOB 1 Chorus, 2 Delay, 3 Reverb (`cu_send_step` / `cu_send_text`,
+the FX layer's per cent; `off` with FX off), 4 Level (per cent of the kit's: 64 is 100%, 127 198%). The screen
+(`cr_draw.c cr_dr_mix`, pages 5..7): the drum's icon in its roundel at the left, its Level the arc (green, KNOB 4's),
+3 px wider at the drum's thump, the icon magenta at the hit; a wire from it through three rings (r 20) in their knobs'
+colours, Chorus blue, Delay orange, Reverb white, each as full as its send, its middle a disc that swells with the send
+and at a hit by as much as the send carries it; the wire lights magenta at a hit; grey with FX off. **Saved**: the
+session's drum block is version 2 (`CSS_DRUM_VERSION`, 36 bytes at 26..61: `cho[3]`, `rev[3]`, `lvl[3]` and a pad in
+12 bytes of the reserve, 40 left); `send[3]` is the Delay. A version 1 record (0.40) loads its send S as Delay S,
+Reverb S, Chorus 0, Level 64: 0.40's mix, bit for bit (`crd_render` sums each voice's `(y * g) >> 15` per bus as
+`cr_drum_mix` did). A later version: the defaults. Going back to 0.40 reads a version 2 block as none (Metronome and
+the drums' defaults). **The drums on core 1** (docs/DUALCORE.md "What each core runs"): a block is
+`crd_render` (every ringing voice into buffers of the drums' own: the bus under its soft knee and each send's sum,
+`crd_bus` / `crd_snd`, 512 B of POOL; `crd_out` says which were written) and `crd_add` (into the mix and the three
+send buses). With core 1 alive `mix_parts_split` sets `c1_dr` before the hand-over and `c1_part1_job` runs
+`crd_render` after the bass part and core 1's chord voices; core 0 adds them after the parts (`cr_drum_out`, out of
+line: the ISR's code as it was laid; the first build had the add inline in `mix_block` and the IRQ's loop figure went
+13,485 -> 80,329 on backward branches alone). One core (Dual Core Off, the 1-core package): `cr_drum_mix` = the two
+in a row, where 0.40 ran them. Job 1 refused, stalled or faulted: core 0 reruns `c1_part1_job`, the drums in it.
+The hits stay core 0's before the hand-over; core 1 reads `crd_fx` (the main loop's, which never runs during the
+ISR) and `c1_dr` (FX off read on core 0). Core 1's stack: 568 B down the drums' path, after `track_render_x` returns.
+**The split of the chord's voices** weighs the drums ringing on core 1's side (`p5x_assign`: `bl += crd_us()`;
+`CRD_US_*` kick 140, snare 138, clap 120, hats 134 / 132 us: the heaviest kit's host instructions a sample x 128 /
+259, x 2 for code from the flash, the unit's worst voice over the emulator's for FM6's TINE EP (2.4) and the VA's MORPH
+PAD from the flash (1.9)). An 8-voice VA chord over a VA bass with all five ringing: 3 to core 1, 5 to core 0. P5
+keeps its four a core. **Measured** (the emulator, `EMU_STAGES=1`, an 8-note chord over MIDI + PUNCH BASS + the drums
+at Density full with every send 127 + both parts' three sends 127; device us a half avg / max; the emulator's new
+`cpu: each core` line, `cr_dbg.c0_tot_*` / `c1_tot_*`, host-only): FM6 TINE EP core 0 677 / 1006 -> 555 / 1397 (a
+sound load's tick), core 1 505 / 744 -> 576 / 956; VA ENSEMBLE STR 829 / 1142 -> 742 / 1025, 657 / 892 -> 681 / 985;
+VA MORPH PAD 959 / 1625 -> 897 / 1228, 787 / 1044 -> 774 / 1109; P5 ITS PROPHET5 1165 / 1556 -> 984 / 1537, 958 / 1286
+-> 1044 / 1682. The half (tick + the longer render + fx + master, averages): FM6 987 -> 906, VA 1127 -> 1003, MORPH PAD
+1256 -> 1146, P5 1437 -> 1371 (DUALCORE.md has the table). The emulator's FM6 and P5 voices cost less than the unit's
+weights, so there core 1 ends the longer side; with P5 the four a core leave nothing to move. **Proof**:
+`tests/cr_c1_thread_test.c` "drums": every phrase has the drums ringing (a kit by the pair, a hit every five blocks on
+their own dice, so the phrases' notes are as before, every drum's three sends up and its Level off 64, FX off for 60
+blocks): the drums on core 0 after the parts (`cr_c1_test_dr0`) = inline = on the thread, 26 pairs, 78,000 blocks of
+drums in core 1's job; ThreadSanitizer 0 reports. (Drawing the hits from the phrase's own generator first showed
+that the FM TONE COMB+ / COMB- pair's UNSPLIT render differs from its split render on some phrases, with or without
+the drums: a difference of the test's reference path or of the lent comb lines, older than this change, not
+followed here.) `tests/cr_cpu1_test.c`: the 3 x 3 pairs, the job after part 0 and the hung job with the drums
+ringing, every send up. `tests/cr_drum_test.c`: each drum's bus its own, 0.40's send as Delay = Reverb with the dry
+mix unchanged, FX off, the Level (32: -6 dB, 0 nothing); the host's cost per sound unchanged (Club kick 135 -> 131
+instructions a sample). `cr_settings_test`, `cr_backup_test` (version 2 round-trip, a 0.40 record, out of range, a
+later version); test_cr `cr_drums` (Kick Mix KNOB 1, Hats Mix KNOB 3 and 4, the screens), test_persist (the snare's
+Chorus, Delay, Level after a relaunch), gen_cr_screens (Kick Mix with a thump, Hats Mix with FX off). **Sizes**
+(FM-1): XIP 561,448 -> 562,376 of 573,440, RAM 91,248 -> 91,268, POOL 334,512 -> 335,024, RAMTEXT 22,092 (same);
+1-core XIP 557,752 -> 558,168; SMK-37 XIP 542,468 -> 543,508. `fm1_alnk0_irq` 13,485 -> 13,517 of 13,890.
+`sh tests/run_all.sh`: ALL SUITES PASSED (24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok);
+`BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev package `build/choralroot.fwsc` sha256 eac1e7fd...ebd7. Not tried
+on a unit; not pushed, tagged or flashed.
+
+3y304. **Each drum's Filter and Drive; ALGORITHM and PRESETS in the SEQ layer.** The owner, after 3y303 on a unit
+("This is nice"): "It would be cool to be able to also mix the drums through the filter and drive. Algo knob should
+only switch the drum machine on the first page, I would be fine if on the FX Mix pages the PRESETS and ALGO knobs were
+used for filter and drive." **The encoders** (`cr_ui.c`, the SEQ layer): ALGORITHM picks Metronome / Drums on the
+preset page alone (Beat, Kick, Snare, Hats: nothing); PRESETS starts / stops the beat on every page but the Mix
+pages; on Kick Mix, Snare Mix, Hats Mix PRESETS is the drum's Filter and ALGORITHM its Drive (`cu_drum_enc`, 0..127 at
+the knobs' step, `cu_send_step`; per cent on the screen). KNOB 1..4 stay Chorus, Delay, Reverb, Level. **Drive**
+(`cr_drum.c crd_drv`, 0 the default: clean): the parts' DIST (`dsp.c dsp_dist`: low cut, 1x .. 9x into the
+asymmetric soft clip, the tone's two poles, the make-up) on the drum's sum (the snare with its clap, both hats),
+before its sends, its states the drum's own (`crd_dist`, kept at 0: no click switching it on). At 0 each sound is
+emitted on its own as in 3y303: the same sums, bit for bit. **Filter** (`crd_flt`, 127 the default): 127 - Filter of
+the drum's dry goes round the master filter by `cr_fx.c`'s rule for a part round it (B, F(acc - B) + B; FX.md "The
+drums' Filter"), whatever part the filter is on (All, Chord, Bass: the drums follow their own amount, as the
+coordinator suggested and as the code makes natural: B is a sum, the parts' shares and the drums' add); the sends as
+they are (the place before the buses filters every send whole, a bypassed part's too). Checked in every mode and
+place: at 127 nothing is added to B, so the drums (in the dry mix after the parts) go through the filter whole after
+the buses, first in Parallel (their sends with the parts'), and in Chain at its position, as before. The share
+(`crd_fr`, Q12) moves by 256 a block, a line across it, while the filter sounds (`xb.on`, set in `xb_begin`: a cut
+wanted or a place fading); at once while it does not; nothing is taken with the filter Off or FX off (the knob never
+turns the filter on). The share is taken before the bus's knee (linear to -6 dBFS: above it the knee's few per cent
+are filtered). **On core 1** (DUALCORE.md): both are in `crd_render`, core 1's job; `c1_dr` carries core 0's flags
+(FX off, the filter sounding), `cr_drum_out` adds the share into B after the parts (`crd_byp_add`). **The screen**
+(`cr_dr_mix`): the Drive as 20 red spikes round the roundel, longer and more ragged with drive, flaring at a hit;
+the Filter a white box on the wire with a low-pass curve, filled as much of the drum as goes through (dim while the
+master filter is Off or FX is); their values under them (13 px, red / white; the one just turned underlined). **Saved**:
+the drum block is version 3 (40 bytes at 26..65: `flt[3]` in version 2's pad, `drv[3]` and a pad in 4 bytes of the
+reserve, 36 left); a version 1 or 2 record loads Filter 127, Drive 0. **Cost** (`cr_drum_test --cpu`, Break, all five
+ringing): clean 683 instructions a sample (3y303: 682), every drum driven 825 (+47 a drum: `CRD_US_DRIVE` 46 us of
+the unit's half in the split's weight), all of each round the filter 700 (+5 a drum, not weighed). The emulator's
+scenarios (8-note chord + bass + the drums at Density full, every send 127; device us a half, core 0 / core 1
+averages): drive 0 = 3y303's within 3 us (FM6 548 / 568, VA 733 / 671, P5 971 / 1027, MORPH PAD 881 / 762); every
+drum at Drive 127: FM6 535 / 559, VA 723 / 661, P5 946 / 1012, MORPH PAD 871 / 751 (the drive's weight moves chord
+voices to core 0; the drive's own cost is inside the run's noise there). **Proof**: `tests/cr_c1_thread_test.c` with
+every drum driven, part of each round the filter, the filter on (Bass, both cuts) for a sixth of each phrase: the
+drums on core 0 = inline = on the thread, 26 pairs, 13 416 blocks with a share round the filter; ThreadSanitizer 0
+reports. `cr_cpu1_test` (the pairs and the hung job, every drum driven); `cr_drum_test` (Drive another sound under
+full scale, the send takes the driven sound, Filter 127 nothing round, Filter 0 all of it after the ramp and nothing
+while the filter is silent); `cr_settings_test`, `cr_backup_test` (version 3 round-trip, a version 2 record, out of
+range, a later version); test_cr `cr_drums` (ALGORITHM on Beat: still Drums; PRESETS / ALGORITHM on Kick Mix: its
+Filter and Drive, the beat stays off); test_persist (the snare's Filter and Drive after a relaunch); gen_cr_screens
+(Kick Mix with Drive, Filter and the filter on). **Sizes**: FM-1 XIP 562,376 -> 563,948 of 573,440 (98.3 %), RAM
+91,268 -> 91,328, POOL 335,024 -> 335,156; 1-core XIP 558,168 -> 559,980; SMK-37 XIP 543,508 -> 545,112;
+`fm1_alnk0_irq` 13,544 of 13,890; core 1's stack down the drums' path 752 B. `sh tests/run_all.sh`: ALL SUITES PASSED
+(24; 279 goldens, 0 changed; test_cr 1164 ok; test_persist 124 ok); `BOARD=smk37` and `CR_SINGLE_CORE=1` build. The dev
+package sha256 a38bfdd9...3432. Not tried on a unit; not pushed, tagged or flashed.
+
+3y305. **The Mix pages: PRESETS the Drive, ALGORITHM the Filter; the Drive's spikes drawn as lines.** The owner, after
+3y304 on a unit: "I would make PRESETS be the Drive and ALGO be the filter to match physical order of the knobs. For
+some reason on the drum send pages the UI is very slow to update after changing the send levels. UI updates are fine on
+other pages." **The encoders** (`cr_ui.c` the SEQ layer's PRESETS / ALGORITHM, `cu_drum_enc`): on Kick Mix, Snare Mix
+and Hats Mix PRESETS is the drum's Drive, ALGORITHM its Filter; nothing else moves (ALGORITHM the preset on the first
+page alone, PRESETS the beat on the other pages). **The slow page** (`cr_draw.c cr_dr_mix`): 3y304 drew the Drive as 20
+spikes, each a `cr_arc` of a short sweep; an arc tests every pixel of its whole box (2 x its outer radius square, here
+about 76 x 76 px, an atan2 and a square root for each pixel near its band), so the 20 spikes cost about twenty times the
+rest of the page and the frame came late after a knob. Each spike is now a two-point `cr_poly` (3 px, round caps) at the
+same angle and length, which visits its own pixels only. MANUAL ("The drums", the SEQ rows), the layers sheet, the
+emulator script (`cr_drums.txt`: ALGORITHM -6 the Filter, PRESETS +6 the Drive) follow.
+
+3y306. **0.41: each drum's own mix (Kick Mix, Snare Mix, Hats Mix: Chorus, Delay, Reverb, Level; Drive on PRESETS,
+Filter on ALGORITHM) and the drums on the second core (3y303 .. 3y305); 0.41-smk37.** The owner, after trying 3y305 on a
+unit: "This is good, push, merge and release". docs/releases/0.41.md (each drum's mix, the second core, what is
+stored: 0.40's one send comes back as Delay = Reverb = it; going back to 0.40 loses the drums' settings: 0.40 reads a
+version-3 drum block as none), 0.40's going-back note, MANUAL.md's first line and "new in 0.41" marks, the dev version,
+SMK37.md for 0.41-smk37 (0.40-smk37's resource region still not reported on from a unit: issues 38, 42 and 43 are
+about other things). Both boards built twice (`build.sh --release` and `tools/hub_build.sh`) to the same SHA256SUMS:
+FM-1 `choralroot-0.41.fwsc` 8da57076...0652, `-1core` adb2d094...f0a4; SMK-37 pro 283076c7...e3af, elite
+6e3873b2...34fd, mke 0f5488c3...e0c2 (and their -1core twins), as web/releases.json and web/releases-smk37.json list
+them.

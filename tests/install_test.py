@@ -285,6 +285,16 @@ GUARD_CASES = [
     ("FM-1_500", None, "refuse", "unknown"),
     ("FM-1_910", "SOMETHING 3.0", "refuse", "unknown"),
     ("ota-FM-1_920", None, "loader", "loader"),                 # update mode: the resume path
+    # RemoteFM1 0.2 on (fm1-base's identity: "FM-1_52" + "00" or + XXYYZZ, no INFO); its neighbours keep their verdicts
+    ("FM-1_52000201", None, "allow", "remotefm1"),              # RemoteFM1 0.2.1
+    ("FM-1_52000200", None, "allow", "remotefm1"),              # RemoteFM1 0.2.0
+    ("FM-1_5200", None, "allow", "remotefm1"),                  # a RemoteFM1 development build
+    ("FM-1_5201", None, "refuse", "unknown"),                   # not fm1-base's scheme
+    ("FM-1_520002", None, "refuse", "unknown"),
+    ("FM-1_520", None, "refuse", "unknown"),
+    ("FM-1_4600", None, "refuse", "unknown"),                   # FIZZ (fm1-base, another firmware): not ours to judge
+    ("FM-1_46000120", None, "refuse", "unknown"),
+    ("ota-FM-1_52000201", None, "loader", "loader"),
     # the M-Vave SMK-37 (SMK37.md): the official firmware, ChoralRoot and the other ports on the SMK board layer;
     # ChanceTheMaker's SMK firmwares (SMK-37_9NN) have their own updater
     ("SMK-37 Pro_016", None, "allow", "stock"),
@@ -306,6 +316,7 @@ PORT_CASES = [
     ("FM-1_015", None, "FM-1", "allow", "stock"),
     ("FM-1_003", None, None, "allow", "stock"),
     ("FM-1_920", "ChoralRoot 0.25.1", "FM-1", "allow", "choralroot"),
+    ("FM-1_52000201", None, "FM-1", "allow", "remotefm1"),      # RemoteFM1's USB product name is "FM-1", as 0.1's
     ("ota-FM-1_015", None, "ota-FM-1", "loader", "loader"),     # update mode (the official loader Bubba starts)
 ]
 
@@ -330,7 +341,8 @@ def guard():
 
     rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2")
     ok(rc == 8 and dev.upgrades == 0 and "Installing over Sloop is not supported" in err and I.RECOVERY_URL in err
-       and "official V15" in err and "--force" in err, "over Sloop: refused (exit 8), nothing written, recovery link")
+       and I.MFLASHER_URL in err and "V15" not in err and "--force" in err,
+       "over Sloop: refused (exit 8), nothing written, M-Flasher named, recovery link")
     rc, out, err, dev = over("FM-1_900", "FELUCCA SLOOP 2.2", "--force")
     ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and "--force: installing over Sloop anyway" in out,
        "over Sloop with --force: installed, the override said")
@@ -341,20 +353,25 @@ def guard():
     rc, out, err, dev = over("FM-1_900", None)
     ok(rc == 8 and dev.upgrades == 0 and "unknown" in err, "over a 9xx firmware that does not answer INFO: refused")
     for ident, ver in (("FM-1_910", "FELUCCA v1.0.1"), ("FM-1_90111", "MELODEE v0.11.1"), ("FM-1_920", "ChoralRoot 0.12"), ("FM-1_920", "ChoralRoot 0.22 1-core"),
-                       ("FM-1_015", None)):
+                       ("FM-1_015", None), ("FM-1_52000201", None), ("FM-1_5200", None)):
         rc, out, err, dev = over(ident, ver)
         ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0 and (not ver or ver in out),
-           f"over {ver or 'the stock ' + ident}: installed")
+           f"over {ver or ('RemoteFM1 ' if ident.startswith('FM-1_52') else 'the stock ') + ident}: installed")
+    names = [I.classify_firmware(i, None)[2] for i in ("FM-1_52000201", "FM-1_52011203", "FM-1_5200")]
+    ok(names == ["RemoteFM1 0.2.1", "RemoteFM1 1.12.3", "RemoteFM1 (development build)"],
+       f"RemoteFM1's version read from its identity: {names}")
+    rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_52000201"))
+    ok(rc == 0 and "ChoralRoot can be installed over RemoteFM1 0.2.1" in out, "--info on RemoteFM1 0.2.1: named, installed over")
     for extra in ((), ("--force",)):              # Bubba Machine: its updater refuses our loader, so never
         rc, out, err, dev = over("FM-1_003", None, *extra, name="FM-1 Bubba Machine")
-        ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "official V15" in err
-           and "FM-1.fwsc" in err and "--force does not" in err,
-           f"over Bubba Machine{' with --force' if extra else ''}: refused (exit 8), nothing sent, the way back to V15")
+        ok(rc == 8 and dev.upgrades == 0 and "Bubba Machine (FM-1_003)" in err and "M-Flasher" in err
+           and I.MFLASHER_URL in err and "V15" not in err and "--force does not" in err,
+           f"over Bubba Machine{' with --force' if extra else ''}: refused (exit 8), nothing sent, M-Flasher named")
     rc, out, err, dev = over("FM-1_003", None)
     ok(rc == 0 and dev.identity == "FM-1_920" and dev.bad == 0, "over FM-1_003 on the FM-1's own port (the old stock): installed")
     rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_003", name="FM-1 Bubba Machine"))
-    ok(rc == 0 and "not installed over Bubba Machine (FM-1_003)" in out and "FM-1.fwsc" in out,
-       "--info on Bubba Machine: named, not installed over, the way back to V15")
+    ok(rc == 0 and "not installed over Bubba Machine (FM-1_003)" in out and "M-Flasher" in out,
+       "--info on Bubba Machine: named, not installed over, M-Flasher named")
     side = BackupSide("FELUCCA SLOOP 2.2", I.FELUCCA_IDS)
     rc, out, err = cli(["--info"], FakeFM1(image, identity="FM-1_900", bk=lambda _i: side))
     ok(rc == 0 and "FELUCCA SLOOP 2.2" in out and "not installed over Sloop" in out, "--info: version and the verdict")
@@ -701,7 +718,7 @@ def debug():
        "started at most 640 us behind its boundary, its longest half took 3350 us with TIMER5 nested in it (410 us" in out and
        "once came 1130 us after the one before: masked for about 1030 us, until 0x0200B2C4" in out,
        "--debug: when the ISR got to start (PEAK's values 25..30): the stale halves, the lag, TIMER5, the masked stretch")
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and "key_ons" not in out and "pk_block_us 2580" in out and "pk_late_stage 4 (fx)" in out and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and "key_ons" not in out and "pk_block_us 2580" in out and "pk_late_stage 4 (fx)" in out and
        "worst half since the last --debug: 2580 us of 2902 (88 %) over 34500 halves" in out and
        "late 12 (the latest: 2950 us, its largest stage fx)" in out and
        "down 40 / 110, delay 90 / 200, reverb 300 / 520, up 35 / 90" in out and
@@ -747,7 +764,7 @@ def debug():
     ok("erases_near" not in out and "quiet writes" not in out, "--debug: a firmware of 60 PEAK values (to 3y50): no word of the quiet writes")
     cr.peak[45:] = [0] * 15 + [7, 3, 0, 612]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and "saves_auto 7" in out and "erases_ahead 3" in out and "erases_near 0" in out and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and "saves_auto 7" in out and "erases_ahead 3" in out and "erases_near 0" in out and
        "flash_prog_us 612" in out and "quiet writes since power-on: 7 saves by the unit itself (Options, favourites), 3 of "
        "the 14 erases done ahead" in out and "0 erases started by the unit while a voice was active or within 2 s of an "
        "input (the rule: 0), the longest page program 612 us" in out and "NEAR PLAYING" not in out,
@@ -765,7 +782,7 @@ def debug():
     ok("c1_bar" not in out and "last crash" not in out, "--debug: a firmware of 68 PEAK values (to 3y60): no word of the bar")
     cr.peak += [1]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and len(I.DEBUG_PEAK) == 79 and I.DEBUG_PEAK[68] == "c1_bar" and
+    ok(rc == 0 and len(I.DEBUG_PEAK) == 81 and I.DEBUG_PEAK[68] == "c1_bar" and
        "c1_bar 1 (after a crash beside core 1)" in out and "last crash" not in out and "shed_voices 1" in out,
        "--debug: why this boot kept core 1 off (PEAK's value 69, c1_bar), the values before it as they were")
     cr.peak += [3, 1, 0x0200046E, 0x02007D80, 0, 0x00001000, 184200, 0x40, 1]
@@ -780,8 +797,16 @@ def debug():
     ok(rc == 0 and "last crash: none since the power-on" in out, "--debug: no crash since the power-on")
     cr.peak += [2]
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
-    ok(rc == 0 and "voices_shed 2" in out and I.DEBUG_PEAK[-1] == "voices_shed",
+    ok(rc == 0 and "voices_shed 2" in out and I.DEBUG_PEAK[78] == "voices_shed",
        "--debug: the voices the overload shed dropped since power-on (PEAK's value 79)")
+    ok("flash_late_ops" not in out and "finished late" not in out,
+       "--debug: a firmware of 79 PEAK values (to 3y264): no word of late flash operations")
+    cr.peak += [3, 731250]
+    rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
+    ok(rc == 0 and I.DEBUG_PEAK[-2:] == ["flash_late_ops", "flash_late_max_us"] and "flash_late_ops 3" in out and
+       "flash_late_max_us 731250" in out and "the longest page program 612 us; 3 erases / pages finished late "
+       "(past 500 ms / 10 ms, done), the longest 731250 us" in out,
+       "--debug: erases / pages the slow part finished late but done (PEAK's values 80..81, 3y265)")
     cr.peak = None
     rc, out, err = cli(["--debug"], FakeFM1(b"", identity="FM-1_920", bk=lambda _i: cr))
     ok(rc == 0 and "pk_block_us" not in out and "stub_ms" in out, "--debug on a firmware without 78 PEAK: 73's values alone")
@@ -1326,7 +1351,7 @@ def sounds():
     badq = []
     q4 = b"Q\x04" + bytes(94)
     for data, word in ((b"R" + qb[1:], "bytes, not 96"), (qb[:1] + b"\x04" + qb[2:], "bytes, not 96"), (qb[:79], "bytes, not 96"),
-                       (b"R" + q4[1:], "FM TONE"), (q4[:1] + b"\x06" + q4[2:], "FM TONE"), (qb + b"\x01" + bytes(15), "FM TONE")):
+                       (b"R" + q4[1:], "FM TONE"), (q4[:1] + b"\x07" + q4[2:], "FM TONE"), (qb + b"\x01" + bytes(15), "FM TONE")):
         try:
             I.read_sound_file({**json.loads(fq.read_text()), "patch": {"kind": "quad", "data": base64.b64encode(data).decode()}})
             badq.append((word, "accepted"))
@@ -1494,7 +1519,7 @@ def bindings():
         return bytes(r)
     fp, ff = I.FACTORY_PRESETS, I.FACTORY_FIRST
     ok(fp["12"][1] == "FM BELL" and len(fp["12"]) == 25 and fp["14"][0] == "INIT TONE" and len(fp["14"]) == 65 and
-       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("0", "1", "4", "10")) and I.pool_of(1) == 12 and
+       ff["14"] == 1 and ff["12"] == 0 and not any(e in fp for e in ("0", "1", "4", "10")) and I.pool_of(1) == 13 and
        I.pool_of(0) == 13 and I.pool_of(8) == 8 and len(fp["8"]) == 8 and I.pool_of(14) == 14,
        "binding: the factory table (the firmware's, --check), retired engines' pools (ANALOG's: the VA's)")
     ok(sorted(fp, key=int) == ["7", "8", "12", "13", "14", "15", "16"] and all(I.pool_of(e) == 13 and I.engine_retired(e) for e in (2, 3, 5, 6, 9, 11)) and
@@ -1526,7 +1551,7 @@ def bindings():
             4: bind(sound_rec(14, "MY BRASS", seed=6), 2),       # U05 CZ-1 over BRASS 1 = pool 01
             5: bind(sound_rec(14, "OVER INIT", seed=7), 1),      # U06 INIT TONE (the pool's INIT): added
             6: bind(sound_rec(12, "TOO FAR", seed=8), 26),       # U07 past the 25 FM6 presets: added
-            7: bind(sound_rec(1, "DIGI", seed=9), 3),            # U08 DIGITAL in FM6's pool, over FM BASS
+            7: bind(sound_rec(1, "DIGI", seed=9), 3),            # U08 DIGITAL (retired): the VA's pool, added
             8: bind(sound_rec(0, "GRID", ver=5, seed=10), 1),    # U09 a drum grid record: never bound
             9: bind(sound_rec(2, "PD BRASS", seed=11), 1),       # U10 PHASE (retired in 0.18) over its BRASS: the VA's
             10: sound_rec(11, "WIND", seed=12)}                  #     pool, added (not the VA's first); U11 NOISE: added
@@ -1541,11 +1566,10 @@ def bindings():
     b0 = t[0]["bound"]
     ok(b0 and b0["index"] == 1 and b0["pos"] == 2 and b0["label"] == "FM6 02" and b0["name"] == "FM BELL" and not t[0]["added"],
        "binding: a bound FM6 record -> over FM6 02 FM BELL")
-    ok(all(t[k]["bound"] is None and t[k]["added"] for k in (1, 2, 3, 5, 6, 8)),
-       "binding: marked 0, unmarked, a second binding, INIT TONE, past the presets, a grid record -> added")
-    ok(t[4]["bound"]["label"] == "CZ-1 01" and t[4]["bound"]["name"] == "BRASS 1" and t[7]["bound"]["label"] == "FM6 03" and
-       t[7]["bound"]["name"] == "FM BASS" and not t[20]["added"] and t[20]["bound"] is None,
-       "binding: CZ-1 over BRASS 1 = pool 01, DIGITAL in FM6's pool; empty slots neither")
+    ok(all(t[k]["bound"] is None and t[k]["added"] for k in (1, 2, 3, 5, 6, 7, 8)),
+       "binding: marked 0, unmarked, a second binding, INIT TONE, past the presets, DIGITAL, a grid record -> added")
+    ok(t[4]["bound"]["label"] == "CZ-1 01" and t[4]["bound"]["name"] == "BRASS 1" and not t[20]["added"] and
+       t[20]["bound"] is None, "binding: CZ-1 over BRASS 1 = pool 01; empty slots neither")
     ln = I.sound_line(t[0]).split()
     ok(ln == ["U01", "MY", "BELL", "FM6", "no", "patch", "over", "FM6", "02", "FM", "BELL"] and
        I.sound_line(t[1]).split()[-1] == "+" and I.sound_line(t[8]).split() == ["U09", "GRID", "ANALOG", "retired", "+"],

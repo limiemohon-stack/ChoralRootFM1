@@ -79,6 +79,10 @@ t ./build/host/cr_quad_test
 # GRAIN's source generator (firmware/src/grain_src.c, docs/GRAIN.md step 1): the grid, slices, goldens, the sketch WAVs
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow,shift -fno-sanitize-recover=all -Ibuild/gen -o build/host/cr_grain_test tests/cr_grain_test.c -lm
 t ./build/host/cr_grain_test
+# the drums' voices (firmware/src/cr_drum.c: CoralFlower's morph drum synth, Club and Deep): each sounds, rings out and
+# stops; the choke, the snare / clap crossfade, the CPU test's pattern (build/host/cr_drum_test --cpu: the host's cost)
+par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -fsanitize=signed-integer-overflow,shift -fno-sanitize-recover=all -Ibuild/gen -o build/host/cr_drum_test tests/cr_drum_test.c -lm
+t logged_last cr_drum_test
 # FM TONE's pops (docs/QUAD.md "Pops"): every factory sound and INIT through eight scenarios (retriggers, chord changes,
 # steals, arps) at C2 and C4: no jump, no hole, no operator restarted under the voice's level, no wrap (the sanitizer)
 par_build cc -O2 -w -fsanitize=signed-integer-overflow -fno-sanitize-recover=all -Ibuild/gen -Ifirmware/src -o build/host/quad_pops tests/quad_pops.c -lm
@@ -121,11 +125,20 @@ par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -DCZ_FACTORY_R
 t ./build/host/cr_backup_test
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_pool_test tests/cr_pool_test.c -lm
 t ./build/host/cr_pool_test
+# the FM-1's second resource region refused (cr_res.h CR_RES2, HISTORY 3y296): the factory presets' lists, FM6's voices
+# and the kerning of M and CRB go without, the counts and the user's sounds as before
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_res2_test tests/cr_res2_test.c -lm
+t ./build/host/cr_res2_test
 # the editor on P5's compiled rows (cr_pages.c cp_deep, cr_edit.c's screen plan; docs/LAYOUT-TOOL.md "Step 4"): the
 # layout's pages (copies of the built-in descriptors), its screens (EXPR after VOICE), every cell turned (the parameter at
 # its built-in address, edited, hot), empty slots inert, SELECT across lanes and screens
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_p5rows_test tests/cr_p5rows_test.c -lm
 t logged_last cr_p5rows_test
+# MIDI CC on the sounds' parameters (3y269, docs/MANUAL.md section 15): the common CCs per engine, every block CC the cell
+# SELECT reaches, CCs in through the queue (coalesced, the editor's hot cell, the popup), out and the echo guard,
+# Options > MIDI CC. ./build/host/cr_cc_test --map prints the manual's tables
+par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_cc_test tests/cr_cc_test.c -lm
+t logged_last cr_cc_test
 # a full pool's browsing: no flash read on a frame, a detent reads only the sound it loads (3y60)
 par_build cc -std=gnu11 -O1 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_poolperf_test tests/cr_poolperf_test.c -lm
 t ./build/host/cr_poolperf_test
@@ -146,10 +159,6 @@ t logged_last cr_cz_test
 par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/cr_prophet_test tests/cr_prophet_test.c -lm
 t logged_last cr_prophet_test
 t sh tests/run_prophet_test.sh
-# Felucca #61 (1.0.3.1): DIGITAL -> FM6 conversion without a divide by zero (the JieLi compiler hoists a guarded
-# divide; a 0.9 ORGAN preset trapped at boot -> UBOOT). Felucca's own test, built with the divide-by-zero sanitizer.
-par_build cc -O1 -w -fsanitize=integer-divide-by-zero -Ibuild/gen -Ifirmware/src -Ifirmware/hal -o build/host/fm4_div0_test tests/fm4_div0_test.c -lm
-t logged_count fm4_div0_test
 # USB audio recording (Melodee's, docs/USB-AUDIO.md): usb.c's descriptors in each presentation (USB Record on, the
 # console), the capture routing, the PCM packing, the ring against clock drift and the host stopping (usb_audio_stream.c)
 par_build cc -std=gnu11 -O2 -w -o build/host/cr_usbaudio_test tests/cr_usbaudio_test.c
@@ -171,6 +180,16 @@ par_build cc -std=gnu11 -O2 -w -Ibuild/gen -Ifirmware/src -Itests -o build/host/
 t logged_last cr_usbtap_test
 par_build cc -std=c99 -Wall -Wextra -Werror -pedantic -O2 -o build/host/cr_midi_test tests/cr_midi_test.c
 t ./build/host/cr_midi_test
+# Bluetooth MIDI (HISTORY 3y236): ChoralRoot's glue (firmware/src/cr_ble.c) with the real stack on the fake radio, and
+# the stack's own fixtures as Melodee 3fe570d runs them (tests/ble_tests.py: protocol, encryption, pairing, the driver,
+# the radio program's replay against the pinned Optimist interpreter)
+par_build cc -std=c11 -Wall -Werror -Wno-unused-function -Wno-bitwise-op-parentheses -O1 -Itests/ble_fake -Ifirmware/src \
+    -o build/host/cr_ble_test tests/cr_ble_test.c
+t logged_count_last cr_ble_test
+par_build cc -std=c11 -Wall -Werror -Wno-unused-function -Wno-bitwise-op-parentheses -O1 -DBLE_DIAG=1 -Itests/ble_fake \
+    -Ifirmware/src -o build/host/cr_ble_diag_test tests/cr_ble_test.c
+t logged_count_last cr_ble_diag_test
+t python3 tests/ble_tests.py
 # the sound templates the clients embed for .syx imports are the firmware's defaults (docs/SOUNDS.md), and their factory
 # tables the firmware's. Built with P5, as the unit is (3y80, the device manager's P5 tab; until then without it): the
 # clients hold P5's shipped programs (INIT P5, then assets/prophet5-factory/shipped.txt's list) and their Sequential

@@ -38,7 +38,7 @@ record. Selecting a row auditions it (see below). The Loops tab: ten rows, "hold
 and layer count read from the record (`cr_loop_unpack`'s header: len ticks, nlayers, nev).
 
 **Right: Library.** Sources in a dropdown: **This browser** (sounds the user saved as files or kept here:
-IndexedDB), **a folder / files** (choralroot-sound JSON, .syx DX7 single or bank, Casio tone dumps, Digitone .dnsnd (docs/SOUNDS.md), loop files,
+IndexedDB), **a folder / files** (choralroot-sound JSON, .syx DX7 single or bank, Casio tone dumps, Digitone .dnsnd and Digitone .syx dumps (a sound, the pool, a project: docs/SOUNDS.md), Digitone II .dn2pst and .dn2snd (3y211), loop files,
 whole backups), and **packs** served from the site (`web/packs/*.json`: a pack = a name, an author, a licence, a
 list of sounds in the choralroot-sound format; the first packs: the factory sounds of each engine as files, and
 Melodee's CZ-1 banks). Rows as on the left.
@@ -331,3 +331,22 @@ The owner: P5 is a current engine (engine 16, Melodee's Prophet-5 model: docs/PR
   and the ids, the same in both clients); the built page driven in headless Chromium with `?sim=pool` and `?sim=1`.
 - Not done: a device run; P5's factory programs as files (the owner's decision: a pack would put Sequential's data on
   the site); Sequential program SysEx import (docs/PROPHET.md "Saving").
+
+## Digitone II files and the FM TONE version gate (2026-10-31, HISTORY 3y211)
+
+- **Add files** takes `.dn2pst` (Transfer's Digitone II preset) and `.dn2snd` (a +Drive backup's sound) beside
+  `.dnsnd` and Digitone `.syx`: each FM TONE sound becomes a library item with its notes (`libraryItemsFromDnsnd`, the
+  reader in `fm1dnsnd.js`: docs/SOUNDS.md ".dnsnd import", "Digitone II sounds"); the status line counts them ("3
+  Digitone sounds, 2 of them Digitone II, as FM TONE"). A WAVETONE, FM DRUM, SWARMER or MIDI sound is refused with its
+  machine's name (no FM TONE patch in it).
+- **The version gate.** Every Digitone import is FM TONE version 6 (the filter machines, AHD, CRUSH, DRIVE's route,
+  the sound's own sends); ChoralRoot 0.22 .. 0.28 refuse version 6 and play INIT. Place, Place all and Replace factory
+  pass the unit's version (INFO's, `keepOpts`): onto 0.28 or older the patch is written as version 5 (`quadToV5`) and
+  the status line sums up what was dropped in one line, counted per kind ("Your FM-1 runs ChoralRoot 0.28, so these
+  were written without what it cannot play: DRIVE before the filter (61), own sends (128). Install 0.29 or later ...",
+  `managerNotesSummary`; each sound's notes stay on its library row and the whole list goes to the browser console);
+  onto 0.29 and later as it is (`fm1sounds.js quadV6Of`, `managerPlace(objs, sound, target, { firmware })`). The
+  installer's Sounds Import does the same with its INFO. The simulator says 0.22 (`?sim=pool`: the gate converts);
+  `?sim=pool&fw=0.29` makes it say 0.29.
+- Tests: `web/test_manager.mjs` (Place onto 0.28 / 0.29 / no version, Place all onto 0.22, Replace factory onto 0.27
+  1-core, the 0.22 simulator written and read back as version 5, the page passing the version), `web/test_dn2.mjs`.

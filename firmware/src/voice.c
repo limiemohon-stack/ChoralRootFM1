@@ -59,7 +59,7 @@ CR_HOT_CORE static void track_lfo_tick(track_t *t)
 }
 
 /* voices the engine may use (POLY and UNISON): its cap, else NPOLY */
-static uint32_t trk_nvoice(const track_t *t)
+CR_HOT_NOTE static uint32_t trk_nvoice(const track_t *t)
 {
     const engine_t *e = ENGINES[t->engine];
     uint32_t c = e->cap ? e->cap(t) : e->poly;
@@ -73,7 +73,7 @@ static uint32_t trk_vmode(const track_t *t)
 }
 
 /* ------------------------------------------------- the shared voice budget --- */
-static uint32_t voice_units(const track_t *t)
+CR_HOT_NOTE static uint32_t voice_units(const track_t *t)
 {
     const engine_t *e = ENGINES[t->engine];
     return e->units ? e->units(t) : trk_nvoice(t) > NPOLY ? 1u : 2u;
@@ -86,16 +86,22 @@ static uint32_t voice_units(const track_t *t)
 #else
 #define VB_SAME(a, b) 1
 #endif
-static uint32_t voices_busy_of(const track_t *self)        /* budget units of the sounding voices (not fading) of the
-                                                         * parts that share self's budget */
+/* the parts that can sound: Felucca's four; ChoralRoot's chord and bass (cr_out.c gives a note to parts 0 / 1 alone:
+ * midi_event stops at part 2, a stream plays part 0, 1 or none; fx.c renders 2..3 idle, so a voice there would never
+ * end). voices_busy_of counts these alone: it runs for every note that finds a free voice (voice_alloc), in the
+ * audio ISR's tick, and two silent parts of 16 slots were two thirds of its loop (3y215) */
+#define VB_NPART 2u
+/* budget units of the sounding voices (not fading) of the parts that share self's budget */
+CR_HOT_NOTE static uint32_t voices_busy_of(const track_t *self)
 {
     uint32_t p, i, n, u = 0, sp = (uint32_t)(self - trk);
-    for (p = 0; p < NPART; p++) {
+    for (p = 0; p < VB_NPART; p++) {
         if (!VB_SAME(p, sp))
             continue;
         for (i = n = 0; i < NVOICE; i++)
             n += trk[p].v[i].active && trk[p].v[i].stage != 4u;
-        u += n * voice_units(&trk[p]);
+        if (n)
+            u += n * voice_units(&trk[p]);
     }
     return u;
 }
@@ -110,7 +116,8 @@ static uint32_t voices_busy(void)                       /* budget units of all p
     return u;
 }
 
-static uint32_t lowest_held(const track_t *t)           /* index of the lowest held note (the bass), NVOICE = none */
+/* index of the lowest held note (the bass), NVOICE = none */
+CR_HOT_NOTE static uint32_t lowest_held(const track_t *t)
 {
     uint32_t i, low = NVOICE;
     for (i = 0; i < NVOICE; i++)
@@ -122,7 +129,7 @@ static uint32_t lowest_held(const track_t *t)           /* index of the lowest h
 /* the voice to give up for a new one (see the top); soft: only released voices and
  * extra voices of other non-POLY parts (also ones left after a mode change).
  * Returns its index, *pp its part; NVOICE = none */
-static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
+CR_HOT_NOTE static uint32_t voice_victim(const track_t *self, int soft, track_t **pp)
 {
     uint32_t p, i, best = NVOICE, cat = 4;
     for (p = 0; p < NPART; p++) {
@@ -191,7 +198,7 @@ static uint32_t p5_bass_gave;           /* held bass voices given up to the chor
 /* the part's voices that are a whole voice's work: sounding, or stolen for a waiting note and fading as a whole voice
  * (eng_prophet_test.c P5_STEAL_BLOCKS: the pool has no room for another voice until the fade has ended). Not a voice
  * given up for the pool, the budget or the shed: that one is its last sample's line */
-static uint32_t p5_sounding(const track_t *t)
+CR_HOT_NOTE static uint32_t p5_sounding(const track_t *t)
 {
     const p5_part_t *s = p5_part((uint32_t)(t - trk));
     uint32_t i, n = 0;
@@ -200,7 +207,7 @@ static uint32_t p5_sounding(const track_t *t)
     return n;
 }
 static uint32_t voice_units(const track_t *t);
-static uint32_t p5_pool_used(void)
+CR_HOT_NOTE static uint32_t p5_pool_used(void)
 {
     const track_t *bt = &trk[P5_PART_BASS];
     uint32_t u = 0;
@@ -216,7 +223,7 @@ static uint32_t p5_pool_size(void) { return cr_dualcore_active() ? P5_POLY : P5_
 #define P5_HELD(v) ((v)->active && (v)->gate && (v)->stage != 4u)
 /* a held voice of part t to give up: a stack's (MONO, LEGATO, UNISON: voice 0 is the lead) from the top, a POLY
  * part's oldest that is not its lowest note; last: the lead / the lowest note too. NVOICE: none */
-static uint32_t p5_part_victim(const track_t *t, int last)
+CR_HOT_NOTE static uint32_t p5_part_victim(const track_t *t, int last)
 {
     uint32_t i, best = NVOICE, low;
     if (trk_vmode(t) != V_POLY) {
@@ -233,7 +240,7 @@ static uint32_t p5_part_victim(const track_t *t, int last)
 }
 /* the voice the pool gives up for a new voice of part self (soft: an extra voice of a stack asks); its index, *pp its
  * part. NVOICE: none (the caller takes one of its own, or does without) */
-static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
+CR_HOT_NOTE static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
 {
     track_t *ct = &trk[0], *bt = &trk[P5_PART_BASS];
     uint32_t p, i, best = NVOICE, two = (uint32_t)cr_dualcore_active(), chord = self == ct;
@@ -265,13 +272,14 @@ static uint32_t p5_pool_victim(const track_t *self, int soft, track_t **pp)
     return NVOICE;
 }
 static void voice_kill(voice_t *v);
-static void p5_pool_take(const track_t *self, track_t *vp, uint32_t k)
+CR_HOT_NOTE static void p5_pool_take(const track_t *self, track_t *vp, uint32_t k)
 {
     if (self == &trk[0] && vp == &trk[P5_PART_BASS] && vp->v[k].gate)
         p5_bass_gave++;
     voice_kill(&vp->v[k]);
 }
-static __attribute__((noinline)) int p5_pool_room(track_t *t, int soft)   /* room in the pool for a voice of part t; 0: none to be had */
+/* room in the pool for a voice of part t; 0: none to be had */
+CR_HOT_NOTE static __attribute__((noinline)) int p5_pool_room(track_t *t, int soft)
 {
     while (p5_pool_used() >= p5_pool_size()) {
         track_t *vp = 0;
@@ -325,7 +333,7 @@ static __attribute__((noinline)) void p5_pool_enforce(void)
 #endif
 
 /* the budget is full: free room for a voice of part t. 0 = nothing to take (soft) */
-static int voice_room(track_t *t, int soft)
+CR_HOT_NOTE static int voice_room(track_t *t, int soft)
 {
 #if FELUCCA_PROPHET
     if (P5_POOLED(t) && !p5_pool_room(t, soft))
@@ -389,7 +397,8 @@ static __attribute__((noinline)) int32_t voice_fade_level(track_t *t, voice_t *v
 #endif
 #define VSQ 8u
 static struct { uint8_t note[VSQ], vel[VSQ], armed[VSQ], n; } vsq[NPART];   /* armed: its block rendered */
-static int vsq_push(track_t *t, uint32_t note, uint32_t vel)   /* 0: full (the caller restarts in place) */
+/* a note waits for a stolen voice's fade; 0: full (the caller restarts in place) */
+CR_HOT_NOTE static int vsq_push(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t p = (uint32_t)(t - trk), i;
     if (p >= NPART)
@@ -406,7 +415,7 @@ static int vsq_push(track_t *t, uint32_t note, uint32_t vel)   /* 0: full (the c
     vsq[p].vel[vsq[p].n++] = (uint8_t)vel;
     return 1;
 }
-static void vsq_drop(track_t *t, uint32_t note)            /* note 128: all */
+CR_HOT_NOTE static void vsq_drop(track_t *t, uint32_t note)   /* note 128: all */
 {
     uint32_t p = (uint32_t)(t - trk), i, k = 0;
     if (p >= NPART)
@@ -418,6 +427,28 @@ static void vsq_drop(track_t *t, uint32_t note)            /* note 128: all */
             vsq[p].vel[k++] = vsq[p].vel[i];
         }
     vsq[p].n = (uint8_t)k;
+}
+
+/* POLY with GLIDE (issue 46, chord glide): the part's sounding voice nearest the note among those released (a chord
+ * change lets go of the old chord first) slides to it: the new chord's notes take the old one's voices the shortest
+ * way, each restarted from where it is (its level and phases: no click). 0: none (a held voice is never taken; one
+ * fading out for another note is not ours): a free voice as before, its last pitch the nearest */
+static __attribute__((noinline)) voice_t *glide_voice(track_t *t, uint32_t note, uint32_t np)
+{
+    uint32_t i, best = np;
+    int32_t bd = 0x7FFFFFFF;
+    for (i = 0; i < np; i++) {
+        const voice_t *v = &t->v[i];
+        int32_t d = v->gpos - ((int32_t)note << 20);
+        if (!v->active || v->gate || v->stage == 4u)
+            continue;
+        d = d < 0 ? -d : d;
+        if (d < bd) {
+            bd = d;
+            best = i;
+        }
+    }
+    return best < np ? &t->v[best] : 0;
 }
 
 static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
@@ -466,6 +497,11 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
         }
         nfree += !t->v[i].active;
     }
+    if (t->p[P_GLIDE] && !e->sampled && !e->oneshot) {   /* GLIDE: a released voice slides to the note (chord glide) */
+        voice_t *g = glide_voice(t, note, np);
+        if (g)
+            return g;
+    }
     while (nfree && voices_busy_of(t) + voice_units(t) > VBUDGET) {
         track_t *vp = 0;
         uint32_t k = voice_victim(t, 0, &vp);
@@ -494,6 +530,11 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
         }
 #endif
     if (VA_NOPOOL) {
+    } else if (!nfree) {                                /* every voice sounds (nothing above freed one): neither search
+                                                         * finds one, ROTATE moves on (a steal at every chord change of
+                                                         * a long release: 3y215) */
+        if (!t->p[P_ALLOC] && !t->p[P_GLIDE])
+            t->rr = (uint8_t)((t->rr + 1u) % np);
     } else if (t->p[P_ALLOC] || t->p[P_GLIDE]) {
         for (i = 0; i < np; i++) {
             int32_t d = t->v[i].pitch_cur - (int32_t)note * 16;
@@ -568,24 +609,33 @@ static voice_t *voice_alloc(track_t *t, uint32_t note, uint32_t vel)
     return voice_reuse(t, &t->v[best == np ? 0 : best]);
 }
 
-/* glide: RATE = a fixed speed, TIME = the same time for any interval */
-static void glide_set(track_t *t, voice_t *v, int glide)
+/* glide (issue 46): GLIDE's time is 3 x F_TIME's, 3 ms .. 30 s (F_GLIDE shows it). RATE: an octave takes that time,
+ * TIME: any interval does. The pitch moves in Q16 steps of 1/16 st (gpos), so a slow glide is smooth and as long as
+ * the screen says (it moved 1/16 st a tick at least before: an octave took 0.14 s at most in RATE, 1.5 s in TIME) */
+static __attribute__((noinline)) int32_t glide_step(const track_t *t, const voice_t *v)
+{
+    uint32_t g = (uint32_t)t->p[P_GLIDE] & 127u, r = ENV_LIN[g ? g : 40u];   /* Q24 of the way per tick, F_TIME's */
+    int32_t d = (v->pitch16 << 16) - v->gpos, st;
+    d = d < 0 ? -d : d;
+    if (t->p[P_GLMODE])                                  /* TIME: the whole interval in the time */
+        st = g ? (int32_t)(((uint64_t)(uint32_t)d * (r / 3u)) >> 24) : d;   /* (GLIDE 0, a slide: at once, as before) */
+    else                                                 /* RATE: an octave (192 << 16) in the time: r * 192 / 3 >> 8 */
+        st = g ? (int32_t)(r >> 2) : (int32_t)(r >> 14) << 16;   /* (GLIDE 0, a slide: ~45 ms, as before) */
+    return st > 0 ? st : 1;
+}
+
+CR_HOT_NOTE static void glide_set(track_t *t, voice_t *v, int glide)
 {
     if (!glide || !v->pitch_cur) {
         v->pitch_cur = v->pitch16;
+        v->gpos = v->pitch16 << 16;
         v->gstep = 0;
         return;
     }
-    if (t->p[P_GLMODE]) {
-        int32_t d = v->pitch16 - v->pitch_cur, ticks = 1 + t->p[P_GLIDE] * t->p[P_GLIDE] / 8;
-        d = d < 0 ? -d : d;
-        v->gstep = d / ticks > 0 ? d / ticks : 1;
-    } else {
-        v->gstep = 0;
-    }
+    v->gstep = glide_step(t, v);
 }
 
-static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
+CR_HOT_NOTE static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int glide)
 {
     const engine_t *e = ENGINES[t->engine];
     int sounding = v->active && v->stage != 0;
@@ -630,7 +680,7 @@ static void voice_start(track_t *t, voice_t *v, uint32_t note, uint32_t vel, int
 
 /* MONO / LEGATO / UNISON: one note on one voice (NPOLY for UNISON, or the
  * engine's voice cap, spread by DETUNE over the same width) */
-static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
+CR_HOT_NOTE static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int glide)
 {
     uint32_t mode = (uint32_t)t->p[P_VOICE], nv = mode == V_UNISON ? trk_nvoice(t) : 1u, i;
     for (i = 0; i < nv; i++) {
@@ -665,7 +715,7 @@ static void mono_play(track_t *t, uint32_t note, uint32_t vel, int retrig, int g
 }
 
 /* the note the mono stack asks for (PRIO: LAST / LOW / HIGH), 0 = none */
-static uint32_t mono_pick(const track_t *t)
+CR_HOT_NOTE static uint32_t mono_pick(const track_t *t)
 {
     uint32_t i, n;
     if (!t->nmono)
@@ -680,7 +730,7 @@ static uint32_t mono_pick(const track_t *t)
     return n;
 }
 
-static void mono_remove(track_t *t, uint32_t note)
+CR_HOT_NOTE static void mono_remove(track_t *t, uint32_t note)
 {
     uint32_t j, k = 0;
     for (j = 0; j < t->nmono; j++)
@@ -689,7 +739,7 @@ static void mono_remove(track_t *t, uint32_t note)
     t->nmono = (uint8_t)k;
 }
 
-static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
+CR_HOT_NOTE static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
 {
     uint32_t any = 0, i, mode = trk_vmode(t);
     if (t->p[P_MUTE])
@@ -739,7 +789,7 @@ static void trk_note_on(track_t *t, uint32_t note, uint32_t vel)
     }
 }
 
-static void trk_note_off(track_t *t, uint32_t note)
+CR_HOT_NOTE static void trk_note_off(track_t *t, uint32_t note)
 {
     uint32_t i, k = 0, mode = trk_vmode(t);
     for (i = 0; i < t->xp_n; i++)                       /* not sounding yet (engine switch): forget it */
@@ -984,7 +1034,7 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
     for (i = 0; i < NVOICE; i++) {
         voice_t *v = &t->v[i];
         vmod_t m;
-        int32_t env, pitch;
+        int32_t env, pitch, gf = 0;                     /* gf: the glide's rest below 1/16 st (1/4096) */
         if (!v->active)
             continue;
         if (!pitch_set) {
@@ -1034,27 +1084,27 @@ CR_HOT_CORE static uint32_t track_render_x(track_t *t, int32_t *out, int32_t *si
             m.amp0 = v->env_out;
             v->env_out = m.amp1;
         }
-        if (v->pitch_cur != v->pitch16) {               /* glide */
-            int32_t d = v->pitch16 - v->pitch_cur;
-            int32_t st = v->gstep ? v->gstep : (int32_t)(ENV_LIN[(p[P_GLIDE] ? p[P_GLIDE] : 40) & 127] >> 14);   /* slide: ~45 ms */
-            if (st < 1)
-                st = 1;
-            v->pitch_cur += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+        if (v->pitch_cur != v->pitch16) {               /* glide (glide_set) */
+            int32_t tg = v->pitch16 << 16, d = tg - v->gpos, st = v->gstep;
+            v->gpos += d > 0 ? (d < st ? d : st) : (-d < st ? d : -st);
+            d = tg - v->gpos;                           /* the way left: pitch_cur rounded towards the start */
+            v->pitch_cur = v->pitch16 - (d >= 0 ? (d + 0xFFFF) >> 16 : -((0xFFFF - d) >> 16));
+            gf = ((v->gpos - (v->pitch_cur << 16)) * 947) >> 22;   /* the rest, in 1/4096 (1/16 st = 14.8) */
         }
         if (!env && !m.amp0 && v->stage == 2 && !e->sampled)
             continue;                                   /* held at a silent sustain (SUS 0): nothing to render */
         pitch = v->pitch_cur + tune + bend16 + ((lfo * p[P_LD_PIT] * 3) >> 15) + ((m.envq15 * p[P_ED_PIT] * 3) >> 15);
         m.pitch16 = clamp(pitch, 0, 2047);
         m.inc = pitch_inc(m.pitch16);
-        m.fine = v->fine + tune_fine + bend_fine;
-        if (v->fine + tune_fine + bend_fine)             /* residual below 1/16 semitone */
-            m.inc += (uint32_t)((int32_t)(m.inc >> 12) * (v->fine + tune_fine + bend_fine));
+        m.fine = v->fine + tune_fine + bend_fine + gf;
+        if (m.fine)                                     /* residual below 1/16 semitone */
+            m.inc += (uint32_t)((int32_t)(m.inc >> 12) * m.fine);
         m.cutoff = ((lfo * p[P_LD_FLT]) >> 7) + ((m.envq15 * p[P_ED_FLT]) >> 7);
         if (v->vel > 110)                               /* accent opens the filter with the env */
             m.cutoff += (m.envq15 * 24) >> 7;
         m.shape = (64 << 8) + ((lfo * p[P_LD_SHP]) >> 7) + ((m.envq15 * p[P_ED_SHP]) >> 7);
         if (MODP(t).on)                                     /* the modulation matrix (mod.c) */
-            mod_voice(t, v, &m, v->fine + tune_fine + bend_fine);
+            mod_voice(t, v, &m, v->fine + tune_fine + bend_fine + gf);
         /* 1/16 st and 1/4096 -> Q24 octaves: the voice's own offset (the matrix's pitch too), without TUNE and bend */
         m.plog = (m.pitch16 - tune - bend16 - v->pitch16) * 87381 + (m.fine - tune_fine - bend_fine) * 5909;
 #if P5_SPLIT

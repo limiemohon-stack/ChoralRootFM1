@@ -27,6 +27,7 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
 /* emu_firmware.h builds storage.c (FELUCCA_FLASH 1) and cr_settings.c on emu_hal_fw.h's file-backed NOR; emu.c
  * parses --flash / --no-flash / --save-on-exit and hands them over here before the power-on (emu_fw_options). */
 static uint8_t emu_save_on_exit;
+void emu_fw_erase_ms(int ms) { emu_erase_ms_set = (uint32_t)ms; }   /* --erase-ms (emu_hal_fw.h) */
 void emu_fw_options(const char *flash_path, int no_flash, int save_on_exit, int headless)
 {
     emu_save_on_exit = (uint8_t)(save_on_exit != 0);
@@ -391,6 +392,7 @@ void emu_fw_idle(void)                            /* main.c: the input scan whil
     fm1_irq_on();
 #if EMU_SMK37
     cr_smk_wheels();                              /* main.c (SMK-37): the bends follow the wheel, not the screen */
+    cr_smk_pedal();                               /* .. and the pedal jack */
 #endif
 #if FELUCCA_GRAIN
     grain_poll();                                 /* main.c's idle loop: GRAIN's render, a slice a turn */
@@ -426,6 +428,11 @@ void emu_fw_audio(int16_t *out, uint32_t frames)  /* the ALNK0 ISR, one half buf
             out[2u * f + i] = (int16_t)(v > 32767 ? 32767 : v < -32768 ? -32768 : v);
         }
     }
+}
+
+void emu_fw_usb_lost(void)
+{
+    usb_midi_lost = 1;                            /* (the audio ISR takes it: cr_out.c cr_mlost) */
 }
 
 int emu_fw_midi_in(uint32_t pkt)
@@ -509,6 +516,17 @@ void emu_fw_dump(void)
            (unsigned)cs.key_on, (unsigned)cs.tonic, (unsigned)cs.scale, (unsigned)cr.perform_on,
            (unsigned)cr.perform_mode, (unsigned)cr.bass_on, (unsigned)cs.bass_sound, (int)cr.voicing, (int)cu.octave,
            (unsigned)cs.bpm, (unsigned)cs.view, (unsigned)cu_layer(), (unsigned)cu.opt_open, (unsigned)cs.key_play);
+    {                                               /* Chord and Bass Perform (0.34): the parts, the bass's mode, the
+                                                     * layer's part, the bass stream's notes sounding now */
+        uint32_t nn;
+        printf("  perf: parts %u bass-mode %u bass-sel %u ui-off %u layer-part %u shown %d follow %u bass-sounding",
+               (unsigned)cr.perf_parts, (unsigned)cr.bperf_mode, (unsigned)cs.bperf_sel, (unsigned)cs.perf_off,
+               (unsigned)cu.perf_part, cr_perform_shown(&cr), (unsigned)cr.bfollow);
+        for (nn = 0; nn < 128u; nn++)
+            if (cr.reg[CR_STREAM_BASS][nn])
+                printf(" %u", (unsigned)nn);
+        printf("\n");
+    }
     printf("  kbd: plays %s keyboard %s single %u split-note %u page %u (engine: notes %u full %u single %u snap %u)\n",
            cs.key_notes ? "notes" : "chords", cs.kbd_full ? "full" : "chords", (unsigned)cs.single,
            (unsigned)cr.split_note, (unsigned)cu.kpage + 1u, (unsigned)cr.key_notes, (unsigned)cr.full,
@@ -528,9 +546,10 @@ void emu_fw_dump(void)
         unsigned lfo = q == 0xFFu ? 0u : ((fm1_led[q >> 3] >> (q & 7u)) & 1u) ? 4u : ((fm1_led_dim2[q >> 3] >> (q & 7u)) & 1u) ? 3u
                        : ((fm1_led_dim[q >> 3] >> (q & 7u)) & 1u) ? 2u : ((fm1_led_faint[q >> 3] >> (q & 7u)) & 1u) ? 1u : 0u;
 #endif
-        printf("  chord keys: layout %s types-held %02X posted %02X gesture %u kwait %07X kmidi %07X full-chk %u full-all %u"
+        printf("  chord keys: layout %s types-held %02X posted %02X gesture %u kwait %07X kmidi %07X mroots %u/%u/%u full-chk %u full-all %u"
                " suswin %u midi-keys %u full-short %u latch %u lfo-led %u\n", cu_fm1() ? "fm1" : "classic", (unsigned)cu.tk_held,
-               (unsigned)cu.tposted, (unsigned)cu.g_open, (unsigned)cu.kwait, (unsigned)cu.kmidi, (unsigned)cu.full_chk,
+               (unsigned)cu.tposted, (unsigned)cu.g_open, (unsigned)cu.kwait, (unsigned)cu.kmidi, (unsigned)cs.midi_roots,
+               (unsigned)cmr.n, (unsigned)cmr.nw, (unsigned)cu.full_chk,
                (unsigned)cu.full_all, (unsigned)cs.suswin, (unsigned)cs.midi_keys, (unsigned)cs.full_short,
                (unsigned)cs.sticky, lfo);
     }   /* (FM-1's
@@ -568,6 +587,25 @@ void emu_fw_dump(void)
                (unsigned)crl.rate, (unsigned)crl.rate_want, (unsigned)crl.dirty, (unsigned)cu.lpage + 1u, (unsigned)crl.ed,
                (unsigned)crl.ed_t0, (unsigned)(crl.ed ? cr_loop_ed_nlen(&crl) : 0u), (unsigned)crl.ed_g, (unsigned)crl.ed_len,
                (unsigned)cu.gsave_pend, (unsigned)crl.step_end, (unsigned)crl.step_len, (unsigned)crl.step_no);
+        /* the beat (the SEQ layer, cr_drum.c): the preset, the beat on, the drums on in the looper and running, the
+         * kit, the layer's page, the step playing + 1, the hits so far (kick snare hats), the Beat page's knobs, the
+         * level, each drum's Chorus/Delay/Reverb sends and Level (kick snare hats, 3y303), Filter and Drive (3y304), the chip's beat */
+        printf("  drums: preset %u beat %u click %u drums %u ok %u run %u kit %u page %u now %u hits %u %u %u "
+               "x %u y %u density %u chaos %u level %u sends %u/%u/%u %u/%u/%u %u/%u/%u levels %u %u %u filters %u %u %u drives %u %u %u kick %u/%u/%u/%u snare %u/%u/%u/%u hats %u/%u/%u/%u bpos %u\n",
+               (unsigned)cs.beat_preset, (unsigned)cs.metro, (unsigned)crl.metro, (unsigned)crl.drums,
+               (unsigned)cu_drums_ok, (unsigned)crl.drum_run, (unsigned)cs.dr_kit, (unsigned)cu.mpage + 1u,
+               (unsigned)crd_now, (unsigned)crd_hitn[0], (unsigned)crd_hitn[1], (unsigned)crd_hitn[2],
+               (unsigned)cs.dr_x, (unsigned)cs.dr_y, (unsigned)cs.dr_dens, (unsigned)cs.dr_chaos, (unsigned)cs.dr_level,
+               (unsigned)cs.dr_fx[0][0], (unsigned)cs.dr_fx[0][1], (unsigned)cs.dr_fx[0][2],
+               (unsigned)cs.dr_fx[1][0], (unsigned)cs.dr_fx[1][1], (unsigned)cs.dr_fx[1][2],
+               (unsigned)cs.dr_fx[2][0], (unsigned)cs.dr_fx[2][1], (unsigned)cs.dr_fx[2][2],
+               (unsigned)cs.dr_lvl[0], (unsigned)cs.dr_lvl[1], (unsigned)cs.dr_lvl[2],
+               (unsigned)cs.dr_flt[0], (unsigned)cs.dr_flt[1], (unsigned)cs.dr_flt[2],
+               (unsigned)cs.dr_drv[0], (unsigned)cs.dr_drv[1], (unsigned)cs.dr_drv[2],
+               (unsigned)cs.dr[0][0], (unsigned)cs.dr[0][1], (unsigned)cs.dr[0][2], (unsigned)cs.dr[0][3],
+               (unsigned)cs.dr[1][0], (unsigned)cs.dr[1][1], (unsigned)cs.dr[1][2], (unsigned)cs.dr[1][3],
+               (unsigned)cs.dr[2][0], (unsigned)cs.dr[2][1], (unsigned)cs.dr[2][2], (unsigned)cs.dr[2][3],
+               (unsigned)crl.bpos);
         /* 0.18: the loop editor's page and its cursor step's properties (-1: none), its notes' part of a step
          * (quarters; 0: whole steps); the pass of the loop (mod 12); the steps that have a property; the loop voices
          * in use (sounding or a ratchet between two hits) */
@@ -632,18 +670,37 @@ void emu_fw_dump(void)
                 id[k] = (char)CRB_OUT[5u + k];
         id[k] = 0;
         printf("  version: options '%s' identity '%s' build '%s'\n", ov, id, FELUCCA_VERSION);
-        {                                            /* the Options: the entry selected (its place among those
-                                                      * listed, cu_opt_vis: what SELECT counts) and its value's text */
-            uint32_t o, at = 0, n = 0;
-            for (o = 0; o < cu_opt_n(); o++)
-                if (cu_opt_vis(o)) {
-                    if (o == cu.opt_sel)
-                        at = n;
-                    n++;
-                }
-            opt_text(cu.opt_sel, ov, sizeof ov);
+        {                                            /* the Options: the item selected at the level shown (3y290:
+                                                      * the group list, or a group's entries listed, cu_opt_vis: what
+                                                      * SELECT counts) and its value's text; then the group */
+            uint32_t i, at = 0, n = 0;
+            const char *nm = O_NAME[cu.opt_sel % O_N];
+            if (!cu.opt_in) {
+                for (i = 0; i <= CU_G_RESET; i++)
+                    if (cu_g_vis(i)) {
+                        if (i == cu.opt_g)
+                            at = n;
+                        n++;
+                    }
+                nm = CU_G_NAME[cu.opt_g % (CU_G_RESET + 1u)];
+            } else
+                for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+                    if (cu_opt_vis(O_ORD[i])) {
+                        if (O_ORD[i] == cu.opt_sel)
+                            at = n;
+                        n++;
+                    }
+            if (cu.opt_in || cu.opt_g == CU_G_RESET)
+                opt_text(cu.opt_sel, ov, sizeof ov);
+            else {
+                uint32_t k = 0;
+                for (i = cu_g_at(cu.opt_g); O_ORD[i] != CU_G_END; i++)
+                    k += (uint32_t)cu_opt_vis(O_ORD[i]);
+                snprintf(ov, sizeof ov, "%u settings", (unsigned)k);
+            }
             printf("  options: open %u entry %u of %u '%s' value '%s'\n", (unsigned)cu.opt_open, (unsigned)at,
-                   (unsigned)n, O_NAME[cu.opt_sel % O_N], ov);
+                   (unsigned)n, nm, ov);
+            printf("  options group: in %u group '%s'\n", (unsigned)cu.opt_in, CU_G_NAME[cu.opt_g % (CU_G_RESET + 1u)]);
         }
     }
     printf("  boot: %s reset %s failed %u pending %u prev_stage %u\n", bootguard_mode_name(bootguard.mode),
@@ -736,6 +793,11 @@ void emu_fw_dump(void)
                     if (sc->cell[r][c].flags & CR_CF_ON)
                         printf(" %u.%u:%s=%s", r, c, sc->cell[r][c].label, sc->cell[r][c].value);
             printf("\n  screen foot: '%s'\n", sc->footer);   /* (the bottom line: a layer's keys, the Options') */
+            printf("  screen name: '%s%s%s' notes", sc->name.root, sc->name.quality, sc->name.sup);   /* (the chord
+                                                     * name the view draws, its notes line: MIDI Roots, 3y289) */
+            for (r = 0; r < sc->n_notes && r < CR_NOTES_MAX; r++)
+                printf(" %s", sc->note[r].t);
+            printf("\n");
             if (sc->kind == CR_K_ROUTE) {          /* the FX layer's Routing page: the blocks in order, the mode, the
                                                     * block held (cr_screen.h rt_*) */
                 static const char *const RB[4] = {"Chorus", "Delay", "Reverb", "Filter"};
@@ -758,6 +820,9 @@ void emu_fw_dump(void)
                (unsigned)cr_dbg.shed_why, (unsigned)cr_dbg.shed_us, (unsigned)emu_shed_over, (unsigned)emu_shed_at0, (unsigned)emu_shed_at1);
     printf("  flash erases with the audio stalled %u (%u blocks of silence, %u ms each erase)\n", (unsigned)emu_stalls,
            (unsigned)emu_stall_blocks_all, (unsigned)EMU_ERASE_MS);
+    if (st_late_ops)                              /* (--erase-ms past 500: the slow part's late erases, done; 3y265) */
+        printf("  flash late: %u erases done past 500 ms (the longest %u us), each a success\n", (unsigned)st_late_ops,
+               (unsigned)st_late_max_us);
     /* the quiet writes (cr_settings.c, storage.c "erase ahead"): every erase (at power-on too: no audio to stall),
      * those done ahead, those the unit started by itself near playing (the rule: 0), its own saves, the interrupts'
      * masked time by the model (EMU_ERASE_MS an erase, EMU_PROG_US a page), each spare copy's state, and when the
@@ -805,14 +870,15 @@ uint32_t emu_fw_layout(void) { return (uint32_t)cu_fm1(); }
 void emu_fw_ui_info(char *buf, uint32_t n)
 {
     static const char *const K[] = {"none", "stripes", "chord", "picker", "meter", "keyboard", "arp", "params", "geek",
-                                    "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu", "free", "piano", "route", "luvly"};
+                                     "text", "big", "scope", "edit8", "stack", "knobrow", "loopmenu", "free", "piano", "route", "drum",
+                                     "luvly"};
     static const char *const DM[] = {"play", "armed", "rec", "od"};    /* cr_screen.h CR_DIAL_* */
     const cr_screen_t *s = &cu_scr;
     snprintf(buf, n, "%s view %u name '%s|%s|%s' from '%s|%s|%s' item '%s' value '%s' title '%s' size %u squeeze %u "
              "anim %02X %u ms ring %u/%u dial %s/%u/%u msg '%s' blits %u/%u bytes %u wv %u,%u,%u,%u,%u "
              "lm %u/%u/%u/%u lanes %u/%u slot %u jump %u sub '%s' right '%s' foot '%s' now '%s' hot %u.%u",
              s->kind < CR_K_N && s->kind < sizeof K / sizeof K[0] ? K[s->kind] : "?", (unsigned)cs.view, s->name.root, s->name.quality, s->name.sup,
-             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU ? cr_item(s, s->sel) : "",
+             s->from.root, s->from.quality, s->from.sup, s->kind == CR_K_PICKER || s->kind == CR_K_KNOBROW || s->kind == CR_K_LOOPMENU || s->kind == CR_K_DRUM ? cr_item(s, s->sel) : "",
              s->value, s->title, (unsigned)s->size, (unsigned)s->squeeze, (unsigned)s->anim,
              (unsigned)cr_anim_ms(&cu_anim, cu_now()), (unsigned)s->ring_on, (unsigned)s->ring,
              !s->dial_on ? "-" : s->dial_mode < 4u ? DM[s->dial_mode] : "?", (unsigned)s->dial, (unsigned)s->dial_dot, s->message,
@@ -877,6 +943,12 @@ void emu_fw_stages(char *buf, uint32_t n)
     if (o < n)
         o += (uint32_t)snprintf(buf + o, n - o, "; c1 %s, jobs %u, reverb jobs %u", cr_c1_name(), (unsigned)cr_dbg.c1_jobs,
                                 (unsigned)cr_dbg.c1x_jobs);   /* (3y50: the reverb on core 1, fx.c mix_fx_split) */
+    if (o < n && cr_dbg.c1 == C1_OK)                  /* each core's busy time (cr_cpu1.h cr_prof_half: the jobs inline here) */
+        o += (uint32_t)snprintf(buf + o, n - o, "\ncpu: each core (device us per half, avg / max): core 0 %.0f / %.0f, "
+                                "core 1 %.0f / %.0f", (double)cr_dbg.c0_tot_sum / cr_dbg.tot_n / CR_PROF_PER_US,
+                                (double)cr_dbg.c0_tot_max / CR_PROF_PER_US,
+                                (double)cr_dbg.c1_tot_sum / cr_dbg.tot_n / CR_PROF_PER_US,
+                                (double)cr_dbg.c1_tot_max / CR_PROF_PER_US);
     /* the fx stage's parts, over the halves in which the effects ran (the unit's 73 DEBUG has the same four) */
     if (o < n && cr_dbg.x_tot_busy) {
         o += (uint32_t)snprintf(buf + o, n - o, "\ncpu: fx parts (device us per half, avg / max over %u halves with the "

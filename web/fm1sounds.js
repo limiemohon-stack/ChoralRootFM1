@@ -7,7 +7,7 @@
 // objects that changed are written back (the stores first, the bank last), each as a restore writes it (fm1backup.js).
 // Pure: no DOM, no MIDI (the requests go through the caller's request function, as captureBackup's).
 import { BACKUP_CMD, bkU32, bkR32, bkPack, bkUnpack, bkCrc, bkManifest, objectName } from "./fm1backup.js";
-import { dnsndToQuad, quadToV4, quadToV3, dnQuadMacro } from "./fm1dnsnd.js";
+import { dnsndToQuad, quadToV4, quadToV3, quadToV5, dnQuadMacro } from "./fm1dnsnd.js";
 
 export const SOUND_IDS = [6, 7, 9, 10, 11, 12, 13, 22];   // the legacy objects (0.21's: 32 slots, the engine stores)
 const SOUND_IDS_OPTIONAL = [22];                 // (an older ChoralRoot has no FM TONE store: read as empty)
@@ -41,17 +41,18 @@ export const FACTORY_PRESETS = {"7":["FULL ORGAN","JAZZ PERC","GOSPEL","SOFT FLU
 export const FACTORY_FIRST = {"7":0,"8":0,"12":0,"13":0,"14":1,"15":0,"16":1};
 export const FACTORY_IDS = {"16":[0,1,2,3,6,7,8,10,11,12,13,15,16,17,18,19,20,21,23,24,25,26,27,28,29,30,31,32,34,41,43,45,46,47,51,53,54,56,59,60,61,62,65,66,67,68,70,72,77,79,82,83,85,86,87,89,92,93,95,97,100,101,103,104,107,108,109,110,111,112,113,114,115,117,120,122,123,127,128,131,132,133,135,136,137,139,140,142,143,146,147,148,150,152,156,159,162,164,165,168,169,171,172,173,179,181,183,184,185,187,188,189,194,198,199,200]};
 const SND_BIND_MARK = 0xA6, SND_BIND_NOTE = 160 + 15, SND_BIND_FLAGS = 176 + 15;
-// the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another retired one
-// (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM) the VA's
-export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : engine === 1 ? 12 : 13);
+// the pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, a retired one's the VA's (ANALOG since
+// 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM; DIGITAL since 3y232: FM6's before, when
+// the firmware converted it)
+export const poolOf = (engine) => (FACTORY_PRESETS[engine] ? engine : 13);
 // a record's engine is retired on this firmware (no pool of its own: the slot keeps the record, the FM-1 plays a stand-in)
 export const engineRetired = (engine) => engine != null && !FACTORY_PRESETS[engine];
 // the factory preset index a record's binding names (cr_bank.c cb_bind_raw), -1: none (added)
 function sndBindRaw(r) {
   if (!r || !recordValid(r) || r[1] === 3 || r[1] === 5 || r[SND_BIND_NOTE] !== SND_BIND_MARK || !r[SND_BIND_FLAGS]) return -1;
   const e = poolOf(r[2]), f = r[SND_BIND_FLAGS] - 1;
-  if (e !== r[2] && r[2] !== 1) return -1;      // (ANALOG's, a retired engine's record: an added preset where it plays;
-                                                 // a DIGITAL one binds in FM6's)
+  if (e !== r[2]) return -1;                    // (ANALOG's, a retired engine's record, DIGITAL's: an added preset where
+                                                 // it plays)
   return f >= (FACTORY_FIRST[e] || 0) && f < (FACTORY_PRESETS[e] || []).length ? f : -1;
 }
 // the 32 records (null: empty) -> per slot null, or {index, pos, label, name} of the factory preset it overwrites
@@ -240,7 +241,7 @@ export function readSoundFile(file) {
     if (patch.length !== PATCH_SIZE[kind]) throw new Error(`The sound file's ${kind} patch is ${patch.length} bytes, not ${PATCH_SIZE[kind]}`);
     if (kind === "va" && (patch[0] !== 0x56 || patch[1] < 1 || patch[1] > 5)) throw new Error("The sound file's VA patch is not a VA patch (magic or version)");
     if (kind === "fm6" && (patch[112] !== 0x46 || patch[113] !== 1)) throw new Error("The sound file's FM6 patch is not an FM6 patch (magic)");
-    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 5)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
+    if (kind === "quad" && (patch[0] !== 0x51 || patch[1] < 1 || patch[1] > 6)) throw new Error("The sound file's FM TONE patch is not an FM TONE patch (magic or version)");
   }
   return { record, name, engine, engineName: ENGINE_NAMES[engine], kind, patch };
 }
@@ -317,8 +318,9 @@ export function vaToV3(blob, notes = []) {
 
 // the slot's blob of `kind` = blob (null: cleared). Clearing a slot whose bit is clear changes nothing (as va_store_put).
 // notes: what a firmware before the pool will not have of the blob (the patches converted down for it), one line each
-function sndPutBlob(m, kind, slot, blob, notes = []) {
+function sndPutBlob(m, kind, slot, blob, notes = [], quadV6 = true) {
   if (m.pool) {                          // (the pool: one patch a slot, its engine named in the slot)
+    if (kind === "quad" && blob && !quadV6) blob = quadToV5(blob, notes);   // (0.22 .. 0.28: version 6 plays INIT there)
     const p = poolAt(slot), old = m.get(p.id), o = p.off + POOL_HDR;
     if (!blob && (old.length !== POOL_BANK || old[o] !== KIND_ENGINE[kind] + 1)) return;
     const b = old.length === POOL_BANK ? old.slice() : new Uint8Array(POOL_BANK);
@@ -370,8 +372,10 @@ function sndResult(before, m) {
 const sndWriteName = (rec, name) => { rec.fill(0, 4, 4 + SND_NAME); for (let i = 0; i < name.length; i++) rec[4 + i] = name.charCodeAt(i); };
 
 // a sound (readSoundFile's result, or the file / its text) into slot. -> {changed, objs, notes}: notes, on a firmware
-// before the pool (0.21 and older), what of the patch it will not have (an FM TONE or VA patch converted down for it)
-export function importSound(objs, slot, sound) {
+// before the pool (0.21 and older), what of the patch it will not have (an FM TONE or VA patch converted down for it).
+// quadV6 false (quadV6Of: a ChoralRoot 0.22 .. 0.28, whose quad_blob_ok refuses FM TONE's version 6 and plays INIT): a
+// version-6 FM TONE patch is written as version 5 (quadToV5), its notes what was dropped
+export function importSound(objs, slot, sound, { quadV6 = true } = {}) {
   sndCheckSlot(slot);
   if (!sound || !(sound.record instanceof Uint8Array)) sound = readSoundFile(sound);
   const before = sndMap(objs), m = sndCopy(before), rec = sound.record.slice();
@@ -388,7 +392,7 @@ export function importSound(objs, slot, sound) {
   if (!m.pool && kind === "grain") throw new Error("This FM-1 keeps no GRAIN sounds (a ChoralRoot with the GRAIN engine needed)");
   const notes = [];
   sndClearSlot(m, slot);
-  for (const k of SND_KINDS) sndPutBlob(m, k, slot, k === kind && sound.patch ? sound.patch : null, notes);
+  for (const k of SND_KINDS) sndPutBlob(m, k, slot, k === kind && sound.patch ? sound.patch : null, notes, quadV6);
   sndPutRecord(m, slot, rec);
   return { ...sndResult(before, m), notes };
 }
@@ -683,7 +687,10 @@ export function soundFromSyx(parsed, index = 1) {
 // a Digitone sound (fm1dnsnd.js parseDnsnd's result) -> an FM TONE sound as readSoundFile returns it, plus notes (what
 // was lost or approximated): the template's record with the name (cut to 12), the PAN and the macros (P_E0..P_E7 =
 // eng_quad.c QUAD_MAC's values, as quad_macros_out leaves them), added to FM TONE's pool; the patch dnsndToQuad's blob
-const SND_P_DIST = 33, SND_P_PAN = 39, SND_P_E0 = 83, SND_QUAD_MAC = [0, 1, 2, 71, 4, 5, 6, 7];
+const SND_P_DIST = 33, SND_P_CHOR = 34, SND_P_DLY = 35, SND_P_REV = 36, SND_P_PAN = 39, SND_P_E0 = 83, SND_QUAD_MAC = [0, 1, 2, 71, 4, 5, 6, 7];
+const SND_P_GLIDE = 38, SND_P_GLMODE = 41, SND_P_M1SRC = 49;   // (core.h P_*: the part's GLIDE, its mode, mod.c's matrix)
+// (a Digitone II sound, 3y211: its portamento -> GLIDE in TIME mode, its modulation records -> the matrix's slots;
+// neither is a part's own parameter (cr_bank.c param_kept), so a load takes them)
 export function soundFromDnsnd(parsed) {
   if (!parsed || !parsed.params) throw new Error("Not a parsed .dnsnd");
   const q = dnsndToQuad(parsed), record = sndUnB64(SOUND_TEMPLATES.quad, "template");
@@ -691,7 +698,11 @@ export function soundFromDnsnd(parsed) {
   sndWriteName(record, name);
   record[16 + SND_P_PAN] = q.pan + 64;
   record[16 + SND_P_DIST] = q.drive + 64;                       // the Digitone's DRIVE 0..127 -> the sound's (cr_ui.c cu_drive_load)
+  // its sends: the sound's (the patch's SENDS, version 6: an FM TONE load sets the part's, cr_ui.c cu_sends_load)
+  record[16 + SND_P_REV] = q.sends.reverb + 64; record[16 + SND_P_DLY] = q.sends.delay + 64; record[16 + SND_P_CHOR] = q.sends.chorus + 64;
   SND_QUAD_MAC.forEach((i, k) => { record[16 + SND_P_E0 + k] = dnQuadMacro(i, q.values[i]) + 64; });   // (HARM, DTUNE: coarse)
+  if (q.glide != null) { record[16 + SND_P_GLIDE] = q.glide + 64; record[16 + SND_P_GLMODE] = 1 + 64; }
+  (q.mods || []).forEach((m, k) => { if (m) m.forEach((v, j) => { record[16 + SND_P_M1SRC + 3 * k + j] = v + 64; }); });
   record[SND_BIND_NOTE] = SND_BIND_MARK; record[SND_BIND_FLAGS] = 0;
   if (!recordValid(record) || !nameValid(name)) throw new Error("The template record is not valid");
   return { record, name, engine: 15, engineName: ENGINE_NAMES[15], kind: "quad", patch: q.blob, notes: q.notes };
@@ -714,13 +725,6 @@ export function exportSyx(objs, slot) {
 // ---- the device manager (docs/DEVICE-MANAGER.md): a sound placed with its binding, two slots swapped, a binding moved
 // the first free user slot, 0: none
 export const firstFreeSlot = (objs) => (parseSoundObjects(objs).slots.find((s) => !s.used) || { slot: 0 }).slot;
-// 80 IMPORT (0.22): the FM-1's legacy slots (0.21's, as they are in its flash) into slots 1..32 again; -> the records
-// copied. rc 1: no legacy slots on the FM-1; rc 3: busy
-export async function importLegacySlots(request) {
-  const a = await request([80, []], { timeout: 8000, retries: 0 });
-  if (a[0]) throw sndRcError(a[0] === 1 ? 1 : a[0], "legacy slots (0.21's)");
-  return a[1];
-}
 // the record bound to factory preset index f of its engine's pool (SAVE > Overwrite: note[15] 0xA6, flags[15] f + 1);
 // f < 0: an added preset (flags 0)
 export function withBinding(record, f) {
@@ -728,10 +732,17 @@ export function withBinding(record, f) {
   r[SND_BIND_NOTE] = SND_BIND_MARK; r[SND_BIND_FLAGS] = f >= 0 ? f + 1 : 0;
   return r;
 }
-// a sound (readSoundFile's result or the file) into slot, bound to factory preset index f (-1: added)
-export function placeSound(objs, slot, sound, f = -1) {
+// a sound (readSoundFile's result or the file) into slot, bound to factory preset index f (-1: added); opts importSound's
+export function placeSound(objs, slot, sound, f = -1, opts = {}) {
   if (!sound || !(sound.record instanceof Uint8Array)) sound = readSoundFile(sound);
-  return importSound(objs, slot, { ...sound, record: withBinding(sound.record, f) });
+  return importSound(objs, slot, { ...sound, record: withBinding(sound.record, f) }, opts);
+}
+// does this firmware (INFO's version: "ChoralRoot 0.29", "ChoralRoot 0.29-beta1 1-core", "ChoralRoot 0.22 (simulated)")
+// read FM TONE's version 6 (3y202)? 0.29 and later; 0.28 and older, and a version not read as ChoralRoot X.Y, not
+export const QUAD_V6_FROM = [0, 29];
+export function quadV6Of(version) {
+  const m = /ChoralRoot\s+(\d+)\.(\d+)/i.exec(String(version || ""));
+  return !!m && (+m[1] > QUAD_V6_FROM[0] || (+m[1] === QUAD_V6_FROM[0] && +m[2] >= QUAD_V6_FROM[1]));
 }
 // slot's binding only (its sound stays): f the factory preset index of its pool, -1 added
 export function bindSound(objs, slot, f) {

@@ -24,7 +24,8 @@
 #include "fm1_sys.h"
 /* the loader may write the app area and erase update records; never the head */
 #if BOARD_SMK37
-/* SMK: app area 0x4000..0x9CFFF, records in the VM 0x9D000..0xBFFFF only: never BTIF / USRTRIM
+/* SMK: app area 0x4000..0x9CFFF, the resource region 0x9D000..0xA8FFF (3y295) and records in the VM 0x9D000..0xBFFFF
+ * only: never BTIF / USRTRIM
  * 0xC0000..0xC1FFF, USR 0xF4000.., key_mac 0xFF000 (FL_LDR_RANGE_OK, asserted in fm1_flash_map.h; the
  * RAM driver also refuses every protected range on its own, FL_GUARD) */
 #define FL_RANGE_OK(off, n) FL_LDR_RANGE_OK(off, n)
@@ -73,6 +74,8 @@ static int ldr_fread(uint32_t off, void *p, uint32_t n) { return fl_read_ram(off
 static int ldr_erase(uint32_t off)
 {
     uint32_t took;
+    fm1_wdt_feed();                                 /* an erase may take 2 s (fm1_flash_wait.h): the record loop's run
+                                                     * of erases has no ldr_poll between them (3y264) */
     return fl_erase4k_ram(off, &took);
 }
 static int ldr_prog(uint32_t off, const void *p, uint32_t n)

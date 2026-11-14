@@ -23,6 +23,7 @@ typedef struct {
 } aafont_t;
 typedef struct { const char *name; uint16_t bg, surf, text, theme, accent; } ui_pal_t;
 typedef struct { uint16_t off; uint8_t w; const char *label; } kc_t;
+#include "cr_res.h"                       /* the resource region: some faces' data lives there (FM-1) */
 #include "ui_fonts.h"                   /* AF_S 12 px / 400, AF_M 15 px / 500, AF_L 28 px / 600 */
 #include "ui_palettes.h"
 #ifndef FELUCCA_KEYCAPS
@@ -446,7 +447,8 @@ static uint32_t glyph(const aafont_t *f, uint32_t ch)
 
 static int32_t kern(const aafont_t *f, uint32_t a, uint32_t b)       /* 1/16 px */
 {
-    int32_t ia = f->nk ? glyph_at(f, a) : -1;
+    int32_t ia = f->nk && !CR_RES2_GONE(f->kb) ? glyph_at(f, a) : -1;   /* (M's and CRB's pairs: the FM-1's second
+                                                                       * region, cr_res.h; refused, none) */
     uint32_t lo, hi;
     if (ia < 0)
         return 0;
@@ -513,7 +515,7 @@ static int32_t cv_text_flags(int32_t x, int32_t y, const aafont_t *f, const char
             pos = (pen + 8) & ~15;                   /* one phase (figures, ., blanks): the rounded pen */
         }
         err = pos - pen;
-        if (g->bw) {
+        if (g->bw && !CR_RES_GONE(f->data)) {        /* (cr_res.h: the glyphs of a region not there: none) */
             int32_t gx = x + (pos >> 4) + g->bx, gy = y + g->by;
             if (f->hc)
                 cv_alpha_hc(gx, gy, g->bw, g->bh, f->data + g->off, f->hc, rv);

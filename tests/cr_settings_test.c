@@ -35,6 +35,7 @@ static int st_prog(uint32_t off, const void *src, uint32_t n)
 #define FELUCCA_CZ 1                               /* ChoralRoot's object list: the session's object (OBJ_SESSION) */
 #define FELUCCA_QUAD 1
 #define ST_AHEAD 1                                 /* (choralroot.c's: the erase ahead) */
+#define ST_RETIRED 1                               /* (ChoralRoot's, with its pool: 0.21's objects retired, 3y231) */
 #include "../firmware/src/storage.c"
 #undef __attribute__
 
@@ -706,8 +707,15 @@ static void t_flash(void)
      * object list the session and the favourites; NOT the settings (3y52, the owner's decision of 2026-10-14: their
      * previous copy is the calibration's fallback) and no store */
     ok(st_ahead_ix(OBJ_SETTINGS) < 0 && st_ahead_ix(OBJ_SESSION) == 1 && st_ahead_ix(OBJ_FAVS) == 2 &&
-       st_ahead_ix(OBJ_QUADSTORE) < 0 && st_ahead_ix(OBJ_UPRESET0) < 0 && st_ahead_ix(OBJ_FM6BANK) < 0 &&
-       st_ahead_ix(OBJ_CZSTORE1) < 0 && st_ahead_ix(OBJ_PROJECT0) < 0, "flash: erased ahead: session, favourites (not the settings)");
+       st_ahead_ix(OBJ_X_QUADSTORE) < 0 && st_ahead_ix(OBJ_X_UPRESET0) < 0 && st_ahead_ix(OBJ_FM6BANK) < 0 &&
+       st_ahead_ix(OBJ_X_CZSTORE1) < 0 && st_ahead_ix(OBJ_X_PROJECT0) < 0, "flash: erased ahead: session, favourites (not the settings)");
+    {   /* HISTORY 3y231: 0.21's objects are retired: never loaded or saved, whatever their sectors hold */
+        uint8_t b[16] = {1};
+        ok(st_save(OBJ_X_UPRESET0, b, sizeof b) != 0 && st_save(OBJ_X_PROJECT0, b, sizeof b) != 0 &&
+           st_save(OBJ_X_CZSTORE1, b, sizeof b) != 0 && st_save(OBJ_X_QUADSTORE, b, sizeof b) != 0 &&
+           st_load(OBJ_X_UPRESET0, b, sizeof b) < 0 && st_load(OBJ_X_QUADSTORE, b, sizeof b) < 0,
+           "flash: the retired objects (0.21's sound objects) refused, both ways");
+    }
     ok(st_prep(OBJ_SETTINGS) < 0 && !st_ready(OBJ_SETTINGS) && st_load(OBJ_SETTINGS, &r, sizeof r) == (int)sizeof r &&
        cr_settings_import(&r, &r, sizeof r) == 1 && r.bpm == 160 && st_prep(OBJ_SESSION) == 0 && st_prep(OBJ_FAVS) == 0,
        "flash: the settings refused by st_prep, both copies kept; the other two blank already");
@@ -1105,6 +1113,19 @@ static void css_fill(cr_session_t *x)              /* a recognisable session: ev
     x->voicing = 2; x->octave = -1; x->bass_on = 1; x->lock = 1;
     x->latched = (uint8_t)((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7));
     x->loop_rate = 2;                              /* x2 */
+    x->perf_x = CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW;   /* the bass follows, the chord sustains; the BASS layer's keys pick */
+    x->bperf_sel = 3;                              /* Arpeggiate */
+    x->bpar[2][0] = 8; x->bpar[2][1] = 5; x->bpar[0][0] = 333;   /* Arp 1/16 Random; Strum 333 ms */
+    x->drum.ver = CSS_DRUM_VERSION;                /* the drums: Drums, Live, level 66, the map, a snare at the clap */
+    x->drum.preset = 1; x->drum.kit = 3; x->drum.level = 66; x->drum.x = 100; x->drum.y = 20; x->drum.density = 90;
+    x->drum.chaos = 33;
+    for (k = 0; k < 3u; k++) {
+        x->drum.dr[k][0] = (uint8_t)(10 + k); x->drum.dr[k][1] = (uint8_t)(40 + k);
+        x->drum.dr[k][2] = (uint8_t)(k == 1u ? 110 : 20); x->drum.dr[k][3] = (uint8_t)(70 + k);
+        x->drum.send[k] = (uint8_t)(k * 40);
+        x->drum.cho[k] = (uint8_t)(100 + k); x->drum.rev[k] = (uint8_t)(5 * k); x->drum.lvl[k] = (uint8_t)(64 + 20 * k);
+        x->drum.flt[k] = (uint8_t)(127 - 30 * k); x->drum.drv[k] = (uint8_t)(10 * k + 3);
+    }
     x->fx.sel = CSS_FXE_DELAY;
     x->fx.amt[CSS_FXE_REVERB] = 30; x->fx.amt[CSS_FXE_CHORUS] = 0; x->fx.amt[CSS_FXE_DELAY] = 99; x->fx.amt[CSS_FXE_DRIVE] = 127;
     cr_session_fx_set(x, CSS_FXP_DTIME, 5);
@@ -1136,15 +1157,37 @@ static void t_session(void)
        !SD.bass_on && !SD.lock && !SD.latched && !SD.part[0].valid && !SD.part[1].valid && SD.fx.version == CSS_FX_VERSION &&
        SD.fx.n == 0 && SD.fx.sel == CSS_FXE_REVERB && SD.fx.amt[0] == CSS_FX_NONE && SD.fx.amt[CSS_NFXE - 1] == CSS_FX_NONE,
        "session defaults: nothing stored (the unit as it powered on until 0.17: bass off, voicing 0, the sounds' own sends)");
-    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 122u &&
+    ok(!SD.perf_x && !SD.bperf_sel && !SD.bpar[0][0] && (const uint8_t *)&SD.perf_x - (const uint8_t *)&SD == 964 &&
+       (const uint8_t *)&SD.bperf_sel - (const uint8_t *)&SD == 965 && (const uint8_t *)SD.bpar - (const uint8_t *)&SD == 966 &&
+       sizeof SD.bpar == 40u && (const uint8_t *)SD.rsv_end - (const uint8_t *)&SD == 1006,
+       "session: Chord and Bass Perform at bytes 964 .. 1005 (0.34), 0 in the defaults and every older record: the chord "
+       "performs, the bass not, its parameters the defaults");
+    ok(sizeof SD.rsv + 2u * sizeof SD.part[0].rsv + sizeof SD.rsv_end == 36u && sizeof SD.smk_master == 2u &&
+       (const uint8_t *)SD.smk_master - (const uint8_t *)&SD == 22 && !SD.smk_master[0] && !SD.smk_master[1] &&
+       &SD.smk_pedal - (const uint8_t *)&SD == 24 && !SD.smk_pedal &&
+       &SD.smk_trs_off - (const uint8_t *)&SD == 25 && !SD.smk_trs_off &&
+       (const uint8_t *)&SD.fx - (const uint8_t *)&SD == 68 &&
        CSS_NFXP - 29 == 0 && CSS_NP - 91 == 5,
-       "session: 122 bytes of reserve (126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+       "session: 36 bytes of reserve (40 until the drums' block grew to 40 bytes, 3y304; 52 until it grew to 36, 3y303; 76 until it took 24 at byte 26; 118 until 0.34's Bass Perform took 42 of the end's; the SMK-37's MASTER at bytes 22, 23, 0 = not stored; its Pedal at byte 24, 0 = Sustain; its TRS MIDI Out at byte 25, 0 = On; 119 until the TRS jack, 120 until the pedal, 122 until issue 30, 126 until the routing took rsv_fx's last 4, 142 until 0.22's master filter took 16 of it), no free FX parameter entry of 29, 5 free part parameters");
+    ok(sizeof(css_drum_t) == 40u && (const uint8_t *)&SD.drum - (const uint8_t *)&SD == 26 && !SD.drum.ver &&
+       !SD.drum.preset && CSS_DRUM_VERSION == 3u && (const uint8_t *)SD.drum.cho - (const uint8_t *)&SD == 50 &&
+       (const uint8_t *)SD.drum.flt - (const uint8_t *)&SD == 59,
+       "session: the drums' block at bytes 26..65 (the old reserve's; version 2, 3y303: the sends and Levels at 50..58; "
+       "version 3, 3y304: the Filters and Drives at 59..64), "
+       "version 0 in the defaults and every older record (cr_settings.c css_drum_put: the defaults then, the Metronome preset)");
     ok(SD.loop_rate == 0 && (const uint8_t *)&SD.loop_rate - (const uint8_t *)&SD == 21,
        "session: the loop's Rate, byte 21 (the first of the old reserve), 0 = x1: a record written before it reads x1");
     /* every item round-trips */
     css_fill(&SX);
     rc = cr_session_import(&SR, &SX, sizeof SX);
     ok(rc == 1 && !memcmp(&SR, &SX, sizeof SX), "session: every item round-trips, byte for byte (rc 1)");
+    ok(SR.perf_x == (CSS_PERF_STORED | CSS_PERF_CHORD_OFF | CSS_PERF_BASS_ON | CSS_BASS_KEYS | CSS_BASS_FOLLOW) && SR.bperf_sel == 3 && SR.bpar[2][0] == 8 &&
+       SR.bpar[2][1] == 5 && SR.bpar[0][0] == 333, "session: the Bass Perform round-trips (chord Off, bass Arpeggiate, its knobs)");
+    ok(SR.drum.ver == CSS_DRUM_VERSION && SR.drum.preset == 1 && SR.drum.kit == 3 && SR.drum.level == 66 &&
+       SR.drum.x == 100 && SR.drum.y == 20 && SR.drum.density == 90 && SR.drum.chaos == 33 && SR.drum.dr[1][2] == 110 &&
+       SR.drum.dr[2][3] == 72 && SR.drum.dr[0][0] == 10 && SR.drum.send[2] == 80 && !SR.drum.send[0] && SR.drum.cho[2] == 102 && SR.drum.rev[1] == 5 &&
+       SR.drum.lvl[2] == 104 && SR.drum.flt[1] == 97 && SR.drum.drv[2] == 23, "session: the drums round-trip (the preset, "
+       "the kit, the Beat page, each drum's Tune Decay Character Fill, its Chorus, Delay, Reverb, Level, Filter and Drive)");
     ok(SR.voicing == 2 && SR.octave == -1 && SR.bass_on == 1 && SR.lock == 1 && SR.loop_rate == 2 &&
        SR.latched == ((1u << CR_MOD_MAJ) | (1u << CR_MOD_MAJ7)), "session: voicing +2, octave -1, Bass on, LOCK with MAJ + M7, the loop's Rate x2");
     ok(SR.fx.sel == CSS_FXE_DELAY && SR.fx.amt[CSS_FXE_DELAY] == 99 && SR.fx.amt[CSS_FXE_DRIVE] == 127 && SR.fx.n == 3 &&
@@ -1277,8 +1320,8 @@ static void t_session_flash(void)
     int n;
     memset(nor, 0xFF, sizeof nor);
     ok(st_sector(OBJ_SESSION, 0) == 0xB4000u && st_sector(OBJ_SESSION, 1) == 0xB5000u &&
-       st_sector(OBJ_SETTINGS, 0) == 0xFC000u && st_sector(OBJ_QUADSTORE, 1) == 0xB3000u,
-       "session flash: the pair 0xB4000 / 0xB5000 (the first free sectors after the FM TONE store)");
+       st_sector(OBJ_SETTINGS, 0) == 0xFC000u && st_sector(OBJ_FAVS, 0) == 0xB6000u,
+       "session flash: the pair 0xB4000 / 0xB5000 (after the old FM TONE store's sectors), the favourites after it");
     ok(st_load(OBJ_SESSION, &SR, sizeof SR) < 0, "session flash: empty -> none");
     css_fill(&SX);
     ok(st_save(OBJ_SESSION, &SX, CSS_SIZE) == 0, "session flash: saved");
@@ -1493,9 +1536,23 @@ static void t_solfege(void)
         ok(CRS_SOL(&r) && CRS_SCALE(&r) == sc, ".. and its capture keeps the bit");
     }
     s = d;
-    s.scale = (uint8_t)(CRS_SOLFEGE | 5u);         /* an unknown scale: Major, the bit kept */
+    s.scale = (uint8_t)(CRS_SOLFEGE | CR_SCALE_COUNT);   /* an unknown scale (0.36: 23 and up): Major, the bit kept */
     cr_settings_seal(&s);
-    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MAJOR, "scale 5 with Solfege: Major, Solfege kept");
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_SOL(&r) && CRS_SCALE(&r) == CR_SCALE_MAJOR, "scale 23 with Solfege: Major, Solfege kept");
+    {                                              /* more scales (0.36): every one round-trips and reaches the engine */
+        int sc2, bad2 = 0;
+        for (sc2 = 0; sc2 < CR_SCALE_COUNT; sc2++) {
+            s = d;
+            s.scale = (uint8_t)(CRS_SOLFEGE | sc2);
+            cr_settings_seal(&s);
+            bad2 += cr_settings_import(&r, &s, sizeof s) != 1 || CRS_SCALE(&r) != (unsigned)sc2 || !CRS_SOL(&r);
+            cr_init(&E, &OUT);
+            cr_settings_apply(&r, &E, &o);
+            bad2 += E.scale != sc2;
+        }
+        ok(!bad2, "the 23 scales (0.36): each round-trips beside Solfege, the engine gets it");
+    }
+    s = d;
     s.scale = 0x7Fu;
     cr_settings_seal(&s);
     ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.scale == CR_SCALE_MAJOR, "scale 127: Major, no Solfege");
@@ -1630,6 +1687,88 @@ static void t_layout(void)
        "an older firmware: a byte with a new bit is out of its range (LATCH off, Raw Chord Sound off there); with the defaults it is one it knows");
 }
 
+/* 3y269, 3y272: Options > MIDI CC (Off / In / Out / In + Out) in bits 6 and 7 of `raw_sound` (bit 6 Out on, bit 7 In
+ * off): 0, every older record's, is In, the default (no version); kept beside Raw Chord Sound and MIDI Keys, automatic, untouched by
+ * the engine's apply / capture; an older firmware's CRS_FIX(raw_sound, 0, 0x3F) (modelled) reads a non-default byte
+ * as Raw Chord Sound and MIDI Keys Off */
+static void t_midi_cc(void)
+{
+    cr_settings_t d, s, r, m, o2;
+    cr_settings_out_t o;
+    unsigned v;
+    cr_settings_defaults(&d);
+    ok(CRS_MIDI_CC(&d) == 1u && d.raw_sound == 0, "MIDI CC: the default In, the byte 0 (every older record's)");
+    for (v = 0; v < 4u; v++) {
+        s = d;
+        s.raw_sound = (uint8_t)(CRS_RAW_BYTE(1, 16) | CRS_CC_BITS(v));
+        cr_settings_seal(&s);
+        if (cr_settings_import(&r, &s, sizeof s) != 1 || CRS_MIDI_CC(&r) != v || CRS_RAW(&r) != 1u || CRS_MIDI_KEYS(&r) != 16u)
+            break;
+    }
+    ok(v == 4u && CRS_CC_BITS(1) == 0 && CRS_CC_BITS(0) == CRS_CC_IN_OFF && CRS_CC_BITS(3) == CRS_CC_OUT_ON,
+       "MIDI CC: Off, In, Out, In + Out each round-trip beside Raw Chord Sound and MIDI Keys ch 16");
+    s.raw_sound = (uint8_t)(1u | (17u << 1) | CRS_CC_BITS(1));
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_MIDI_KEYS(&r) == 0u && CRS_RAW(&r) == 1u && CRS_MIDI_CC(&r) == 1u,
+       "MIDI CC: a bad MIDI Keys channel is Off, MIDI CC In and Raw Chord Sound kept");
+    cr_settings_defaults(&m);
+    cr_settings_defaults(&o2);
+    o2.raw_sound = CRS_CC_BITS(2);
+    cr_settings_auto(&m, &o2);
+    ok(CRS_MIDI_CC(&m) == 2u, "MIDI CC: automatic (saved by itself, as the other MIDI Options)");
+    cr_init(&C, &OUT);
+    s = d;
+    s.raw_sound = CRS_CC_BITS(0);
+    cr_settings_apply(&s, &C, &o);
+    ok(!C.stream_on[CR_STREAM_RAW] && o.part[CR_STREAM_RAW] == CRS_NONE, "MIDI CC: the engine takes bit 0 alone");
+    cr_settings_capture(&s, &C, &o);
+    ok(CRS_MIDI_CC(&s) == 0u, "MIDI CC: the engine's capture keeps it");
+    ok((CRS_RAW_BYTE(1, 3) | CRS_CC_BITS(1)) <= 0x3Fu && (CRS_RAW_BYTE(1, 3) | CRS_CC_BITS(3)) > 0x3Fu &&
+       (CRS_RAW_BYTE(1, 3) | CRS_CC_BITS(0)) > 0x3Fu && (CRS_RAW_BYTE(1, 3) | CRS_CC_BITS(2)) > 0x3Fu,
+       "MIDI CC: an older firmware (0 .. 0x3F) reads the byte as before with the default (In); off it, not");
+}
+
+/* 3y289: Options > MIDI Roots in bits 1 .. 5 of midi_en[2] (bit 0 stays MIDI Raw Chord's out): 0 the default (no
+ * version), the range, automatic, the engine's apply / capture see bit 0 alone, and an older firmware's check of the
+ * byte against 0 .. 1 (modelled) */
+static void t_midi_roots(void)
+{
+    cr_settings_t d, s, r, m, o2;
+    cr_settings_out_t o;
+    cr_settings_defaults(&d);
+    ok(CRS_MIDI_ROOTS(&d) == 0u && d.midi_en[2] == 0, "MIDI Roots: Off by default, the byte 0 (MIDI Raw Chord Off)");
+    s = d;
+    s.midi_en[2] = (uint8_t)(1u | 16u << 1);
+    s.midi_ch[2] = 4;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_MIDI_ROOTS(&r) == 16u && CRS_EN(&r, 2) == 1u && r.midi_ch[2] == 4,
+       "MIDI Roots ch 16 beside MIDI Raw Chord on ch 5: both kept");
+    s.midi_en[2] = (uint8_t)(1u | 17u << 1);
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && CRS_MIDI_ROOTS(&r) == 0u && CRS_EN(&r, 2) == 1u,
+       "MIDI Roots 17 (no such channel): Off, MIDI Raw Chord kept");
+    s.midi_en[2] = 0x41u;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.midi_en[2] == d.midi_en[2], "an unknown bit 6: the byte's default");
+    s.midi_en[0] = 3u;
+    cr_settings_seal(&s);
+    ok(cr_settings_import(&r, &s, sizeof s) == 1 && r.midi_en[0] == d.midi_en[0], "the other streams' bytes keep their 0 .. 1");
+    cr_settings_defaults(&m);
+    cr_settings_defaults(&o2);
+    o2.midi_en[2] = (uint8_t)(7u << 1);
+    cr_settings_auto(&m, &o2);
+    ok(CRS_MIDI_ROOTS(&m) == 7u && CRS_EN(&m, 2) == 0u, "MIDI Roots: automatic");
+    cr_init(&C, &OUT);
+    s = d;
+    s.midi_en[2] = (uint8_t)(9u << 1);
+    cr_settings_apply(&s, &C, &o);
+    ok(!C.stream_on[CR_STREAM_RAW] && !o.midi_en[CR_STREAM_RAW],
+       "the engine takes bit 0 alone: a MIDI Roots channel switches on neither the RAW stream nor its MIDI out");
+    cr_settings_capture(&s, &C, &o);
+    ok(CRS_MIDI_ROOTS(&s) == 9u && CRS_EN(&s, 2) == 0u, "the engine's capture writes bit 0 and keeps MIDI Roots");
+    ok(s.midi_en[2] > 1u, "an older firmware: the byte is out of its range 0 .. 1 (MIDI Raw Chord Off, its default, there)");
+}
+
 /* This fork (2026-10-20): Classic is the default Chord Keys (upstream's since 0.25.1 is FM-1); every record this
  * firmware has not written yet (upstream 0.25.1 / 0.26 moved it to FM-1; older ones never had Chord Keys) is put on
  * Classic once, marked in bit 2 of `leds` (cr_settings.h CRS_KEYS_CLASSIC) beside upstream's bit 1; a record with the
@@ -1709,6 +1848,8 @@ int main(void)
 {
     t_auto();
     t_layout();
+    t_midi_cc();
+    t_midi_roots();
     t_keys_default();
     t_defaults();
     t_fresh_playstyle();

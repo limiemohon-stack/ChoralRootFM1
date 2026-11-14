@@ -2500,8 +2500,125 @@ static void s_preview(void)
     cr_loop_panic(&L);
 }
 
+/* MIDI Clock In: the loop's tempo ticks against an external 24 PPQN clock (HISTORY 3y224). The follower applies
+ * a whole BPM (cr_midi.c: 120.4 -> 120, and holds within 0.8 of it), so a loop run from the FM-1's own ms clock
+ * drifts from the master by the difference: 0.4 beat a minute here. Locked to the pulses (cr_loop_ext_pulse), the
+ * tempo ticks stay within a pulse (4 ticks) of 4 per pulse, for any minutes. */
+static void s_extclock(void)
+{
+    static const uint32_t bpm10[3] = {1204u, 1207u, 1200u};   /* tenths: rounding, the hold, a master at 120 */
+    char name[160];
+    uint32_t k;
+    for (k = 0; k < 3u; k++) {
+        uint64_t pulses = 0;
+        uint32_t rt0, mins = 10u, end;
+        int32_t err, worst = 0;
+        reset();
+        cr_set_tempo(&C, 120);                       /* what the follower applies */
+        rt0 = L.rt;
+        end = NOW + mins * 60000u;
+        while (NOW < end) {
+            /* the next pulse's ms: pulse p at p * 600000 / (bpm10 * 24) ms (exact, then floored, as a stamp) */
+            uint32_t due = 1000u + (uint32_t)((pulses * 600000u) / (bpm10[k] * 24u));
+            if (due <= NOW) {
+                cr_loop_ext_pulse(&L);
+                pulses++;
+            }
+            step(1);
+            err = (int32_t)(L.rt - rt0) - (int32_t)((pulses ? pulses - 1u : 0u) * 4u);
+            if (err < 0 ? -err > -worst && -err > worst : err > worst && err > -worst) worst = err;
+        }
+        snprintf(name, sizeof name, "ext clock %u.%u BPM: %u min, tempo ticks within a pulse of the master's "
+                 "(worst %d ticks = %d ms)", (unsigned)(bpm10[k] / 10u), (unsigned)(bpm10[k] % 10u), (unsigned)mins,
+                 (int)worst, (int)(worst * 60000 / (int32_t)(bpm10[k] * 96 / 10)));
+        ok(worst >= -4 && worst <= 4, name);
+    }
+    /* the pulses stop (a cable, the master's Stop): the loop runs on at the tempo, from the ms clock */
+    reset();
+    cr_loop_ext_pulse(&L);
+    cr_loop_ext_off(&L);
+    {
+        uint32_t rt0 = L.rt;
+        step(60000);
+        ok(L.rt - rt0 >= 11519u && L.rt - rt0 <= 11521u, "ext clock off: the ms clock again (120 BPM: 11520 ticks a minute)");
+    }
+}
+
+/* (GitHub issue 39, HISTORY 3y283) Clock In as cr_out.c feeds it (cr_loop_clock_pulse / _start / _idle), from a master
+ * at 120.4 BPM for ten minutes, the pulses as a DAW and a USB cable deliver them: each 0..3 ms late, a third of the
+ * time sent once an audio buffer (21.3 ms: two in one ms now and then), every pulse copied onto the TRS input 1 ms
+ * later, and every 30 s a 300 ms hiccup whose pulses come in one burst at its end; a Start (FA) at 5 minutes. The
+ * loop's tempo ticks must stay within a pulse of the master's, and end on it: nothing lost, nothing counted twice */
+static void s_extclock_jitter(void)
+{
+    const double per = 60000.0 / (120.4 * 24.0), buf = 1024.0 * 1000.0 / 48000.0;
+    uint32_t rng = 0x1234567u, rt0, end, at[2], i, dropped_before = 0, last1 = 0;
+    uint64_t sent = 0, got = 0, base = 0;
+    int32_t err, worst = 0;
+    int started = 0;
+    char name[200];
+    reset();
+    cr_set_tempo(&C, 120);
+    rt0 = L.rt;
+    end = NOW + 600000u;
+    while (NOW < end) {
+        double t = 1000.0 + (double)sent * per;              /* the master's next pulse */
+        uint32_t due, hic;
+        rng = rng * 1103515245u + 12345u;
+        due = (uint32_t)t + (rng >> 16) % 4u;               /* 0..3 ms late */
+        if ((rng >> 8) % 3u == 0u)
+            due = (uint32_t)(((uint32_t)(t / buf) + 1u) * buf);   /* .. or the buffer it goes out in */
+        hic = (due - 1000u) % 30000u;
+        if (hic >= 29700u)
+            due += 30000u - hic;                             /* the hiccup: held back, a burst at its end */
+        if (due > NOW) {
+            step(1);
+            cr_loop_clock_idle(&L, NOW);
+        }
+        if (due <= NOW) {
+            if (!started && NOW >= 301000u) {                /* FA: the loop starts, the next pulse its downbeat */
+                started = 1;
+                cr_loop_clock_start(&L, NOW);
+                rt0 = L.rt;
+                base = got;
+            }
+            at[0] = NOW;
+            at[1] = NOW + 1u;
+            for (i = 0; i < 2u; i++) {                       /* USB, then TRS's copy (its ms comes in the next step) */
+                if (i) { step(1); cr_loop_clock_idle(&L, NOW); }
+                if (cr_loop_clock_pulse(&L, 1u + i, at[i]) && i == 0u) {
+                    if (got && at[0] - last1 < 2u) dropped_before++;
+                    last1 = at[0];
+                    got++;
+                }
+            }
+            sent++;
+        }
+        err = (int32_t)(L.rt - rt0) - (int32_t)((got - base ? got - base - 1u : 0u) * 4u);
+        if (got > base && (err < 0 ? -err : err) > (worst < 0 ? -worst : worst)) worst = err;
+    }
+    snprintf(name, sizeof name, "Clock In, jittery and bunched, a second input, hiccups, a Start: 10 min at 120.4 BPM, "
+             "the loop within a pulse of the master (worst %d ticks), %llu pulses each counted once (%u < 2 ms after "
+             "the one before: 3y224 dropped them)", (int)worst, (unsigned long long)got, (unsigned)dropped_before);
+    ok(worst >= -4 && worst <= 4 && got == sent && dropped_before > 0u, name);
+    err = (int32_t)(L.rt - rt0) - (int32_t)((got - base - 1u) * 4u);
+    ok(err >= 0 && err <= 3, "Clock In: at the end the loop sits on the master's last pulse (0..3 ticks past it)");
+    /* the clock unplugged without a Stop: the loop waits, then after CRL_EXT_HOLD_MS runs on the FM-1's clock */
+    rt0 = L.rt;
+    step(CRL_EXT_HOLD_MS / 2u);
+    cr_loop_clock_idle(&L, NOW);
+    ok(L.ext_on && L.rt - rt0 <= 4u, "Clock In: a gap shorter than the hold: the loop waits for the next pulse");
+    step(CRL_EXT_HOLD_MS);
+    cr_loop_clock_idle(&L, NOW);
+    rt0 = L.rt;
+    step(1000);
+    ok(!L.ext_on && L.rt - rt0 >= 190u && L.rt - rt0 <= 194u, "Clock In: a long silence: the FM-1's clock again (192 ticks a second)");
+}
+
 int main(void)
 {
+    s_extclock();
+    s_extclock_jitter();
     s_overwrite();
     s_replace();
     s_step();

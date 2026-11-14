@@ -346,6 +346,10 @@ def classify_firmware(identity, info, port=None):
         return "refuse", "unknown", identity
     if BUBBA_PORT.search(port or ""):             # Bubba Machine answers FM-1_003, as an old official firmware would
         return "refuse", "bubba", f"Bubba Machine ({identity})"
+    r = REMOTEFM1_ID.fullmatch(m[3])
+    if r:                                         # RemoteFM1 0.2 on (fm1-base's identity, see REMOTEFM1_ID)
+        return "allow", "remotefm1", (f"RemoteFM1 {int(r[1])}.{int(r[2])}.{int(r[3])}" if r[1]
+                                      else "RemoteFM1 (development build)")
     if 1 <= num < 100:
         return "allow", "stock", f"the official M-VAVE firmware ({identity})"
     if num == 0:
@@ -389,15 +393,21 @@ def classify_smk(identity, model, num, v):
 # unit's boot head (hal/fm1/fm1_update.c), so it refuses every Felucca-family package, ChoralRoot's included, before
 # it writes anything; the official V15 goes through (docs/INSTALL-COMPAT.md "Bubba Machine")
 BUBBA_PORT = re.compile(r"bubba", re.I)
+# RemoteFM1 0.2 on (github.com/Quixotic7/RemoteFM1; on fm1-base + felucca-bsp, felucca-bsp's updater): fm1-base's
+# identity, its fm1.toml id_prefix "FM-1_52" + "00" (a development build) or + XXYYZZ (release X.Y.Z, two digits
+# each: 0.2.1 = FM-1_52000201). No INFO answer. RemoteFM1 0.1 answered as the official V15 (FM-1_015). Only
+# RemoteFM1's prefix: other fm1-base firmwares' update paths are not known here (docs/INSTALL-COMPAT.md "RemoteFM1")
+REMOTEFM1_ID = re.compile(r"52(?:00|(\d\d)(\d\d)(\d\d))")
+MFLASHER_URL = "https://github.com/jvitkauskas/m-flasher"   # the owner's advice for switching firmwares (3y237)
 BUBBA_TEXT = ("Bubba Machine's updater takes only M-VAVE's official package, so ChoralRoot cannot be installed over it "
-              "directly. Return to the official V15 first: this tool "
-              "with M-VAVE's FM-1.fwsc (python3 tools/fm1_install.py FM-1.fwsc), the web installer's \"Return to "
-              "official V15\" or Bubba Machine's own installer; then install ChoralRoot.")
+              "directly. Switch firmwares with M-Flasher and the M-Bootloader instead (" + MFLASHER_URL + "): it "
+              "installs ChoralRoot's package (choralroot-X.Y.fwsc) through the chip's download mode.")
 
 
 def refusal_text(name):
     return (f"Installing over {name} is not supported: {REFUSE_REASON} "
-            f"Return to the official V15 firmware with the installer you used for {name} first, then install ChoralRoot. "
+            f"Switch firmwares with M-Flasher and the M-Bootloader instead ({MFLASHER_URL}): it installs ChoralRoot's package "
+            f"through the chip's download mode, whatever runs on the FM-1. "
             f'If an FM-1 is already dark (black screen, a "WL82 UBOOT1.00" USB disk): {RECOVERY_URL}')
 
 
@@ -1310,6 +1320,8 @@ BK_SELECT = 76                                    # a part to an engine and pool
 BK_STUB = 77                                      # a request to the boot stub and a restart (cr_backup.c crb_stub), --stub
 BK_PEAK = 78                                      # read-only: the audio ISR's worst cases since the last read (crb_peak), --debug
 BK_USB = 79                                       # read-only: ChoralRoot In's rate and its 48 kHz counters (crb_usb), --debug
+BK_BLE = 81                                       # read-only: Bluetooth, the radio's state (cr_ble.c cr_ble_debug), --debug
+BK_BLE_TEST = 82                                  # a BLE_DIAG build: the bisection's mask, at the next power-on, --ble-test
 STUB_RC = {1: "bad request", 3: "busy: close EDIT / SAVE on the FM-1, stop recording the loop",
            127: "no boot stub of version 2 or later on this firmware"}
 SELECT_RC = {1: "bad part or engine", 2: "bad pool position", 3: "busy: close EDIT / SAVE on the FM-1"}
@@ -1996,9 +2008,10 @@ def _record(objs, slot):
 
 
 def pool_of(engine):
-    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, DIGITAL's FM6, another
-    retired one (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM) the VA's"""
-    return engine if str(engine) in FACTORY_PRESETS else 12 if engine == 1 else 13
+    """the preset pool a record is in (cr_bank.c cb_rec_engine): its engine if selectable, a retired one's the VA's
+    (ANALOG since 0.14; PHASE, LOFI, VOICE, TRIO, NOISE, PHYS since 0.18; SAMPLE, GRAIN, DRUM; DIGITAL since 3y232:
+    FM6's before, when the firmware converted it)"""
+    return engine if str(engine) in FACTORY_PRESETS else 13
 
 
 def engine_retired(engine):
@@ -2011,9 +2024,9 @@ def _bind_raw(r):
     if r[1] in (3, 5) or r[BIND_NOTE] != BIND_MARK or not r[BIND_FLAGS]:
         return None
     e, f = pool_of(r[2]), r[BIND_FLAGS] - 1
-    if e != r[2] and r[2] != 1:
-        return None                                # (ANALOG's, a retired engine's record: an added preset where it
-                                                   # plays; a DIGITAL one binds in FM6's)
+    if e != r[2]:
+        return None                                # (ANALOG's, a retired engine's record, DIGITAL's: an added preset
+                                                   # where it plays)
     return f if FACTORY_FIRST[str(e)] <= f < len(FACTORY_PRESETS[str(e)]) else None
 
 
@@ -2171,8 +2184,8 @@ def read_sound_file(f):
             raise bad("not a VA patch (its first bytes are not 'V' and a version 1..5)")
         if kind == "fm6" and (data[112] != 0x46 or data[113] != 1):
             raise bad("not an FM6 patch (bytes 112, 113 are not 'F', 1)")
-        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 5 or (data[1] < 4 and any(data[80:]))):
-            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..5)")
+        if kind == "quad" and (data[0] != 0x51 or not 1 <= data[1] <= 6 or (data[1] < 4 and any(data[80:]))):
+            raise bad("not an FM TONE patch (its first bytes are not 'Q' and a version 1..6)")
         patch = (kind, bytes(data))
     return bytes(rec), name, engine, patch
 
@@ -2751,7 +2764,11 @@ DEBUG_PEAK = ["pk_block_us", "pk_tick_us", "pk_part0_us", "pk_part1_us", "pk_fx_
               # the voices the overload shed dropped since power-on (audio.c shed_voice: two halves in a row over
               # 85 % of the 2902 us; the console's voices_shed; shed_voices above is since the last --debug): the
               # rule is 0
-              "voices_shed"]
+              "voices_shed",
+              # 3y265: the erases and page programs since power-on that the flash part finished after the normal bound
+              # (500 ms / 10 ms) but within the extended one (2 s / 50 ms): done, the save went through
+              # (hal/fm1_flash_late.h); and the longest of them in us. On the Puya part: 0
+              "flash_late_ops", "flash_late_max_us"]
 ERASE_WHY = ["other (a sound saved, a store)", "automatic: the Options", "automatic: the favourites",
              "the global save (SAVE held) or Reset Settings", "the calibration / the update gesture",
              "a backup restore", "a loop slot"]
@@ -2760,7 +2777,7 @@ PEAK_HEX = ("irq_gap_pc", "crash_vec", "crash_pc", "crash_rets", "crash_emu", "c
 BOOT_STAGE = {0: "none", 1: "loop: input", 2: "loop: draw", 9: "loop: idle", 10: "guard", 11: "flash probe",
               12: "user sounds", 13: "fm6 bank", 14: "va store", 15: "fm6 store", 16: "settings", 17: "update cleanup",
               18: "lcd", 19: "splash", 20: "input", 21: "sounds", 22: "audio", 23: "usb", 24: "uart", 25: "irqs",
-              26: "calibration", 27: "ui init", 28: "ui settings", 29: "loops", 30: "core 1"}   # cr_bootguard.h BS_*
+              26: "calibration", 27: "ui init", 28: "ui settings", 29: "loops", 30: "core 1", 31: "bluetooth"}   # cr_bootguard.h BS_*
 LATE_STAGE = ["none", "tick", "part0", "part1", "fx", "master", "wait"]
 SHED_WHY = ["none", "a released voice, the quietest", "a held voice, the oldest that is not its part's lowest note",
             "asked, and no voice to give", "a voice of the bass part's P5 stack, before any chord voice"]
@@ -2784,6 +2801,40 @@ def shed_voice_text(v):
 DEBUG_USB = ["ua_rate", "ua_rate_last_open", "ua_rate_sets", "ua_rate_changes", "ua_pk576", "ua_pk564", "ua_pk588",
              "ua_rs_blocks", "ua_rs_avg_us", "ua_rs_max_us", "ua_packet_max", "ua_48k_offered", "ua_48k_refused",
              "ua_replugs"]
+# 81 BLE's values (3y238, cr_ble.c cr_ble_debug, docs/BLE-LINK.md; FM-1 builds with Bluetooth; only appended): Options >
+# Bluetooth On, the radio started this power-on, a start owed at the next, where its trims came from (BLE_CAL), the
+# start's time in us (the interrupts held), a peer connected, MIDI subscribed, packets in / out, links lost; the radio's
+# breadcrumb (hal/fm1_ble_rf.h fm1_ble_bc) now and its interrupts, and what the run before left when a reset (not a
+# power-on) ended it (word, interrupts, op, burst op, address, stop); the boot guard's failed count; the start-up step
+DEBUG_BLE = ["ble_on", "ble_started", "ble_pending", "ble_cal", "ble_start_us", "ble_connected", "ble_ready",
+             "ble_rx", "ble_tx", "ble_losses", "ble_crumb", "ble_irqs", "ble_prev_crumb", "ble_prev_irqs",
+             "ble_prev_op", "ble_prev_gop", "ble_prev_addr", "ble_prev_stop", "ble_boot_failed", "ble_step",
+             "ble_supplies",   # 3y240: 0 not asked, 1 stock's supplies applied (fm1_power_stock), 2 a P33 timeout
+             # 3y241, a BLE_DIAG=1 build only (the driver's ble_dg): advertising starts / events ended / packets heard /
+             # SCAN_REQs (a scanner heard us) / dropped, the last drop's RXSTAT | RXAHDR << 16; CONNECT_INDs received /
+             # accepted / refused / why; the link's event and RX interrupts, events, good and bad-CRC packets, closes,
+             # the last close's reason | by << 8; link stops that timed out
+             "ble_test", "ble_adv_starts", "ble_adv_events", "ble_adv_rx", "ble_scan_req", "ble_adv_drop", "ble_adv_drop_stat",
+             "ble_cind_rx", "ble_cind_ok", "ble_cind_rej", "ble_cind_rej_why", "ble_evt_irqs", "ble_rx_irqs",
+             "ble_conn_events", "ble_rx_good", "ble_rx_crc_bad", "ble_closes", "ble_close", "ble_busy_timeouts",
+             # 3y245: the VCO band (hal/fm1_ble.h): our scan found one (1), its band and comparator word, the band
+             # the captured program left, rescanned (mask 32), the band in the register now
+             "ble_vco_found", "ble_vco_scan_band", "ble_vco_scan_result", "ble_vco_captured", "ble_vco_rescanned",
+             "ble_vco_now",
+             # 3y247: the full sweep (masks 32 / 64): bands reading low (bit b of word b / 32) and high, the band kept
+             "ble_vco_low0", "ble_vco_low1", "ble_vco_high0", "ble_vco_high1", "ble_vco_chosen",
+             # 3y249: the measured calibration (every start since 3y250, fm1_rf_cal.h): the scan's and the trim's return code (low
+             # 16 bits, signed) | ran << 16; its mid bank | top << 8 | bank 121's << 16 | mid found << 24; its time
+             "ble_cal_scan", "ble_cal_trim", "ble_cal_banks", "ble_cal_us",
+             # 3y252: our packets acknowledged by the peer 1, 2, 3, 4+ connection events after loading
+             "ble_tx_ack1", "ble_tx_ack2", "ble_tx_ack3", "ble_tx_ack4"]
+# (in a BLE_DIAG build ble_test comes right after ble_supplies: 3y243's bisection mask, BLE_TEST below)
+BLE_TEST = {1: "no key scan", 2: "no audio", 4: "no TRS UART", 8: "radio started in the main loop",
+            16: "no stock supplies", 32: "the full TX calibration (DC, gain, phase)",
+            64: "the stored calibration (record 187), not measured at start"}
+BLE_CAL = ["none", "the stock VM (0xE8000)", "ChoralRoot's copy", "measured at the start (fm1_rf_cal.h)"]
+BLE_HEX = ("ble_crumb", "ble_prev_crumb", "ble_prev_addr", "ble_vco_scan_result", "ble_vco_low0", "ble_vco_low1",
+           "ble_vco_high0", "ble_vco_high1", "ble_cal_scan", "ble_cal_trim", "ble_cal_banks")
 USB_RATE_OPTION = "Options > USB Rate"             # the entry's name on the unit (cr_ui.c O_NAME)
 
 
@@ -2815,12 +2866,13 @@ def stub_lines(d, out):
               file=out)
 
 
-def print_debug(vals, out, stub_only=False, peak=(), usb=()):
+def print_debug(vals, out, stub_only=False, peak=(), usb=(), ble=()):
     d = dict(zip(DEBUG_NAMES, vals))
     log = vals[len(DEBUG_NAMES):len(DEBUG_NAMES) + DEBUG_LOG]
     d.update(zip(DEBUG_TAIL, vals[len(DEBUG_NAMES) + DEBUG_LOG:]))
     d.update(zip(DEBUG_PEAK, peak))
     d.update(zip(DEBUG_USB, usb))
+    d.update(zip(DEBUG_BLE, ble))
     if stub_only:
         for k in [k for k in d if k.startswith("stub_")]:
             print(f"{k} {d[k]}" + (f" (0x{d[k]:08X})" if k in DEBUG_TAIL or k == "stub_detail" else ""), file=out)
@@ -2852,6 +2904,23 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
     for k in DEBUG_USB:
         if k in d:
             print(f"{k} {d[k]}", file=out)
+    for k in DEBUG_BLE:
+        if k in d:
+            print(f"{k} {d[k]}" + (f" (0x{d[k]:08X})" if k in BLE_HEX else
+                                   f" ({BLE_CAL[d[k]] if d[k] < len(BLE_CAL) else '?'})" if k == "ble_cal" else ""), file=out)
+    if "ble_started" in d:
+        print(f"Bluetooth: {'On' if d['ble_on'] else 'Off'}, the radio "
+              + (f"started in {d['ble_start_us']} us (trims: {BLE_CAL[d['ble_cal']] if d['ble_cal'] < len(BLE_CAL) else '?'}), "
+                 f"{d['ble_irqs']} radio interrupts since" if d["ble_started"] else
+                 "not started" + (" (owed to the next power-on)" if d["ble_pending"] else ""))
+              + (f"; a peer {'subscribed' if d['ble_ready'] else 'connected'}" if d["ble_connected"] else "")
+              + (f"; the run before ended in a reset at radio step {d['ble_prev_crumb'] >> 16 & 0xFF} "
+                 f"(word 0x{d['ble_prev_crumb']:08X}, {d['ble_prev_irqs']} interrupts)" if d["ble_prev_crumb"] else ""),
+              file=out)
+    if "ble_scan_req" in d:
+        print(f"Bluetooth (BLE_DIAG): {d['ble_adv_events']} advertising events, {d['ble_scan_req']} scan requests heard "
+              f"(0 while a Mac or phone scans nearby: nobody hears the FM-1), {d['ble_cind_rx']} connection requests "
+              f"({d['ble_cind_ok']} accepted), {d['ble_conn_events']} connection events", file=out)
     if "ua_rate_changes" in d:
         print(f"ChoralRoot In: {d['ua_rate']} Hz now, the last whole open at "
               f"{d['ua_rate_last_open'] or 'no rate (none yet)'}" + (" Hz" if d["ua_rate_last_open"] else "") +
@@ -2883,6 +2952,8 @@ def print_debug(vals, out, stub_only=False, peak=(), usb=()):
               f"{d['erases_ahead']} of the {d['flash_erases']} erases done ahead (at power-on or after 10 s idle; the "
               f"rest: saves that had to erase), {d['erases_near']} erases started by the unit while a voice was active or "
               f"within 2 s of an input (the rule: 0), the longest page program {d['flash_prog_us']} us"
+              + (f"; {d['flash_late_ops']} erases / pages finished late (past 500 ms / 10 ms, done), the longest "
+                 f"{d['flash_late_max_us']} us" if 'flash_late_ops' in d else "")
               + ("" if not d["erases_near"] else ": AN ERASE FELL NEAR PLAYING"), file=out)
     if "flash_read_bytes_ps" in d:
         print(f"the UI since the last --debug: a frame took {d['ui_frame_avg_us']} us on average, {d['ui_frame_max_us']} us "
@@ -2936,6 +3007,17 @@ def usb_values(link, timeout=1.0):
     if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
         return {}
     return dict(zip(DEBUG_USB, [bk_r32(r, 2 + 5 * k) for k in range(r[1])]))
+
+
+def ble_values(link, timeout=1.0):
+    """81 BLE -> {name: value} (DEBUG_BLE), or {} from a build without Bluetooth (no answer, or "unsupported")"""
+    try:
+        r = BackupLink(link).request(BK_BLE, [], timeout)
+    except BackupError:
+        return {}
+    if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
+        return {}
+    return dict(zip(DEBUG_BLE, [bk_r32(r, 2 + 5 * k) for k in range(r[1])]))
 
 
 def debug_values(link, timeout):
@@ -3101,6 +3183,19 @@ def run(a, backend, out, ask):
         return 0
     if getattr(a, "stub", None):
         return run_stub(up, a.stub, out)
+    if getattr(a, "ble_test", None) is not None:
+        dev = up.find()
+        if not dev or dev.id.loader:
+            raise not_found(up)
+        try:
+            r = BackupLink(dev.link).request(BK_BLE_TEST, [a.ble_test], 1.0)
+        finally:
+            dev.link.close()
+        if len(r) != 1 or r[0]:
+            raise BackupError("--ble-test refused (a BLE_DIAG build only, Bluetooth booted, a mask 0..127)")
+        print(f"ble test {a.ble_test}: saved when the FM-1 is quiet; switch it off and on: "
+              + (", ".join(v for b, v in BLE_TEST.items() if a.ble_test & b) or "normal"), file=out)
+        return 0
     if sound_op(a):
         return run_sounds(up, a, out, ask)
     if getattr(a, "favorites", False):
@@ -3148,13 +3243,15 @@ def run(a, backend, out, ask):
             except BackupError:
                 pk = None
             usb = usb_values(dev.link)            # (0.19: the rate and the 48 kHz counters; {} before)
+            ble = ble_values(dev.link) if usb else {}   # (3y238: Bluetooth; {} without it; a firmware without
+                                                        # 79 USB, before 0.19, has no 81 either: not asked)
         finally:
             dev.link.close()
         if not r or r[0] != 1 or len(r) != 2 + 5 * r[1]:
             raise BackupError("unexpected debug reply")
         peak = [bk_r32(pk, 2 + 5 * k) for k in range(pk[1])] if pk and pk[0] == 1 and len(pk) == 2 + 5 * pk[1] else []
         print_debug([bk_r32(r, 2 + 5 * k) for k in range(r[1])], out, peak=peak,
-                    usb=[usb[k] for k in DEBUG_USB if k in usb])
+                    usb=[usb[k] for k in DEBUG_USB if k in usb], ble=[ble[k] for k in DEBUG_BLE if k in ble])
         return 0
     if a.info:
         return run_info(up, out)
@@ -3517,6 +3614,10 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     ap.add_argument("--rescan-midi", action="store_true",
                     help="macOS: have CoreMIDI rescan its devices (Audio MIDI Setup's Rescan MIDI), for an FM-1 on USB "
                          "whose MIDI port stays offline; every MIDI program's ports restart with it")
+    ap.add_argument("--ble-test", type=int, metavar="MASK",
+                    help="a BLE_DIAG build: Bluetooth's bisection switches at the next power-on (1 no key scan, 2 no "
+                         "audio, 4 no TRS UART, 8 the radio started in the main loop, 16 no stock supplies, 32 the VCO "
+                         "band from a sweep, the last low at the flip, 64 the first high; 0 normal)")
     ap.add_argument("--stub", choices=("test", "rescue"),
                     help="ChoralRoot with the boot stub (v2): test = restart once with the stub's loader check on and "
                          "print its --debug lines; rescue = restart into update mode, as OCT- held at power-on (to "
@@ -3605,7 +3706,7 @@ def main(argv=None, backend=None, out=sys.stdout, ask=ask_tty):
     if a.unit and a.rescan_midi:
         ap.error("--rescan-midi restarts every MIDI port on this computer, the other FM-1s' too: not with --unit "
                  "(unplug and replug the FM-1 instead)")
-    if not (a.rescan_midi or a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
+    if not (a.rescan_midi or a.ble_test is not None or a.stub or a.select or a.screen or a.debug or a.info or a.package or a.backup or a.restore
             or ops or a.favorites or a.restore_favorites):
         ap.error("give a PACKAGE.fwsc, --backup FILE, --restore FILE, --info, --sounds, --screen off|on or --select")
     try:

@@ -292,7 +292,7 @@ is still taken by `quad_track_loaded`. Blobs are written as version 3; the QUAD 
 | 1 | SYN 1+ | HARM, DTUNE, FDBK, MIX | | 11 | ENV 3 | A KEY, B1 KEY, B2 KEY, - |
 | 2 | SYN 2 | OFS C, OFS A, OFS B1, OFS B2 | | 12 | AMP | ATK, DEC, SUS, REL |
 | 3 | FILTER | ATK, DEC, SUS, REL | | 13 | AMP+ | LEVEL, PAN (P_PAN), DRIVE (P_DIST), - |
-| 4 | FILTER+ | FREQ, RESO, TYPE, DEPTH | | 14 | LFO 1 | SPEED, MULT, FADE, DEST |
+| 4 | FILTER+ | FREQ, RESO, TYPE, DEPTH (a machine: "FILTER+ by the type") | | 14 | LFO 1 | SPEED, MULT, FADE, DEST |
 | 5 | FILT 2 | DELAY, KTRK, -, - | | 15 | LFO 1+ | WAVE, PHASE (RAND: slew), TRIG, DEPTH |
 | 6 | FILT 2+ | BASE, WIDTH, -, - | | 16, 17 | LFO 2, LFO 2+ | as LFO 1 |
 | 7 | ENV A | A ATK, A DEC, A END, A LEV | | 18, 19 | LFO 3, LFO 3+ | as LFO 1 |
@@ -351,7 +351,138 @@ byte: 87 used). Version 4 blobs (3y61's: AMP REL and LEVEL u16 hundredths, the t
 and versions 1..3 convert on load (`quad_unpack`, `quad_v5_of_v4`): FREQ DTUN RESO BASE clamped to 127.00; AMP REL
 127.00 and up -> 127 (INF), below it rounded to the nearest whole number but at most 126 (126.85 -> 126); LEVEL
 rounded (110.40 -> 110). Factory presets, pool slots, sessions, backups, sound files (web/fm1sounds.js, the importer
-web/fm1dnsnd.js `quadToV4` = `quadToV5`) and tools/fm1_install.py (versions 1..5 accepted) all go through it.
+web/fm1dnsnd.js `quadToV4`) and tools/fm1_install.py (versions 1..6 accepted) all go through it.
+
+### DRIVE ROUTE (2026-10-31, version 6's DRPRE, 3y205)
+
+AMP+ column 4, `ROUTE`: `POST` (0, every sound before) leaves DRIVE where it was, the part's DIST after the voices
+(fx.c `track_dist`, on the chord's sum, after the amp envelope and LEVEL). `PRE` (1) runs the same DIST (dsp.c
+`dsp_dist`, moved there from fx.c bit for bit) in every voice, on the operators' signal after the DC blocker and the
+base-width filter, before the multimode filter and the amp (FIZZ's E1 place, `quad_ext_drive_pre`; the Digitone's
+"distortion of the signal entering the filter", OS 1.44 manual l. 2826), its state the voice's (`quad_voice_t.dh dl1
+dl2`, from rest on a fresh note), the LFOs' DRIVE added; the part's DIST then does nothing (`quad_drive_pre`). A chord
+is the sum of its notes driven one by one (no intermodulation, `cr_quad_test t_drive_pre`); the drive's input does not
+follow the amp envelope or LEVEL. The Digitone importer sets PRE on every sound with DRIVE > 0 (FIZZ's `digitone.js`
+the same). Cost: one DIST loop a driven voice; the host figure (`tests/run_quad_test.sh`): WOBBLE's 8 voices at DRIVE
+80 PRE +5.8 % of the half (~+170 us) over WOBBLE as it is, so FM TONE's chord is split over both cores (3y206).
+
+**Cheaper since 3y213** (the unit: C64 EP, DRIVE 120 PRE, 8 notes + a bass, 7 late blocks in 15 s): `quad_drv_run`
+instead of `dsp_dist` in the voices. The soft clip, its bias's offset and the make-up are one table on the clip's
+input (`quad_drv_t.tab`, a part's, 514 nodes at TANH_Q15's places, built in `quad_block` when the drive changes:
+2 x 2,076 B of POOL), so a sample is one interpolation (no sign, no make-up multiply, no flash read); the drive runs in
+the DC blocker's and the base-width's loop (no pass of its own; the blocker in 32 bits there, its mean before the
+sample's step); the input's clamp keeps it on the table. The pi32v2 listing: the voice's DC blocker and drive 62 ->
+40 instructions a sample (the drive's own 40 -> 18), and no call into `dsp_dist` 270 KB away in XIP. Host: WOBBLE 8
+voices DRIVE 80 PRE +342 -> +177 instructions a sample (+3.1 %, ~+89 us). The sound: against `dsp_dist` alone -71 dB
+RMS (11 LSB at most, `t_drive_pre`); whole voices (EP, WOBBLE, BELL, BASS at DRIVE 10 .. 127, an LFO on DRIVE, EP
+notes 24 .. 96) -59 .. -71 dB RMS, peak errors 15 .. 171 on peaks of 13,500 .. 170,000.
+
+**FREQ and RESO glide** (FIZZ's P2.6b): the filter runs `quad_voice_t.fsm / rsm`, which move a quarter of the way to
+the patch's FREQ / RESO a block (the last 7 hundredths at once, ~7 ms for a detent); a note starts at its own values,
+so a note whose FREQ and RESO stay put renders as before, sample for sample (no golden moved). `quad_bwk` returns
+the entry for a whole number (BASE 127.00 read one past `QUAD_BW_K` times 0: the same value, without the read).
+
+### The filter machines (2026-10-31, 3y207; COMB 3y208)
+
+FTYPE 4..7 (version 6): MULTI, COMB+, COMB-, EQ, FIZZ's E2 (`quad_machine`, its tables `QE_EQ_K` / `QE_EQ_G`). They run
+in the multimode SVF's place, always on (no "wide open: off"), the soft knee after them. MULTI: the SVF's LP (v2), BP
+(kd v1) and HP (x - BP - LP) morphed by SHAPE (FILT 2 col 3): 0 = LP12 and 127 = HP12 to the LSB, 64 the band. EQ: a
+peaking bell from the SVF with its own damping k = QE_EQ_K[SHAPE] (Q 0.5 .. 10), y = x + G k v1 (G = QE_EQ_G[GAIN + 64],
+-18 .. +17.7 dB; GAIN FILT 2 col 4). A switch among the SVF types and MULTI / EQ keeps the integrators (no dip in
+ChoralRoot to hide a reset). **BWPOST** (FILT 2+ col 3, `BW RT` PRE / POST): the base-width poles after the filter
+(`quad_bw_post`) instead of before it (a pole switched in or out there steps, as FIZZ's). Tests: `cr_quad_test
+t_machines` (FIZZ's t_machines: MULTI 0 / 127 = LP12 / HP12 within 1 LSB, 64 the band; EQ at -60 -20 +25 +63 within
+0.3 dB of its table; BWPOST; every machine at full resonance with DRIVE 127 PRE: no overflow, the voice ends).
+
+**FILTER+ by the type** (3y217, FIZZ's FILTER page by machine, its `ctl_snd.c SND_FILTER_IDS`). The owner, on the unit:
+"This engine has new selectable filters but none are working, COMB and EQ display OFF ... For the new filters you should
+not be able to use that third param slot to change the filter type." Two causes. The band: `ce_band_plan` drew EQ and the
+combs as the flat line whose name is OFF. The sound: the machines were right (`t_machines`, `t_combs`), but their own
+values sat on FILT 2 and the init sound's (RESO 0, SHAPE 0, GAIN 0) leave them nothing to do: COMB+ / COMB- with no
+feedback and EQ at 0 dB pass the sound within 3 LSB of OFF, MULTI at SHAPE 0 is LP12. FILTER+'s cells (page 4) now
+follow FTYPE (`quad_ix`, `quad_desc` as `eng_deep_t.desc`; the stored values and the blob unchanged):
+
+| FTYPE | col 0 | col 1 | col 2 | col 3 |
+| --- | --- | --- | --- | --- |
+| 0..3 OFF LP12 HP12 LP24 | FREQ | RESO | TYPE (its cell OFF .. LP24) | DEPTH |
+| 4 MULTI | FREQ | RESO | MORPH (= SHAPE) | DEPTH |
+| 5 / 6 COMB+ COMB- | FREQ | FEEDBACK (= RESO) | LPF (= SHAPE) | DEPTH |
+| 7 EQ | FREQ | GAIN (= FGAIN) | Q (= SHAPE) | DEPTH |
+
+A machine's TYPE is the SEL hold picker's alone (`cr_edit.c ce_fpick`): it reads and sets the page's own column through
+`ENG_COL_RAW` (core.h; passed only where `desc` shows the cell as another value, and on through a compiled layout's
+pages, `cr_pages.c cp_lay_raw`), so it is the way into a machine and back to LP / HP / OFF; the TYPE cell's knob steps
+OFF .. LP24 (as FIZZ's LEGACY KNOB 3), never onto a machine. The cell's label is the descriptor's (`ce_cell_plan`:
+"Morph", "Feedback", "LPF", "Gain", "Q"). FILT 2's SHAPE and GAIN stay (the same values; pages, layouts and the catalog
+keep their numbers: design/layouts/fm-tone.json marks the cells `by_mode`). The filter band (`cr_screen_t.wv[7]` 4..7,
+`wv[8]` SHAPE, `wv[9]` GAIN + 64) names each machine and draws MULTI by its morph, EQ's bell by GAIN and Q, the combs'
+teeth (COMB+ at f, 2f ..; COMB- at f / 2, 3f / 2 ..) by RESO and LPF. Tests: `cr_quad_test t_ftype_cells` (the init
+values: COMB+ COMB- EQ within 64 of OFF; FREQ 50, RESO 80, SHAPE 64, GAIN +40: the eight types eight sounds; the cells
+by the type, ENG_COL_RAW; each type saved and loaded, version 5 / 6: the same samples), `cr_draw_test` (OFF MULTI COMB+
+COMB- EQ five band pictures), `test_cr.sh cr_quad_fpick` (step 4: the cell stops at LP24; the picker into each machine,
+its cells MORPH / FEEDBACK LPF / GAIN Q, back to LP12 and TYPE).
+
+**COMB+ / COMB-** (3y208): y = x +- g lp(d[n - L]) through a 1024-sample line, L by FREQ (`QE_COMB_LEN`, ChoralRoot's
+cutoff law: 43 Hz the lowest), g by RESO (0 .. 0.985), the feedback's low-pass by SHAPE; COMB- has the odd harmonics of
+f / 2. The lines are **lent**: 8 (`qe_comb`, 16 KB of POOL) for both parts' 16 voices; `quad_comb_lend` in `quad_block`
+gives a comb voice that sounds a free line and takes it back when the voice ends or leaves the combs (and frees a part's
+lines once it is off FM TONE); a voice without one runs MULTI, sample for sample (FIZZ's rule). Both parts' blocks never
+run at once, and a chord voice on core 1 only uses the line it was given: `cr_c1_thread_test` (COMB+ chord over a COMB-
+bass) inline = thread, ThreadSanitizer 0. Cost: ~+18 us a comb voice (FIZZ's figure).
+
+### AHD and CRUSH (2026-10-31, 3y209)
+
+Two pages appended (20 `AMP 2`, 21 `CRUSH`: the pages before keep their numbers), shown as ENV's fifth screen and
+FILT's third. **AHD** (AMOD 1, FIZZ's E1 `fz_ahd_step` as `quad_ahd`): the amp envelope's ATK to the top on the amp
+attack's table, HOLD (a time on the same table, its progress in `dly[3]`; 127 = while the key is down), then DEC to 0
+on the amp decay's table (127 INF: held, `quad_endless`), the voice ends; SUS and REL unread; a timed HOLD ignores the
+key's end (one-shot). Stages 6 and 7; a switch mid-note maps ADSR's 3 / 4 into them and back. **CRUSH** (FIZZ's E3,
+`quad_crush`): SRR 1..127 a sample and hold at 1 / 1 .. 1 / 64 of the rate (`QE_SRR_INC`, a log table), BITS 1..127
+the sample to 16 .. 1 bits of +-32768 (rounded; 0 stays 0); CRPRE 1 before the filter (after DRIVE PRE), 0 after it
+(after BWPOST); BITS and SRR 0: none. Not LFO destinations (the Digitone's list has none of them). Tests: `cr_quad_test
+t_ahd_crush`.
+
+### Two cores (2026-10-31, 3y206)
+
+FM TONE's chord voices are shared out between the cores as the VA's, FM6's and P5's (`ENG_QUAD.split` 20, fx.c
+`p5x_run`; docs/DUALCORE.md). A voice's render writes its own state and the buffers it is given; the part's work
+(`quad_block`: the macros, the FREE LFOs' phases, and since 3y206 `quad_dro`, the LFOs' DRIVE as the last block left
+it, which DRIVE PRE reads) runs on core 0 before the hand-over. Bit for bit the one core's samples
+(`tests/cr_c1_thread_test.c`, test_cr.sh `cr_quad_eight`).
+
+
+
+The owner: "Ok, I've imported some syx, however they sound quite a bit better with FIZZ's engine, can we look into
+bringing in the engine updates?" and "Ok, lets let these presets change the FX send amounts when you load." Version 6
+keeps the 96 bytes: version 5's 87 bytes as they are, then five bytes, then zeros. `quad_patch` grows to 83 values
+(`QP_NP`; version 5's 73 are `QP_NP5`); the ten new ones are FIZZ's E1..E3 values (FMToneSeq `quad_voice.h`
+`QD_QP_AMOD ..`, the glide and the mod slots left out: ChoralRoot has its part glide and `mod.c`) and SENDS. Every
+default is today's sound.
+
+| byte | bits 0..6 | bit 7 |
+| --- | --- | --- |
+| 0, 1 | 'Q' (0x51), 6 | |
+| 2..86 | version 5's 73 values (value - min; HARM DTUN FREQ RESO filter DEPTH BASE, the LFOs' SPEED / DEPTH u16le) | |
+| (42) | FTYPE: 0 OFF, 1 LP12, 2 HP12, 3 LP24, **4 MULTI, 5 COMB+, 6 COMB-, 7 EQ** (version 5: 0..3) | |
+| 87 | 127 - HOLD (HOLD 0..126 a time on the amp attack's table, 127 NOTE; 0 here = NOTE) | AMOD: 0 ADSR, 1 AHD |
+| 88 | FSHAPE 0..127 (MULTI's LP / BP / HP morph, the combs' damping, EQ's Q) | BWPOST: base-width 0 before the filter, 1 after |
+| 89 | FGAIN -64..63 (EQ's gain), 7-bit two's complement | DRPRE: DRIVE 0 after the voice (the part's, as before), 1 before the filter, per voice |
+| 90 | BITS: 0 OFF, 1..127 (16 .. 1 bits) | CRPRE: CRUSH 0 after the filter, 1 before (FIZZ's CRPOST 1 / 0) |
+| 91 | SRR: 0 OFF, 1..127 (a sample and hold, 1 / 1 .. 1 / 64 of the rate) | SENDS: 1 the sound carries its sends |
+| 92..95 | zeros (refused otherwise) | |
+
+- **Written only when needed** (`quad_pack`): a sound with all five bytes 0 and FTYPE 0..3 is packed as version 5, byte
+  for byte as 0.27 wrote it, so a factory preset, an untouched saved sound and every golden stay as they were and an
+  older firmware or tool still plays them. One value set (or a machine FTYPE): version 6.
+- **Older firmware** (ChoralRoot 0.22 .. 0.28, FM1VST, fm1emu: `QUAD_VER` 5) refuses version 6 in `quad_blob_ok` (its
+  version test) and plays the init patch; the slot's bytes are untouched. The web's `quadToV5` (web/fm1dnsnd.js) writes
+  a version-5 copy with a note for each value dropped (a machine FTYPE becomes LP12, EQ becomes OFF).
+- **No record size changed**: the pool, the session (`nblob == blob_size`), the backup, the installer
+  (tools/fm1_install.py takes versions 1..6) and the web's codec stay at 96 bytes.
+- **SENDS** is not a page value: its sends are the record's P_REV, P_DLY, P_CHOR (as an FM TONE sound's Drive is its
+  P_DIST); a load of a sound with SENDS sets the part's sends to them (cr_ui.c `cu_sends_load`, docs/MANUAL.md). The
+  Digitone importer sets it on every imported sound and fills the three fields; a save writes the part's sends back.
+- FIZZ's own version 6 is 128 bytes (DRIVE at 87, values 74..109, the VOICE page): a different layout, not read here.
 
 The macros P_E4 HARM and P_E5 DTUNE hold the coarse part (`quad_mac_val`: a record's macro bytes, the editor
 protocol's v14, the matrix, motion and a CC are 7-bit; a macro move sets the coarse value with fine 0,
@@ -571,7 +702,13 @@ s = 274,000 ticks; the two bytes were padding).
 step to -1 a sample: the tail saw-toothed up to 31 LSB below its level, and a 1 s T60 read 2.2 % short; now 0.5 %).
 
 **The cells** show the times as numbers 0..127, as the Digitone does (`QC_T` `F_INT`, the filter REL `F_INTI`;
-F_TIME's 1 ms .. 10 s text was the old curve's). The `.dnsnd` import takes the times 1:1 ([SOUNDS.md](SOUNDS.md)).
+F_TIME's 1 ms .. 10 s text was the old curve's). The `.dnsnd` import takes the times 1:1 ([SOUNDS.md](SOUNDS.md)). The import also reads Digitone
+SysEx dumps (`.syx`: a sound, the pool or a project's) and version-4 records (OS 1.42) since 3y200; a DRIVE above 0
+gets a note: the FM-1's drive comes after FM TONE's filter, the Digitone's before it (SOUNDS.md ".dnsnd import").
+Since 3y201 no Digitone sound is refused for its record version: a version it does not know (a newer one, or 2 / 3) is
+read with the newest layout, version 5's (the parameters in their slots, the OCTAVE found from the end marker), with a
+note naming the version and saying the fields the FM-1 does not know were skipped; a record cut short gives what it
+holds, FM TONE's defaults for the rest. Only a file that is not a Digitone sound (or is a Digitone II one) is refused.
 **Digitone sounds imported before this change should be imported again**: their times were converted to FM TONE's
 old curve.
 

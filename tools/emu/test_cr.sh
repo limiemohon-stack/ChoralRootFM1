@@ -78,7 +78,7 @@ want=$(sed -n 's/^#define FELUCCA_VERSION "\(.*\)".*/\1/p' firmware/src/choralro
 [ -n "${CR_VERSION:-}" ] && want=$(grep -a -m1 "^  version:" "$L" | sed -n "s/.* build '\(.*\)'$/\1/p")   # (a release build of the emulator)
 vo=$(grep -a -m1 '^  version:' "$L" | sed -n "s/.*options '\([^']*\)'.*/\1/p")
 vi=$(grep -a -m1 '^  version:' "$L" | sed -n "s/.*identity '\([^']*\)'.*/\1/p")
-[ -n "$want" ] && [ "$vo" = "$want" ] && [ "$vi" = "$want" ] && grep -aq "^  options: open 1 entry 3[01] of 3[0-9] 'Version' value '$want'" "$L" &&
+[ -n "$want" ] && [ "$vo" = "$want" ] && [ "$vi" = "$want" ] && grep -aq "^  options: open 1 entry 1 of 3 'Version' value '$want'" "$L" &&
     ok "Options > Version '$vo' = the identity over SysEx '$vi' = the build's ($want): $OUT/cr_version.ppm" \
     || bad "the version: Options '$vo', identity '$vi', choralroot.c '$want'"
 lits=$(grep -n '"ChoralRoot [0-9]' firmware/src/*.c firmware/src/*.h firmware/hal/*.h tools/emu/*.c tools/emu/*.h tools/emu/web/*.c 2>/dev/null | grep -v '^firmware/src/choralroot.c:[0-9]*:#define FELUCCA_VERSION ')
@@ -150,7 +150,7 @@ def band(t0, t1, f=369.99):
         s = (x[i * ch] + x[i * ch + ch - 1]) / 2 + k * s1 - s2; s2 = s1; s1 = s
     return math.sqrt(max(s1 * s1 + s2 * s2 - k * s1 * s2, 0)) / (b - a)
 r = band(0.4, 0.8)
-print(*('%d' % (100 * band(t, t + 0.4) / r) for t in (3.76, 12.78, 16.65)))
+print(*('%d' % (100 * band(t, t + 0.4) / r) for t in (3.76, 12.98, 16.85)))   # (Solo, Chords Only: +0.2 s for the GLO tap that makes the layer's keys pick)
 PY
 )
 set -- $wv
@@ -450,8 +450,8 @@ bsr() { grep -a '^  editor fx bass:' "$L" | sed -n "$1p" | sed -n 's/.* REV \([0
     ok "the Sends page's KNOB 4, a detent: 47, 37%; Reverb 1's Send cell reads 37% too; its KNOB 4, the same detent: 53, 42% in both: $OUT/cr_fx_scale_reverb.ppm" \
     || bad "the Sends page and Reverb 1's Send cell: $(cel 3 Reverb) / $(cel 4 Send), then $(cel 5 Send) / $(cel 6 Reverb) (amt $(fxamt 3), $(fxamt 5))"
 [ "$(cel 7 Reverb)" = "42%" ] && [ "$(fxamt 8)" = "59 45 25 0" ] && [ "$(cel 8 Reverb)" = "46%" ] && [ "$(pop 9)" = "51% reverb" ] &&
-    [ "$(fxamt 9)" = "65 45 25 0" ] && [ "$(pop 10)" = "46% reverb" ] && [ "$(fxamt 10)" = "59 45 25 0" ] &&
-    ok "the editor's FX group reads 42%; its KNOB 4, the same detent: 59, 46%; KNOB 4 of the main view: 65, the popup 51%; CC 91 = 59: the popup 46%" \
+    [ "$(fxamt 9)" = "65 45 25 0" ] && ! echo "$(pop 10)" | grep -q % && [ "$(fxamt 10)" = "59 45 25 0" ] &&
+    ok "the editor's FX group reads 42%; its KNOB 4, the same detent: 59, 46%; KNOB 4 of the main view: 65, the popup 51%; CC 91 = 59: no popup (3y271: incoming CCs change values quietly)" \
     || bad "the editor, KNOB 4 and CC 91: $(cel 7 Reverb) / $(cel 8 Reverb) / '$(pop 9)' / '$(pop 10)' (amt $(fxamt 8), $(fxamt 9), $(fxamt 10))"
 # both ends from each place (dumps 11 .. 22): the popup, the Send cell, the Sends page, the editor
 [ "$(pop 11)" = "100% reverb" ] && [ "$(fxamt 11)" = "127 45 25 0" ] && [ "$(pop 12)" = "0% reverb" ] && [ "$(fxamt 12)" = "0 45 25 0" ] &&
@@ -470,8 +470,8 @@ bsr() { grep -a '^  editor fx bass:' "$L" | sed -n "$1p" | sed -n 's/.* REV \([0
     ok "no Send cell reads a bare number in any dump (the 0..99 read-out is gone)" || bad "a Send cell without its per cent"
 # the bass part's: its editor's FX group and CC 91 on its channel (dumps 30 .. 34)
 [ "$(cel 30 Reverb)" = "8%" ] && [ "$(bsr 30)" = 10 ] && [ "$(cel 31 Reverb)" = "13%" ] && [ "$(bsr 31)" = 16 ] && [ "$(cel 32 Reverb)" = "100%" ] && [ "$(bsr 32)" = 127 ] &&
-    [ "$(cel 33 Reverb)" = "0%" ] && [ "$(bsr 33)" = 0 ] && [ "$(pop 34)" = "50% reverb" ] && [ "$(bsr 34)" = 64 ] && [ "$(fxamt 34)" = "0 51 31 12" ] &&
-    ok "the bass part's sends read and step the same in its editor (reverb 10: 8%; a detent: 16, 13%; both ends); CC 91 on its channel: the popup 50%, the chord part's untouched" \
+    [ "$(cel 33 Reverb)" = "0%" ] && [ "$(bsr 33)" = 0 ] && ! echo "$(pop 34)" | grep -q % && [ "$(bsr 34)" = 64 ] && [ "$(fxamt 34)" = "0 51 31 12" ] &&
+    ok "the bass part's sends read and step the same in its editor (reverb 10: 8%; a detent: 16, 13%; both ends); CC 91 on its channel: 64, no popup (3y271), the chord part's untouched" \
     || bad "the bass part's sends: $(cel 30 Reverb) $(bsr 30), $(cel 31 Reverb) $(bsr 31), $(cel 32 Reverb), $(cel 33 Reverb), popup '$(pop 34)' ($(bsr 34))"
 
 echo "FM TONE's Drive is its preset's and sounds with FX off; another engine's is the part's send (docs/FX.md \"FM TONE's Drive\")"
@@ -523,7 +523,7 @@ rd() { grep -a '^  screen reads:' "$L" | sed -n "$1p" | sed 's/.* cells //'; }
     has '^sound: part 0 pos 10 WOBBLE' "$L" && has '^sound: part 0 pos 9 METAL' "$L" &&
     ok "two FM TONE presets with different Drive: FM6 with the part's send 12 -> 01 EP: 0 -> 10 WOBBLE: 10 -> 09 METAL: 0 (the part's send, 12, waits)" \
     || bad "FM TONE's presets' Drive: '$(drc 1)' / '$(drc 2)' / '$(drc 3)' / '$(drc 4)'"
-has '^param: part 0 ENV DRIVE 10 -> 28' "$L" && [ "$(drc 5)" = "chord FM TONE track 28 send 12 edited 1" ] && rd 5 | grep -q '1.2:Drive=28$' &&
+has '^param: part 0 ENV DRIVE 10 -> 28' "$L" && [ "$(drc 5)" = "chord FM TONE track 28 send 12 edited 1" ] && rd 5 | grep -q '1.2:Drive=28 1.3:Route=Post$' &&
     has '^save: part 0 overwrite slot U001 FM TONE 10 WOBBLE rc 0' "$L" && [ "$(drc 6)" = "chord FM TONE track 28 send 12 edited 0" ] &&
     [ "$(drc 7)" = "chord FM TONE track 0 send 12 edited 0" ] && [ "$(drc 8)" = "chord FM TONE track 28 send 12 edited 0" ] &&
     ok "the AMP page's Drive (0..127: 10 -> 28) marks the sound edited; saved (U01, over WOBBLE), METAL: 0, back: 28 again: $OUT/cr_quad_drive_amp.ppm" \
@@ -578,10 +578,10 @@ fr=$(grep -c '^ui: frame' "$L"); kr=$(grep -c '^ui: frame.*device): knobrow ' "$
 grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.2$' "$L" &&
     ok "the turned cell hot (KNOB 1: cell 0, KNOB 3: cell 2)" || bad "no hot cell in the trace"
 differ cr_perf_row_hot cr_perf_row_cool "the hot block gone 900 ms later: $OUT/cr_perf_row_hot.ppm"
-has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Amount Rate Direction Range' "$L" && has '^perf: cells Pattern Division Gate Swing' "$L" &&
+has '^perf: cells Rate Direction Range Hold' "$L" && has '^perf: cells Rate Direction Range Amount' "$L" && has '^perf: cells Division Pattern Gate Swing' "$L" &&
     ok "SELECT picks the mode, the cells follow (Strum, Slop, Pattern): $OUT/cr_perf_row_strum.ppm" || bad "the cells did not follow the mode"
 has '^expect sound .*: ok' "$L" && ok "MAJ + D4 in the perform layer: the chord sounds (performed): $OUT/cr_perf_row_keys.ppm" || bad "the roots in the perform layer"
-has '^perf: knob Slop direction' "$L" && ok "KNOB 3 in Slop: its direction" || bad "KNOB 3: no Slop direction"
+has '^perf: knob Slop range' "$L" && ok "KNOB 3 in Slop: its range, as in Strum (issue 26)" || bad "KNOB 3: no Slop range"
 differ cr_perf_row cr_perf_row_strum "Arpeggiate / Strum rows differ"
 
 echo "perform on / off: PERF tap, in the perform layer too (OCT+ closes it); the arp stops when off"
@@ -594,13 +594,69 @@ grep -q '^expect led ARP on at [0-9]* ms: ok' "$L" && grep -q '^expect led ARP d
 [ "$(pc 2)" = "1 2" ] && [ "$(pc 3)" = "0 2" ] && [ "$(pc 4)" = "1 2" ] &&
     ok "the perform layer: SELECT picks Arpeggiate (on), a PERF tap off / on, the layer stays open: $OUT/cr_perf_layer_off.ppm" \
     || bad "the perform layer: $(pc 2) / $(pc 3) / $(pc 4)"
-[ "$(pc 5)" = "1 0" ] && [ "$(pc 6)" = "1 2" ] && [ "$(pc 7)" = "1 0" ] &&
-    ok "OCT+ in the perform layer closes it (perform stays on); PERF held again closes it too (no tap: still on)" \
-    || bad "closing the perform layer: $(pc 5) / $(pc 6) / $(pc 7)"
+[ "$(pc 5)" = "1 0" ] && [ "$(pc 6)" = "1 2" ] && [ "$(pc 7)" = "1 2" ] && [ "$(pc 8)" = "1 0" ] &&
+    has '^perf: layer bass' "$L" &&
+    ok "OCT+ in the perform layer closes it (perform stays on); PERF held again: the Bass PERF layer; HOME closes it (no tap: still on)" \
+    || bad "closing the perform layer: $(pc 5) / $(pc 6) / $(pc 7) / $(pc 8)"
 differ cr_perf_layer_off cr_perf_layer_on "the layer's label follows on / off"
-[ "$(no 9)" -gt "$(no 8)" ] && [ "$(no 11)" = "$(no 10)" ] && [ "$(pc 10)" = "0 0" ] &&
-    ok "the arp steps while on ($(no 8) -> $(no 9) notes out), PERF tap off: the chord held plain ($(no 10) -> $(no 11))" \
-    || bad "the arp on / off: notes out $(no 8) $(no 9) $(no 10) $(no 11)"
+[ "$(no 10)" -gt "$(no 9)" ] && [ "$(no 12)" = "$(no 11)" ] && [ "$(pc 11)" = "0 0" ] &&
+    ok "the arp steps while on ($(no 9) -> $(no 10) notes out), PERF tap off: the chord held plain ($(no 11) -> $(no 12))" \
+    || bad "the arp on / off: notes out $(no 9) $(no 10) $(no 11) $(no 12)"
+
+echo "Chord and Bass Perform (0.34, issue 41): BASS held + ARP the Bass PERF layer; Off first; the bass arps under a held chord"
+run cr_bass_perf
+L="$OUT/cr_bass_perf.log"
+pc() { grep '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) .* layer \([0-9]*\) .*/\1 \2/p'; }
+pf() { grep '^  perf: parts' "$L" | sed -n "$1p" | sed 's/^  perf: //'; }
+bn() { pf "$1" | sed -n 's/.*bass-sounding *//p'; }
+case "$(pc 1) / $(pf 1)" in "0 2 / parts 1 bass-mode 0 bass-sel 0 ui-off 2 layer-part 1 "*)
+    ok "BASS held + ARP: the Bass PERF layer, on Off (Perform off, the chord's Strum untouched): $OUT/cr_bass_perf_layer.ppm";;
+    *) bad "BASS + ARP: $(pc 1) / $(pf 1)";; esac
+case "$(pc 2) / $(pf 2)" in "1 2 / parts 3 bass-mode 2 bass-sel 3 ui-off 0 layer-part 1 "*)
+    ok "SELECT +5 in it (past Follow): the bass's Arpeggiate, Perform on, both parts performing: $OUT/cr_bass_perf_arp.ppm";;
+    *) bad "the bass's pick: $(pc 2) / $(pf 2)";; esac
+case "$(pf 3) / $(pf 4)" in "parts 3 "*"layer-part 0 "*" / parts 2 "*"ui-off 1 layer-part 0 "*)
+    ok "ARP held in the Bass PERF layer: the chord's layer; SELECT -1 from Strum: Off (the chord plays as with Perform off): $OUT/cr_chord_perf_off.ppm";;
+    *) bad "the chord's Off: $(pf 3) / $(pf 4)";; esac
+seen=$(for i in 5 6 7 8 9 10; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+nseen=$(echo $seen | wc -w | tr -d ' ')
+odd=$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')
+[ "$nseen" -ge 2 ] && [ -z "$odd" ] && [ "$(pc 5)" = "1 0" ] &&
+    ok "D major held: the bass arps D F# A in its register ($seen), the chord sustained: $OUT/cr_bass_perf_view.ppm" \
+    || bad "the bass arp: notes $seen / $(pc 5)"
+[ "$(bn 11)" = "38" ] && [ "$(bn 12)" = "38" ] && [ "$(pc 11)" = "0 0" ] &&
+    ok "ARP tap: Perform off, the plain bass note (38), steady" || bad "Perform off: $(bn 11) / $(bn 12) / $(pc 11)"
+case "$(pc 13) / $(bn 13)" in "1 0 / "38|"1 0 / "42|"1 0 / "45|"1 0 / ") ok "ARP tap again: the bass performs again ($(bn 13))";;
+    *) bad "Perform on again: $(pc 13) / $(bn 13)";; esac
+grep -q "^  perf: parts 2 .* shown 1 " "$L" && ok "the views follow the bass's arp while the chord's is Off (shown 1)" \
+    || bad "the bass's arp not shown"
+[ -z "$(bn 14)" ] && [ -z "$(bn 15)" ] && [ "$(pc 14)" = "1 0" ] &&
+    ok "ENV tap under the held chord: the bass and its arp stop at once" || bad "Bass off while held: $(bn 14) / $(bn 15) / $(pc 14)"
+seen=$(for i in 16 17 18; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+[ -n "$seen" ] && [ -z "$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')" ] &&
+    ok "ENV tap again: the bass arps again under the same chord ($seen)" || bad "Bass on again while held: '$seen'"
+silent_end cr_bass_perf
+
+echo "the bass Follows the chord's Perform (after 0.34): Follow after Off in the Bass PERF layer; ARP held alone switches the layers"
+run cr_bass_follow
+L="$OUT/cr_bass_follow.log"
+pc() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.* perform \([0-9]\) mode \([0-9]*\) .* layer \([0-9]*\) .*/\1 \2 \3/p'; }
+pf() { grep -a '^  perf: parts' "$L" | sed -n "$1p" | sed 's/^  perf: //'; }
+bn() { pf "$1" | sed -n 's/.*bass-sounding *//p'; }
+case "$(pc 1) / $(pf 1)" in "1 0 2 / parts 3 "*"ui-off 0 layer-part 1 "*"follow 1 "*)
+    ok "BASS + ARP, SELECT +1: Follow, Perform on, both parts performing: $OUT/cr_bass_follow_layer.ppm";;
+    *) bad "Follow: $(pc 1) / $(pf 1)";; esac
+case "$(pf 2) / $(pf 3)" in *"layer-part 0 "*" / "*"layer-part 1 "*)
+    ok "ARP held alone in the PERF layer: the chord's; held again: the bass's (no BASS)";;
+    *) bad "ARP held between the layers: $(pf 2) / $(pf 3)";; esac
+case "$(pc 4) / $(pf 4) / $(pc 5)" in "1 2 2 / "*"bass-mode 0 "*"layer-part 0 "*"follow 1 "*" / 1 2 0")
+    ok "the chord's layer, SELECT +3: Arpeggiate (the bass keeps its own Strum underneath); OCT-: closed";;
+    *) bad "the chord's Arpeggiate: $(pc 4) / $(pf 4) / $(pc 5)";; esac
+seen=$(for i in 6 7 8 9; do bn $i; done | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+[ "$(echo $seen | wc -w | tr -d ' ')" -ge 2 ] && [ -z "$(echo $seen | tr ' ' '\n' | grep -Ev '^(38|42|45)$')" ] &&
+    ok "D major held: the bass follows the chord's arp in its register ($seen): $OUT/cr_bass_follow_view.ppm" \
+    || bad "the following bass: notes '$seen'"
+silent_end cr_bass_follow
 
 echo "the arp's Hold off by default: released keys stop it; LATCH holds it; PANIC stops; perform never swaps the view"
 export EMU_UI_LOG=0
@@ -765,6 +821,9 @@ differ cr_bass_row_cool cr_bass_row_reg "KNOB 2: the register cell changed: $OUT
 differ cr_bass_row_reg cr_bass_row_sound "KNOB 3: the sound cell changed: $OUT/cr_bass_row_sound.ppm"
 has '^bass: behaviour Unison Bass' "$L" && has '^bass: behaviour Bass Single Notes' "$L" &&
     ok "KNOB 1 and F4: the behaviour (Unison, Single): $OUT/cr_bass_row_unison.ppm" || bad "behaviour: $(grep '^bass: behaviour' "$L" | tr '\n' ' ')"
+kp=$(grep -n '^bass: keys pick' "$L" | head -1 | cut -d: -f1); sg=$(grep -n '^bass: behaviour Bass Single' "$L" | head -1 | cut -d: -f1)
+[ -n "$kp" ] && [ -n "$sg" ] && [ "$sg" -gt "$kp" ] &&
+    ok "the BASS layer's keys play by default (F4 picked nothing); GLO: they pick (F4: Single)" || bad "the bass layer's keys: pick at $kp, Single at $sg"
 
 echo "KEY / LOOP / METRO held: knob rows (KEY: the keyboard as the band; LOOP: no ring)"
 export EMU_UI_LOG=0
@@ -799,6 +858,29 @@ kk() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.*cr: key \([0-9]\) 
     || bad "the latch changed in the key layer: $(grep -a '^lock:' "$L" | tr '\n' ' ')"
 silent_end cr_key_scale
 
+echo "more scales (0.36): MAJ / MIN step their kind, MIN held with a root keeps a minor scale, KNOB 2 the list, 6-Dim's chord"
+run cr_key_scales
+L="$OUT/cr_key_scales.log"
+ksc() { grep -a '^  cr: key' "$L" | sed -n "$1p" | sed -n 's/.*cr: key \([0-9]\) tonic \([0-9]*\) scale \([0-9]*\) .*/\1 \2 \3/p'; }
+[ "$(ksc 1)" = "0 0 1" ] && [ "$(ksc 2)" = "0 0 2" ] && [ "$(ksc 3)" = "0 0 3" ] && [ "$(ksc 4)" = "0 0 0" ] && [ "$(ksc 5)" = "0 0 4" ] &&
+    ! has 'expect.*FAILED' "$L" &&
+    ok "MIN: Minor, Dorian, Phrygian (MIN lit, MAJ half); MAJ: Major, Lydian (MAJ lit): $OUT/cr_key_scales_phrygian.ppm" \
+    || bad "MAJ / MIN's steps: $(ksc 1) / $(ksc 2) / $(ksc 3) / $(ksc 4) / $(ksc 5) $(grep -a 'expect.*FAILED' "$L" | head -2)"
+[ "$(ksc 6)" = "1 2 1" ] && [ "$(ksc 7)" = "1 4 1" ] &&
+    ok "MIN held + a root: Minor from Lydian, Minor kept in Minor (no step at the release)" || bad "MIN + a root: $(ksc 6) / $(ksc 7)"
+[ "$(ksc 8)" = "1 4 21" ] && [ "$(ksc 9)" = "1 4 22" ] && has '^key: knob 2 scale 6-dim' "$L" &&
+    ok "KNOB 2: Minor + 20 = 6-Dim (the cell reads 6-Dim), the list ends at m6-Dim: $OUT/cr_key_scales_6dim.ppm" \
+    || bad "KNOB 2's list: $(ksc 8) / $(ksc 9)"
+has 'chord E6/G# sounding' "$L" &&
+    ok "E 6-Dim: G#4 plays E6 over G# (the tonic's 6th chord over its third): $OUT/cr_key_scales_e6.ppm" \
+    || bad "6-Dim's chord: $(grep -a 'chord .* sounding' "$L" | tail -1)"
+silent_end cr_key_scales
+# the Scale cell (x 64..116): ink in its upper half (y 150..176: the glyph's space) for Harm Minor's two lines, none for Major
+ink() { python3 -c "import sys;d=open(sys.argv[1],'rb').read()[15:];print(sum(1 for y in range(150,177) for x in range(64,117) if d[(y*240+x)*3]>150))" "$OUT/$1.ppm"; }
+[ "$(ink cr_key_scales_wrap)" -gt 40 ] && [ "$(ink cr_key_scales_one)" -eq 0 ] &&
+    ok "a long scale name on two lines in the Scale cell (Harm / Minor, 15 px), Major on one: $OUT/cr_key_scales_wrap.ppm" \
+    || bad "the Scale cell's lines: $(ink cr_key_scales_wrap) / $(ink cr_key_scales_one) px of ink above the value"
+
 echo "the key layer's keys: pick / play, toggled with OPT (GLO) in the layer"
 run cr_key_play
 L="$OUT/cr_key_play.log"
@@ -826,10 +908,10 @@ L="$OUT/cr_loop_row.log"
 has '^loop: cells Length Rate Quantize Count-in' "$L" && ok "LOOP held, stopped: the PLAY menu's page 1 over Length / Rate / Quantize / Count-in: $OUT/cr_loop_row.ppm" || bad "no loop cells"
 has '^loop: length 1' "$L" && has '^loop: knob 2 rate x3/4' "$L" && has '^loop: knob 3 quantize 1/4' "$L" && has '^loop: knob 4 count-in off' "$L" &&
     ok "page 1, KNOB 1..4: length (1 bar), rate (x3/4), quantize (1/4), count-in (off)" || bad "loop knobs: $(grep '^loop: knob\|^loop: length' "$L" | tr '\n' ' ')"
-has '^loop: page 2' "$L" && has '^loop: cells Level Metronome - -' "$L" && has '^loop: knob 1 level 90' "$L" && has '^loop: page 1' "$L" &&
+has '^loop: page 2' "$L" && has '^loop: cells Level Beat - -' "$L" && has '^loop: knob 1 level 90' "$L" && has '^loop: page 1' "$L" &&
     [ "$(grep -c '^loop: knob [234] ' "$L")" = 8 ] && has '^loop: knob 2 metronome on' "$L" && has '^loop: knob 2 metronome off' "$L" &&
     grep -a '^  loop2:' "$L" | sed -n 1p | grep -q ' page 2 ' && grep -a '^  loop:' "$L" | sed -n 1p | grep -q ' metro 1 ' &&
-    ok "SELECT turns the page (not the length): page 2 is Level on KNOB 1, Metronome on KNOB 2 (on, off), KNOB 3 / 4 nothing there; SELECT back: page 1: $OUT/cr_loop_row_p2.ppm" \
+    ok "SELECT turns the page (not the length): page 2 is Level on KNOB 1, Beat on KNOB 2 (on, off), KNOB 3 / 4 nothing there; SELECT back: page 1: $OUT/cr_loop_row_p2.ppm" \
     || bad "the PLAY menu's pages: $(grep '^loop: page\|^loop: cells' "$L" | tr '\n' ' ')"
 grep -q "^ui: frame.*device): loopmenu .*foot '1/2 . keys: play . GLO: loops'" "$L" && grep -q "^ui: frame.*device): loopmenu .*foot '2/2 . keys: play . GLO: loops'" "$L" &&
     ok "the bottom line: the page (1/2, 2/2), what the keys do, what GLO makes them" || bad "the PLAY menu's bottom line: $(grep -o "loopmenu .*foot '[^']*'" "$L" | sed "s/.*foot //" | sort -u | tr '\n' ' ')"
@@ -854,15 +936,68 @@ done
 grep -q '^loop: cells' "$L" && differ cr_loop_row_playing cr_loop_row_playing_level "playing, page 2, KNOB 1: the level cell hot: $OUT/cr_loop_row_playing_level.ppm"
 run cr_metro_row
 L="$OUT/cr_metro_row.log"
-has '^metro: cells Click - - -' "$L" &&
-    ok "METRO held: the time signature over Click (Classic chord keys, this fork's default; in FM-1 LOCK's two settings beside it): $OUT/cr_metro_row.ppm" ||
-    bad "no metro cells"
-has '^metro: knob 1 click' "$L" && grep -q '^ui: frame.*device): knobrow .*hot 1\.0$' "$L" && ok "KNOB 1: the click level, its cell hot" || bad "metro knob"
+has '^metro: cells Click Meter - Beat' "$L" && grep -q "^ui: frame.*device): drum .*item 'Metronome'" "$L" &&
+    ok "SEQ held: the preset page, Metronome: Click, Meter, Beat over the tiles: $OUT/cr_metro_row.ppm" || bad "no metro cells"
+has '^metro: knob 1 click' "$L" && grep -q '^ui: frame.*device): drum .*hot 1\.0$' "$L" && ok "KNOB 1: the click level, its cell hot" || bad "metro knob"
 mt=$(grep -c '^ui: frame.*device): meter ' "$L")
 [ "$mt" = 0 ] && ok "no popup in the metro layer" || bad "a popup in the metro layer ($mt meters)"
 differ cr_metro_row_hot cr_metro_row_cool "the hot block gone: $OUT/cr_metro_row_cool.ppm"
-differ cr_metro_row_cool cr_metro_row_34 "SELECT: 3/4: $OUT/cr_metro_row_34.ppm"
+differ cr_metro_row_cool cr_metro_row_34 "KNOB 2: 3/4: $OUT/cr_metro_row_34.ppm"
 unset EMU_UI_LOG
+
+# the drums (the DRUMS plan; docs/MANUAL.md "The drums", docs/LOOPER.md "The drums"): the SEQ layer's preset page
+# (ALGORITHM the preset, PRESETS the beat on / off) and its pages to Hats Mix, the keys playing there, the drums free with no
+# loop, on its grid while it plays, running on when it stops, GLO + SEQ off
+export EMU_UI_LOG=1
+run cr_drums --wav "$OUT/cr_drums.wav"
+unset EMU_UI_LOG
+L="$OUT/cr_drums.log"
+dr() { grep -a '^  drums:' "$L" | sed -n "$1p"; }
+df() { echo "$1" | sed -n "s/.* $2 \([0-9]*\) .*/\1/p"; }
+hits() { echo "$1" | sed -n 's/.* hits \([0-9]*\) \([0-9]*\) \([0-9]*\) .*/\1 \2 \3/p'; }
+[ "$(df "$(dr 1)" preset)" = 0 ] && [ "$(df "$(dr 1)" page)" = 1 ] && has '^metro: cells Click Meter - Beat' "$L" &&
+    [ "$(df "$(dr 2)" preset)" = 1 ] && [ "$(df "$(dr 2)" kit)" = 1 ] && [ "$(df "$(dr 2)" ok)" = 1 ] &&
+    has '^metro: algorithm preset drums' "$L" && has '^metro: cells Level Meter Kit Beat' "$L" && has '^metro: knob 3 kit Deep' "$L" &&
+    ok "SEQ held: the preset page (Metronome); ALGORITHM: Drums (Level Meter Kit Beat), KNOB 3: the kit Deep and back: $OUT/cr_drums_preset.ppm" \
+    || bad "the preset page: $(dr 1) / $(dr 2)"
+[ "$(df "$(dr 3)" page)" = 2 ] && [ "$(df "$(dr 3)" x)" -gt 64 ] && [ "$(df "$(dr 3)" y)" -lt 64 ] && [ "$(df "$(dr 3)" density)" -gt 64 ] &&
+    has '^metro: cells Map X Map Y Density Chaos' "$L" && grep -aq "device): drum .*item 'Beat'" "$L" &&
+    ok "SELECT: Beat (the map, the lanes): KNOB 1..3 Map X, Map Y, Density: $OUT/cr_drums_beat.ppm" || bad "the Beat page: $(dr 3)"
+[ "$(df "$(dr 4)" page)" = 3 ] && echo "$(dr 4)" | grep -q ' kick 12/64/[0-9]*/72 ' && ! echo "$(dr 4)" | grep -q ' kick 12/64/32/72 ' &&
+    has '^metro: cells Tune Decay Character Fill' "$L" && [ "$(df "$(dr 5)" page)" = 6 ] && grep -aq "device): drum .*item 'Kick Mix'" "$L" &&
+    has '^metro: cells Chorus Delay Reverb Level' "$L" && grep -aq '^metro: mix drum 0 chorus [1-9][0-9]* delay 0 reverb 0 level 64$' "$L" &&
+    echo "$(dr 5)" | grep -q ' sends [1-9][0-9]*/0/0 0/0/0 0/0/0 levels 64 64 64 ' && grep -aq "device): drum .*item 'Hats Mix'" "$L" &&
+    grep -aq '^metro: mix drum 2 chorus 0 delay 0 reverb [1-9][0-9]* level [1-5][0-9]$' "$L" &&
+    echo "$(dr 5)" | grep -q ' beat 0 .* filters [0-9][0-9]* 127 127 drives [1-9][0-9]* 0 0 ' &&
+    [ "$(echo "$(dr 5)" | sed -n 's/.* filters \([0-9]*\) .*/\1/p')" -lt 127 ] && [ "$(df "$(dr 3)" preset)" = 1 ] &&
+    grep -aq '^metro: mix drum 0 filter [0-9]* drive [1-9][0-9]*$' "$L" && ! grep -aq '^metro: algorithm preset metronome' "$L" &&
+    ok "SELECT: Kick (KNOB 3: its Character), Snare, Hats, Kick Mix (KNOB 1: the kick's Chorus), Snare Mix, Hats Mix, the last page (KNOB 3 its Reverb, KNOB 4 its Level; 3y303); PRESETS / ALGORITHM on Kick Mix: its Drive and Filter (3y305), the beat off, ALGORITHM on Beat: nothing (3y304): $OUT/cr_drums_kick.ppm $OUT/cr_drums_mix.ppm $OUT/cr_drums_hatsmix.ppm" \
+    || bad "the drum pages: $(dr 4) / $(dr 5)"
+grep -a '^  cr: voices' "$L" | sed -n 6p | grep -q ' chord DM sounding 1 ' &&
+    ok "a chord played in the SEQ layer sounds (the keys play there)" || bad "keys in the layer: $(grep -a '^  cr: voices' "$L" | sed -n 6p)"
+h7=$(hits "$(dr 7)")
+[ "$(df "$(dr 7)" beat)" = 1 ] && [ "$(df "$(dr 7)" drums)" = 1 ] && [ "$(df "$(dr 7)" click)" = 0 ] && [ "$(df "$(dr 7)" run)" = 1 ] &&
+    [ "$(echo "$h7" | cut -d' ' -f1)" -gt 0 ] && grep -aq "msg 'drums on'" "$L" &&
+    ok "PRESETS: the beat on, 'drums on'; no loop: the drums play at once, free on the tempo (hits $h7): $OUT/cr_drums_free.ppm" \
+    || bad "the drums on, free: $(dr 7)"
+h8=$(hits "$(dr 8)")
+[ "$(df "$(dr 8)" run)" = 1 ] && [ "$(echo "$h8" | cut -d' ' -f1)" -gt "$(echo "$h7" | cut -d' ' -f1)" ] &&
+    [ "$(echo "$(dr 8)" | sed -n 's/.* bpos \([0-9]*\)$/\1/p')" -gt 0 ] &&
+    ok "REC + a chord + REC: the loop plays and the drums go on with it (hits $h8): $OUT/cr_drums_home.ppm $OUT/cr_drums_beat_playing.ppm" \
+    || bad "playing: $(dr 8)"
+[ "$(df "$(dr 9)" run)" = 1 ] && [ "$(df "$(dr 10)" beat)" = 0 ] && [ "$(df "$(dr 10)" drums)" = 0 ] && [ "$(df "$(dr 10)" run)" = 0 ] &&
+    grep -aq "msg 'drums off'" "$L" && ok "LOOP: the loop stops, the drums (on before it) run on; GLO + SEQ: 'drums off'" || bad "stop / off: $(dr 9) / $(dr 10)"
+r=$(python3 - "$OUT/cr_drums.wav" <<'PY'
+import sys, wave, struct
+w = wave.open(sys.argv[1]); fs = w.getframerate(); ch = w.getnchannels(); n = w.getnframes()
+a = struct.unpack('<%dh' % (n * ch), w.readframes(n))
+def peak(t0, t1):
+    return max(abs(x) for x in a[int(t0 * fs) * ch:int(t1 * fs) * ch] or [0])
+print(peak(5.0, 6.9), peak(9.1, 9.6))
+PY
+)
+[ "$(echo "$r" | cut -d' ' -f1)" -lt 50 ] && [ "$(echo "$r" | cut -d' ' -f2)" -gt 1000 ] &&
+    ok "the WAV: silence before the beat, the drums alone with no loop (peaks $r)" || bad "the WAV: peaks $r"
 
 echo "EDIT: the sound editor (cr_edit.c): groups, screens, lanes, knobs, memory"
 export EMU_UI_LOG=5
@@ -1085,6 +1220,29 @@ r=$(dv REL)
     has 'REL 124 -> 127 (INF)' "$L" && has 'REL 127 -> 112 (112)' "$L" && has 'REL 96 -> 112 (112)' "$L" &&
     ok "AMP REL (0..126 + INF, an integer since version 5): 1 slow, 6 quick to the end (127: INF); GLO held: the 16 grid 112 96, back 112: $OUT/cr_quad_hires_rel.ppm" \
     || bad "AMP REL: '$r'"
+
+echo "FM TONE's filter picker: SEL held in the editor (3y204)"
+run cr_quad_fpick
+L="$OUT/cr_quad_fpick.log"
+[ "$(grep -c '^edit: filter picker$' "$L")" = 7 ] && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 1 -> 2 (HP12) edited$' "$L" &&
+    has '^deep: part 0 page 4 FILTER+ col 2 TYPE 2 -> 3 (LP24) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 3 -> 2 (HP12) edited$' "$L" &&
+    [ "$(grep -c '^edit: group' "$L")" = 5 ] && has '^edit: group FILT screen 2 lane 1 part 0$' "$L" &&
+    ok "SEL held: the picker over FILT (LP12: $OUT/cr_fpick_open.ppm), KNOB 1 +1 HP12, SELECT +1 LP24, released: kept, no tap ($OUT/cr_fpick_closed.ppm); SEL tapped: FILT's next screen; SEL down + KNOB 3 at once: the picker, HP12" \
+    || bad "the filter picker: $(grep -E '^(edit|deep):' "$L" | tr '\n' '|')"
+differ cr_fpick_open cr_fpick_hp "the picker's big name follows the type (LP12 -> HP12)"
+differ cr_fpick_closed cr_fpick_hp "the release: the editor's FILTER screen again"
+# (3y217) FILTER+'s third cell by the type: TYPE steps OFF .. LP24 only; on a machine it is the machine's own value
+# (MULTI MORPH, the combs LPF with FEEDBACK on KNOB 2, EQ Q with GAIN on KNOB 2), the type the picker's (in and out)
+m=$(grep -E '^deep: part 0 page 4 FILTER\+ col [12] ' "$L" | sed -n 's/^deep: part 0 page 4 FILTER+ col \([12]\) \([A-Z0-9]*\) .*(\(.*\)).*/\1\2\3/p' | tr '\n' ' ')
+[ "$m" = "2TYPEHP12 2TYPELP24 2TYPEHP12 2TYPELP24 2TYPELP24 2TYPEMULTI 2MORPH110 2TYPECOMB+ 1FEEDBACK127.00 2LPF127 2TYPECOMB- 2LPF107 2TYPEEQ 1GAIN+50 2Q127 2TYPELP12 2TYPEHP12 " ] &&
+    has '^deep: part 0 page 4 FILTER+ col 2 MORPH 0 -> 110 (110) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 LPF 127 -> 107 (107) edited$' "$L" &&
+    has '^deep: part 0 page 4 FILTER+ col 2 Q 107 -> 127 (127) edited$' "$L" && has '^deep: part 0 page 4 FILTER+ col 2 TYPE 7 -> 1 (LP12) edited$' "$L" &&
+    ok "FILTER+ KNOB 3: TYPE stops at LP24; the picker into MULTI (KNOB 3 MORPH: $OUT/cr_fpick_multi.ppm), COMB+ (FEEDBACK, LPF), COMB- (LPF), EQ (GAIN, Q: $OUT/cr_fpick_eq.ppm), the type kept by each; back to LP12: KNOB 3 TYPE again" \
+    || bad "FILTER+ by the type: '$m'"
+differ cr_fpick_multi cr_fpick_combp "the band and the cells follow the machine (MULTI -> COMB+)"
+differ cr_fpick_combp cr_fpick_combn "COMB+ -> COMB-: its own teeth"
+differ cr_fpick_combn cr_fpick_eq "COMB- -> EQ: the bell, GAIN and Q"
+differ cr_fpick_eq cr_fpick_back "EQ -> LP12 / HP12: TYPE back on KNOB 3"
 
 echo "VA's synced LFO RATE: the list one item a detent both ways, GLO held the straight ones; FENV in hundredths"
 run cr_va_sync_list
@@ -1602,7 +1760,7 @@ unset EMU_UI_LOG
 SQ="$OUT/cr_seq.log"
 q() { L cr_seq "$1"; }
 sq() { echo "$(ly "$SQ" "$1") $(l2 "$SQ" "$1" edit) $(lf "$(q "$1")" metro)"; }   # layer options edit metro
-[ "$(sq 1)" = "8 0 1 0" ] && [ "$(sq 2)" = "8 0 0 0" ] && [ "$(sq 3)" = "0 0 0 0" ] && [ "$(grep -ac '^loopedit: from the view' "$SQ")" = 3 ] &&
+[ "$(sq 1)" = "8 0 1 0" ] && [ "$(sq 2)" = "8 0 0 0" ] && [ "$(sq 3)" = "0 0 0 0" ] && [ "$(grep -ac '^loopedit: from the view' "$SQ")" = 4 ] &&
     has 'expect led SEQ on .*: ok' "$SQ" && [ "$(grep -ac 'expect led SEQ dim .*: ok' "$SQ")" = 2 ] && has 'expect led OCT- dim .*: ok' "$SQ" &&
     grep -aq "loopmenu .*item 'Step' .*foot '1/2 . PRESETS: step . REC: clear . SEQ: back'" "$SQ" &&
     ok "SEQ's cycle: the view -> the loop editor (its bottom line 'SEQ: back') -> the PLAY menu (SEQ's LED lit) -> the view (dim): $OUT/cr_seq_editor.ppm" \
@@ -1611,20 +1769,20 @@ sq() { echo "$(ly "$SQ" "$1") $(l2 "$SQ" "$1" edit) $(lf "$(q "$1")" metro)"; } 
     ok "the editor opened by SEQ, EDIT: the PLAY menu; EDIT there: the editor; HOME: the view (it does not step the view)" || bad "SEQ then EDIT / HOME: $(sq 4) / $(sq 5)"
 [ "$(sq 6)" = "0 0 0 0" ] && [ "$(sq 7)" = "8 0 0 0" ] &&
     ok "the PLAY menu entered by LOOP held: SEQ leaves to the view; the menu > EDIT, then SEQ: back in the PLAY menu" || bad "SEQ in the PLAY menu: $(sq 6) / $(sq 7)"
-has '^loop: cells Level Metronome - -' "$SQ" && [ "$(sq 8)" = "8 0 0 1" ] && [ "$(sq 9)" = "8 0 0 0" ] && grep -aq "loopmenu .*hot 1\.1" "$SQ" &&
-    ok "the PLAY menu's page 2, KNOB 2: Metronome On / Off, its cell hot: $OUT/cr_seq_p2_on.ppm" || bad "the metronome cell: $(sq 8) / $(sq 9)"
+has '^loop: cells Level Beat - -' "$SQ" && [ "$(sq 8)" = "8 0 0 1" ] && [ "$(sq 9)" = "8 0 0 0" ] && grep -aq "loopmenu .*hot 1\.1" "$SQ" &&
+    ok "the PLAY menu's page 2, KNOB 2: Beat (the metronome's switch) On / Off, its cell hot: $OUT/cr_seq_p2_on.ppm" || bad "the metronome cell: $(sq 8) / $(sq 9)"
 differ cr_seq_p2_off cr_seq_p2_on "the Metronome cell shows On"
 [ "$(sq 10)" = "0 0 0 1" ] && [ "$(sq 11)" = "0 0 0 0" ] && grep -aq "msg 'metronome on'" "$SQ" && grep -aq "msg 'metronome off'" "$SQ" &&
-    [ "$(grep -ac '^metro: o' "$SQ")" = 2 ] &&
-    ok "GLO held + SEQ: the metronome on / off with its message (no Options, no editor); SEQ's LED does not show the click; SEQ alone never toggled it (the 2 toggles of the script are these)" \
+    [ "$(grep -ac '^metro: o' "$SQ")" = 4 ] &&
+    ok "GLO held + SEQ: the metronome on / off with its message (no Options, no editor); SEQ's LED does not show the click; SEQ alone never toggled it (the 4 toggles of the script are these two and PRESETS on / off in the SEQ layer, H)" \
     || bad "GLO + SEQ: $(sq 10) / $(sq 11), $(grep -ac '^metro: o' "$SQ") toggles"
 [ "$(sq 12)" = "3 0 0 0" ] && [ "$(sq 13)" = "3 0 0 0" ] && [ "$(sq 14)" = "0 1 0 0" ] && ! has '^fx: o' "$SQ" &&
     ok "SEQ in the FX layer and in the Options: nothing (the layer stays, no editor, no click)" || bad "SEQ in a layer: $(sq 12) / $(sq 13) / $(sq 14)"
 [ "$(lf "$(q 15)" cap)" != 0 ] && [ "$(sq 15)" = "0 0 0 0" ] && has '^loopedit: open rc 1' "$SQ" && grep -aq "msg 'end the take first'" "$SQ" &&
     ok "SEQ with a take open: refused (end the take first), the view stays" || bad "SEQ during a capture: cap $(lf "$(q 15)" cap), $(sq 15)"
-[ "$(sq 17)" = "7 0 0 0" ] && [ "$(sq 18)" = "8 0 0 0" ] && [ "$(lf "$(q 18)" slot)" = 1 ] && [ "$(sq 19)" = "8 0 1 0" ] &&
+[ "$(sq 17)" = "7 0 0 0" ] && [ "$(sq 18)" = "7 0 0 1" ] && [ "$(lf "$(q 18)" slot)" = 1 ] && [ "$(sq 19)" = "8 0 1 0" ] &&
     [ "$(grep -a '^  loop3:' "$SQ" | sed -n 19p | sed -n 's/.* cursor \([0-9]*\) .*/\1/p')" = 2 ] &&
-    ok "SEQ held: the METRO layer on the view, as before; in the editor it closes it to the PLAY menu and PRESETS with SEQ still down does nothing (slot 1); turned inside the hold: the step cursor (2), the editor stays" \
+    ok "SEQ held: the SEQ layer on the view, as before; in the editor too (the editor closed; PRESETS with SEQ still down: the layer's, the beat on; slot 1); turned inside the hold: the step cursor (2), the editor stays" \
     || bad "SEQ held + PRESETS: $(sq 17) / $(sq 18) slot $(lf "$(q 18)" slot) / $(sq 19)"
 [ "$(sq 20)" = "8 0 0 0" ] && [ "$(lf "$(q 20)" slot)" = 2 ] && [ "$(sq 21)" = "8 0 1 0" ] && [ "$(sq 22)" = "8 0 0 0" ] && [ "$(sq 23)" = "0 0 0 0" ] &&
     [ "$(grep -ac '^sound: part 0 pos' "$SQ")" = 0 ] &&
@@ -1902,7 +2060,7 @@ lp_sig() {
 lp_latch() { lp_sig "$1" | tr ' ' '\n' | cut -d/ -f1 | tr '\n' ' '; }
 lp_run() {   # lp_run NAME BODY STYLE PUSHED KEEPS: the preamble (the Classic chord keys, Options > Play Style, the LOCK layer on B3, LOCK on) + the body
     {
-        printf 'keys classic\nwait 300\nbtn GLO\nwait 200\nknob KNOB1 +%s\nwait 200\nbtn GLO\nwait 200\nbtn B3 600\nwait 300\n' "$3"
+        printf 'keys classic\nwait 300\nbtn GLO\nwait 170\nbtn OCT+ 30\nknob KNOB1 +%s\nwait 200\nbtn GLO\nwait 200\nbtn B3 600\nwait 300\n' "$3"   # (3y290: OCT+ into Play, on Play Style)
         [ "$4" = 1 ] && printf 'knob KNOB2 +1\nwait 200\n'
         [ "$5" = 1 ] && printf 'knob KNOB1 +1\nwait 200\n'
         printf 'btn OCT-\nwait 300\nbtn B3\nwait 200\n'
@@ -2276,13 +2434,23 @@ p=$(pixel "$OUT/cr_calib_done.ppm" 120 8); set -- $p
 has 'expect sound .*: ok' "$CL" && ok "a chord plays after the calibration" || bad "calib: no sound after"
 silent_end cr_calib
 
-echo "MIDI start / continue / stop in (Clock In) drive the loop; ignored with Clock Out"
+echo "MIDI start / continue / stop in drive the loop as LOOP does, with Clock In and Out (3y253); ignored with Off"
 run cr_midi_transport
 ML="$OUT/cr_midi_transport.log"
-[ "$(grep -c '^expect led GREEN .*: ok' "$ML")" = 9 ] &&
-    ok "LOOP stop, FC nothing, FA plays, FC stops, FB plays, FA restarts (still playing), FC stops; Out: FA ignored" ||
-    bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 9 GREEN checks"
+[ "$(grep -c '^expect led GREEN .*: ok' "$ML")" = 15 ] &&
+    ok "In: LOOP stop, FC nothing, FA plays, FC stops, FB plays, FA restarts, FC stops; Out: FA / FC / FB / FC the same; LOOP twice; Off: FA ignored" ||
+    bad "MIDI transport in: $(grep -c '^expect led GREEN .*: ok' "$ML") of 15 GREEN checks"
+[ "$(grep '^midi: ' "$ML" | tr '\n' ' ')" = "midi: FA start midi: FC stop " ] &&
+    ok "Out: the master's FA / FC / FB / FC not sent back; the LOOP button's start and stop sent" ||
+    bad "Out: transport out was: $(grep '^midi: ' "$ML" | tr '\n' ' ')"
 silent_end cr_midi_transport
+
+echo "the USB peer goes (3y261: a suspend, a device gone from USB Host): its held MIDI note stops, the keys' chord stays"
+run cr_usb_lost
+UL="$OUT/cr_usb_lost.log"
+[ "$(grep '^  part 0:' "$UL" | sed 's/.* voices \([0-9]*\),.*/\1/' | tr '\n' ' ')" = "1 4 3 0 " ] &&
+    ok "a MIDI C4 held (1 voice), a chord on the keys (4), the peer goes: the chord's 3 sound on, then nothing" ||
+    bad "USB lost: part 0's voices $(grep '^  part 0:' "$UL" | sed 's/.* voices \([0-9]*\),.*/\1/' | tr '\n' ' ') (want 1 4 3 0)"
 
 echo "VA (eng_va.c, docs/VA.md): its first preset, a held 6-note chord, a chord change"
 rm -f "$OUT"/va_chord*
@@ -2606,6 +2774,25 @@ cmp -s -n 1128964 "${F8}_hang.wav" "${F8}_one.wav" && LC_ALL=C grep -aq 'c1 gave
     ok "core 1 never answering a job under the FM6 chord (EMU_C1=hang): given up in the first block, one core's WAV (the first 6.4 s), Dual Core Off" ||
     bad "EMU_C1=hang on the FM6 chord: the WAV differs from one core's in the first 6.4 s, or core 1 was not given up"
 
+echo "FM TONE's chord voices on two cores (3y206, docs/QUAD.md \"Two cores\"): eight EP voices with DRIVE 127 ROUTE PRE over DEEP SUB, shared out; on a thread the same, bit for bit"
+Q8="$OUT/cr_quad_eight"
+EMU_STAGES=1 "$EMU" --headless --script "$S/cr_quad_eight.txt" --wav "${Q8}_inline.wav" >"${Q8}_inline.log" 2>&1 &&
+    ok "cr_quad_eight: exit 0" || bad "cr_quad_eight: see ${Q8}_inline.log"
+st=$(LC_ALL=C grep -a '^cpu: stages' "${Q8}_inline.log")
+p0=$(echo "$st" | sed -n 's/.* part0 \([0-9]*\) .*/\1/p'); p1=$(echo "$st" | sed -n 's/.* part1 \([0-9]*\) .*/\1/p')
+grep -aq '^deep: part 0 page 13 AMP+ col 3 ROUTE 0 -> 1 (PRE) edited$' "${Q8}_inline.log" &&
+    grep -aq '^param: part 0 ENV DRIVE 0 -> 127' "${Q8}_inline.log" && grep -aq '^  part 0: FM TONE / EP' "${Q8}_inline.log" &&
+    [ "$(fv "${Q8}_inline.log" 0)" = "0 8 8 8 0 " ] && [ "$(fv "${Q8}_inline.log" 1)" = "0 0 1 1 0 " ] &&
+    echo "$st" | grep -q 'c1 ok, jobs [1-9]' && [ "${p0:-0}" -ge 1 ] && [ "$((2 * ${p1:-0}))" -ge "${p0:-0}" ] &&
+    ok "two cores: eight FM TONE voices driven before the filter and the bass; core 1's job averages $p1 us a half against core 0's $p0 (the chord is shared)" ||
+    bad "FM TONE's chord on two cores: the voices $(fv "${Q8}_inline.log" 0)/ the bass's $(fv "${Q8}_inline.log" 1)/ part0 ${p0:-?} part1 ${p1:-?} ($st)"
+echo "$st" | cut -c6- | sed 's/^/      /'
+silent_end cr_quad_eight_inline
+EMU_C1=thread "$EMU" --headless --script "$S/cr_quad_eight.txt" --wav "${Q8}_thread.wav" >"${Q8}_thread.log" 2>&1
+[ -s "${Q8}_inline.wav" ] && cmp -s "${Q8}_inline.wav" "${Q8}_thread.wav" &&
+    ok "EMU_C1=thread: core 1's share of the FM TONE chord and the bass part on a second thread: the WAV is the inline job's, bit for bit" ||
+    bad "EMU_C1=thread, FM TONE's chord voices on two threads: the WAV differs from the inline job's"
+
 echo "P5, the click at a short release's end (3y44): the part's DC blocker discharges after the last voice, it is not cut"
 p5pos=$(python3 tools/gen_prophet_factory.py --pos 168)          # PERC ORGAN: a release of 20 ms, in the tree's list
 if [ "${p5pos:-0}" -ge 2 ]; then
@@ -2823,12 +3010,12 @@ differ cr_safe_options cr_safe_erase_entry "Options opens on Safe Mode; SELECT +
 differ cr_safe_erase_entry cr_safe_erase_ask "OCT+ once: the confirmation (OCT+ again): $OUT/cr_safe_erase_ask.ppm"
 "$EMU" --headless --flash "$SF" --script "$S/cr_safe_erase.txt" --boot-fail 1 --reset-reason wdt >"$OUT/cr_safe_erase.log" 2>&1
 st=$?
-[ $st = 0 ] && has '^safe: flash data erased, 76 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
+[ $st = 0 ] && has '^safe: flash data erased, 62 sectors, 0 failed: reboot' "$OUT/cr_safe_erase.log" &&
     has '^reboot: guard failed 0 pending 0' "$OUT/cr_safe_erase.log" &&
-    ok "OCT+ twice: 76 data sectors erased (36 + the CZ-1's 18 + FM TONE's 2 + the session's 2 + the favourites' 2 + the sound pool's 16), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
+    ok "OCT+ twice: 62 data sectors erased (the FM6 bank's 1 + Bluetooth's 2 (3y236) + the CZ-1 banks' 16 + the session's 2 + the favourites' 2 + the sound pool's 16 + the loops' 20 + the settings' and FM6 copy B's 3; 0.21's sectors no longer ChoralRoot's, 3y231), reboot with the guard clear" || bad "erase: exit $st, $(grep -m1 'safe:\|reboot' "$OUT/cr_safe_erase.log")"
 ff=$(python3 -c "
 import sys; d = open(sys.argv[1], 'rb').read()
-r = [(0x97000, 9), (0xA0000, 40), (0xC8000, 20), (0xDC000, 4), (0xFC000, 3)]   # (0xB4000: the session, 0xB6000 the favourites, 0xB8000.. the pool)
+r = [(0x9F000, 1), (0xA2000, 16), (0xB4000, 4), (0xB8000, 16), (0xC8000, 20), (0xFC000, 3)]   # (the FM6 bank A, the CZ-1 banks, the session and the favourites, the pool, the loops, the settings and FM6 B)
 print(int(all(d[a:a + n * 4096] == b'\xff' * (n * 4096) for a, n in r) and d[:0x93000] == open(sys.argv[2], 'rb').read()[:0x93000]))" "$SF" "$OUT/cr_safe_flash_before.bin")
 [ "$ff" = 1 ] && ok "the data regions read erased, the firmware area as before" || bad "flash after the erase"
 [ -z "$(python3 tools/emu/pool_image.py pool "$SF")" ] && ok "the sound pool holds no sound after it (0.24: the pool was left out until 0.24-beta2)" ||
@@ -3174,7 +3361,7 @@ run cr_opt_keys --wav "$OUT/cr_opt_keys.wav"
 L="$OUT/cr_opt_keys.log"
 dl() { LC_ALL=C grep -a "^  $1" "$L" | sed -n "$2p"; }   # dl PREFIX N: the Nth dump's line that starts with PREFIX
 oe() { dl 'options:' "$1" | sed 's/^  options: //'; }
-[ "$(oe 1)" = "open 1 entry 2 of 33 'Secret Chords' value 'Simple'" ] && dl 'cr: voices' 1 | grep -q 'notes-out 0 ' &&
+[ "$(oe 1)" = "open 1 entry 2 of 3 'Secret Chords' value 'Simple'" ] && dl 'cr: voices' 1 | grep -q 'notes-out 0 ' &&
     dl 'cr: voices' 2 | grep -q '^  cr: voices 1 pending 0 notes-out 3 chord DM sounding 1 notes 62 66 69' &&
     dl 'loopv:' 2 | grep -q 'stream-notes main 3 ' && ! has 'expect.*FAILED' "$L" &&
     ok "MAJ + D4 with the menu open: D major sounds (62 66 69), three notes out on MIDI" \
@@ -3202,35 +3389,51 @@ echo "$wc_" | grep -q ": 0 jumps > 0.5 FS, 0 silent holes mid-sound, 0 clicks" &
     ok "no jump, no silent hole, no click at either change (5.3 .. 8.3 s)" || bad "Output switched under a chord struck in the menu: $wc_"
 sh_() { dl 'settings:' "$1" | sed -n 's/.* now \([0-9A-F]*\) .*/\1/p'; }
 echo "$(oe 8)" | grep -q "'Reset Settings' value 'OCT+ again: reset'" && [ "$(oe 9)" = "$(oe 8)" ] && [ -n "$(sh_ 8)" ] && [ "$(sh_ 9)" = "$(sh_ 8)" ] &&
-    echo "$(oe 10)" | grep -q "^open 0 " && [ "$(oe 45)" = "open 1 entry 2 of 33 'Secret Chords' value 'Simple'" ] &&
+    echo "$(oe 10)" | grep -q "^open 0 " && [ "$(oe 47)" = "open 1 entry 2 of 3 'Secret Chords' value 'Simple'" ] &&
     ! grep -aq 'settings reset' "$L" &&
     ok "Reset Settings asked (OCT+ once): five keys neither confirm nor cancel it; OCT- leaves, nothing was reset (Secret Chords still Simple)" \
-    || bad "Reset Settings and the keys: '$(oe 8)' / '$(oe 9)' / '$(oe 10)' / '$(oe 45)'"
-echo "$(oe 11)" | grep -q "^open 1 entry 31 of 33 'Calibrate'" && ! grep -aq '^calib:' "$L" && ok "Calibrate: no key starts it" \
+    || bad "Reset Settings and the keys: '$(oe 8)' / '$(oe 9)' / '$(oe 10)' / '$(oe 47)'"
+echo "$(oe 11)" | grep -q "^open 1 entry 2 of 3 'Calibrate'" && ! grep -aq '^calib:' "$L" && ok "Calibrate: no key starts it" \
     || bad "Calibrate and the keys: '$(oe 11)' $(grep -a -m1 '^calib:' "$L")"
-n=0; i=0
-while [ $i -le 32 ]; do
-    echo "$(oe $((12 + i)))" | grep -q "^open 1 entry $i of 33 '" && n=$((n + 1))
-    i=$((i + 1))
+n=0; d=12
+for gs in 3 6 6 8 4 4 3; do                         # (3y290) each group's entries, in the walk's order (Classic)
+    i=0
+    while [ $i -lt $gs ]; do
+        echo "$(oe $d)" | grep -q "^open 1 entry $i of $gs '" && n=$((n + 1))
+        i=$((i + 1)); d=$((d + 1))
+    done
 done
-[ $n = 33 ] && echo "$(oe 44)" | grep -q "'Reset Settings'" && echo "$(oe 18)" | grep -q "entry 6 of 33 '6th with 7th' value 'In place'" &&
-    echo "$(oe 20)" | grep -q "entry 8 of 33 'Key Touch' value 'Fixed'" && echo "$(oe 22)" | grep -q "entry 10 of 33 'Velocity Curve' value '0'" &&
-    echo "$(oe 23)" | grep -q "entry 11 of 33 'Aftertouch Sens' value 'Mid'" &&
-    ok "every entry by SELECT alone: 33 of 33, Play Style to Reset Settings (Chord Keys, Full K Shorts, MIDI Keys after Secret Chords since 0.24; the SUS Window listed in FM-1 only) (6th with 7th the fourth; Key Touch, Velocity Sens, Velocity Curve, Aftertouch Sens after Velocity)" \
-    || bad "the entries by SELECT: $n of 33"
+[ $n = 34 ] && [ "$(oe 46)" = "open 1 entry 7 of 8 'Reset Settings' value 'all options to default'" ] &&
+    echo "$(oe 17)" | grep -q "entry 2 of 6 '6th with 7th' value 'In place'" && echo "$(oe 12)" | grep -q "entry 0 of 3 'Play Style'" &&
+    echo "$(oe 22)" | grep -q "entry 1 of 6 'Key Touch' value 'Fixed'" && echo "$(oe 24)" | grep -q "entry 3 of 6 'Velocity Curve' value '0'" &&
+    echo "$(oe 25)" | grep -q "entry 4 of 6 'Aftertouch Sens' value 'Mid'" && echo "$(oe 30)" | grep -q "entry 3 of 8 'Raw Chord Sound'" &&
+    dl 'options group:' 30 | grep -q "in 1 group 'MIDI'" && dl 'options group:' 46 | grep -q "in 0 group 'Reset Settings'" &&
+    ok "every entry, group by group (3y290: SELECT moves in a group, OCT- to the group list, SELECT, OCT+ into the next): Play 3, Chords 6 (Classic: no SUS Window), Keys 6, MIDI 8, Screen 4, Audio 4, System 3, then Reset Settings, the group list's last item" \
+    || bad "the entries by group: $n of 34; '$(oe 46)'"
 grep -aq '^loop: loop recorded (state 2 layers 1 events 1 ' "$L" && ok "a take played with the menu open is recorded (armed on the view, one chord)" \
     || bad "the looper with the Options open: $(grep -a '^loop:' "$L" | tail -2 | tr '\n' ' ')"
 silent_end cr_opt_keys
+
+echo "Options reopen where they were closed (3y291): inside a group on its entry, or the group list on the group"
+run cr_opt_resume
+L="$OUT/cr_opt_resume.log"
+og() { dl 'options group:' "$1" | sed 's/^  options group: //'; }
+echo "$(oe 1)" | grep -q "^open 0 " &&
+    echo "$(oe 2)" | grep -q "^open 1 entry 5 of 8 'MIDI Roots'" && [ "$(og 2)" = "in 1 group 'MIDI'" ] &&
+    echo "$(oe 3)" | grep -q "^open 1 entry 5 of 8 'MIDI Roots'" && [ "$(og 3)" = "in 1 group 'MIDI'" ] &&
+    [ "$(og 4)" = "in 0 group 'MIDI'" ] && [ "$(oe 5)" = "$(oe 4)" ] && [ "$(og 5)" = "in 0 group 'MIDI'" ] &&
+    ok "closed inside MIDI on MIDI Roots (HOME, then OPT): OPT reopens there; closed on the group list: reopens on MIDI" \
+    || bad "the Options' reopening: '$(oe 1)' / '$(oe 2)' $(og 2) / '$(oe 3)' $(og 3) / $(og 4) / '$(oe 5)' $(og 5)"
 
 echo "Options > USB Rate (0.19): 48 kHz is opt-in; 44.1 kHz, the default, is 0.18's device (the USB side: tests/cr_usbrate_test.c)"
 run cr_usb_rate
 L="$OUT/cr_usb_rate.log"
 ur() { dl 'usb-rate:' "$1" | sed 's/^  usb-rate: //; s/ (.*pick_roots \([0-9]*\))/ \1/'; }
 ul() { dl 'screen reads:' "$1" | sed -n "s/.*label '\([^']*\)'.*/\1/p"; }
-[ "$(oe 1)" = "open 1 entry 27 of 33 'USB Rate' value '44.1 kHz'" ] && [ "$(ur 1)" = "48k 0 0" ] && [ "$(ul 1)" = "48 kHz: not offered" ] &&
+[ "$(oe 1)" = "open 1 entry 3 of 4 'USB Rate' value '44.1 kHz'" ] && [ "$(ur 1)" = "48k 0 0" ] && [ "$(ul 1)" = "48 kHz: not offered" ] &&
     ok "a new unit: USB Rate is the entry after USB Level, 44.1 kHz ('48 kHz: not offered'), the record's bit clear" \
     || bad "USB Rate on a new unit: '$(oe 1)' / $(ur 1) / '$(ul 1)'"
-[ "$(oe 2)" = "open 1 entry 27 of 33 'USB Rate' value '44.1 + 48 kHz'" ] && [ "$(ur 2)" = "48k 1 4" ] &&
+[ "$(oe 2)" = "open 1 entry 3 of 4 'USB Rate' value '44.1 + 48 kHz'" ] && [ "$(ur 2)" = "48k 1 4" ] &&
     [ "$(ul 2)" = "the computer picks the rate" ] && [ "$(oe 3)" = "$(oe 1)" ] && [ "$(ur 3)" = "48k 0 0" ] &&
     ok "KNOB 1 +1: 44.1 + 48 kHz ('the computer picks the rate'), bit 2 of the record's byte; -1: 44.1 kHz again" \
     || bad "USB Rate turned: '$(oe 2)' / $(ur 2) / '$(ul 2)' then '$(oe 3)' / $(ur 3)"
@@ -3248,8 +3451,8 @@ sn_() { LC_ALL=C grep -aq " name '$1' " "$L"; }                    # the name a 
     [ "$(cb 1)" = "0 0 0" ] && sn_ 'A||7 9' && sn_ 'A||9' && sn_ 'A|sus|m7 9' &&
     ok "a new unit names as the Orchid does: A + 7 + 9 'A7 9', A + 9 'A9', Asus + 7 + 9 'Asus m7 9' (the engine's and the screen's)" \
     || bad "Orchid names: '$(cn 1)' / '$(cn 2)' / '$(cn 3)' / $(cb 1)"
-[ "$(oe 4)" = "open 1 entry 22 of 33 'Chord Names' value 'Orchid'" ] && [ "$(ul 4)" = "A7 9 $(printf '\267') A9 $(printf '\267') Asus m7 9" ] &&
-    [ "$(oe 5)" = "open 1 entry 22 of 33 'Chord Names' value 'Standard'" ] && [ "$(ul 5)" = "A9 $(printf '\267') Aadd9 $(printf '\267') A9sus4" ] &&
+[ "$(oe 4)" = "open 1 entry 2 of 4 'Chord Names' value 'Orchid'" ] && [ "$(ul 4)" = "A7 9 $(printf '\267') A9 $(printf '\267') Asus m7 9" ] &&
+    [ "$(oe 5)" = "open 1 entry 2 of 4 'Chord Names' value 'Standard'" ] && [ "$(ul 5)" = "A9 $(printf '\267') Aadd9 $(printf '\267') A9sus4" ] &&
     [ "$(cb 5)" = "1 1 1" ] &&
     ok "Chord Names is the entry after Motion: Orchid; KNOB 1 +1: Standard (the engine told, bit 3 of the record's byte), the same three chords under it" \
     || bad "the Chord Names entry: '$(oe 4)' / '$(ul 4)' then '$(oe 5)' / '$(ul 5)' / $(cb 5)"
@@ -3257,7 +3460,7 @@ sn_() { LC_ALL=C grep -aq " name '$1' " "$L"; }                    # the name a 
     sn_ 'A||add9' && sn_ 'A||9sus4' &&
     ok "Standard: A + 7 + 9 'A9', A + 9 'Aadd9', Asus + 7 + 9 'A9sus4', each with the notes it had under Orchid" \
     || bad "Standard names: '$(cn 6)' / '$(cn 7)' / '$(cn 8)'"
-[ "$(oe 9)" = "open 1 entry 22 of 33 'Chord Names' value 'Orchid'" ] && [ "$(cb 9)" = "0 0 0" ] && [ "$(cn 10)" = "A9|1|69 73 76 83" ] &&
+[ "$(oe 9)" = "open 1 entry 2 of 4 'Chord Names' value 'Orchid'" ] && [ "$(cb 9)" = "0 0 0" ] && [ "$(cn 10)" = "A9|1|69 73 76 83" ] &&
     ok "KNOB 1 -1: Orchid again, A + 9 reads 'A9' again" || bad "back to Orchid: '$(oe 9)' / $(cb 9) / '$(cn 10)'"
 differ cr_chord_names_opt_orchid cr_chord_names_opt_standard "Chord Names: the two values' screens differ"
 differ cr_chord_names_orchid cr_chord_names_standard "A + 7 + 9: the Chord view differs under the two namings"
@@ -3284,8 +3487,8 @@ kl() { dl 'key leds:' "$1" | sed -n 's/^  key leds:\([0-9]* [0-9]*\) .*/\1/p'; }
 [ "$(cn 1)" = "A7 6|1|69 73 76 78 79" ] && [ "$(sx 1)" = "0 0 0" ] && sn_ 'A||7 6' &&
     ok "a new unit plays the 6th in place, as the Orchid does: A + 7 + 6 is A C# E F# G (69 73 76 78 79), named 'A7 6'" \
     || bad "In place: '$(cn 1)' / $(sx 1)"
-[ "$(oe 2)" = "open 1 entry 6 of 33 '6th with 7th' value 'In place'" ] && [ "$(ul 2)" = "6 + 7: the 6th under the 7th" ] &&
-    [ "$(oe 3)" = "open 1 entry 6 of 33 '6th with 7th' value 'Octave up'" ] && [ "$(ul 3)" = "6 + 7: the 6th on top, a 13th" ] && [ "$(sx 3)" = "1 1 1" ] &&
+[ "$(oe 2)" = "open 1 entry 2 of 6 '6th with 7th' value 'In place'" ] && [ "$(ul 2)" = "6 + 7: the 6th under the 7th" ] &&
+    [ "$(oe 3)" = "open 1 entry 2 of 6 '6th with 7th' value 'Octave up'" ] && [ "$(ul 3)" = "6 + 7: the 6th on top, a 13th" ] && [ "$(sx 3)" = "1 1 1" ] &&
     ok "6th with 7th is the entry after Secret Chords: In place; KNOB 1 +1: Octave up (the engine told, bit 4 of the record's byte), each with its line" \
     || bad "the 6th with 7th entry: '$(oe 2)' / '$(ul 2)' then '$(oe 3)' / '$(ul 3)' / $(sx 3)"
 [ "$(cn 4)" = "A7 6|1|69 73 76 78 79" ] && dl 'part 0:' 4 | grep -q 'voices 5,' && [ "$(dl 'parts busy' 5 | sed -n 's/.*parts busy \([0-9]*\).*/\1/p')" = 0 ] &&
@@ -3300,7 +3503,7 @@ kl() { dl 'key leds:' "$1" | sed -n 's/^  key leds:\([0-9]* [0-9]*\) .*/\1/p'; }
     || bad "the key LEDs: '$(kl 1)' / '$(kl 6)'"
 [ "$(cn 10)" = "A7 6|1|69 73 76 78 79" ] && [ "$(cn 11)" = "A7 6|1|69 73 76 79 90" ] &&
     ok "KNOB 1 -1 on the view: the voicing takes the top note, the 13th, down an octave; +1: back" || bad "the voicing: '$(cn 10)' / '$(cn 11)'"
-[ "$(oe 12)" = "open 1 entry 6 of 33 '6th with 7th' value 'In place'" ] && [ "$(sx 12)" = "0 0 0" ] && [ "$(cn 13)" = "A7 6|1|69 73 76 78 79" ] &&
+[ "$(oe 12)" = "open 1 entry 2 of 6 '6th with 7th' value 'In place'" ] && [ "$(sx 12)" = "0 0 0" ] && [ "$(cn 13)" = "A7 6|1|69 73 76 78 79" ] &&
     ok "KNOB 1 -1 in the Options: In place again, A + 7 + 6 as at first" || bad "back to In place: '$(oe 12)' / $(sx 12) / '$(cn 13)'"
 differ cr_sixth_opt_off cr_sixth_opt_on "6th with 7th: the two values' screens differ"
 differ cr_sixth_off cr_sixth_on "A + 7 + 6: the Chord view's notes differ under the two settings"
@@ -3382,8 +3585,8 @@ gyes 20 "$A" "$P" 2 "a layer over the sound editor (PERF)"
 grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'CZ-1' value '64 presets'" && grep -a '^ui: frame.* picker ' "$GK" | grep -aq "item 'FM TONE' value '16 presets'" &&
     ok "the picker itself is the home pages': the engine big, its presets' count: $OUT/cr_glo_knobs_key_pick.ppm (the KEY layer), cr_glo_knobs_edit_pick.ppm (the editor), cr_glo_knobs_opt.ppm" \
     || bad "the engine picker's screen in a layer"
-[ "$(gp 1 31)" = "VA / SLOW STRINGS" ] && [ "$(gl 31)" = 7 ] && [ "$(gp 0 31)" = "FM6 / FM BELL" ] &&
-    ok "the held-layer rule: SEQ held past the hold time and still down, GLO pressed too, ALGORITHM: the bass sound (VA 04), SEQ's layer open; no engine picker (GLO is the shift only when it is the button held)" \
+[ "$(gp 1 31)" = "VA / GLASS PAD" ] && [ "$(gl 31)" = 7 ] && [ "$(gp 0 31)" = "FM6 / FM BELL" ] && has '^metro: algorithm preset drums' "$GK" &&
+    ok "the held-layer rule: SEQ held past the hold time and still down, GLO pressed too, ALGORITHM: the SEQ layer's (since the drums: its preset, Drums; the bass sound kept), the layer open; no engine picker (GLO is the shift only when it is the button held)" \
     || bad "SEQ held + GLO + ALGORITHM: bass '$(gp 1 31)' layer $(gl 31)"
 [ "$(gb 32)" = 0 ] && [ "$(gp 1 32)" = "$B" ] && [ "$(gl 32)" = 3 ] &&
     ok "a bass that is off, in the FX layer: GLO + ALGORITHM changes its engine ($B), the bass stays off (as on the home pages)" \
@@ -3555,7 +3758,7 @@ LC_ALL=C grep -aq '^fx: routing hold Chorus' "$L" && LC_ALL=C grep -aq '^fx: rou
     bad "the Routing page in Classic: $(LC_ALL=C grep -a '^fx: routing' "$L" | tr '\n' '/')"
 silent_end cr_route_classic
 
-echo "Harmony mode in FM-1: LFO held opens it, LFO tapped in it is LATCH, G#3 + A#3 is SUS (Upper), B3 the 9; SEQ held: LOCK's settings"
+echo "Harmony mode in FM-1: LFO held opens it, LFO tapped in it is LATCH, G#3 + A#3 is SUS (Upper), B3 the 9"
 run cr_harm_fm1
 L="$OUT/cr_harm_fm1.log"
 fv() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.*chord //'; }
@@ -3573,8 +3776,6 @@ fo() { LC_ALL=C grep -a '^  cr: voices' "$L" | sed -n "${1}p" | sed 's/.* notes-
 [ "$(fv 6)" = "$(fv 5)" ] && [ "$(fo 6)" = "$(fo 5)" ] && LC_ALL=C grep -aq '^harm: key 7 is off the map' "$L" &&
     ok "C4 tapped in the mode (a root in FM-1, not on the map): nothing sounds, the latched Eb9 rings on (never a stray single note)" ||
     bad "C4 in the mode: '$(fv 6)' notes-out $(fo 5) -> $(fo 6)"
-[ "$(fl 7 | sed 's/.*type-key/type-key/')" = "type-key keeps ext-keys pushed" ] && LC_ALL=C grep -aq '^layer: open 7' "$L" &&
-    ok "SEQ held (the METRO layer), KNOB 2 / KNOB 3: LOCK's Type key Keeps, Ext keys Pushed" || bad "LOCK's settings on SEQ: '$(fl 7)'"
 silent_end cr_harm_fm1
 
 echo "Harmony mode, BASS held: PRESETS the bass sound, ALGORITHM its level, the mode staying open; BASS tapped: on / off"
@@ -3824,7 +4025,7 @@ fo() { dl 'cr: voices' "$1" | sed -n 's/.* notes-out \([0-9]*\) .*/\1/p'; }
 fc() { dl 'chord keys:' "$1" | sed 's/^  chord keys: //'; }
 fl() { fc "$1" | sed -n 's/.* latch \([01]\) lfo-led \([0-4]\)$/\1 \2/p'; }
 oe() { dl 'options:' "$1" | sed 's/^  options: //'; }
-[ "$(oe 1)" = "open 1 entry 3 of 34 'Chord Keys' value 'FM-1'" ] && [ "$(oe 2)" = "open 1 entry 4 of 34 'SUS Window' value '80 ms'" ] &&
+[ "$(oe 1)" = "open 1 entry 0 of 7 'Chord Keys' value 'FM-1'" ] && [ "$(oe 2)" = "open 1 entry 1 of 7 'SUS Window' value '80 ms'" ] &&
     ok "Chord Keys is the entry after Secret Chords: FM-1; the SUS Window is listed after it in FM-1 only (34 entries; 33 in Classic), 30 ms by default, set to 80 ms" \
     || bad "the Chord Keys / SUS Window entries: '$(oe 1)' / '$(oe 2)'"
 [ "$(fk 3)" = "Dsus|1| 62 67 69" ] && ok "G#3 + A#3, then D4: Dsus (62 67 69)" || bad "the pair: '$(fk 3)'"
@@ -3843,7 +4044,7 @@ fc 6 | grep -q 'gesture 1 kwait 0000200 ' && [ "$(fk 7)" = "Dm|1| 62 65 69" ] &&
 dl 'lock:' 14 | grep -q '^  lock: on 1 latched 00 ' && dl 'lock:' 15 | grep -q '^  lock: on 1 latched 08 ' && [ "$(fk 16)" = "Dsus|1| 62 67 69" ] &&
     dl 'lock:' 17 | grep -q '^  lock: on 1 latched 00 ' && dl 'cr: key' 18 | grep -q ' layer 6 ' &&
     has 'expect led LFO on .*: ok' "$L" && has 'expect led G#3 on .*: ok' "$L" && has 'expect led A#3 on .*: ok' "$L" && has 'expect led G#3 faint .*: ok' "$L" &&
-    ok "LFO tap: LOCK on (the LFO light lit); the pair let go latches SUS (G#3 and A#3 lit), D4 plays Dsus; the same pair again alone: off; LFO held: Harmony mode (this fork, in both layouts; LOCK's settings on SEQ held)" \
+    ok "LFO tap: LOCK on (the LFO light lit); the pair let go latches SUS (G#3 and A#3 lit), D4 plays Dsus; the same pair again alone: off; LFO held: Harmony mode (this fork, in both layouts)" \
     || bad "LOCK on LFO: $(dl 'lock:' 14) / $(dl 'lock:' 15) / '$(fk 16)' / $(dl 'lock:' 17) / $(dl 'cr: key' 18)"
 grep -aq '^harm: mode on' "$L" &&
     ok "LFO held in FM-1: Harmony mode opens (this fork), OCT- leaves it" || bad "Harmony mode in FM-1: no 'harm: mode on'"
@@ -3868,7 +4069,7 @@ lt=$(LC_ALL=C grep -a '^  lock:' "$OUT/cr_fm1_lock.log" | sed -n '1,9p' | sed -n
 echo "Options > MIDI Keys and Full K Shorts (0.24): MIDI notes 53 .. 79 press the keys; F#5 / G5 on the Full keyboard"
 EMU_UI_LOG=1 "$EMU" --headless --script "$S/cr_fm1_midi_full.txt" >"$OUT/cr_fm1_midi_full.log" 2>&1 || bad "cr_fm1_midi_full: exit $?"
 L="$OUT/cr_fm1_midi_full.log"
-[ "$(oe 1)" = "open 1 entry 6 of 34 'MIDI Keys' value 'ch 5'" ] && [ "$(oe 2)" = "open 1 entry 5 of 34 'Full K Shorts' value 'On'" ] &&
+[ "$(oe 1)" = "open 1 entry 4 of 8 'MIDI Keys' value 'ch 5'" ] && [ "$(oe 2)" = "open 1 entry 2 of 7 'Full K Shorts' value 'On'" ] &&
     ok "MIDI Keys (KNOB 1 +5 from Off: ch 5, the parts' ch 1 and 2 skipped) and Full K Shorts On" || bad "the entries: '$(oe 1)' / '$(oe 2)'"
 [ "$(fk 3)" = "Dsus|1| 62 67 69" ] && fc 3 | grep -q 'kmidi 0000228 ' && fc 4 | grep -q 'kmidi 0000000 ' &&
     [ "$(dl 'cr: voices' 5 | sed -n 's/.*cr: voices \([0-9]*\) .*/\1/p')" = 0 ] &&
@@ -3891,6 +4092,31 @@ fc 19 | grep -q 'full-all 1 ' && [ "$(fk 20)" = "F|1| 53" ] && [ "$(fk 21)" = "F
     ok "G5: chords on every key; with nothing latched F3 is a single note as normal; with LOCK's MAJ latched F3 plays F major; G5 held: off only while held" \
     || bad "G5: $(fc 19) / '$(fk 20)' / '$(fk 21)' / $(fc 22) / $(fc 23)"
 silent_end cr_fm1_midi_full
+
+echo "MIDI Roots (3y289): every note on its channel a root at its own pitch, the chord keys from MIDI Keys' pads, shown on the home view"
+EMU_UI_LOG=1 "$EMU" --headless --script "$S/cr_midi_roots.txt" >"$OUT/cr_midi_roots.log" 2>&1 || bad "cr_midi_roots: exit $?"
+L="$OUT/cr_midi_roots.log"
+mr() { fc "$1" | sed -n 's/.* mroots \([0-9/]*\) .*/\1/p'; }      # "channel/held/waiting"
+sn() { dl 'screen name:' "$1" | sed 's/^  screen name: //'; }
+[ "$(oe 1)" = "open 1 entry 5 of 8 'MIDI Roots' value 'ch 3'" ] && fc 1 | grep -q 'midi-keys 5 ' &&
+    ok "Options > MIDI Roots after MIDI CC: KNOB 1 +1 from Off is ch 3 (the parts' ch 1 and 2 skipped); MIDI Keys ch 5" \
+    || bad "the MIDI Roots entry: '$(oe 1)' / $(fc 1)"
+[ "$(fk 2)" = "C|1| 48" ] && [ "$(sn 2)" = "'C' notes C3" ] && [ "$(mr 2)" = "3/1/0" ] && [ "$(mr 3)" = "3/0/0" ] &&
+    [ "$(dl 'cr: voices' 3 | sed -n 's/.*cr: voices \([0-9]*\) .*/\1/p')" = 0 ] &&
+    ok "note 48 on ch 3 is the root C3, at its own pitch: the home view names it (C, C3); let go: nothing held, silent" \
+    || bad "a MIDI root: '$(fk 2)' / $(sn 2) / $(mr 2) / $(mr 3)"
+[ "$(mr 4)" = "3/1/1" ] && fc 4 | grep -q 'gesture 1 ' && fc 4 | grep -q 'kmidi 0000008 ' && [ "$(fk 5)" = "Dm|1| 50 53 57" ] &&
+    [ "$(sn 5)" = "'Dm' notes D3 F3 A3" ] && [ "$(mr 5)" = "3/1/0" ] &&
+    ok "pad 39 (G#3, MIN) on MIDI Keys, root 50 20 ms later: the root waits for the SUS window as a root key does, then Dm, on the home view" \
+    || bad "a pad and a MIDI root: $(fc 4) / '$(fk 5)' / $(sn 5)"
+fc 6 | grep -q 'kmidi 0000028 ' && [ "$(fk 7)" = "Dsus|1| 74 79 81" ] && [ "$(sn 7)" = "'Dsus' notes D5 G5 A5" ] && [ "$(mr 7)" = "3/2/0" ] &&
+    ok "pad 41 (A#3, MAJ) with G#3 held: SUS; root 74 then plays Dsus there (two roots held)" \
+    || bad "SUS from the pads: $(fc 6) / '$(fk 7)' / $(sn 7) / $(mr 7)"
+[ "$(mr 8)" = "3/0/0" ] && fc 8 | grep -q 'kmidi 0000028 ' && [ "$(dl 'cr: voices' 8 | sed -n 's/.*cr: voices \([0-9]*\) .*/\1/p')" = 0 ] &&
+    fc 9 | grep -q 'kmidi 0000000 ' && dl 'part 0:' 10 | grep -q 'voices 1,' && [ "$(mr 10)" = "3/0/0" ] &&
+    ok "CC 123 on ch 3: every MIDI root up, the pads' keys kept; a note on MIDI Perform still plays the sound directly" \
+    || bad "MIDI Roots' all up: $(mr 8) / $(fc 8) / $(fc 9) / $(dl 'part 0:' 10)"
+silent_end cr_midi_roots
 
 [ $fail -eq 0 ] && echo "PASS" || echo "FAIL"
 exit $fail

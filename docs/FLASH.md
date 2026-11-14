@@ -3,8 +3,8 @@
 The firmware slot is fixed: XIP 573 440 B, flash 0x5000 .. 0x91000 (the boot stub and the data objects around it,
 docs/BOOT-SAFETY.md). The GRAIN engine, built on its own branch (claude/grain-engine-f724f9), fills the slot to 99.3 %
 when merged with main: the owner chose a diet over growing the slot ("Lets roll with the diet"). The rules of the
-diet: the sound and the screens stay as they are, proven bit for bit (the 313 golden renders of `tests/regress.c`
-and the engines' own tests; the 313 pixel-exact draw goldens of `tests/run_cr_draw.sh`); a table computed at run
+diet: the sound and the screens stay as they are, proven bit for bit (the 313 golden renders of `tests/regress.c` then,
+279 since 3y232: ChoralRoot's engines alone; and the engines' own tests; the 313 pixel-exact draw goldens of `tests/run_cr_draw.sh`); a table computed at run
 time must not cost the audio ISR anything (the heavy pads have no headroom on the unit: docs/INTEGRATION.md
 "Measured on the unit"); a table moved from flash to RAM or POOL needs room there, so shrinking is preferred to
 moving; one change a commit, its size line before and after in the commit message; costs on the unit counted from
@@ -96,3 +96,64 @@ SUS Window, LOCK on LFO), Full K Shorts and MIDI Keys, against main 355fd58: XIP
 31 492 B of margin left), RAM 80 176 -> 80 368 B (+192: MIDI Keys' queue, the waiting roots, the type keys' state),
 POOL 306 196 B unchanged. The design estimated +2.5 .. 4.5 KB of XIP and about 160 B of RAM. Nothing in the audio ISR
 but MIDI in's channel check (`crm_key`) and the queue's post.
+
+## What the flash holds, and what ChoralRoot leaves alone (HISTORY 3y231, 2026-11-06)
+
+An inventory of the 1 MiB on an FM-1, from `firmware/hal/fm1_flash_map.h`, `storage.c`, `cr_ui.c cu_flash_erase` and
+docs/BOOT-SAFETY.md. "Linked" sizes are from `nm -S` on build/choralroot.elf.
+
+| flash | what | ChoralRoot |
+| --- | --- | --- |
+| 0x00000..0x03FFF | the head (SPL, isd_config) | never written |
+| 0x04000..0x92FFF | the stub, the app slot (body 0x5000..0x90FFF, 573 440 B), the marker's sector 0x91000 (its last 32 B), 0x92000 (cfg) | the update loader only |
+| 0x93000..0x9EFFF | **the resource region since 3y234** (cr_res.h): the header, then the glyph data of the fonts M, CRX, CRB and, since 3y236, the radio's start-up program (5 795 B; 41 820 of 49 088 B in all). Before: 16 KB never used, then 0.21's VA store, FM6 stores, CZ-1 tones 1..16 (and before them Felucca's projects) | the update loader writes it; the app reads it |
+| 0x9F000 | FM6 bank copy A | live |
+| 0xA0000..0xA1FFF | **Bluetooth since 3y236** (storage.c OBJ_BLE, copies A / B): On / Off, the address, the bond, a copy of the radio's trims. Before: 0.21's CZ-1 tones 17..32 | live (FM-1; never in a backup; Flash Data clears it) |
+| 0xA2000..0xB1FFF | the CZ-1 banks A..H | live |
+| 0xB2000..0xB3FFF | 0.21's FM TONE store | **free since 3y231** |
+| 0xB4000..0xB7FFF | the session, the favourites | live |
+| 0xB8000..0xC7FFF | the sound pool (13 banks over 16 sectors) | live |
+| 0xC8000..0xDBFFF | the ten loop slots | live |
+| 0xDC000..0xDFFFF | **the second resource region since 3y296** (cr_res.h CR_RES2): its header, then the kerning of M and CRB, the factory presets' lists of PROPHET, CZ-1, VA and FM6, FM6's factory voices (12 540 of 16 320 B; room kept for drum kits). Before: 0.21's user banks (before them Felucca's user presets), free since 3y231 | the update loader writes it (the package's res2.bin); the app reads it |
+| 0xE0000..0xE4FFF | the update loader's staging | during an update only |
+| 0xE5000..0xE7FFF | 12 KB (fm1-base and FIZZ keep their BLE store here; Melodee reads 0xE7000 as a possible VM) | **never used** |
+| 0xE8000 | the stock VM: the radio's factory calibration (records 106, 107, 108, 187) | kept, never written (Bluetooth would read it: docs/BLE-LINK.md) |
+| 0xE9000 | BTIF, the stock firmware's Bluetooth pairing | kept, never written |
+| 0xEA000..0xFBFFF | the stock firmware's resources (72 KB) | kept, never written |
+| 0xFC000..0xFEFFF | the settings A / B, FM6 bank copy B | live |
+| 0xFF000.. | key_mac | never written |
+
+So 28 KB were never used (0x93000..0x96FFF, 0xE5000..0xE7FFF) and 64 KB are free since 3y231 (0.21's sound objects:
+0.22 .. 0.29.2 copied them into the pool once; nothing reads them now). 0x93000..0x9EFFF, one contiguous 48 KB run in
+the plain XIP window, is the resource region since 3y234 (docs/BOOT-SAFETY.md "The resource region"): free now are
+0xB2000..0xB3FFF, 0xDC000..0xDFFFF (24 KB) and 0xE5000..0xE7FFF (12 KB) (0xA0000..0xA1FFF holds Bluetooth since 3y236).
+Since 3y296 0xDC000..0xDFFFF is the FM-1's second resource region (docs/BOOT-SAFETY.md "The second resource region"):
+read-only tables only the main loop reads moved out of the app slot, XIP 566 012 -> 553 916 B (12 096 B freed), RES2
+12 540 of 16 320 B; free now are 0xB2000..0xB3FFF (8 KB, in the plain window, between the CZ-1 banks and the
+session) and 0xE5000..0xE7FFF (12 KB, after the staging).
+
+**What else only the main loop reads, and is big** (3y296's audit, `nm` sizes of the 0.39-based FM-1 build), for a
+third move or the second region's room (3 780 B free there, 2 056 of them meant for four drum kits):
+`P5_FPACK` 6 325 B (PROPHET's factory programs, `p5_preset_patch`; a fallback: INIT P5), `cr_ring` 6 100 B (the
+chord ring's coverage, `cr_draw.c`; a fallback: no ring), the engines' `*_PAGES` 14 112 B (CZ 3 108, FM6 3 276, VA
+2 688, QUAD 1 848, GRAIN 1 596, P5 1 596: the sound editor's descriptors, read wherever a deep parameter is named or
+ranged; a fallback would need every such reader to go without, the hardest of these; not audited reader by reader), `CR_LAYC_PAGES` 1 428, the other
+presets' lists (QUAD 384, GRAIN 192, WHEEL 120: `eng_preset` would cover them, their engines' own reads would need
+the VA's guard). `CZ_FACTORY_LZ4` 4 660 goes to the first region on claude/drums. Not candidates: everything the
+audio ISR or the second core reads (`QUAD_HARM`, `CZ_RECIP`, `CZ_CARRIER`, `FM6_EXP2`, `FM6_FREQ`, `P5_TANH_Q15`,
+`SINE`, `UAC_FIR`, ...), and S's glyphs (`AF_S_DATA`, the fallback font). On the SMK-37 the same retirement freed 0x9D000..0xA8FFF and
+0xB0000..0xB3FFF (storage.c's SMK map); its stock VM is ChoralRoot's store there. Since 3y295 0x9D000..0xA8FFF is the
+SMK's resource region (docs/BOOT-SAFETY.md "The SMK-37's resource region"): the fonts M, CRX and CRB moved out of its
+app slot, XIP 566 360 -> 531 032 B (35 328 B freed: 42 408 B of margin), RES 36 024 of 49 088 B; 0xB0000..0xB3FFF is
+still free.
+
+**Felucca's code that is still in the tree.** Nothing unused is linked: the image is a unity build, so a static
+function or table nothing calls is dropped by the compiler (Felucca's factory patterns, its sequencer, the retired
+engines' DSP all compile to 0 bytes). What is linked and barely used: Felucca's four-part instrument (parts 2 and 3 idle:
+about 6 KB of RAM / POOL, half of `trk` and each engine's patch for them; the formats and the protocol count four
+parts), the CDC serial console (about 1.2 KB of flash and 2.3 KB of RAM, shown only with USB audio off or in SAFE
+MODE). **Gone in 3y232**: the DIGITAL -> FM6 converter (`fm4_convert.c`: 2 800 B of XIP on the FM-1, 2 784 on the
+SMK-37; a DIGITAL record loads as the VA's init sound, as the other retired engines' do) and the 38 Felucca files never
+built into the firmware (~15 400 lines: its UI, sequencer, editor, projects and the retired engines) with the Felucca
+host tests that compiled them; `tests/hostsim.c` builds in ChoralRoot's configuration (core.h's defaults) and
+`tools/emu/test_retired.sh` makes its pre-0.18 images with v0.29.2's tree (`git archive`).

@@ -12,8 +12,7 @@ loader/ota.bin (update loader), choralroot.fwsc (package, identity FM-1_920). A 
 version string to "ChoralRoot X.Y" and writes choralroot-X.Y.fwsc and a folder release-X.Y/ with the package,
 the app (choralroot-X.Y-app.bin), the single-core package and its app (choralroot-X.Y-1core.fwsc,
 choralroot-X.Y-1core-app.bin: CR_SINGLE_CORE=1, docs/DUALCORE.md "Two packages"), SHA256SUMS and the licence files
-(the CC0 sample attribution only for a build with FELUCCA_SAMPLE=1: ChoralRoot is all-synth, its image holds no
-samples). CR_SINGLE_CORE=1 without --release: build/choralroot.fwsc is the single-core package.
+(ChoralRoot is all-synth, its image holds no samples: no sample attribution). CR_SINGLE_CORE=1 without --release: build/choralroot.fwsc is the single-core package.
 After the checks it prints the section sizes against the XIP slot and the RAM / POOL / NOINIT regions.
 
 BOARD=smk37 (or --board smk37) builds ChoralRoot for the M-Vave SMK-37: -DBOARD_SMK37=1 for the app, the loader and
@@ -85,16 +84,39 @@ SMK_DATA_FAMILY = "CHORAL"          # SMK store owner tag (storage.c st_owner_ch
 SMK_DATA_UNTAGGED_OK = 0            # an untagged SMK store is another firmware's: cleared (FELUCCA_DATA_UNTAGGED_OK)
 VERSION = None                      # FELUCCA_VERSION for release builds (default: firmware/src/choralroot.c)
 RAMTEXT_LEN, RAMTEXT_SPARE = 0x6000, 512            # firmware/app.ld RAMTEXT; what a build must leave of it
-RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6")
+RAM_SWITCHES = ("CR_RAM_FX", "CR_RAM_MASTER", "CR_RAM_CORE", "CR_RAM_CZ", "CR_RAM_VA", "CR_RAM_FM6", "CR_RAM_NOTE")
 # on in a device build unless set to 0: CR_RAM_VA since 3y177 (the unit, the VA chord shared between the cores: the
-# block 2389 -> 2103 us, no late half and no shed while recording; docs/VA.md "Two cores")
-RAM_DEFAULT_ON = ("CR_RAM_VA",)
+# block 2389 -> 2103 us, no late half and no shed while recording; docs/VA.md "Two cores"); CR_RAM_NOTE since 3y216 (the
+# tick's note path: a long release steals all 8 voices at every chord change, each note through it twice)
+RAM_DEFAULT_ON = ("CR_RAM_VA", "CR_RAM_NOTE")
 
 
 def ram_on(flag):
     v = os.environ.get(flag)
     return v == "1" or (flag in RAM_DEFAULT_ON and v != "0")
 XIP_LEN, RAM_LEN, POOL_LEN, NOINIT_LEN = fm1pkg_make.BODY_MAX, 96 * 1024, 0x54000, 0x3D30   # firmware/app.ld
+RES_LEN = fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA   # firmware/app.ld RES (cr_res.h): 48 KB less the header
+RES_LD = "RES    (r)   : ORIGIN = 0x0208F040,"     # app.ld's RES line (the FM-1's place; app_ld() moves it for the SMK)
+RES2_LEN = fm1pkg_make.RES2_HI - fm1pkg_make.RES2_DATA   # firmware/app.ld RES2 (cr_res.h CR_RES2): the FM-1's second
+RES2_XIP = 0x02000000 + fm1pkg_make.RES2_DATA - 0x4000   # region, 16 KB less the header, XIP 0x020D8040 (HISTORY 3y296)
+
+
+def res_xip():
+    """where the region's data reads (hal/fm1_xip.h FM1_XIP of FL_RES_DATA): 0x0208F040 on the FM-1, 0x02099040 on
+    the SMK-37 (3y295); fm1pkg_make.set_board has picked the board's region"""
+    return 0x02000000 + fm1pkg_make.RES_DATA - 0x4000
+
+
+def app_ld():
+    """the app's linker script: firmware/app.ld; for the SMK-37 a copy in build/ with RES at its own region"""
+    if BOARD == "fm1":
+        return FW / "app.ld"
+    src = (FW / "app.ld").read_text()
+    if src.count(RES_LD) != 1 or fm1pkg_make.RES_HI - fm1pkg_make.RES_DATA != RES_LEN:
+        raise SystemExit("build: firmware/app.ld's RES line is not the one app_ld() moves")
+    out = OUT / f"app-{BOARD}.ld"
+    out.write_text(src.replace(RES_LD, f"RES    (r)   : ORIGIN = {res_xip():#010x},"))
+    return out
 
 
 def toolchain():
@@ -293,12 +315,15 @@ def build_app(stub, single=False):
     flags = [*CFLAGS, *BOARD_DEFS[BOARD], "-Ifirmware/hal", "-Ifirmware/src", "-Ibuild/gen"]
     if single:                      # the single-core package (docs/DUALCORE.md "Two packages"): core 1 never started,
         flags.append("-DCR_SINGLE_CORE=1")  # the version string "ChoralRoot X.Y 1-core" (firmware/src/cr_ui.h)
+    # (Felucca's sequencer and the retired engines' switches, FELUCCA_SEQ, _SLICE, _FM4, _SAMPLE, _DRUM, _ANALOG,
+    # _PHASE .. _PHYS, and FELUCCA_ICONS left with their sources in 3y232: core.h keeps them 0; the VA, CZ-1 and
+    # FM TONE are in every build)
     for flag in ("FELUCCA_FLASH", "FELUCCA_OTA", "FELUCCA_OTA_DRYRUN", "FELUCCA_OTA_RAMONLY", "FELUCCA_CDC",
-                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_ICONS", "FELUCCA_KEYCAPS", "FELUCCA_SLICE",
-                 "FELUCCA_SLICER", "FELUCCA_FM4", "FELUCCA_SAMPLE", "FELUCCA_GRAIN", "FELUCCA_DRUM", "FELUCCA_SEQ",
-                 "FELUCCA_CZ", "FELUCCA_QUAD", "FELUCCA_ANALOG", "FELUCCA_PHASE", "FELUCCA_LOFI", "FELUCCA_VOICE",
-                 "FELUCCA_TRIO", "FELUCCA_NOISE", "FELUCCA_PHYS", "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY",
-                 "FELUCCA_DATA_UNTAGGED_OK"):
+                 "FELUCCA_UART", "FELUCCA_UAC", "FELUCCA_KEYCAPS", "FELUCCA_SLICER", "FELUCCA_GRAIN",
+                 "FELUCCA_PROPHET", "FELUCCA_P5_FACTORY", "FELUCCA_DATA_UNTAGGED_OK",
+                 "CR_BLE",          # CR_BLE=0: the FM-1 without Bluetooth (cr_ble.h; the radio-off comparison, 3y236)
+                 "FM1_POWER_STOCK_LEVELS",    # 1: a radio boot's supplies at stock's VDC14 7 / SYSVDD 15 (3y240)
+                 "BLE_DIAG"):       # 1: the BLE driver's counters in 81 BLE (cr_ble.h, 3y241; a debug build)
         v = os.environ.get(flag)    # unset: the default in firmware/src/choralroot.c
         if v in ("0", "1"):
             flags.append(f"-D{flag}={v}")
@@ -368,11 +393,13 @@ def build_app(stub, single=False):
     # engine's and the looper's API this unit does not call, fm1_vec.S's weak fault handler when cr_cpu1.h has its
     # own). app.ld KEEPs crt0, .ram_text and .c1_text; the vector stubs, the ISR wrappers and the second core's entry
     # are referred to from C (fm1_irq.h, fm1_cpu1.h), so they stay
-    tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", FW / "app.ld", OUT / "crt0.o", OUT / "fm1_vec.o",
+    tc("pi32v2/bin/ld", "--gc-sections", "-e", "_start", "-T", app_ld(), OUT / "crt0.o", OUT / "fm1_vec.o",
        OUT / "fm1_isr.o", OUT / "fm1_cpu1.o", OUT / f"{UNIT}.o", "-o", elf)
-    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin"):
+    for sect in ("text.bin", "data.bin", "ramtext.bin", "c1text.bin", "res.bin", "res2.bin"):
         (OUT / sect).unlink(missing_ok=True)
     *_, syms, dis, rt, hdr = tc_all(("common/bin/objcopy", "-O", "binary", "-j", ".text", elf, OUT / "text.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".res", elf, OUT / "res.bin"),
+                               ("common/bin/objcopy", "-O", "binary", "-j", ".res2", elf, OUT / "res2.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".data", elf, OUT / "data.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".ram_text", elf, OUT / "ramtext.bin"),
                                ("common/bin/objcopy", "-O", "binary", "-j", ".c1_text", elf, OUT / "c1text.bin"),
@@ -419,7 +446,48 @@ def size_line(hdr):
         s += f", POOL {sz['.pool']} B of {POOL_LEN} ({100 * sz['.pool'] / POOL_LEN:.1f}%)"
     if ".noinit" in sz:
         s += f", NOINIT {sz['.noinit']} B of {NOINIT_LEN} ({100 * sz['.noinit'] / NOINIT_LEN:.1f}%)"
+    if sz.get(".res"):              # the resource region's data (firmware/src/cr_res.h): outside the slot
+        s += f", RES {sz['.res']} B of {RES_LEN} ({100 * sz['.res'] / RES_LEN:.1f}%)"
+    if sz.get(".res2"):             # the FM-1's second region (cr_res.h CR_RES2, 3y296)
+        s += f", RES2 {sz['.res2']} B of {RES2_LEN} ({100 * sz['.res2'] / RES2_LEN:.1f}%)"
     return s
+
+
+def res_data(syms):
+    """the resource region's data (.res, firmware/app.ld) as tools/fm1pkg_make.py --res takes it (both boards: the
+    SMK-37's since 3y295)"""
+    p = OUT / "res.bin"
+    data = p.read_bytes() if p.exists() else b""
+    m = re.search(r"^([0-9a-f]+) .*\s_res_start$", syms, re.M)
+    if not m or int(m.group(1), 16) != res_xip():
+        raise SystemExit(f"build: _res_start is not at {res_xip():#x} (firmware/app.ld RES)")
+    if not data or len(data) > RES_LEN:
+        raise SystemExit(f"build: the resource region's data is {len(data)} B (1 .. {RES_LEN})")
+    return data
+
+
+def res2_data(syms):
+    """the FM-1's second region's data (.res2, firmware/app.ld; cr_res.h CR_RES2, HISTORY 3y296) as
+    tools/fm1pkg_make.py res2_image takes it; None on the SMK-37, which has none (its .res2 must be empty)"""
+    p = OUT / "res2.bin"
+    data = p.read_bytes() if p.exists() else b""
+    if BOARD != "fm1":
+        if data:
+            raise SystemExit(f"build: {BOARD} has no second resource region, .res2 holds {len(data)} B")
+        return None
+    m = re.search(r"^([0-9a-f]+) .*\s_res2_start$", syms, re.M)
+    if not m or int(m.group(1), 16) != RES2_XIP:
+        raise SystemExit(f"build: _res2_start is not at {RES2_XIP:#x} (firmware/app.ld RES2)")
+    if not data or len(data) > RES2_LEN:
+        raise SystemExit(f"build: the second region's data is {len(data)} B (1 .. {RES2_LEN})")
+    return data
+
+
+def res_ble(syms):
+    """the radio program's slot in the region's data (hal/ble_rf_tables.h ble_rf_prog, cr_ble.h): (offset, length),
+    (0, 0) without Bluetooth"""
+    m = re.search(r"^([0-9a-f]+) .*\.res\s+([0-9a-f]+) ble_rf_prog$", syms, re.M)
+    return (int(m.group(1), 16) - res_xip(), int(m.group(2), 16)) if m and BOARD == "fm1" else (0, 0)
 
 
 def check(img, syms, dis, rt):
@@ -604,8 +672,10 @@ def main():
         print(("1-core " if single else "") + size_line(hdr))
         if errors:
             raise SystemExit("build: checks failed")
-        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY)
-        pkg = fm1pkg_make.ufw(flash, ota, PRODUCT)
+        flash = fm1pkg_make.flash_image(img, fm1pkg_make.KEY, res=res_data(syms), ble=res_ble(syms))
+        r2 = res2_data(syms)
+        pkg = fm1pkg_make.ufw(flash, ota, PRODUCT,
+                              res2=fm1pkg_make.res2_image(bytes(img), r2) if r2 is not None else None)
         print(f"sector 0x4000 (the directory and the stub: constant while the stub is) sha256 "
               f"{hashlib.sha256(flash[0x4000:0x5000]).hexdigest()[:16]}; marker at 0x91fe0, body "
               f"{len(img) - STUB_LEN + (-len(img) % 4)} B")
@@ -614,11 +684,7 @@ def main():
             (OUT / name1).write_bytes(pkg)
             print(f"package  {OUT / name1}  {len(pkg)} B, identity {PRODUCT} (single core)")
     (OUT / name).write_bytes(pkg)
-    att = SRC / "assets" / "samples-cc0" / "ATTRIBUTION.txt"
-    att_on = att.exists() and os.environ.get("FELUCCA_SAMPLE") == "1"   # the SAMPLE sets' credit: only when built in
-    (OUT / "ATTRIBUTION.txt").unlink(missing_ok=True)
-    if att_on:
-        shutil.copy(att, OUT / "ATTRIBUTION.txt")
+    (OUT / "ATTRIBUTION.txt").unlink(missing_ok=True)  # (the SAMPLE sets' credit: no build has samples since 3y232)
     print(f"app      {OUT / f'{UNIT}.bin'}  {len(img)} B")
     print(f"loader   {LDR / 'ota.bin'}  {len(ota)} B")
     print(f"package  {OUT / name}  {len(pkg)} B, identity {PRODUCT}" + (" (single core)" if single_env and not a.release else "") +
@@ -653,8 +719,6 @@ def main():
             shutil.copy(f, rel / "LICENSES" / f.name)
         for doc in ("LICENSE", "LICENSING.md"):
             shutil.copy(SRC / doc, rel / doc)
-        if att_on:
-            shutil.copy(att, rel / "ATTRIBUTION.txt")
         print(f"release  {rel}/")
     return 0
 

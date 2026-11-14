@@ -171,16 +171,16 @@ grep -aq '^save: part 0 slot U001 name ADG rc 0' "$R1" && [ "$(sf "$R1" 1)" = "s
     [ -n "$changed" ] && [ "$changed" = "$(sn "$R2" 1)" ] && [ "$(bpm "$R2")" != "" ] && grep -aq ' bpm 137 ' "$R2" &&
     ok "reset run 1 / 2: U01 saved; Advanced, 137 BPM, Key Mode on, Motion Off, Hold Time, Dual Core Off stored and back after a relaunch" \
     || bad "reset: the changed settings: $(sf "$R1" 1) / $changed / $(sn "$R2" 1)"
-[ "$(ov "$R2" 2)" = "1 32 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 32 of 33 " "$R2" &&
-    ok "Reset Settings is the last Options entry (32 of 32 since 0.24's three): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
-[ "$(ov "$R2" 3)" = "1 32 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 32 Reset Settings: all options to default" ] &&
-    [ "$(ov "$R2" 5)" = "0 32 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 32 Reset Settings: all options to default" ] &&
+[ "$(ov "$R2" 2)" = "1 7 Reset Settings: all options to default" ] && grep -aq "options: open 1 entry 7 of 8 " "$R2" &&
+    ok "Reset Settings is the last Options entry (34 of 34 since 0.24's three, 3y273's MIDI CC and 3y289's MIDI Roots): $OUT/reset_entry.ppm" || bad "the entry: $(ov "$R2" 2)"
+[ "$(ov "$R2" 3)" = "1 7 Reset Settings: OCT+ again: reset" ] && [ "$(ov "$R2" 4)" = "1 7 Reset Settings: all options to default" ] &&
+    [ "$(ov "$R2" 5)" = "0 7 Reset Settings: all options to default" ] && [ "$(ov "$R2" 6)" = "1 7 Reset Settings: all options to default" ] &&
     [ "$(sn "$R2" 3)" = "$changed" ] && [ "$(sn "$R2" 4)" = "$changed" ] && [ "$(sn "$R2" 5)" = "$changed" ] && [ "$(sn "$R2" 6)" = "$changed" ] &&
     ! grep -a '^options: settings reset' "$R2" | sed -n 2p | grep -q . &&
     ok "OCT+ asks (OCT+ again); another entry cancels; OCT- leaves and cancels; the menu reopened is not armed; nothing reset: $OUT/reset_ask.ppm" \
     || bad "the confirm: $(ov "$R2" 3) / $(ov "$R2" 4) / $(ov "$R2" 5) / $(ov "$R2" 6); $(sn "$R2" 6)"
 grep -aq '^options: settings reset (Dual Core starts at the restart)' "$R2" && [ -n "$fresh" ] && [ "$(sn "$R2" 7 | cut -d' ' -f1)" = "$fresh" ] &&
-    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 1 usb 1/0 view 64" ] && [ "$(ov "$R2" 7)" = "0 0 Play Style: Simple" ] &&
+    [ "$(sf "$R2" 7)" = "style 0 extadd 0 key 0 motion 0 leds 0 hold 1 dualcore 1 usb 1/0 view 64" ] && [ "$(ov "$R2" 7)" = "0 0 Play: 3 settings" ] &&
     [ "$(grep -a '^  lock: on' "$R2" | sed -n 7p | cut -c1-25)" = "  lock: on 0 latched 00 t" ] && [ "$(grep -a '^  cr: key' "$R2" | sed -n 7p | sed -n 's/.* bpm \([0-9]*\) view \([0-9]\) layer \([0-9]*\) options \([01]\).*/\1 \2 \3 \4/p')" = "120 0 0 0" ] &&
     ok "OCT+ twice: every setting at once what a new unit has (the record's checksum $fresh = a fresh unit's): Simple, Key off, 120 BPM, Motion Full, Hold 1, Dual Core On (0.22's default: it starts at the restart); on the view, LOCK off: $OUT/reset_done.ppm" \
     || bad "the reset: now $(sn "$R2" 7) want $fresh; $(sf "$R2" 7); $(ov "$R2" 7)"
@@ -363,6 +363,26 @@ grep -q 'type-key keeps ext-keys pushed' "$OUT/persist_lock_1.log" && grep -q "s
     ok "LOCK styles run 1: Type key Keeps, Ext keys Pushed, the settings saved once" || bad "LOCK styles run 1: $(grep '  lock: on' "$OUT/persist_lock_1.log")"
 grep -q 'lock: on 0 latched 00 type-key keeps ext-keys pushed' "$OUT/persist_lock_2.log" && grep -q '(record: current)' "$OUT/persist_lock_2.log" &&
     ok "LOCK styles run 2: Keeps and Pushed after a relaunch (LOCK itself off at power-on, as ever)" || bad "LOCK styles run 2: $(grep '  lock: on' "$OUT/persist_lock_2.log")"
+
+# the drums (the session's drum block, the DRUMS plan): run 1 sets Drums, the level, a kit, Map X, Chaos, the kick's
+# Tune, the snare's Character, its Chorus, Delay and Level (3y303), Filter and Drive (3y304), the beat on, and saves (SAVE held); run 2 (the same file): all of it back at power-on,
+# the drums in the looper (the beat on with Drums); a fresh flash: Metronome, the beat off, the defaults
+DFLASH=$OUT/persist_drums_flash.bin
+rm -f "$DFLASH" "$OUT"/persist_drums_1.log "$OUT"/persist_drums_2.log "$OUT"/persist_drums_3.log
+"$EMU" --headless --flash "$DFLASH" --script "$S/persist_drums_set.txt" >"$OUT/persist_drums_1.log" 2>&1 || bad "drums run 1: exit status"
+"$EMU" --headless --flash "$DFLASH" --script "$S/persist_drums_check.txt" >"$OUT/persist_drums_2.log" 2>&1 || bad "drums run 2: exit status"
+"$EMU" --headless --script "$S/persist_drums_check.txt" >"$OUT/persist_drums_3.log" 2>&1 || bad "drums run 3: exit status"
+dk() { grep -a '^  drums:' "$1" | tail -1 | sed 's/ page [0-9]*//; s/ now [0-9]* hits [0-9 ]* x/ x/; s/ bpos [0-9]*//'; }
+d1=$(dk "$OUT/persist_drums_1.log"); d2=$(dk "$OUT/persist_drums_2.log"); d3=$(dk "$OUT/persist_drums_3.log")
+echo "$d1" | grep -q 'preset 1 beat 1 click 0 drums 1 ok 1 run 1 kit 1 x [0-9]* y 64 density 64 chaos 2 level 70 sends 0/0/0 2/8/0 0/0/0 levels 64 50 64 filters 127 119 127 drives 0 2 0 kick 14/64/32/72 snare 12/64/70/64' &&
+    grep -q '^save: global rc 0' "$OUT/persist_drums_1.log" &&
+    ok "drums run 1: Drums, the beat on (running: no loop needed), kit Deep, Map X, Chaos, the level, the kick's Tune, the snare's Character, its Chorus, Delay and Level (Snare Mix, 3y303), its Filter and Drive (PRESETS, ALGORITHM there, 3y304); the global save" \
+    || bad "drums run 1: $d1"
+d1off=$(echo "$d1" | sed 's/ beat 1 click 0 drums 1 ok 1 run 1 / beat 0 click 0 drums 0 ok 1 run 0 /')
+[ "$d2" = "$d1off" ] && ok "drums run 2: all of it back after a relaunch (the session's drum block), but the beat off: it is off at every power-on (the owner)" \
+    || bad "drums run 2: $d2 (run 1, the beat off: $d1off)"
+echo "$d3" | grep -q 'preset 0 beat 0 click 0 drums 0 ok 0 run 0 kit 0 x 64 y 64 density 64 chaos 0 level 80 sends 0/0/0 0/0/0 0/0/0 levels 64 64 64 filters 127 127 127 drives 0 0 0 kick 12/64/32/72 snare 12/64/32/64 hats 12/64/32/88' &&
+    ok "a fresh flash: Metronome, the beat off, the drums' defaults" || bad "drums, fresh: $d3"
 
 # the KEY layer's page 2 and Split Bass (Settings v14: bits 1 / 2 of key_on, single = 2): run 1 sets Key plays Notes,
 # Keyboard Full and Single Split Bass; run 2 (the same file): they are back, in the UI and in the engine
@@ -759,8 +779,8 @@ ffl "$X4" 1 | grep -q 'favs: 2 marked, saves 0, pending 0 (at power-on: read), f
 # the single-core package: Options, the version, one core on a flash whose record says Dual Core On
 EMU_UI_LOG=1 "$E1" --headless --flash "$XF" --script "$S/persist_1core_opt.txt" >"$X5" 2>&1 || bad "two packages, Options: exit status"
 want1="$(grep -a -m1 '^  version:' "$X5" | sed -n "s/.* build '\(.*\)'$/\1/p") 1-core"
-grep -aq "^  options: open 1 entry 29 of 3[0-9] 'Dual Core' value '1 core build'" "$X5" &&
-    grep -aq "^  options: open 1 entry 31 of 3[0-9] 'Version' value '$want1'" "$X5" &&
+grep -aq "^  options: open 1 entry 0 of 3 'Dual Core' value '1 core build'" "$X5" &&
+    grep -aq "^  options: open 1 entry 1 of 3 'Version' value '$want1'" "$X5" &&
     grep -a -m1 '^  version:' "$X5" | grep -q "options '$want1' identity '$want1' " &&
     ok "the single-core package: Options > Dual Core '1 core build' (KNOB 1 changes nothing), Version and the SysEx identity '$want1': $OUT/persist_1core_opt.ppm, persist_1core_version.ppm" ||
     bad "the single-core package's Options: $(grep -a 'options: open 1' "$X5" | tr '\n' ' ') / $(grep -a -m1 '^  version:' "$X5")"
@@ -862,6 +882,28 @@ F=$OUT/persist_keys_0.25-classic.bin; L3=$OUT/persist_keys_pick.log; L4=$OUT/per
     [ "$(kl "$L4" 1)" = classic ] && [ "$(kr "$L4" 1)" = "0 1 0 1" ] && [ "$(kk "$L4" 1)" = "1 88" ] &&
     ok "Classic chosen after the move: written by itself with the mark (leds 02); the relaunch is Classic, LOCK on B3 with SUS + 9 on C#4 and C4: the move never runs twice" \
     || bad "keys, Classic after the move: $(kl "$L3" 1) / $(kw "$L3" 1) / flash $(python3 tools/emu/seed_keys.py "$F") / $(kl "$L4" 1) / $(kr "$L4" 1) / $(kk "$L4" 1)"
+
+# ---- a slower flash part (3y264 / 3y265: the late-2026 FM-1s' 0xB36014; hal/fm1_flash_wait.h, fm1_flash_late.h).
+# --erase-ms 450: slow but inside the driver's normal bound (500 ms): the save works and the relaunch has it.
+# --erase-ms 1900: past the bound, inside the extended one (2 s): the driver waits the part out; late is done (3y265,
+# the owner: "Treat late as success"): the save goes through, each erase counted late and a 1.9 s silence, and the
+# relaunch has it
+SF450=$OUT/persist_slow450.bin; SF1900=$OUT/persist_slow1900.bin
+SL1=$OUT/persist_slow450_1.log; SL2=$OUT/persist_slow450_2.log; SL3=$OUT/persist_slow1900_1.log; SL4=$OUT/persist_slow1900_2.log
+rm -f "$SF450" "$SF1900" "$SL1" "$SL2" "$SL3" "$SL4"
+"$EMU" --headless --erase-ms 450 --flash "$SF450" --script "$S/persist_set.txt" >"$SL1" 2>&1 || bad "slow 450 run 1: exit status"
+"$EMU" --headless --flash "$SF450" --script "$S/persist_check.txt" >"$SL2" 2>&1 || bad "slow 450 run 2: exit status"
+grep -aq '^save: global rc 0' "$SL1" && grep -aq '450 ms each erase' "$SL1" && ! grep -aq 'flash late:' "$SL1" &&
+    [ "$(bpm "$SL2")" = 137 ] && grep -aq 'record: current' "$SL2" &&
+    ok "a 450 ms erase (a slow part inside the normal bound): the save works, none late, 137 BPM after a relaunch" \
+    || bad "slow 450: $(grep -a '^save:' "$SL1") / bpm $(bpm "$SL2")"
+"$EMU" --headless --erase-ms 1900 --flash "$SF1900" --script "$S/persist_set.txt" >"$SL3" 2>&1 || bad "slow 1900 run 1: exit status"
+"$EMU" --headless --flash "$SF1900" --script "$S/persist_check.txt" >"$SL4" 2>&1 || bad "slow 1900 run 2: exit status"
+late=$(sed -n 's/.*flash late: \([0-9]*\) erases done past 500 ms (the longest \([0-9]*\) us).*/\1 \2/p' "$SL3" | tail -1)
+grep -aq '^save: global rc 0' "$SL3" && grep -aq '1900 ms each erase' "$SL3" && [ "${late% *}" -ge 1 ] 2>/dev/null &&
+    [ "${late#* }" = 1900000 ] && [ "$(bpm "$SL4")" = 137 ] && grep -aq 'record: current' "$SL4" &&
+    ok "a 1900 ms erase (late: done, 3y265): the save goes through, ${late% *} erases counted late (the longest 1.9 s), 137 BPM after a relaunch" \
+    || bad "slow 1900: $(grep -a '^save:' "$SL3") / late '$late' / bpm $(bpm "$SL3") -> $(bpm "$SL4") / $(grep -a 'record:' "$SL4" | head -1)"
 
 [ $fail = 0 ] && echo PASS || echo FAIL
 exit $fail

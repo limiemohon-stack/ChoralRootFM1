@@ -5,7 +5,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex, nofollow">
 <title>ChoralRoot SMK-37 Emulator</title>
 <style>
 @font-face { font-family: "Inter Tight"; src: url("../../../InterTight.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
@@ -167,6 +166,7 @@ footer { margin-top: 24px; font-size: 13px; color: var(--grey); text-align: cent
   <div id="status">Loading&hellip;</div>
   <div class="bar">
     <div class="meter" title="the share of real time the browser spends running the device">LOAD <b><i id="load"></i></b> <span id="loadv">&ndash;</span></div>
+    <button id="pedal" class="btn" title="a switch pedal in the pedal jack: down while held (Options &gt; Pedal: Sustain)">Pedal</button>
     <button id="midi" class="btn">Enable MIDI</button>
     <label hidden>Out <select id="mout"><option value="">none</option></select></label>
     <label hidden>In <select id="min"><option value="">none</option></select></label>

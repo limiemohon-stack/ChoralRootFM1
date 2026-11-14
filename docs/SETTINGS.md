@@ -37,6 +37,11 @@ restart: `restored: restart first`.
 unchanged); manual = written only by the global save. The rule for a setting reachable both from the Options and
 from a layer: it goes with the layer (manual).
 
+**3y290: the Options in groups.** The Options menu lists its entries in groups (Play, Chords, Keys, MIDI, Screen,
+Audio, System; Reset Settings is the group list's last item; Safe Mode and Flash Data form a Safe Mode group in SAFE
+MODE only: `cr_ui.c O_ORD`, docs/MANUAL.md section 14). That is the menu alone: no entry moved in the block or the
+session, and nothing below changed. "Options" in this table is any of the groups.
+
 | setting | where it is set | record | side |
 | --- | --- | --- | --- |
 | Play Style | Options | block `playstyle` | **automatic** |
@@ -45,11 +50,15 @@ from a layer: it goes with the layer (manual).
 | 6th with 7th (0.20) | Options | block `pick_roots` bit 4 | **automatic** |
 | Velocity | Options | block `vel` | **automatic** |
 | Key Touch (Fixed, Dynamic, Vel + Aftertouch, Vel + Poly AT), Velocity Sens, Aftertouch Sens (docs/VELOCITY.md) | Options | block `bass_on` bits 2..7 (`CRS_TOUCH`, `CRS_VSENS`, `CRS_ATSENS`; 0 = Fixed / Mid, the defaults: no version) | **automatic** |
+| Pedal (the SMK-37 only: Sustain, Expression; SMK37.md "The pedal jack") | Options | session `smk_pedal` (byte 24; 0 = Sustain, an older record's too; the FM-1 build neither writes nor reads it) | manual (the global save) |
+| TRS MIDI Out (the SMK-37 only: On, Off; SMK37.md "The TRS jack") | Options | session `smk_trs_off` (byte 25; 0 = On, an older record's too; the FM-1 build neither writes nor reads it) | manual (the global save) |
 | Velocity Curve -3 .. +3 (docs/VELOCITY.md "fm1-ctl") | Options | block `pick_roots` bits 5..7 (`CRS_VCURVE`, two's complement; 0 = 0, the default: no version) | **automatic** |
 | MIDI Perform, MIDI Bass, MIDI Raw Chord | Options | block `midi_en[3]`, `midi_ch[3]` | **automatic** |
 | Raw Chord Sound | Options | block `raw_sound` bit 0 | **automatic** |
 | MIDI Keys (0.24, docs/CHORD-LAYOUT.md) | Options | block `raw_sound` bits 1 .. 5 (`CRS_MIDI_KEYS`: 0 Off, 1 .. 16 the channel) | **automatic** |
 | MIDI Clock | Options | block `clock_mode` | **automatic** |
+| MIDI CC (3y269: Off, In, Out, In + Out; docs/MANUAL.md section 15) | Options | block `raw_sound` bits 6 / 7 (`CRS_MIDI_CC`: bit 6 Out on, bit 7 In off, so 0, every older record's, is In, the default: no version; 3y272) | **automatic** |
+| MIDI Roots (3y289: Off, ch 1 .. 16; docs/MANUAL.md "MIDI in") | Options | block `midi_en[2]` bits 1 .. 5 (`CRS_MIDI_ROOTS`; bit 0 stays MIDI Raw Chord's out, `CRS_EN`; 0, every older record's, is Off: no version) | **automatic** |
 | Motion | Options | block `motion` | **automatic** |
 | Chord Names (0.20) | Options | block `pick_roots` bit 3 | **automatic** |
 | LEDs | Options | block `leds` bit 0 (bit 1: 0.25.1's move to the FM-1 chord keys, `CRS_KEYS_MOVED`, written with it) | **automatic** |
@@ -66,14 +75,16 @@ from a layer: it goes with the layer (manual).
 | Split Point | Options **and** OPT + KNOB 1 | block `split_pc` | manual |
 | View | Options **and** HOME (tap, the view menu) | block `view` bits 0..2 | manual |
 | the view's lock | the view menu | block `view` bit 7 | manual |
-| Key Mode, tonic, scale | KEY tap, the KEY layer | block `key_on` bit 0, `tonic`, `scale` | manual |
+| Key Mode, tonic, scale | KEY tap, the KEY layer | block `key_on` bit 0, `tonic`, `scale` (bits 0 .. 6: 23 scales since 0.36) | manual |
 | Key plays, Keyboard | the KEY layer's page 2 | block `key_on` bits 1 / 2 | manual |
 | Snap (0.22) | the KEY layer's page 2, KNOB 3 | block `key_on` bits 3 .. 4 | manual |
 | Numerals (0.22; its Solfège after 0.22) | the KEY layer's page 2, KNOB 4 | block `bass_on` bit 1 (On); `scale` bit 7 (Solfège) | manual |
 | the KEY layer's keys (pick / play) | GLO in the KEY layer | block `loop_rec` bit 5 | manual |
+| the BASS layer's keys (play / pick, 0.34) | GLO in the BASS layer | session `perf_x` bit 2 (`CSS_BASS_KEYS`; 0 in older records: play) | manual |
 | Transpose | the KEY layer | block `transpose` | manual |
 | the LOCK layer's two settings | B3 held | block `loop_rec` bits 6 / 7 | manual |
 | Perform on, the mode, its parameters | PERF tap, the PERF layer, KNOB 3 | block `perform_on`, `perform_mode`, `perf_sel`, `par` | manual |
+| Chord and Bass Perform (0.34, issue 41): the chord's Off, the bass's mode and its parameters | the PERF layer's Off, the Bass PERF layer (BASS held + ARP) | session `perf_x` (bit 0 the chord Off, bit 1 the bass on a mode, bit 2 the BASS layer's keys pick, bit 3 the bass Follows the chord's (0.35), bit 7 stored), `bperf_sel` (0..6, as `perf_sel`), `bpar[5][4]` (the bass's KNOB 1..4 of each mode's row), bytes 964 .. 1005 (the end reserve; 0 in every older record: the chord performs, the bass not, its defaults; an older firmware ignores them and plays the chord's Perform as before) | manual |
 | LATCH on | LATCH tap (FM-1 chord keys: GLO held + LFO) | block `sticky` bit 0 | manual |
 | the tempo | SELECT | block `bpm` | manual |
 | the bass register | KNOB 2, the BASS layer | block `bass_voicing` | manual |
@@ -82,7 +93,8 @@ from a layer: it goes with the layer (manual).
 | the looper: Length, Quantize, Count-in, Level, the record mode, the PLAY menu's keys | the PLAY menu | block `loop_sync`, `loop_quant`, `loop_count_in`, `loop_level`, `loop_rec` bits 0..4 | manual |
 | the looper's Rate | the PLAY menu's KNOB 2 | session `loop_rate` | manual |
 | the loop slot selected | the PLAY menu's PRESETS | block `loop_slot` | manual |
-| the metronome: on, time signature, level | the PLAY menu's page 2 (KNOB 2), GLO + SEQ, the SEQ key's hold menu (metronome), OPT + SELECT | block `metro_on`, `metro_sig`, `metro_vol` | manual |
+| the metronome: on, time signature, level (`metro_on` is the beat on / off: the click or the drums) | the PLAY menu's page 2 (KNOB 2, Beat), GLO + SEQ, the SEQ key's hold menu, OPT + SELECT | block `metro_on`, `metro_sig`, `metro_vol` | manual |
+| the beat's preset (Metronome / Drums) and the drums: the kit, their level, Map X / Y, Density, Chaos, each drum's Tune, Decay, Character, Fill (after 0.39), its Chorus, Delay and Reverb sends and its Level (3y303; 0.40: one send), its Filter and Drive (3y304) | the SEQ key's hold menu | session `drum` (bytes 26..65, `css_drum_t`) | manual |
 | the voicing, the octave | KNOB 1, OCT | session `voicing`, `octave` | manual |
 | Bass on | BASS tap | session `bass_on` | manual |
 | LOCK on, the chord keys it latched | B3 | session `lock`, `latched` | manual |
@@ -294,7 +306,7 @@ The block has its own header:
 | field | range | default |
 | --- | --- | --- |
 | playstyle / extadd / secret | Simple–Free / Add Note, Play Chord / Off, Simple, All | Simple, Add Note, Off |
-| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; **0.22: bits 3 .. 4 its Snap**, 0 Off / 1 Scale / 2 Chord, `CRS_SNAP`, `CRS_SNAP_BITS`, `cs.snap`, `cr_keysnap_t`; a higher bit or a Snap of 3, 24 .. 255: the byte's default, `CRS_KEY_MAX`), 0..11, Major/Minor (bits 0..6; **bit 7 after 0.22: the KEY layer's Numerals Solfège**, `CRS_SOLFEGE`, `CRS_SCALE` / `CRS_SOL`; an unknown scale: Major, the bit kept) | off, Chords, Chords, Off, C, Major; a v1..v13 record: its Key Mode, Chords, Chords, Off |
+| key_on, tonic, scale | bit 0 Key Mode 0/1 (**v14: bit 1 the KEY layer's Key plays**, 0 Chords / 1 Notes, `CRS_KEY_NOTES`, `cs.key_notes`; **bit 2 its Keyboard**, 0 Chords / 1 Full, `CRS_KBD_FULL`, `cs.kbd_full`; `CRS_KEY_ON` / `CRS_KEY_PLAYS` / `CRS_KEYBOARD` / `CRS_KEY_BYTE`; **0.22: bits 3 .. 4 its Snap**, 0 Off / 1 Scale / 2 Chord, `CRS_SNAP`, `CRS_SNAP_BITS`, `cs.snap`, `cr_keysnap_t`; a higher bit or a Snap of 3, 24 .. 255: the byte's default, `CRS_KEY_MAX`), 0..11, the scale (bits 0..6: 0 Major, 1 Minor, **0.36:** 2 .. 22 the other scales, `cr_scale_t`, docs/MANUAL.md "Scales"; 23 and up unknown; **bit 7 after 0.22: the KEY layer's Numerals Solfège**, `CRS_SOLFEGE`, `CRS_SCALE` / `CRS_SOL`; an unknown scale: Major, the bit kept) | off, Chords, Chords, Off, C, Major; a v1..v13 record: its Key Mode, Chords, Chords, Off |
 | transpose | −24..24 | 0 |
 | single, split_pc | 0 Full Octave / 1 Split Oct ("Split" until v14) / **v14: 2 Split Bass**, 0..11 (the Chords layout's split, a pitch class; the Full keyboard splits at F4, fixed, not stored) | Full Octave, F (5) |
 | vel | 1..127 (the keys' velocity) | 100 |
@@ -305,7 +317,7 @@ The block has its own header:
 | bpm | 20..300 | 120 |
 | par[5][11] | per mode, the engine's `CR_PAR_MIN`..`MAX` | design.md §21 (= `cr_init`) |
 | loop_sync, loop_quant, loop_count_in, loop_level | 0..5, 0..5, 0/1, 0..100 | Free, none, **on** (the count-in), 100 (the looper: docs/LOOPER.md) |
-| midi_en[3], midi_ch[3] | per stream MAIN BASS RAW | on, on, **RAW off**; channels 1 / 2 / 3 |
+| midi_en[3], midi_ch[3] | per stream MAIN BASS RAW (`midi_en` bit 0, `CRS_EN`). **3y289: `midi_en[2]` bits 1 .. 5 Options > MIDI Roots**, 0 Off, 1 .. 16 the channel (`CRS_MIDI_ROOTS`; above 16: Off, bit 0 kept; another bit: the byte's default). The engine and `cr_settings_out_t` take bit 0 alone. A firmware before it checks the byte against 0 .. 1, so it reads a byte with a MIDI Roots channel as MIDI Raw Chord Off (its default) until set there; nothing else | on, on, **RAW off**; channels 1 / 2 / 3; MIDI Roots Off |
 | clock_mode | Off / **Out** / In | **Out** (Orchid sends clock) |
 | raw_sound | bit 0: RAW also plays part 0. **0.24**: bits 1 .. 5 Options > MIDI Keys, 0 Off, 1 .. 16 the channel (`CRS_MIDI_KEYS`; above 16: Off, bit 0 kept). An older firmware's CRS_FIX(raw_sound, 0, 1) reads a byte with a channel as Raw Chord Sound Off. The engine takes bit 0 alone | off; MIDI Keys Off |
 | view, motion, leds | view bits 0..2: Chord / Keyboard / Notes / Geek Out / Scope / **Geek Out 2 (5; 0.22**: four meters, docs/DUALCORE.md "Geek Out 2"; a firmware up to 0.21 finds 5 out of range and reads Chord) (Options > View, HOME held's menu); **v9: bit 7 the view lock** (`CRS_VIEW` / `CRS_VIEW_LOCK` / `CRS_VIEW_BYTE`; locked: HOME tap never cycles the view); **v12: bit 6 Options > Dual Core On** (`CRS_DC_ON`, `CRS_DUALCORE`; set = On: core 1 started at power-on, docs/DUALCORE.md; v11, 0.15, had the bit the other way round: set = Off, On the default), another bit or view: the default; Full/Calm/Off, Glow/Stock (`leds` bit 0, `CRS_LEDS`; **0.25.1: bit 1 `CRS_KEYS_MOVED`**, the record moved to the FM-1 chord keys: "0.25.1: FM-1 the default" below; 0 .. 3 in range, another value: the default byte) | Chord, unlocked, Dual Core **On** (0.22, a unit with no record and Reset Settings; Off 0.16 .. 0.21; a view byte out of range keeps the record's Dual Core), Full, Glow; a v1..v8 record: its view, unlocked; a v1..v11 record: Dual Core Off, whatever its bit 6 |
@@ -313,7 +325,7 @@ The block has its own header:
 | fx_on | 0/1 | on |
 | chord_sound | v6: the chord part's sound, (engine << 8) \| its pool position (docs/PRESETS.md); 0xFFFF = the UI's default. v1..5: an old list position, read as the default | FM6 TINE EP |
 | bass_sound | v6: the bass part's sound (what BASS tap brings), (engine << 8) \| pool position; 0xFFFF = the UI's default (v1..5: read as the default; v6 on ANALOG, engine 0, retired in 0.14: read as the default) | VA DEEP SUB (ANALOG SUB BASS until 0.14) |
-| metro_on, metro_sig, metro_vol, loop_slot (v2) | the click, 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
+| metro_on, metro_sig, metro_vol, loop_slot (v2) | the click (the beat on: written, not read since the drums: off at power-on), 4/4 3/4 6/8, 0..100, 0..9 | off, 4/4, 70, 0 |
 | pick_roots (v3) | bit 0: RESERVED since 0.18 (it was: the engine picker's white roots, 1 choose engines, 0 play, KNOB 4 in the picker): the roots always play there now; written 0, read and ignored. **Bit 1 (0.19): Options > Output**, set = Classic (0.18's master), clear = Clean (`CRS_OUT_CLASSIC`, `CRS_OUT_CLEAN`; the UI's `cs.out_clean`; applied by `crs_usb_apply` at boot without a fade, by `cr_settings_load` and the Options with one: `fx.c fx_output_set`; docs/AUDIO-QUALITY.md). No version for it: the bit is 0 in every older record and 0 is the default. A firmware up to 0.18 finds 2 or 3 out of range and takes its own default for the byte, nothing else. **Bit 2 (0.19, 2026-10-12): Options > USB Rate**, set = ChoralRoot In offers 44.1 and 48 kHz, clear = 44.1 kHz only, 0.18's device (`CRS_USB_48K`, `CRS_USB48`; the UI's `cs.usb48`; to `usb.c` as `ua_off`'s `UA_OFF_48` by `crs_usb_apply` at boot, before `usb_start`, and by `cu_usb_apply` from the Options, which replugs: docs/USB-AUDIO.md "Opt-in"). No version for it either, by the same reasoning: 0 in every older record, and 0 is the default. A firmware up to 0.18 finds 4 .. 7 out of range and takes its own default for the byte, a 0.19 build of before the option (range 0 .. 3) does the same and so reads Output as Clean until it is set there. **Bit 3 (0.20): Options > Chord Names**, set = Standard (lead-sheet names of the notes that sound), clear = Orchid (the ORC-1's naming, the default) (`CRS_NAMES_STD`, `CRS_NAMES`; the UI's `cs.names_std`; to the engine as `cr_chord_names_set` by `cr_settings_load` and the Options: docs/CHORD-NAMES.md). No version, by the same reasoning: 0 in every older record, and 0 is the default. 0.19 and older find 8 .. 15 out of range and take their own default for the byte: Output reads Clean and USB Rate 44.1 kHz there until they are set again, nothing else is touched. **Bit 4 (0.20): Options > 6th with 7th**, set = Octave up (a chord with the 6 and a seventh plays its 6th 21 semitones above the root, a 13th), clear = In place (the Orchid's, the default) (`CRS_SIXTH_UP`, `CRS_SIXTH`; the engine's `cr_t.sixth_up` through `cr_settings_apply` / `cr_settings_capture`, the UI's `cs.sixth_up`, the Options through the event `CRE_SIXTH`: docs/CHORD-NAMES.md "The 6th above a seventh"). No version, by the same reasoning: 0 in every older record, and 0 is the default. Values 0 .. 31 are in range now (`crs_sanitize`). **A firmware of before the option** (0.19: range 0 .. 7; the 0.20 builds of before it: 0 .. 15) finds 16 .. 31 out of range and takes its own default for the whole byte: with Octave up set, Output reads Clean, USB Rate 44.1 kHz and Chord Names Orchid there until they are set again (and that firmware's next save of the block writes its own value of the byte, so the bit is gone when the newer firmware returns); with In place set the byte is inside its range and is read as before | **1** in a record's defaults (0.17 reads it): Output Clean, USB Rate 44.1 kHz, Chord Names Orchid, 6th with 7th In place |
 | loop_rec (v8; was rsv_usb, v4: usb_out) | v8: the looper's record mode (bits 0..3: 0 Overwrite, 1 Advance, 2 Overdub, 3 Replace, 4 Step; `CRS_LOOP_MODE`) and the PLAY menu's keys (bit 4: 0 Play, 1 Loops; `CRS_LOOP_KEYS`), docs/LOOPER-MODES.md; **v13: bit 5 the KEY layer's keys** (0 pick: a root = the tonic, MAJ / MIN = the scale; 1 play: the keys play as outside the layer; OPT tapped in the layer; `CRS_KEY_PLAY`, `CRS_KEY_KEYS`; the UI's `cs.key_play`); **v13 also: bits 6 and 7 the LOCK layer's styles** (B3 held): bit 6 Type key (0 Clears, 1 Keeps the latched extensions; `CRS_LOCK_KEEP`, `cs.lock_keep`), bit 7 Ext keys (0 Toggle, 1 Pushed; `CRS_LOCK_PUSH`, `cs.lock_push`); a mode out of range: the defaults (every bit of the byte has a job now). Before v8: retired in v5: v4's Options > USB Audio Out (the playback device, removed: docs/USB-AUDIO.md). A 0.14 dev build (still v6) kept the chord part's pool position on FM TONE (engine 15, `eng_quad.c`, code name QUAD) here; v6 → 7 moves it into `pool_pos` slot 0 and clears the byte: 0 since | 0 (Overwrite, Play, pick, Clears, Toggle); a v4 record's byte (1 by default there) is cleared on import; v1..v7 records read 0; a v8..v12 record: its mode and PLAY-menu keys, pick |
 | usb_in (v4) | Options > **USB Record**: ChoralRoot In is presented to the computer (docs/USB-AUDIO.md); Off: the serial console instead | **1** (on); a v1..v3 record takes it (its zero would mean off) |
@@ -458,6 +470,7 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | the KEY layer: its keys (pick / play), Key plays, Keyboard, Numerals (0.22: `bass_on` bit 1; its Solfège: `scale` bit 7), Single, the split | yes | yes | block `loop_rec` bit 5, `key_on` bits 1 / 2, `single`, `split_pc` |
 | the KEY layer's page, the PLAY menu's page | no | **no, on purpose** | page 1 whenever the layer opens (`cu.kpage`, `cu.lpage`) |
 | the performance mode, its parameters, Perform on | yes | yes | block `perform_mode`, `perf_sel`, `par`, `perform_on` |
+| the chord's Off, the bass's performance mode and parameters (0.34) | no | yes (from 0.34) | session `perf_x`, `bperf_sel`, `bpar` |
 | LATCH on | yes | yes | block `sticky` |
 | the chord LATCH was holding, any sounding note | no | **no, on purpose** | |
 | LOCK on | no | **yes** | session `lock` |
@@ -477,7 +490,7 @@ and where it lives. "block" is `cr_settings_t` above, "session" is `cr_session_t
 | the bass part's four sends (its editor's FX group, CC 91 / 93 / 94 on the bass channel) | no (the bass sound's again) | **yes** | session `fx.par[]`, tags 26..29 |
 | which sound the chord part plays, each engine's last place | yes | yes | block `chord_sound`, `pool_pos` |
 | each part's sound as it is: an edit not saved, the deep patch, the name, "edited", the pool entry | no | **yes** | session `part[0]`, `part[1]` (the edit buffers) |
-| the tempo, the metronome (on, signature, level) | yes | yes | block `bpm`, `metro_*` (a metronome left on clicks at power-on, as before) |
+| the tempo, the metronome (on, signature, level) | yes | yes | block `bpm`, `metro_*`; since the drums `metro_on` is written but not read: the beat (the click or the drums) is off at every power-on, restore and revert (`cr_settings.c`, the owner's call) |
 | the looper's settings, its record mode, the PLAY menu's keys | yes | yes | block `loop_*`, `loop_rec` |
 | the looper's Rate | n/a | **yes** | session `loop_rate` |
 | the loop slot loaded, the loop in it | yes | yes | block `loop_slot`; the slot's own flash record, written by the global save and when the slot is left (docs/LOOPER.md; until 2026-10-11: each time a changed loop stopped) |
@@ -503,12 +516,14 @@ Header: `magic` `CSS1`, `version` (`CSS_VERSION`, 1), `size`, `check` (FNV-1a ov
 | voicing, octave | -12..12, -2..2 | 0, 0 |
 | bass_on | 0/1 | 0 |
 | lock, latched | 0/1, bit `cr_mod_t` (cleared when `lock` is 0) | off, none |
+| drum (`css_drum_t`, 40 bytes at 26..65: the old reserve's; after 0.39, 24 at 26..49 until 3y303, 36 until 3y304) | `ver` (`CSS_DRUM_VERSION` 3 when stored since 3y304, 2 in 3y303's, 1 in 0.40's; 0 in every older record: the defaults; a later one: the defaults), `preset` 0 Metronome / 1 Drums, `kit` 0..5, `level` 0..100, `x` `y` `density` `chaos` 0..127, `dr[3][4]` kick snare hats: Tune 0..24 (12 as voiced), Decay, Character, Fill 0..127; `send[3]` each drum's Delay send 0..127 (the Kick Mix, Snare Mix, Hats Mix pages; version 1, 0.40's: its one send, into the delay and the reverb alike, and it loads as Delay and Reverb that send, Chorus 0, Level 64: the same mix; 0 in a record of the first drums builds, whose bytes these were in the reserve), `pad`; version 2: `cho[3]` `rev[3]` their Chorus and Reverb sends 0..127, `lvl[3]` their Level 0..127 (64 as voiced); version 3 (3y304; version 2's `pad2[3]`): `flt[3]` their Filter 0..127 (127: all through the master filter), `drv[3]` their Drive 0..127 (0: clean), `pad3`, and a version 1 or 2 record loads Filter 127, Drive 0 (as it played); each checked on import (`cr_settings.c css_drum_put`: out of range, its default). A firmware of an older version (0.40: 1) reads a newer block as none: Metronome and the drums' defaults. Not in a backup (the session never is: `cr_backup.c`) | Metronome, Club, 80, 64 64 64 0, the kit's Characters at rest (32), sends 0, Levels 64, Filters 127, Drives 0 |
 | loop_rate | -7..3: the loop's Rate in steps from x1 (x1/16 x1/12 x1/8 x1/6 x1/4 x1/2 x3/4 **x1** x1.5 x2 x4; `cr_loop.h CRL_NRATE`; -7 .. -4 since 2026-10-11: a 0.18 dev build of before reads them as x1); the first byte of the old reserve, so a record written before it reads 0 = x1 with no migration | 0 (x1) |
 | fx (`css_fx_t`, 128 bytes: 108 until 0.22, when `par[]` grew by four entries into `rsv_fx`; 124 until the routing (issue 21), whose entry took `rsv_fx`'s last 4 bytes: `rsv_fx` is gone, `part[]` where it was, offset 196) | the FX sub-block, below | nothing stored |
 | part[2] (`css_part_t`, 384 bytes each: chord, bass) | `valid`; `eng`, `preset`, `user`, `trim` (the part's `track_t` fields; **`trim` is written and, since 0.19, not read**: a part put back takes the trim of its pool entry from the running firmware's table, `cr_session_part_trim`: a factory preset its `CB_TRIM` row, a user preset bound to one that row, an added user preset and INIT none, as `cu_pool_load`, so a row removed or added by an update holds for a session saved before it); `edited`, `kind`, `fk`, `slot`, `name` (the UI's `cu_snd_t`: the pool entry the sound came from); `np` and `p[96]` (the writer's `P_COUNT`, 91 today, and every parameter: the engine's eight, the envelopes, the LFO, the modulation, the sends, **Level and Pan**); `nblob` and `blob[160]` (the engine's deep patch, `ENG_BLOB_MAX`: FM6 128, VA 110, CZ-1 144, FM TONE 80; none on the other engines) | not valid: the pool's sound (the block's `chord_sound` / `bass_sound`) |
 
-**Reserve: 122 bytes of the 1024** (46 after the state; none after the FX block since the routing took the last 4 of
-`rsv_fx`, 8 in each part, 60 at the end), none of the FX block's 29 parameter entries (all 29 can be stored since the
+**Reserve: 36 bytes of the 1024** (2 after the state: the drums took 24 of its 42, 12 more in 3y303 and 4 in 3y304, the SMK-37's fields 4 before
+them; none after the FX block since the routing took the last 4 of `rsv_fx`, 8 in each part, 18 at the end since
+0.34's Bass Perform took 42; `tests/cr_settings_test.c` counts them), none of the FX block's 29 parameter entries (all 29 can be stored since the
 routing) and 5 of a part's 96 parameters; and the object holds 3840 bytes, so `CSS_SIZE`
 itself can grow: the import takes a shorter (older) record over the defaults and a longer (newer) one by its prefix,
 and no other firmware and no tool reads this object.
@@ -546,7 +561,7 @@ that effect's send from the chord part (0..127, `CSS_FX_NONE` = not stored: the 
 | 26 `BS_REV`, 27 `BS_CHO`, 28 `BS_DLY`, 29 `BS_DRIVE` | the BASS part's sends (the chord part's are `amt[]`) | 0..127; 10, 0, 0, 0 | `trk[1].p[P_REV ..]`; 29 while the bass part plays FM TONE: `cu_bdrive` (`cr_ui.c cu_bdrive_p`: the part's send waits there, the track's `P_DIST` is the sound's Drive and is stored in `part[1].p[]`) |
 
 | 30 `XC_WIDTH` | the chorus's width (0.21; KNOB 3 of the Chorus page) | 0..127, 127 | `XP_CWIDTH`. A record without it (0.19, 0.20): 127, their chorus. 0.19 and 0.20 skip it and write their record without it |
-| 31 `XQ_LOW`, 32 `XQ_HIGH`, 33 `XQ_SLOPE`, 34 `XQ_ON` | the master filter's Low cut, High cut, Slope, Filter (0.22; the FX layer's Filter page, [FX.md](FX.md) "The master filter") | 0..127, 0 (Off); 0..127, 127 (Off); 0..1, 1 (12 dB); 0..1, 0 | `XP_FLOW` .. `XP_FON`. **Written only off their defaults** (`CSS_FXG`'s `opt`): a unit that never touched the filter writes 23 entries as before, and a firmware before 0.22 reads its record as before; one that did writes up to 27, and a firmware before 0.22 reading more than 24 entries takes the whole FX block's defaults (its `cr_session_import`: the effects' settings and the chord part's sends, not the sounds, not the rest of the session) |
+| 31 `XQ_LOW`, 32 `XQ_HIGH`, 33 `XQ_SLOPE`, 34 `XQ_ON` | the master filter's Low cut, High cut, Slope, Filter (0.22; the FX layer's Filter page, [FX.md](FX.md) "The master filter") | 0..127, 0 (Off); 0..127, 127 (Off); 0..1, 1 (12 dB); 0..3, 0 (0 Off, 1 All: 0.22's On, 2 Chord, 3 Bass, 3y270; a firmware before it keeps its default for 2 / 3) | `XP_FLOW` .. `XP_FON`. **Written only off their defaults** (`CSS_FXG`'s `opt`): a unit that never touched the filter writes 23 entries as before, and a firmware before 0.22 reads its record as before; one that did writes up to 27, and a firmware before 0.22 reading more than 24 entries takes the whole FX block's defaults (its `cr_session_import`: the effects' settings and the chord part's sends, not the sounds, not the rest of the session) |
 | 35 `XF_ORDER`, 36 `XF_RMODE` | the routing's Order and Mode (GitHub issue 21, second design; the FX layer's Routing page, [FX.md](FX.md) "The routing") | 0..23, 0 (Chorus > Delay > Reverb > Filter: `cr_fx.c XF_ORD`); 0 Parallel / 1 Chain, 0 | `XP_ORDER`, `XP_RMODE`. **Written only off their defaults**, as the filter's: a unit that never touched the routing writes its record as before. The first design (b1e1222, one dev unit, never released) stored an order 0..5 under 35 and a Feed 0..127 under 36: a value out of range takes the default, so such a Feed above 1 reads Parallel. A firmware of 0.22 .. 0.26 (28 entries) reads a record of up to 28 entries as before and skips 35 / 36 as unknown tags (it has Parallel only), and finds `sel` 8 unknown (the FX layer opens on its default page); a record of 29 entries (Order AND Mode AND all four of the filter's tags off their defaults) makes it take the whole FX block's defaults, as above. A firmware before 0.22 takes the defaults from 25 entries on |
 
 29 entries can be stored (29 fit, `CSS_NFXP`: 24 until 0.22, when `par[]` grew by four entries into `rsv_fx`, 28 until
@@ -851,8 +866,10 @@ read as current, migrated or defaults.
 
 0xB8000..0xC7FFF, free until 0.22, holds the sound pool (docs/PRESETS.md "The pool"): 16 sectors over which the 13
 banks of 10 user slots float (storage.c `sp_*`: a commit record per sector, type 0x4C50, the newest seq per bank wins).
-The legacy sound objects (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) stay where they are,
-read once by the migration and never written by 0.22. The pool's target sector is erased ahead with the favourites'
+The legacy sound objects (0x97000..0x9EFFF, 0xA0000 / 0xA1000, 0xB2000 / 0xB3000, 0xDC000..0xDFFFF) stayed where they
+were, read once by the migration (0.22 .. 0.29.2) and never written; since HISTORY 3y231 nothing reads them and the
+sectors are free. The pool's target sector is erased ahead with the favourites'
 and the session's spare copies (power-on, a long idle). SAFE MODE neither reads nor writes it; Options > Flash Data
-erases its 16 sectors with the other data sectors (`cr_ui.c cu_flash_erase`, 76 sectors in all). 0.22 to 0.24-beta2
-left them out of that list, so a Flash Data kept every user sound while it erased the legacy objects and the favourites.
+erases its 16 sectors with the other data sectors (`cr_ui.c cu_flash_erase`: 76 sectors until 3y231, 60 since, the
+legacy objects' sectors no longer ChoralRoot's). 0.22 to 0.24-beta2 left the pool out of that list, so a Flash Data kept
+every user sound while it erased the legacy objects and the favourites.

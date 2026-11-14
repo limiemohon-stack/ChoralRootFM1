@@ -68,9 +68,9 @@ with a binding, and `flags[15]` (byte 191) is then the **index + 1 of the factor
 without the mark (older firmware, a client's, a restore) is an added preset of its engine; so is a mark naming no
 factory preset of the engine, or one an earlier slot already binds (the first bound slot wins). The pool of an engine:
 00 INIT, its factory presets (each replaced by the slot bound to it), then the added records in slot order. The pool
-of a record is its engine; a DIGITAL record (1) is in FM6's (and binds there), another retired engine's in the VA's
-(ANALOG, 0, retired in 0.14, plays there with its macros; PHASE LOFI VOICE TRIO NOISE PHYS, retired in 0.18, and SAMPLE
-GRAIN DRUM as the VA's INIT: a stand-in), never bound; a drum grid
+of a record is its engine; a retired engine's is the VA's (ANALOG, 0, retired in 0.14, plays there with its macros;
+PHASE LOFI VOICE TRIO NOISE PHYS, retired in 0.18, and DIGITAL SAMPLE GRAIN DRUM as the VA's INIT: a stand-in), never
+bound (a DIGITAL record, 1, was in FM6's pool and bound there until 3y232, while the firmware converted it); a drum grid
 record (ver 3 or 5) is never bound. Older firmware reads a bound record as an ordinary one (a note 38 on step 16 of a pattern
 it never plays here); `up_valid` is unchanged.
 
@@ -101,7 +101,7 @@ Engines (`ENGINES[]`, append-only; the retired ones are never produced by this f
 | engine | name | patch kind | engine | name | patch kind |
 | --- | --- | --- | --- | --- | --- |
 | 0 | ANALOG (retired in 0.14: loads on the VA) | – | 8 | GRAIN (0.22: over its own material; the pool only) | `grain` (64 bytes; version 1, 20 bytes, loads) |
-| 1 | DIGITAL (retired: loads as FM6) | – | 9 | PHYS (retired in 0.18) | – |
+| 1 | DIGITAL (retired: the VA's INIT since 3y232; FM6 before) | – | 9 | PHYS (retired in 0.18) | – |
 | 2 | PHASE (retired in 0.18) | – | 10 | DRUM (retired) | – |
 | 3 | LOFI (retired in 0.18) | – | 11 | NOISE (retired in 0.18) | – |
 | 4 | SAMPLE (retired) | – | 12 | FM6 | `fm6` (128 bytes) |
@@ -339,7 +339,7 @@ other engine's kind or of an engine the slot is not is simply the file's engine:
 - On hardware (2026-10-07): `--export-syx 2` (TINE EP, 163 bytes), `--import-syx 3` of it, `--export-syx 3` byte-identical
   to the first file, the slot's JSON export equal to U02's blob including the function defaults, then `--delete-sound 3`.
 
-## .dnsnd import (Elektron Digitone sounds as FM TONE sounds; 2026-10-14)
+## .dnsnd import (Elektron Digitone sounds as FM TONE sounds; 2026-10-14; Digitone II .dn2pst / .dn2snd: 3y211)
 
 **Since FM TONE version 4 (2026-10-14, docs/QUAD.md "Ranges")** the hi-res values map 1:1 with the fine byte kept:
 FM TONE value = coarse x 100 + round(fine x 100 / 256) (minus 6400 / 6300 for the centred ones); FDBK unscaled; the
@@ -373,19 +373,120 @@ the installer page's Sounds section (Import on a row: a `.dnsnd` always asks fir
 --import-sound N OUT.json` writes (the CLI has no `.dnsnd` option of its own: the field table stays in one place,
 `web/fm1dnsnd.js`).
 
+**Digitone SysEx dumps (.syx, 3y200).** The same two places take a Digitone `.syx`: one sound, the pool's 128 or a
+whole project's dump (the device manager: each sound a library item with its notes; the installer page: asks which
+one). `fm1dnsnd.js parseDnSyx`, decoded from the Dissonant World pack's `DW_Play.syx` (128 messages of 339 bytes,
+each the same sound as the pack's own `.dnsnd`: all 123 that have one give the same FM TONE blob): `F0 00 20 3C`
+(Elektron) `0D` (Digitone) `00 53` (a sound) `01 01 nn`, the data 8:7 packed (a byte of the next seven's top bits,
+bit 6 first, then the seven), the checksum (the packed bytes' sum & 0x3FFF, 7 + 7 bits), the length (the bytes after
+`nn` up to `F7`, 7 + 7 bits), `F7`. The data is the record below without the LZ4 (a version-1 record 283 bytes, its end
+marker at 279 as in the factory files; read as any record is, below). A wrong checksum or length is read with a note; the
+project's other messages (kits, patterns, songs, settings) are skipped and counted in the first sound's notes (a
+kit's own sounds are not read: their layout is not decoded). A `.syx` holds no tags or firmware version. The CLI
+(`fm1_install.py --import-syx`) still takes DX7 and CZ-1 dumps only.
+
+**Record version 4** (3y200, from FIZZ b67df20): a sound saved on Digitone OS 1.31 / 1.42 (payload header "0095",
+the Dissonant World pack's `.dnsnd`) has version 5's layout byte for byte and is read as version 5 with a note ("a
+version-4 sound: read as version 5"); it was refused as "a newer Digitone format (version 4)".
+
+**Any other record version** (3y201, the owner: "Presets with a newer format should still import."): no file is
+refused for its version number. A version the importer does not know (2, 3, 6 and up) is read with the newest layout
+(version 5's) and one note naming it: "a version-7 sound (newer than the versions known, 1 4 5): read as version 5;
+fields the FM-1 does not know were skipped" ("not one of the versions known" for 2 / 3). The parameters keep their
+slots at 28 + 2 x id (the law the Digitone II kept for its own longer record, FIZZ `research/DN2-FORMAT.md` §3: what
+grows is the tail), so the head reads in place; the tail (the sound's OCTAVE) is found from the record's end marker
+`ba ce f0 0c`, 18 bytes before it as in version 5; bytes past the fields known are skipped. A version-3 dump of 2018
+(159 sounds of 282 bytes, the end marker at 278) bears it out: version 5's head to 182 (its constants at 170 / 172, the
+ratio offsets 64-centred), and 18 before the marker only multiples of 12 (0, -12, -24, -36, +12), an OCTAVE's values.
+**A record cut short** (no end marker, shorter than its layout: `Revealed.syx` holds ten 113-byte messages, their
+checksum and length wrong) gives the fields it holds; the others stay at FM TONE's defaults, with a note ("the sound is
+cut short (113 bytes, no end marker): 22 of its settings not in it, FM TONE's defaults instead"; before, the missing
+bytes were read as zeros: LEVEL 0, the filter shut). Still refused: a file whose framing is not a Digitone sound (not a
+ZIP, no manifest, not a Sound, the payload's or the record's magic, a damaged LZ4 chain, a body the header's length
+does not hold). A **Digitone II** sound (the payload's device 15, or a body with its 5-byte prefix) was refused here
+until 3y211; it is read now (below).
+
+**Digitone II sounds (.dn2pst, .dn2snd; 3y211).** The owner: "Lets build the whole thing and also the Digitone II
+import features into the web manager." The same places (the manager's library, the installer's Import, `parseDnsnd`)
+read a Digitone II FM TONE sound: a `.dn2pst` (Transfer's file: the same ZIP and container as a `.dnsnd`, the device
+15) or a `.dn2snd` (the container alone, as a +Drive backup keeps it). The reader is FIZZ's `site/js/dn2pst.js` (the
+owner's, MPL-2.0) ported into `fm1dnsnd.js` ("Digitone II sounds"); FIZZ `research/DN2-FORMAT.md` cites each fact
+(DNX's captures and its DN1 -> DN2 map built from Elektron's own conversions, syxgrid's firmware tables). The body: a
+5-byte prefix (the record's version, a 0), then the 359-byte record: `be ef ba ce`, the version (2: OS 1.10; 1 and 3,
+read as 2 with a note; any other read as 2 with a note, never refused), the tag bits, the name (Windows-1252), the
+parameter id at 28 + 2 x id (the DN1's coarse and fine bytes: the laws above), the machine at 244, the filter machine
+at 245, the OCTAVE at 251, the modulation records at 252, `ba ce f0 0c` at 355. A record cut short gives the fields it
+holds (FM TONE's defaults for the rest), a longer one is read to 359 bytes, each with a note. The sound becomes FM TONE
+**version 6** ([QUAD.md](QUAD.md) "Version 6"):
+
+| Digitone II | FM TONE / the record | note |
+| --- | --- | --- |
+| LFO 1..3 SPEED FADE WAVE SPH MODE DEPTH | LFO 1..3, as the DN1's | |
+| LFO MULT (runs of six: x1..x32 at the BPM, then at 120) | MULT in FM TONE's order (`dn2Mult`) | |
+| LFO DEST (a parameter id) | FM TONE's destination (`DN2_LFO_DEST`) | LFO 1 on itself, LFO 2's own ids, the DN2-only ids: off |
+| ALGO, RATIO C A B, HARM DTUN FDBK MIX PHRT, ENV A / B, DELAY TRIG RESET, OFS | as the DN1's (RATIO A: the firmware's table, quarters to 5, halves to 10, then 11..16, each exact) | |
+| KEY TRACK A B1 B2 (168..172) | AKEY B1KEY B2KEY 1:1 | inferred |
+| FILTER FREQ RESO ENV DELAY ATK DEC SUS REL BASE WIDTH | as the DN1's (DEC INF: SUS 127) | DEC INF |
+| FILTER KEY TRACK 0..100 % | KTRK x 127 / 100 | the scale a guess |
+| filter machine LOWPASS 4 | FTYPE LP24 | |
+| LEGACY LP/HP, TYPE 0 / 1 / 2..3 | LP12 / HP12 / OFF | a TYPE past 3 |
+| MULTI-MODE, COMB+, COMB-, EQUALIZER | FTYPE MULTI, COMB+, COMB-, EQ; TYPE -> FSHAPE; EQ: FGAIN = RESO - 64 | MULTI's TYPE law (FIZZ's) |
+| BW ROUTING 1 | BWPOST (after the filter) | |
+| AMP MODE AHD, HOLD (127 NOTE) | AMOD AHD, HOLD 1:1 (HOLD kept in ADSR too) | |
+| AMP ATK DEC SUS REL | 1:1 (ADSR: DEC <= 126, 127 INF; REL rounded, 127 INF) | |
+| BIT REDUCTION, SAMPLE RATE REDUCTION, SRR ROUTING 0 / 1 | BITS, SRR 1:1, CRPRE before / after | the laws |
+| OVERDRIVE, OD ROUTING 0 / other | the record's DRIVE (P_DIST); DRPRE (before the filter) / after | OD ROUTING's encoding |
+| CHORUS DELAY REVERB sends | the record's P_CHOR P_DLY P_REV, SENDS on (the load sets the part's) | |
+| PAN, VOL | the record's PAN; LEVEL | |
+| PORTAMENTO (64 ON), TIME | the record's GLIDE = TIME, GLIDE mode TIME (the FM-1 glides in MONO / LEGATO: the bass part) | a note |
+| the OCTAVE (251) | every ratio x 2^(oct / 12), as the DN1's | |
+| the modulation records | mod.c's matrix (below) | FIZZ's reading |
+| FILTER / AMP ENV RESET off, the arpeggiator, ids 57 / 86 | not imported | the resets |
+| WAVETONE, FM DRUM, SWARMER, MIDI sounds | refused (no FM TONE patch in them) | |
+
+**The modulation records** (FIZZ's reading, not verified: 24 of 3 bytes at 252, four a source in the order PB VEL MW
+BR AT KEY, the depth about 64, the destination's id) go into the record's matrix (mod.c, `P_M1SRC` ..: SRC DST AMT,
+the depth -64..63 as AMT) where ChoralRoot has an equivalent: the sources VEL, KEY, MW (MODW), AT; the destinations
+PITCH ALL (PITCH), VOL (AMP), PAN, OVERDRIVE (DIST), the three sends (CHO DLY REV), ALGO RATIO C RATIO A RATIO B HARM
+DTUN FDBK MIX (E1..E8, FM TONE's macros; RATIO B moves B2 only, noted). A VEL record takes slot 3 and an AT one slot 4
+(the sound's EXPR routings), the others slots 1 and 2; more than fit, pitch bend and breath (no such source), and every
+other destination (the filter's FREQ among them: the matrix's CUT does not reach FM TONE's own filter) are notes; a
+zero depth is skipped. Both owner files have none.
+
+**The version gate.** A Digitone import is FM TONE version 6 (its SENDS bit at least); a ChoralRoot 0.22 .. 0.28
+refuses version 6 (`quad_blob_ok`: INIT). The device manager knows the unit's version (INFO): Place, Place all and
+Replace factory onto 0.28 or older write `quadToV5`'s copy (the machines to LP12 / OFF, ROUTE PRE, AHD, base-width
+after, CRUSH and the sends dropped) and its notes after "On this firmware:"; onto 0.29 and later version 6
+(`fm1sounds.js quadV6Of`, `importSound`'s `quadV6`); the installer's Import the same. The simulator says 0.22
+(`?sim=pool`: the gate converts; `?sim=pool&fw=0.29`: it does not). Before the pool, `quadToV3` goes through it.
+
+**The owner's two files** (read in place, `Digitone2Presets/`): BASSSINE (version 2, MULTI-MODE TYPE 127): FTYPE
+MULTI, FSHAPE 127, BWPOST, DRIVE 1 PRE, OCTAVE -2 into the ratios; notes: MULTI's law, FILTER ENV RESET off, OD
+ROUTING, the OCTAVE. crackle (BACKHANDED, version 1, LEGACY LP): LP12, SRR 84 before the filter, DRIVE 69 PRE, the
+sends 56 / 20 / 41 with the sound; notes: the version, the CRUSH law, OD ROUTING. Neither has portamento on or a
+modulation record. Onto 0.27: version 5, BASSSINE noting MULTI -> LP12, ROUTE PRE, base-width, the sends; crackle
+ROUTE PRE, CRUSH, the sends. Not read: a Digitone II `.syx` (its framing is not known here or in FIZZ), a project
+(`.dn2prj`), a Digitone sound kept on a Digitone II (its body opens "DN1S"). Tests: `web/test_dn2.mjs` (our own
+records: every field's law, the machines, AHD, CRUSH, the routes, the glide and the matrix in the record, the
+versions and sizes, the refusals, the gate; the blobs through the firmware's `quad_blob_ok`), `web/test_manager.mjs`
+(the gate through Place, Place all, Replace factory and the 0.22 simulator).
+
 **The file** (`web/fm1dnsnd.js parseDnsnd`). A ZIP (stored or deflated: `DecompressionStream("deflate-raw")` in a
 browser, zlib in node) of `manifest.json` (`FileType` "Sound", `Payload` the payload's name, `FirmwareVersion`,
-`ProductType`, `MetaInfo.Tags`) and the payload: a 0x23-byte header (magic `ac 11 d3 03`, "0097" at 9, the record's
-size u16le at 0x1c), an LZ4 block, a 14-byte trailer (ending `aa a1 da aa`). The record, 302 bytes: `be ef ba ce`,
+`ProductType`, `MetaInfo.Tags`) and the payload: a 0x1f-byte header (magic `ac 11 d3 03`, the device u16be at 7: 9
+the Digitone, 15 the Digitone II; the saving OS's build in ASCII at 9: "0051" 1.31, "0095" 1.42, "0097" 1.44; the
+body's length u32be at 0x19; the compressed flag at 0x1d), the body (flag 1: an LZ4 chain, a u32be size before each
+block, a u32be 0 after the last; flag 0: the bytes as they are), a 12-byte trailer (a CRC, a length, `aa a1 da aa`;
+FIZZ `research/DN2-FORMAT.md` §2; before 3y201 the length was read as a u16le at 0x1c, the length's low byte and the
+flag: 302 by luck). The record, 302 bytes: `be ef ba ce`,
 u32be version, a u32 of tag bits, the name (16 bytes) at 12, then the parameters as byte pairs from 30 (the coarse
 value; the second byte is the fine part on the hi-res ones). **Record versions**: 1 (the factory sounds, the end
 marker `ba ce f0 0c` at 279) and 5 (a sound saved on the owner's Digitone, OS 1.44, the manifest still "1.42A"; the
 marker at 298). Both have the same slots up to 168; version 5 adds 170..182 (the ratio offsets, the filter's ENV
 DELAY; zeros in version 1) and its bytes 270..297 change from save to save (not parameters). Refused with the reason:
-not a ZIP, no manifest, not a Sound, no payload, another payload magic, a record size other than 302 or a record
-version other than 1 and 5 ("a newer Digitone format (version N): not supported": the Digitone II likely differs),
-the record's magic, a damaged LZ4 block. Read with a warning: a firmware other than 1.42A, a ProductType other than
-`["24","30"]`, an unusual header or trailer.
+not a ZIP, no manifest, not a Sound, no payload, another payload magic, a body length no sound has, a Digitone II
+sound, the record's magic, a damaged LZ4 chain. Read with a warning: a record version other than 1, 4, 5 (as version
+5, above), a record cut short, a firmware other than 1.42A, a ProductType other than `["24","30"]`, an unusual trailer.
 
 **Slot = LFO destination.** Slot s is the byte pair at offset 28 + 2 s, and LFO DEST number s modulates the parameter
 in slot s (every destination export proves one pair: DEST 17 ALGO is offset 62, DEST 51 FILTER FREQ offset 130, LFO
@@ -591,5 +692,5 @@ edit writes the banks it changed (one for a slot; a swap two). A sound file is t
 a P5 sound carries `"patch": {"kind": "p5"}`); a P5 sound cannot go to a 0.21 FM-1.
 `--sounds`, `--export-sound` / `--import-sound`, `--rename-sound`, `--delete-sound` take slots 1..128 (a slot past the
 FM-1's own is a usage error); `--favorites` / `--restore-favorites` name user slots `U05` .. `U128` (section 0x81 for
-33..128). The device manager's **Import the 0.21 slots** sends 80 IMPORT (-> rc, count): the FM-1 copies its legacy
-slots into U001..U032 again.
+33..128). (0.22 .. 0.29.2 also had the device manager's **Import the 0.21 slots**, SysEx 80 IMPORT: retired with the
+migration, HISTORY 3y231.)

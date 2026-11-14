@@ -9,12 +9,12 @@ import { deflateRawSync } from "node:zlib";
 import { existsSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { parseDnsnd, dnsndToQuad, DNSND_FIELDS, DN_QUAD_RANGES, DN_QP, DN_RATIO_A, DN_LFO_DEST, dnLz4Block, DN_TIME_TO_QUAD, dnTimeQ,
-  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack } from "./fm1dnsnd.js";
+  DN_QUAD_HIRES, DN_QUAD_RANGES_V4, DN_QUAD_HIRES_V4, quadToV4, quadToV3, dnQuadPack, parseDnSyx, quadToV5, dnQuadValues, DN_QF6, DN_QUAD_VER, isDnSyx, dnPack87, dnUnpack87 } from "./fm1dnsnd.js";
 // AMP REL (version 5): the whole number (times are 1:1), below 127.00 at most 126; 127.xx = INF 127 (fm1dnsnd.js dnTRelA)
 const R100 = (v) => v >= 127 ? 127 : Math.min(126, Math.round(dnTimeQ(v)));
 const T = (v) => DN_TIME_TO_QUAD[v], DN_RATIO_CB_OF = (i) => [0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16][i];                       // the envelope time curve (fm1dnsnd.js DN_TIME_*)
 import { soundFromDnsnd, recordValid, SOUND_IDS, POOL_IDS, placeSound, parseSoundObjects, firstFreeSlot } from "./fm1sounds.js";
-import { libraryItemsFromDnsnd } from "./fm1manager.js";
+import { libraryItemsFromDnsnd, libraryItemsFromFile } from "./fm1manager.js";
 
 let fails = 0;
 const ok = (c, what) => { console.log(`${what.padEnd(78)} ${c ? "ok" : "FAIL"}`); if (!c) fails++; };
@@ -57,11 +57,16 @@ function record(name, set = {}, { version = 1, magic = [0xbe, 0xef, 0xba, 0xce] 
   }
   return d;
 }
-function dnsnd(rec, { deflate = false, size = 302, man = {}, hdrMagic = [0xac, 0x11, 0xd3, 0x03], payload = "MY TEST", block } = {}) {
-  const hdr = new Uint8Array(0x23);
-  hdr.set(hdrMagic, 0); hdr.set([0x30, 0x30, 0x39, 0x37], 9); hdr.set(le(2, size), 0x1c);
-  const blk = block || lz4Literal(rec);
-  const tr = Uint8Array.from([0, 0, 0, 0, 1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]).subarray(2);
+// the payload as the Digitone writes it (FIZZ research/DN2-FORMAT.md §2): a 0x1f-byte header (the device u16be at 7, the
+// build at 9, the kind 3 at 0x0d, the body's length u32be at 0x19, the compressed flag at 0x1d, the trailer's length),
+// the body (packed: an LZ4 chain of blocks, u32be size each, then u32be 0), the 12-byte trailer
+const be32 = (v) => [v >>> 24, v >>> 16 & 255, v >>> 8 & 255, v & 255];
+function dnsnd(rec, { deflate = false, size = rec.length, man = {}, hdrMagic = [0xac, 0x11, 0xd3, 0x03], payload = "MY TEST", block, blocks, packed = 1, device = 9 } = {}) {
+  const hdr = new Uint8Array(0x1f);
+  hdr.set(hdrMagic, 0); hdr.set([2, 0, 5, device >> 8, device & 255, 0x30, 0x30, 0x39, 0x37, ...be32(3), ...be32(1), ...be32(0), ...be32(size), packed, 12], 4);
+  const chain = (bs) => bs.flatMap((x) => [...be32(x.length), ...x]).concat(be32(0));
+  const blk = Uint8Array.from(packed ? chain(blocks || [block || lz4Literal(rec)]) : rec);
+  const tr = Uint8Array.from([1, 2, 3, 4, 0, 0, 0, 0x2a, 0xaa, 0xa1, 0xda, 0xaa]);
   const pl = new Uint8Array(hdr.length + blk.length + tr.length);
   pl.set(hdr); pl.set(blk, hdr.length); pl.set(tr, hdr.length + blk.length);
   const m = { FormatVersion: 1, ProductType: ["24", "30"], Payload: payload, FileType: "Sound", FirmwareVersion: "1.42A", MetaInfo: { Tags: ["test"] }, ...man };
@@ -103,8 +108,28 @@ ok(p.params.algo === 6 && p.params["lfo1.speed"] === 20.5 && p.params.harm === 1
 const pd = await parseDnsnd(dnsnd(record("MY TEST TONE", SET), { deflate: true }));
 ok(pd.record.every((x, i) => x === p.record[i]), "parse: a deflated ZIP reads the same");
 const q = dnsndToQuad(p), v = q.values, L = (k, f) => 47 + k * 8 + { SPEED: 0, MULT: 1, FADE: 2, DEST: 3, WAVE: 4, PHASE: 5, TRIG: 6, DEPTH: 7 }[f];
-ok(q.blob.length === 96 && q.blob[0] === 0x51 && q.blob[1] === 5 && q.blob.subarray(87).every((x) => !x) && DN_QUAD_HIRES.length === 12,
-   "blob: 'Q' 5, 73 values (12 of them two bytes), zero padding");
+ok(q.blob.length === 96 && q.blob[0] === 0x51 && q.blob[1] === 6 && q.blob.subarray(92).every((x) => !x) && DN_QUAD_HIRES.length === 12,
+   "blob: 'Q' 6, 73 values (12 of them two bytes), version 6's five bytes, zero padding");
+{ // version 6 (eng_quad.c quad_pack6): every value of 73..82 round trips through the five bytes; none set: version 5,
+  // byte for byte as before; quadToV5 (a firmware up to 0.27) drops them, a note each, and keeps the rest
+  const Q = DN_QP, init = DN_QUAD_RANGES.map((r) => r[2]), same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+  const b5 = dnQuadPack(init);
+  let bad = 0;
+  for (let i = 73; i < 83; i++) for (const v of [DN_QUAD_RANGES[i][0], DN_QUAD_RANGES[i][1]]) {
+    const p = init.slice(); p[i] = v;
+    const b = dnQuadPack(p);
+    bad += b[1] !== (v === DN_QUAD_RANGES[i][2] ? 5 : 6) || !same(dnQuadValues(b), p);
+  }
+  const p = init.slice();
+  Object.assign(p, { [Q.AMOD]: 1, [Q.HOLD]: 40, [Q.DRPRE]: 1, [Q.FSHAPE]: 99, [Q.FGAIN]: -7, [Q.BWPOST]: 1, [Q.BITS]: 12, [Q.SRR]: 127, [Q.CRPRE]: 1, [Q.SENDS]: 1, [Q.FTYPE]: DN_QF6.EQ });
+  const b6 = dnQuadPack(p), notes = [], d5 = quadToV5(b6, notes);
+  ok(!bad && b5[1] === 5 && b5.subarray(87).every((x) => !x) && same([...b6.subarray(87, 92)], [87 | 128, 99 | 128, 121 | 128, 12 | 128, 255]) &&
+     b6[2 + Q.FTYPE + 4] === 7 && same(dnQuadValues(b6), p) && DN_QUAD_VER === 6,
+     "version 6: each value round trips (version 5 when none set), the layout of bytes 87..91, FTYPE EQ 7");
+  ok(d5[1] === 5 && d5.subarray(87).every((x) => !x) && dnQuadValues(d5)[Q.FTYPE] === 0 && notes.length === 6 &&
+     same(dnQuadValues(d5).slice(0, 73).filter((x, i) => i !== Q.FTYPE), p.slice(0, 73).filter((x, i) => i !== Q.FTYPE)) &&
+     same(quadToV5(b5), b5) && quadToV3(b6).length === 80, `version 6 -> 5 for 0.27: dropped with a note each (${notes.join(" | ")})`);
+}
 { // the blob's values back: a byte each, the hi-res ones u16le (eng_quad.c quad_unpack)
   let o = 2, good = true;
   for (let i = 0; i < 73; i++) {
@@ -194,8 +219,11 @@ ok(DN_RATIO_A.length === 36 && [[0, 0.25], [3, 1], [9, 2.5], [15, 4], [25, 8], [
    DN_RATIO_A.every((r, i) => !i || r > DN_RATIO_A[i - 1]), "convert: RATIO A's table holds the proved steps (0.25 1 2.5 4 8 16), rising");
 ok(q.pan === -5 && q.drive === 30, "convert: PAN and DRIVE -> the track's PAN and DRIVE");
 const has = (re) => q.notes.some((n) => re.test(n));
-ok(!has(/filter type/) && has(/delay send 20\.00 not imported/) &&
-   has(/chorus send 3\.00/) && !has(/reverb send/) && !has(/RATIO/) && q.notes.length === 2, "notes: the sends (0 sends say nothing), no others (version-1 type 2 = HP: no note)");
+ok(!has(/filter type/) && !has(/send/) && !has(/RATIO/) && !has(/DRIVE/) && q.notes.length === 0,
+   "notes: none (the sends the sound's, the DRIVE before the filter: version 6; version-1 type 2 = HP: no note)");
+ok(q.sends.delay === 20 && q.sends.chorus === 3 && q.sends.reverb === 0 && v[DN_QP.SENDS] === 1 && v[DN_QP.DRPRE] === 1 &&
+   q.blob[1] === 6 && q.blob[89] === 128 && q.blob[91] === 128 && q.blob.subarray(92).every((x) => !x),
+   "version 6: the sends the sound's (SENDS, byte 91 bit 7), DRIVE 30 before the filter (DRPRE, byte 89 bit 7)");
 // clamping: out-of-range raw values
 const qc = dnsndToQuad(await parseDnsnd(dnsnd(record("CLAMP", { algo: 200, ratioC: 99, ratioA: 99, ratioB: [255, 255], harm: [127, 255], fdbk: 255, "lfo1.mult": 90,
   "lfo1.wave": 40, "lfo1.mode": 77, "lfo1.dest": 5, "lfo2.dest": 99, "lfo1.depth": [127, 255], "envA.trig": 9, "filter.type": 9, "amp.pan": 250, "amp.drive": [255, 0] }))));
@@ -243,8 +271,8 @@ provedBad.forEach((s) => console.log(`  ${s}`));
 { // the fields the exports placed but that have no FM TONE value: DRIVE, PAN, the sends, AENR
   const pp = await parseDnsnd(dnsnd(record("PROVED", { "amp.drive": [0, 4], "amp.pan": 0, "send.reverb": [127, 0], "send.delay": [127, 0], "send.chorus": [127, 0], "amp.reset": 0 }, V5)));
   const qq = dnsndToQuad(pp), n = qq.notes.join("|");
-  ok(pp.params["amp.drive"] === 0.02 && qq.drive === 0 && qq.pan === -64 && /reverb send 127\.00/.test(n) && /delay send 127\.00/.test(n) && /chorus send 127\.00/.test(n) &&
-     /AMP ENV RESET off/.test(n), "proved: DRIVE (fine), PAN L64, the three sends, AENR off (version 5)");
+  ok(pp.params["amp.drive"] === 0.02 && qq.drive === 0 && qq.pan === -64 && qq.sends.reverb === 127 && qq.sends.delay === 127 && qq.sends.chorus === 127 &&
+     !qq.values[DN_QP.DRPRE] && /AMP ENV RESET off/.test(n), "proved: DRIVE (fine), PAN L64, the three sends, AENR off (version 5)");
 }
 { // DEC 127 = INF: AMP DEC INF is FM TONE's AMP DEC 127 (version 5: it holds the level), SUS as it was, no note; the
   // filter's DEC has no INF: its SUS 127, a note. A DEC below 127 is never INF (126 at most)
@@ -336,9 +364,16 @@ ok(await rejects(parseDnsnd(zip([["manifest.json", new TextEncoder().encode("{x"
 ok(await rejects(parseDnsnd(dnsnd(rec0, { man: { FileType: "Pattern" } })), /FileType "Pattern"/), "error: not a Sound");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { man: { Payload: "GONE" } })), /payload "GONE" is missing/), "error: the payload missing");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { hdrMagic: [1, 2, 3, 4] })), /payload's magic/), "error: the payload's magic");
-ok(await rejects(parseDnsnd(dnsnd(rec0, { size: 400 })), /a newer Digitone format \(a 400-byte sound/), "error: another record size");
+ok(await rejects(parseDnsnd(dnsnd(rec0, { size: 400 })), /cut short/), "error: a body shorter than its header says");
+ok(await rejects(parseDnsnd(dnsnd(rec0, { size: 0x9000 })), /the payload's header: a 36864-byte body/), "error: a body no sound could be");
+// (a Digitone II sound is read since 3y211, web/test_dn2.mjs: by the device 15, or by its body's 5-byte prefix)
+{ const x = await parseDnsnd(dnsnd(rec0, { device: 15 }));
+  ok(x.model === 2 && x.warnings.some((w) => /without its 5-byte prefix/.test(w)) && !x.warnings.some((w) => /cut short/.test(w)),
+     "a device-15 container: read as a Digitone II record (no prefix: a note; its 302 bytes hold every field)"); }
+{ const d2 = new Uint8Array(364); d2.set([0, 0, 0, 2, 0, 0xbe, 0xef, 0xba, 0xce, 0, 0, 0, 2]); d2.set([0xba, 0xce, 0xf0, 0x0c], 360);
+  const x = await parseDnsnd(dnsnd(d2));
+  ok(x.model === 2 && x.warnings.some((w) => /device is 9, not 15/.test(w)) && !x.warnings.some((w) => /end ba ce/.test(w)), "a Digitone II body (its 5-byte prefix) in a device-9 container: read as one, a note"); }
 ok(await rejects(parseDnsnd(dnsnd(record("X", {}, { magic: [1, 2, 3, 4] }))), /the sound's magic/), "error: the record's magic");
-ok(await rejects(parseDnsnd(dnsnd(record("X", {}, { version: 2 }))), /a newer Digitone format \(version 2\): not supported/), "error: record version 2");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { block: lz4Literal(rec0).subarray(0, 100) })), /cut short/), "error: the LZ4 block cut short");
 ok(await rejects(parseDnsnd(dnsnd(rec0, { block: Uint8Array.from([0x10, 7, 9, 0]) })), /does not decompress/), "error: an LZ4 match before the start");
 // warnings
@@ -347,6 +382,89 @@ ok(w.warnings.length === 2 && /firmware 1\.50/.test(w.warnings[0]) && /product \
 // the LZ4 decoder with a match (an overlapping copy)
 const m = dnLz4Block(Uint8Array.from([0x26, 1, 2, 1, 0, 0x30, 7, 8, 9]), 0, 15).data;
 ok([...m].join() === "1,2,2,2,2,2,2,2,2,2,2,2,7,8,9", "lz4: literals, an overlapping match, the last literals");
+
+/* FIZZ's import fix (b67df20): a version-4 record (a sound saved on OS 1.42) has version 5's layout: read so, with a
+ * note; it was refused as "a newer Digitone format (version 4)" (the Dissonant World pack's .dnsnd are all version 4) */
+{
+  const set = { ofsC: [96, 0], "filter.delay": 40, "filter.type": 3, mix: 127 };
+  const v4 = await parseDnsnd(dnsnd(record("V4 SOUND", set, { version: 4 }))), v5 = await parseDnsnd(dnsnd(record("V4 SOUND", set, V5)));
+  ok(v4.version === 5 && v4.fileVersion === 4 && v4.params.ofsC === 32 && v4.params["filter.delay"] === 40 &&
+     [...dnsndToQuad(v4).blob].join() === [...dnsndToQuad(v5).blob].join(), "version 4: read with version 5's layout (OFS, filter DELAY), the same blob");
+  ok(v4.warnings.includes("a version-4 sound: read as version 5 (the same layout)") && !v5.warnings.length, "version 4: a note says so");
+}
+
+/* Digitone SysEx dumps (.syx): F0 00 20 3C 0D 00 53 01 01 nn <the record 8:7 packed> <sum 14 bits> <length 14 bits> F7;
+ * the record as a .dnsnd's (a version-1 one 283 bytes). Our own messages around our own records (no preset's bytes) */
+const dnMsg = (rec, { type = 0x53, nn = 0, sum, len } = {}) => {
+  const e = dnPack87(rec), s = sum ?? e.reduce((a, x) => a + x, 0) & 0x3FFF, l = len ?? e.length + 5;
+  return Uint8Array.from([0xF0, 0x00, 0x20, 0x3C, 0x0D, 0x00, type, 1, 1, nn, ...e, s >> 7, s & 127, l >> 7, l & 127, 0xF7]);
+};
+const cat = (...a) => { const o = new Uint8Array(a.reduce((n, x) => n + x.length, 0)); let p = 0; for (const x of a) { o.set(x, p); p += x.length; } return o; };
+{
+  const r = new Uint8Array(64).map((_, i) => i * 37 & 255);
+  ok([...dnUnpack87(dnPack87(r))].join() === [...r].join() && dnPack87(r).every((x) => x < 128), "8:7 packing: round trip, 7-bit bytes");
+  const setA = { mix: 100, "filter.type": 2, "amp.vol": [90, 0] }, setB = { ratioC: 4, fdbk: 20 };
+  const a = record("SYX ONE", setA).subarray(0, 283), b5 = record("SYX TWO", { ...setB, ofsC: [96, 0] }, V5);
+  const kit = dnMsg(new Uint8Array(100), { type: 0x52 }), file = cat(dnMsg(a), kit, dnMsg(b5, { nn: 5 }));
+  const g = parseDnSyx(file);
+  ok(isDnSyx(file) && g.sounds.length === 2 && g.sounds[0].name === "SYX ONE" && g.sounds[1].name === "SYX TWO" && g.sounds[1].slot === 5,
+     "syx: a pool dump's sounds with their names (a version-1 283-byte record, a version-5 one)");
+  const f1 = await parseDnsnd(dnsnd(record("SYX ONE", setA))), f2 = await parseDnsnd(dnsnd(b5));
+  ok([...dnsndToQuad(g.sounds[0]).blob].join() === [...dnsndToQuad(f1).blob].join() && [...dnsndToQuad(g.sounds[1]).blob].join() === [...dnsndToQuad(f2).blob].join(),
+     "syx: each sound imports as the same record in a .dnsnd does");
+  ok(g.notes.length === 1 && /^1 kit message skipped/.test(g.notes[0]) && !g.sounds[0].warnings.length, "syx: a project's other messages skipped, with a note");
+  const bad = parseDnSyx(cat(dnMsg(a, { sum: 1 }), dnMsg(a, { len: 3 })));
+  ok(/checksum does not match/.test(bad.sounds[0].warnings[0]) && /length field does not match/.test(bad.sounds[1].warnings[0]), "syx: a wrong checksum or length is read, with a note");
+  const v2 = parseDnSyx(cat(dnMsg(record("OTHER", {}, { version: 2 })), dnMsg(a), dnMsg(new Uint8Array(40))));
+  ok(v2.sounds.length === 2 && /^a version-2 sound \(not one of the versions known, 1 4 5\): read as version 5/.test(v2.sounds[0].warnings[0]) &&
+     /message 3: not a Digitone sound file \(the sound's magic\)/.test(v2.notes[0]), "syx: a version not known read, with a note; a message that is no sound skipped");
+  ok(await rejects(Promise.resolve().then(() => parseDnSyx(kit)), /no Digitone sound in this SysEx dump/), "error: a dump with no sound");
+  ok(await rejects(Promise.resolve().then(() => parseDnSyx(Uint8Array.from([0xF0, 0x43, 0, 0, 0xF7]))), /not a Digitone SysEx dump/), "error: not a Digitone dump");
+  const its = libraryItemsFromFile("pool.syx", file);
+  ok(its.length === 2 && its.every((x) => x.engine === 15 && x.patch && Array.isArray(x.notes)) && its[0].name === "SYX ONE" && /kit message skipped/.test(its[0].notes[0]) &&
+     its[1].file.dnsnd.name === "SYX TWO", "manager: a Digitone .syx gives FM TONE library items with their notes");
+}
+
+/* 3y201, the owner: "Presets with a newer format should still import." A version not known reads with the newest
+ * layout (5), its tail (the OCTAVE) found from the end marker, with a note; a record cut short gives what it holds; the
+ * body's length and compression from the payload's header (a raw body, an LZ4 chain). Our own records, no preset's bytes */
+{
+  const MARK = [0xba, 0xce, 0xf0, 0x0c], RB = (b1, b2) => [0, 2 * (b1 * 19 + b2)];
+  const set = { ofsC: [96, 0], "filter.delay": 40, mix: 127, "filter.freq": [70, 0], ratioC: 3, ratioA: 3, ratioB: RB(3, 3) };
+  const blobOf = async (b) => [...dnsndToQuad(await parseDnsnd(b)).blob].join();
+  const same5 = (oct) => blobOf(dnsnd(record("NEWER", { ...set, octave: oct }, V5)));
+  // a version 7 of 330 bytes: 28 more before its end marker (326), bytes no layout knows at 190..299, the OCTAVE 18 before the marker
+  const r7 = new Uint8Array(330);
+  r7.set(record("NEWER", set, V5).subarray(0, 183)); r7.set(be32(7), 4); r7.fill(0x55, 190, 300); r7[326 - 18] = 12; r7.set(MARK, 326);
+  const p7 = await parseDnsnd(dnsnd(r7)), q7 = dnsndToQuad(p7);
+  ok(p7.fileVersion === 7 && p7.version === 5 && p7.params.ofsC === 32 && p7.params["filter.delay"] === 40 && p7.params.octave === 12 &&
+     q7.notes.some((n) => /OCTAVE \+1/.test(n)) && [...q7.blob].join() === await same5(12), "a newer version (7, 330 bytes): read as version 5, the OCTAVE from its end marker");
+  ok(p7.warnings.length === 1 && p7.warnings[0] === "a version-7 sound (newer than the versions known, 1 4 5): read as version 5; fields the FM-1 does not know were skipped",
+     `a newer version: one note naming it (${p7.warnings[0]})`);
+  // version 7 with no end marker but version 5's length: read at version 5's places
+  const r7b = record("NEWER", { ...set, octave: 244 }, { version: 7 }), p7b = await parseDnsnd(dnsnd(r7b));
+  ok(p7b.params.octave === -12 && p7b.warnings.length === 1 && [...dnsndToQuad(p7b).blob].join() === await same5(244), "a newer version, no end marker, 302 bytes: version 5's places");
+  // version 3 in a .syx (a 2018 dump's: 282 bytes, the end marker at 278, the OCTAVE 18 before it)
+  const r3 = new Uint8Array(282);
+  r3.set(record("OLDER", set, V5).subarray(0, 183)); r3.set(be32(3), 4); r3[260] = 244; r3.set(MARK, 278);
+  const g3 = parseDnSyx(dnMsg(r3)), s3 = g3.sounds[0];
+  ok(s3.fileVersion === 3 && s3.params.octave === -12 && /^a version-3 sound \(not one of the versions known, 1 4 5\)/.test(s3.warnings[0]) &&
+     [...dnsndToQuad(s3).blob].join() === await same5(244), "version 3 (.syx, 282 bytes): read as version 5, the OCTAVE 18 before the marker");
+  // a message cut short (113 bytes, no end marker): the fields it holds, the rest FM TONE's defaults, a note
+  const cut = parseDnSyx(dnMsg(record("CUT", { mix: 100, "filter.freq": [90, 0], "amp.vol": [20, 0] }).subarray(0, 113))).sounds[0], qc5 = dnsndToQuad(cut);
+  ok(cut.params.mix === 36 && cut.params["filter.freq"] === undefined && cut.params.octave === undefined && qc5.values[DN_QP.MIX] === 36 &&
+     qc5.values[DN_QP.FREQ] === DN_QUAD_RANGES[DN_QP.FREQ][2] && qc5.values[DN_QP.LEVEL] === DN_QUAD_RANGES[DN_QP.LEVEL][2] &&
+     /^the sound is cut short \(113 bytes, no end marker\): \d+ of its settings not in it, FM TONE's defaults instead$/.test(cut.warnings.at(-1)) && /: 22 of/.test(cut.warnings.at(-1)),
+     `a record cut short: what it holds, FM TONE's defaults for the rest (${cut.warnings.at(-1)})`);
+  // the framing: a raw body (flag 0), an LZ4 chain of two blocks (the second's match reaching into the first)
+  const rr = record("CHAIN", set, V5); rr.set(rr.subarray(0, 20), 150);
+  const two = [lz4Literal(rr.subarray(0, 150)), Uint8Array.from([0x0F, 150, 0, 1, 0xF0, 132 - 15, ...rr.subarray(170)])];
+  const pr = await parseDnsnd(dnsnd(rr, { packed: 0 })), pc = await parseDnsnd(dnsnd(rr, { blocks: two }));
+  ok([...pr.record].join() === [...rr].join() && [...pc.record].join() === [...rr].join() && !pr.warnings.length && !pc.warnings.length,
+     "framing: a raw body and a two-block LZ4 chain read the record");
+  const fw7 = firmwareOk([q7.blob, qc5.blob, dnsndToQuad(s3).blob]);
+  if (fw7) ok(fw7.join() === "ok,ok,ok", "firmware: quad_blob_ok takes the newer, the cut-short and the version-3 blobs");
+}
 
 console.log(fails ? `DNSND TESTS FAILED (${fails})` : "dnsnd tests passed");
 process.exit(fails ? 1 : 0);

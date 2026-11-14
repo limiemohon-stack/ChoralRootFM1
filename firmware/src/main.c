@@ -77,6 +77,9 @@ void fm1_timer5_irq(void)
     fm1_timer5_ack();
     felucca_dbg.timer_irqs++;
     fm1_input_tick();
+#if BOARD_SMK37
+    smk_uart_tx_tick();                         /* the TRS jack's MIDI OUT: the next byte once the last has gone */
+#endif
     {   /* milliseconds from the 24 MHz TIMER4 (robust to a late tick) */
         static uint32_t last, acc;
         acc += t0 - last;
@@ -122,6 +125,9 @@ void fm1_timer5_irq(void)
     if (owed & 2u)
         uart_midi_poll();
 #endif
+#if CR_BLE
+    cr_ble_drain();                                 /* the Bluetooth peer's MIDI into the same queue (cr_ble.c) */
+#endif
     owed = 0;
 }
 extern void isr_timer5(void);
@@ -129,8 +135,13 @@ extern void isr_timer5(void);
 static void timer5_start(void)                 /* OSC /4 = 6 MHz, PRD 600 -> 10 kHz */
 {
 #if defined(CR_SENSE_KEYS) && !BOARD_SMK37         /* (SMK-37: cr_ui.c's stand-in CR_SENSE_KEYS 0, no analog rows) */
+#if CR_BLE
+    if (!(cr_ble_test() & CRBL_T_NOSCAN))          /* (3y243's bisection: a BLE_DIAG build's switch) */
+#endif
+    {
     fm1_an.drive = SN_DRIVE;                       /* the analog rows (docs/VELOCITY.md): the tick owns the converter */
     fm1_an.con = FM1_ADC_CON_SCAN;
+    }
 #endif
     fm1_timer5_start(isr_timer5, 4);   /* above ALNK0 (3): the scan nests into the render (see fm1_timer5_irq) */
 }
@@ -149,17 +160,17 @@ static void fm1_fault(const fm1_crash_t *c)
     uint32_t t0;
     fm1_audio_stop();
     lcd_fill(0, 0, 240, 240, UI_CRASH_BG);            /* fixed, outside the palettes */
-    draw_text_line(0, 8, 240, &AF_M, "FELUCCA CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
+    draw_text_line(0, 8, 240, CR_FONT_M, "CHORALROOT CRASH", UI_CRASH_INK, UI_CRASH_BG, 1);
     hexs(b, c->vec);
-    draw_text_line(10, 40, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    draw_text_line(10, 40, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->pc);
-    draw_text_line(10, 60, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    draw_text_line(10, 60, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->emu);
-    draw_text_line(10, 84, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    draw_text_line(10, 84, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->dbg);
-    draw_text_line(10, 102, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    draw_text_line(10, 102, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     hexs(b, c->rets);
-    draw_text_line(10, 120, 220, &AF_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
+    draw_text_line(10, 120, 220, CR_FONT_M, b, UI_CRASH_INK, UI_CRASH_BG, 0);
     t0 = fm1_ticks();
     while ((uint32_t)(fm1_ticks() - t0) < 4000u * 1000u * FM1_TICKS_PER_US)
         ;
@@ -241,9 +252,30 @@ static void dbg_boot(void)
 #endif
 #include "master.c"              /* the MASTER pot: read before the audio starts (0.19; Felucca 1.1.5, #137) */
 
+#if CR_CPU1 && !BOARD_SMK37
+/* the power-on pop (HISTORY 3y268): stock V15's supplies (hal/fm1_power.h fm1_power_stock: the 1.3 V rail on its
+ * DC-DC, VDDIO 3.2 V, the core rails at ChoralRoot's caps) on every boot, first, as FM1-Base's main_fm1.c does
+ * (Charles Vestal, 5e1e79f) and Melodee 1.6.1. Until 0.32 only a Bluetooth boot set them, just before the audio;
+ * every other boot started the I2S clocks on the boot loader's supplies, and the speaker popped under the splash (the
+ * spare E81CE2F7, Bluetooth and Dual Core Off, cold starts). Not in SAFE MODE (the boot loader's supplies, as before).
+ * -1 not run, else fm1_power_stock's result (a Bluetooth boot takes it: cr_ble_supplies) */
+static int cr_boot_supplies = -1;
+#endif
+
 static void fm1_main(void)
 {
     uint32_t ms;
+#if CR_CPU1 && !BOARD_SMK37
+    if (!cr_safe)
+        cr_boot_supplies = cr_rails_stock();            /* first: before the flash, the screen and the audio */
+#endif
+    CR_STAGE(BS_AUDIO);
+    audio_init();                                       /* the I2S clocks next, ~0.1 s after power-on (HISTORY 3y268: the
+                                                         * power-on pop). The DAC popped when its clocks came 1.5 s or
+                                                         * more after power-on (6 s: every time); FM1-Base starts them
+                                                         * early. The DMA loops the zeroed buffer until the interrupts
+                                                         * come on below (fm1_irq_enable_all): silence; the first block
+                                                         * is rendered after master_boot, at the knob's level, as before */
     persist_boot();                                     /* (stages BS_FLASH .. BS_SETTINGS; SAFE MODE: no object read) */
 #if FELUCCA_OTA
     CR_STAGE(BS_OTA_CLEANUP);
@@ -267,6 +299,17 @@ static void fm1_main(void)
     panel_init();
     CR_STAGE(BS_SOUNDS);
     felucca_init();
+#if CR_BLE
+    cr_ble_boot();                                      /* Bluetooth: its record, the trims (the radio: below) */
+    if (cr_ble_will_start())                            /* a radio boot: stock V15's supplies first, before core 1,
+                                                         * as Melodee 1.6.1 (hal/fm1_power.h fm1_power_stock, 3y240);
+                                                         * a P33 timeout: no radio this boot */
+#if CR_CPU1 && !BOARD_SMK37
+        cr_ble_supplies(cr_boot_supplies >= 0 ? cr_boot_supplies : cr_rails_stock());   /* (set at the start) */
+#else
+        cr_ble_supplies(cr_rails_stock());
+#endif
+#endif
 #if CR_CPU1
     CR_STAGE(BS_CPU1);                                  /* (a hang here: prev_stage "core 1", the boot guard counts it) */
     cr_dbg.prof_on = 1;                                 /* the ISR's stage profile (cr_cpu1.h) */
@@ -278,18 +321,29 @@ static void fm1_main(void)
                                                          * MODE, and not when the boot before this one failed
                                                          * (cr_cpu1.h cr_c1_power_on) */
 #endif
-    CR_STAGE(BS_AUDIO);
     master_boot();                            /* the first block already at the knob's level (master.c) */
-    audio_init();
     CR_STAGE(BS_USB);
     usb_start();
 #if FELUCCA_UART
     CR_STAGE(BS_UART);
+#if CR_BLE
+    if (!(cr_ble_test() & CRBL_T_NOUART))     /* (3y243's bisection) */
+#endif
     uart_midi_init();
+#endif
+#if BOARD_SMK37
+    smk_uart_tx_init();                       /* the TRS jack: MIDI OUT (before TIMER5 starts) */
 #endif
     CR_STAGE(BS_IRQ);
     timer5_start();
     fm1_guard_lock_top();
+#if CR_BLE
+    CR_STAGE(BS_BLE);
+    cr_ble_start_boot();                      /* the radio, when On was saved: the last step with the interrupts off,
+                                               * as Melodee starts it (core 1 idle in RAM, the rails, the audio and USB
+                                               * set up), its interrupts served at once below (cr_ble.c, 3y238) */
+    CR_STAGE(BS_IRQ);
+#endif
     fm1_irq_enable_all();
     fm1_delay_ms(30);
     CR_STAGE(BS_CALIB);
@@ -306,6 +360,24 @@ static void fm1_main(void)
     for (;;) {
         uint32_t m = fm1_ms;
         fm1_wdt_feed();
+#if CR_USB_HOST
+        uh_task(fm1_ms);                                /* before usb_retry: a host port is not retried as a device */
+        if (uh.msg) {                                   /* (usb_host.c's UH_MSG_*: ON / OFF have none, the Options say) */
+            static const char *const UH_TEXT[] = {
+                [UH_MSG_MIDI] = "USB device connected",
+                [UH_MSG_LOST] = "USB device gone",
+                [UH_MSG_NOMIDI] = "not a USB MIDI device",
+                [UH_MSG_LOW] = "low-speed USB: not supported",
+                [UH_MSG_NOLINE] = "nothing on USB: powered hub?",
+                [UH_MSG_NOANSWER] = "USB device not answering",
+                [UH_MSG_HUB_EMPTY] = "hub found: plug in MIDI",
+                [UH_MSG_HUB_NOMIDI] = "no MIDI device on the hub",
+            };
+            if (uh.msg < sizeof UH_TEXT / sizeof UH_TEXT[0] && UH_TEXT[uh.msg])
+                cu_message(UH_TEXT[uh.msg], CR_COL_WHITE);
+            uh.msg = 0;
+        }
+#endif
         usb_retry(fm1_ms);
 #if FELUCCA_UAC
         if (ua_off_apply(fm1_ms))                       /* Options > USB Record: the host re-reads (a second off
@@ -349,7 +421,7 @@ static void fm1_main(void)
             } else if (fm1_ms - t0 > 5000u) {
                 fm1_audio_stop();
                 lcd_fill(0, 0, 240, 240, T_BG);
-                draw_text_box(0, 110, 240, &AF_M, "UBOOT", T_THEME, 1);
+                draw_text_box(0, 110, 240, CR_FONT_M, "UBOOT", T_THEME, 1);
                 usb_detach();
                 fm1_delay_ms(30);
                 bootguard_intentional(&bootguard);      /* intentional reset: not a failed boot */
@@ -372,7 +444,7 @@ static void fm1_main(void)
         if (usb.uboot_req) {                            /* SysEx F0 22 24 35 7D F7 from the host */
             fm1_audio_stop();
             lcd_fill(0, 0, 240, 240, T_BG);
-            draw_text_box(0, 110, 240, &AF_M, "UBOOT (USB)", T_THEME, 1);
+            draw_text_box(0, 110, 240, CR_FONT_M, "UBOOT (USB)", T_THEME, 1);
             fm1_delay_ms(20);
             usb_detach();
             fm1_delay_ms(30);
@@ -389,6 +461,9 @@ static void fm1_main(void)
         felucca_dbg.stage = BS_LOOP_INPUT;            /* (the first: cr_ui_init, BS_UI_INIT ..) */
         ui_input();
         settings_poll();                              /* queued settings save: only while stopped */
+#if CR_BLE
+        cr_ble_poll();                                /* Bluetooth: a start owed, its record to save (when quiet) */
+#endif
         felucca_dbg.stage = BS_LOOP_DRAW;
         ui_leds();
 #if BOARD_SMK37
@@ -407,6 +482,7 @@ static void fm1_main(void)
             ui_input();
 #if BOARD_SMK37
             cr_smk_wheels();                    /* (bends follow the wheel, not the screen) */
+            cr_smk_pedal();                     /* (the pedal jack: its sustain, its expression) */
 #endif
 #if FELUCCA_OTA
             ed_service();                       /* editor replies without waiting for the next frame */

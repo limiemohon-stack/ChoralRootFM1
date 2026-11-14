@@ -11,7 +11,11 @@ and M-VAVE.
 **The manual:** [docs/MANUAL.md](docs/MANUAL.md) (the first five minutes, every button, knob and Options entry, the
 looper, the sound editor, MIDI and USB, updating and recovery, a quick-reference table).
 
-**M-Vave SMK-37:** a community test build of 0.25 (genkigenki's port; community-tested, not tested by the maintainer): see [SMK-37 instructions](SMK37.md).
+**M-Vave SMK-37:** ChoralRoot also runs on the SMK-37 Pro, SMK-37 Elite and MKE-P37 (and the Starrykey 37 Play):
+genkigenki's port, tested by SMK-37 owners. Install it from the
+[SMK-37 installer](https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/) (Chrome or Edge), try it first in the
+[SMK-37 emulator](https://quixotic7.github.io/ChoralRootFM1/webapp/smk37/emu/), and see the
+[SMK-37 instructions](SMK37.md).
 
 ## Install
 
@@ -60,19 +64,25 @@ the FM-1's pools per engine and its ten loop slots next to a library (this brows
 Keep, Swap, Rename, Delete, Undo, a back-up, and an on-screen keyboard over Web MIDI. `manager.html?sim=1` runs it
 against a simulated FM-1, no device needed.
 
-**Back to the stock firmware:** the installer's "Return to official V15" section installs the official FM-1
-V15 firmware, `FM-1.fwsc`, which you download yourself from M-VAVE's
-[downloads page](https://www.m-vave.com/download) (or `python3 tools/fm1_install.py FM-1.fwsc --backup .`). It
-saves a backup first: the stock firmware cannot use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot
-and press Restore to bring them back. Backups move between firmwares too: a Felucca backup restores its settings,
+**Switching firmwares:** to go from ChoralRoot to another firmware or back, use [M-Flasher](https://github.com/jvitkauskas/m-flasher) with the [M-Bootloader](https://github.com/jvitkauskas/m-bootloader)
+(Windows, macOS, Linux): M-Flasher works through the chip's USB download mode whatever runs on the FM-1, backs up the
+whole flash first and installs any firmware's `.fwsc` package, ChoralRoot's included; the M-Bootloader adds download
+mode from the keys (REC while switching on) and a recovery menu. Back up in ChoralRoot's installer first: no other
+firmware can use ChoralRoot's user sounds, loops or settings; reinstall ChoralRoot and press Restore to bring them
+back. No detour through the stock firmware is needed ([the manual](docs/MANUAL.md#switching-firmwares)).
+
+**Back to the stock firmware completely:** M-VAVE's own updater, M-Updater, from M-VAVE's
+[downloads page](https://www.m-vave.com/download): it reflashes the firmware and its factory presets. (The installer's
+"Return to official V15" section, or `python3 tools/fm1_install.py FM-1.fwsc --backup .`, writes the V15 firmware
+without the presets.) Backups move between firmwares too: a Felucca backup restores its settings,
 user sounds and FM6 patches on ChoralRoot (its samples stay in the file: ChoralRoot is all-synth), and back (BUILDING.md, "Backup and restore").
 
 **Over which firmware:** the stock firmware, Felucca 1.0 or later, Melodee and ChoralRoot. The installers refuse
 Sloop, the Felucca 0.x betas and firmwares they cannot identify: an FM-1 has been bricked by an install over Sloop,
 and Felucca 0.9-beta to 1.0 bricked several (the loader wrote correctly both times; the cause is still open;
-[docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). Return to the official V15 with that firmware's installer first.
-**Bubba Machine** takes only M-VAVE's own package, so ChoralRoot cannot go over it directly: return to V15 with the web
-installer's "Return to official V15" (or `tools/fm1_install.py FM-1.fwsc`), then install ChoralRoot.
+[docs/INSTALL-COMPAT.md](docs/INSTALL-COMPAT.md)). **Bubba Machine** takes only M-VAVE's own package, so the
+installers cannot go over it either. Over any of these, install ChoralRoot with M-Flasher and the M-Bootloader
+(above): M-Flasher writes through the chip's download mode, not through the other firmware's updater.
 
 **SAFE MODE.** If ChoralRoot crashes twice in a row within 30 s of starting (switching it off and on does not count),
 it starts in SAFE MODE (a yellow screen, "Safe mode" on the top line): it plays its factory sounds and ignores what is
@@ -139,6 +149,13 @@ each part:
   and Felucca 1.1.5) at 48 kHz too when Options > USB Rate offers it; Options > USB Record switches it (Off:
   the serial console instead) ([docs/USB-AUDIO.md](docs/USB-AUDIO.md)).
 - **On the computer**: the web installer with backup, restore and sounds as files, and the web device manager.
+- **New in 0.29** ([docs/releases/0.29.md](docs/releases/0.29.md)): FIZZ's engine in FM TONE: the Digitone II's
+  filter types MULTI, COMB+, COMB- and EQ (hold SEL in the editor to pick one), DRIVE before the filter, the AHD amp
+  envelope and CRUSH; an imported Digitone sound brings its own sends; Digitone II sounds (.dn2pst, .dn2snd) in the web
+  device manager and the installer; FM TONE's chord voices on both cores.
+- **New in 0.28** ([docs/releases/0.28.md](docs/releases/0.28.md)): Digitone sounds from .syx dumps and from every record
+  version (the ones saved on Digitone OS 1.31 / 1.42 were refused), a record cut short filled with defaults; the
+  installers recognise RemoteFM1. The firmware is 0.27's with the version line changed.
 - **New in 0.27** ([docs/releases/0.27.md](docs/releases/0.27.md)): FX routing: the Routing page draws the chorus, delay,
   reverb and filter as boxes you reorder with the black keys and KNOB 1, in Parallel (the buses as before, the filter
   now movable before them) or Chain (one path, the original firmware's way); the device manager finds an FM-1 a Mac

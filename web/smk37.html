@@ -2,9 +2,9 @@
 <!-- SPDX-License-Identifier: GPL-3.0-only
      Copyright (C) 2026 ChoralRoot FM-1 contributors (a fork of Felucca)
      SMK-37 port: Copyright (C) 2026 M. Geisler (genkigenki/makkuro) -->
-<!-- The SMK-37 test installer (SMK37.md): ChoralRoot's community test builds for the M-Vave SMK-37 Pro, SMK-37 Elite,
-     MKE-P37 and Starrykey 37 Play, around the update protocol of fm1ota.js. Not linked from the landing page or the
-     FM-1 installer: the link goes to testers who accept the risk. web/make_site.py writes it to webapp/smk37/index.html
+<!-- The SMK-37 installer (SMK37.md): ChoralRoot's builds for the M-Vave SMK-37 Pro, SMK-37 Elite, MKE-P37 and
+     Starrykey 37 Play, around the update protocol of fm1ota.js. Linked from the landing page (make_site.py {{SMK}},
+     since 0.29.2-smk37: SMK-37 owners have tested the builds), never from the FM-1 installer. web/make_site.py writes it to webapp/smk37/index.html
      and inlines the libraries at LIB and the metadata at META: the versions of web/releases-smk37.json, newest first,
      each with its three models' packages (standard and single core) under ../../firmware/smk37/, their sha256 and
      identities. Install picks the connected keyboard's model (a Starrykey 37 Play, or another name of the SMK-37: the
@@ -17,8 +17,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark">
-<meta name="robots" content="noindex, nofollow">
-<title>ChoralRoot SMK-37 · test installer</title>
+<title>ChoralRoot SMK-37 · installer</title>
 <style>
   @font-face { font-family: "Inter Tight"; src: url(../../InterTight.woff2) format("woff2");
                font-weight: 100 900; font-display: swap; }
@@ -121,6 +120,7 @@
   <section>
     <h2 data-t="backTitle"></h2>
     <p data-t="backText"></p>
+    <p><a href="https://github.com/jvitkauskas/m-flasher" target="_blank" rel="noopener">M-Flasher and the M-Bootloader</a></p>
   </section>
 
   <section>
@@ -139,14 +139,14 @@ const meta = /*META*/;
 
 const TEXT = {
   en: {
-    sub: "Community test builds · community-tested, not tested by the maintainer · port by genkigenki",
+    sub: "Tested on SMK-37s by their owners (the maintainer has none) · port by genkigenki",
     riskTitle: "Before you install",
-    risk1: "This is a test build. The maintainer has no SMK-37: nothing here has been tried on a unit by the project. It may have bugs, and it may stop working.",
-    risk2: "Have M-VAVE's stock package for your model and their updater, M-UPGRADE, at hand: that is the way back.",
+    risk1: "SMK-37 owners have tested these builds, but the maintainer has no SMK-37: the project has not tried them on a unit itself. Report what you find on GitHub.",
+    risk2: "Have M-Flasher (github.com/jvitkauskas/m-flasher) and M-VAVE's stock package for your model at hand: M-Flasher with the M-Bootloader is the way to switch to another firmware; M-VAVE's own updater, M-UPGRADE, restores the stock firmware completely.",
     risk3: "The first start clears the stock firmware's settings and any other firmware's data in ChoralRoot's flash areas. The keyboard's calibration, Bluetooth pairing and key areas are never written.",
     risk4: "Keep the USB cable connected and the computer awake until the keyboard has restarted.",
     risk5: "Installing other firmware is at your own risk.",
-    accept: "I have read this, I have M-VAVE's stock package and M-UPGRADE for my model, and I install at my own risk.",
+    accept: "I have read this, I have M-Flasher and M-VAVE's stock package for my model, and I install at my own risk.",
     acceptFirst: "Tick the box above first.",
     skipBackup: "Skip the backup (a keyboard running ChoralRoot is backed up to a file first)",
     install: "Install ChoralRoot {version}",
@@ -155,13 +155,13 @@ const TEXT = {
     nomidi: "This browser has no Web MIDI. Use Chrome or Edge on a computer.",
     denied: "MIDI (SysEx) access was not allowed. Allow MIDI in the site settings (address bar) and press Install again.",
     notfound: "No keyboard found. Check the USB cable (a data cable), close other apps that use MIDI, and press Install again.",
-    fm1: "This is an FM-1: this page installs the SMK-37 test builds only. Use the FM-1 installer. Nothing was written.",
+    fm1: "This is an FM-1: this page installs the SMK-37 builds only. Use the FM-1 installer. Nothing was written.",
     notsmk: "The connected device is not an SMK-37 (it reports {detail}). Nothing was written.",
     several: "More than one keyboard is connected: unplug the others and press Install again. Nothing was written.",
     model: "The keyboard and the package are for different devices. Nothing was written. ",
     other: "This keyboard runs one of ChanceTheMaker's SMK firmwares (Felucca SMK, Sloop SMK, Melodee SMK, Doom). They have their own updater, which takes only their packages, so ChoralRoot cannot be installed over them from here. Nothing was written.",
     foreign: "The keyboard is in the update mode of another firmware: nothing was written. Finish that update with its own updater: ",
-    refused: "ChoralRoot is not installed over this firmware: {detail}. Return to the stock firmware with M-UPGRADE first. Nothing was written.",
+    refused: "ChoralRoot is not installed over this firmware: {detail}. Switch with M-Flasher and the M-Bootloader instead (github.com/jvitkauskas/m-flasher): M-Flasher installs ChoralRoot's package through the chip's download mode. Nothing was written.",
     loadfail: "The package could not be downloaded: ",
     badpkg: "The package is not the one this page lists (its checksum or identity differ). Nothing was written.",
     backup: "Backing up the keyboard: ",
@@ -189,7 +189,7 @@ const TEXT = {
     notesTitle: "This build",
     docLink: "SMK37.md: the controls, what to test, building it yourself",
     backTitle: "Going back",
-    backText: "Install M-VAVE's firmware package for your model with M-VAVE's updater, M-UPGRADE. It works directly: the installed package keeps the keyboard's model name, and the calibration was never written.",
+    backText: "To switch to another firmware: M-Flasher and the M-Bootloader (github.com/jvitkauskas/m-flasher). Back up the whole flash in M-Flasher, install the M-Bootloader, then the other firmware's package. To restore the stock firmware completely: M-VAVE's firmware package for your model with M-VAVE's updater, M-UPGRADE. It works directly: the installed package keeps the keyboard's model name, and the calibration was never written.",
     filesTitle: "Files",
     licence: "Free software under the GNU General Public License, version 3 only; the packages hold three JieLi AC79 SDK files under Apache-2.0.",
     model_pro: "SMK-37 Pro (and Starrykey 37 Play)", model_elite: "SMK-37 Elite", model_mke: "MKE-P37",
@@ -225,7 +225,7 @@ const pkgOf = (rel, key) => {
 };
 function render() {
   const rel = cur();
-  if (!rel) { $("rel").textContent = "No test build is published yet."; $("go").disabled = true; return; }
+  if (!rel) { $("rel").textContent = "No SMK-37 build is published yet."; $("go").disabled = true; return; }
   $("rel").innerHTML = `<b>ChoralRoot ${esc(rel.version)}</b> · ${esc(rel.date || "")}${rel.title ? " · " + esc(rel.title) : ""}`;
   $("go").textContent = t("install").replace("{version}", rel.version);
   $("go").disabled = writing || !$("accept").checked;
@@ -294,7 +294,7 @@ $("go").addEventListener("click", async () => {
     const m = modelOf(id.model);
     if (!m) throw /^(ota-)?FM-1$/i.test(id.model) ? coded("fm1") : coded("notsmk", id.text);
     if (OTHER_SMK(id)) throw coded("other");
-    const total = 74 + 1167;
+    const total = 74 + 1167 + (0xA9000 - 0x93000) / 512;   // (the SMK's app area past the FM-1's and its resource region, 3y295)
     const step = (k, a) => {
       log(`${k} ${a ?? ""}`);
       if (k === "start") { began = true; sayK("start"); }

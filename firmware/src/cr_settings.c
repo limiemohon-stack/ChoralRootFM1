@@ -198,7 +198,7 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(key_on, 0, (int)CRS_KEY_MAX);          /* (v14: bit 1 Key plays Notes, bit 2 the Full keyboard; 0.22:
                                                     * bits 3 .. 4 Snap 0 .. 2, CRS_SNAP) */
     CRS_FIX(tonic, 0, 11);
-    if (CRS_SCALE(s) > CR_SCALE_MINOR)             /* (bits 0..6 the scale; bit 7 Numerals' Solfege, CRS_SOLFEGE: kept) */
+    if (CRS_SCALE(s) >= CR_SCALE_COUNT)            /* (bits 0..6 the scale; bit 7 Numerals' Solfege, CRS_SOLFEGE: kept) */
         s->scale = (uint8_t)((s->scale & CRS_SOLFEGE) | d.scale);
     CRS_FIX(transpose, -24, 24);
     CRS_FIX(single, 0, CR_SINGLE_SPLIT_BASS);      /* (v14: 2 Split Bass) */
@@ -230,13 +230,16 @@ static void crs_sanitize(cr_settings_t *s)
     CRS_FIX(loop_count_in, 0, 1);
     CRS_FIX(loop_level, 0, 100);
     for (i = 0; i < 3; i++) {
-        if (s->midi_en[i] > 1u) s->midi_en[i] = d.midi_en[i];
+        if (s->midi_en[i] > (i == 2 ? 0x3Fu : 1u)) s->midi_en[i] = d.midi_en[i];   /* (midi_en[2] bits 1 .. 5: MIDI
+                                                    * Roots, 3y289) */
         if (s->midi_ch[i] > 15u) s->midi_ch[i] = d.midi_ch[i];
     }
+    if (CRS_MIDI_ROOTS(s) > 16u)                   /* (no such channel: Off, MIDI Raw Chord kept) */
+        s->midi_en[2] = (uint8_t)CRS_EN(s, 2);
     CRS_FIX(clock_mode, 0, CRS_CLOCK_IN);
-    CRS_FIX(raw_sound, 0, 0x3F);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel) */
-    if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound kept) */
-        s->raw_sound = (uint8_t)(s->raw_sound & 1u);
+    CRS_FIX(raw_sound, 0, 0xFF);                   /* (0.24: bits 1 .. 5 MIDI Keys' channel; 3y269: bits 6, 7 MIDI CC) */
+    if (CRS_MIDI_KEYS(s) > 16u)                    /* (no such channel: Off, Raw Chord Sound and MIDI CC kept) */
+        s->raw_sound = (uint8_t)(s->raw_sound & (1u | CRS_CC_IN_OFF | CRS_CC_OUT_ON));
     if ((s->view & 0x38u) || CRS_VIEW(s) > 5u)    /* (v9: bit 7 the lock, v12: bit 6 Dual Core On; 5 Geek Out 2
                                                     * since 0.22; an unknown bit or view: the default view, unlocked;
                                                     * Dual Core as the record has it: since 0.22 the default is On,
@@ -394,7 +397,8 @@ int cr_settings_import(cr_settings_t *s, const void *blk, uint32_t n)
 }
 
 /* ------------------------------------------------------ the session record --- */
-typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 ? 1 : -1];
+typedef char css_size_ok[sizeof(cr_session_t) == CSS_SIZE && sizeof(css_fx_t) == 128 && sizeof(css_part_t) == 384 &&
+                         sizeof(css_drum_t) == 40 ? 1 : -1];
 static uint32_t css_fnv(const cr_session_t *x, uint32_t from, uint32_t size)
 {
     const uint8_t *b = (const uint8_t *)x;
@@ -552,10 +556,10 @@ void cr_settings_apply(const cr_settings_t *s, cr_t *c, cr_settings_out_t *o)
     cr_set_perform(c, s->perform_on);
     cr_set_sticky(c, (int)CRS_LATCH(s));           /* (bit 0: the other bits are the UI's Options) */
     cr_set_tempo(c, s->bpm);
-    cr_set_stream(c, CR_STREAM_RAW, s->midi_en[CR_STREAM_RAW] || CRS_RAW(s));
+    cr_set_stream(c, CR_STREAM_RAW, CRS_EN(s, CR_STREAM_RAW) || CRS_RAW(s));
     if (o) {
         for (i = 0; i < 3; i++) {
-            o->midi_en[i] = s->midi_en[i];
+            o->midi_en[i] = (uint8_t)CRS_EN(s, i);
             o->ch[i] = s->midi_ch[i];
         }
         o->part[CR_STREAM_MAIN] = 0;
@@ -592,7 +596,7 @@ void cr_settings_capture(cr_settings_t *s, const cr_t *c, const cr_settings_out_
             s->par[m][p] = (int16_t)cr_get_param(c, (cr_pmode_t)m, p);
     if (o) {
         for (i = 0; i < 3; i++) {
-            s->midi_en[i] = o->midi_en[i] ? 1u : 0u;
+            s->midi_en[i] = (uint8_t)((s->midi_en[i] & 0x3Eu) | (o->midi_en[i] ? 1u : 0u));   /* (MIDI Roots kept) */
             s->midi_ch[i] = (uint8_t)(o->ch[i] & 15u);
         }
         s->raw_sound = (uint8_t)((s->raw_sound & (uint8_t)~1u) | (o->part[CR_STREAM_RAW] != CRS_NONE ? 1u : 0u));
@@ -794,11 +798,11 @@ static void crs_capture(cr_settings_t *s)
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         s->par[i / CRS_NPAR][i % CRS_NPAR] = cs.par[i / CRS_NPAR][i % CRS_NPAR];
     for (i = 0; i < 3u; i++) {
-        s->midi_en[i] = cs.ch[i] != 0u;
+        s->midi_en[i] = (uint8_t)((cs.ch[i] != 0u) | (i == 2u ? (cs.midi_roots & 31u) << 1 : 0u));   /* (MIDI Roots) */
         if (cs.ch[i])
             s->midi_ch[i] = (uint8_t)(cs.ch[i] - 1u);
     }
-    s->raw_sound = CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys);
+    s->raw_sound = (uint8_t)(CRS_RAW_BYTE(cs.raw_sound, cs.midi_keys) | CRS_CC_BITS(cs.midi_cc));
     s->loop_sync = cs.loop_len;
     s->loop_quant = cs.loop_quant;
     s->loop_count_in = cs.loop_count_in;
@@ -1003,6 +1007,97 @@ static int css_part_put(uint32_t part, const css_part_t *r)
 #undef r_edited
 #endif
 
+/* Chord and Bass Perform (0.34): the session's -> the UI and the engine (x NULL, or a record without them: the chord
+ * performs, the bass not, its parameters the defaults; nothing sounds yet, the engine directly with the IRQ off) */
+static void css_perf_put(const cr_session_t *x)
+{
+    uint32_t m, k, sel = 0, off = 1u << CU_PF_BASS, stored = x && (x->perf_x & CSS_PERF_STORED);
+    if (stored) {
+        sel = x->bperf_sel < 7u ? x->bperf_sel : 0u;
+        off = (x->perf_x & CSS_PERF_CHORD_OFF ? 1u << CU_PF_CHORD : 0u) | (x->perf_x & CSS_PERF_BASS_ON ? 0u : 1u << CU_PF_BASS);
+    }
+    for (m = 0; m < CR_PM_COUNT; m++)
+        for (k = 0; k < CR_P_COUNT; k++)
+            cs.bpar[m][k] = (int16_t)cr_param_default((cr_pmode_t)m, (cr_eparam_t)k);
+    if (CU_PERF[sel].range)                        /* (its entry's range: Arp 2 Octaves; a knob's below wins) */
+        cs.bpar[CU_PERF[sel].mode][CR_P_RANGE] = CU_PERF[sel].range;
+    for (m = 0; stored && m < CR_PM_COUNT; m++)
+        for (k = 0; k < 4u; k++) {
+            int32_t p = CU_BPAR_SLOT[m][k], v = x->bpar[m][k];
+            if (p >= 0 && v >= CU_PAR[p].min && v <= CU_PAR[p].max)
+                cs.bpar[m][p] = (int16_t)v;
+        }
+    cs.bperf_sel = (uint8_t)sel;
+    cs.perf_off = (uint8_t)off;
+    cs.bass_keys = (uint8_t)(x && (x->perf_x & CSS_BASS_KEYS) ? 1u : 0u);
+    cs.bfollow = (uint8_t)(stored && (x->perf_x & CSS_BASS_FOLLOW) ? 1u : 0u);
+    fm1_irq_off();
+    for (m = 0; m < CR_PM_COUNT; m++)
+        for (k = 0; k < CR_P_COUNT; k++)
+            cr_set_param_ex(&cr, CR_PF_BASS, (cr_pmode_t)m, (cr_eparam_t)k, cs.bpar[m][k]);
+    cr_set_perform_mode_ex(&cr, CR_PF_BASS, (cr_pmode_t)CU_PERF[sel].mode);
+    cr_set_perform_follow(&cr, cs.bfollow);
+    cr_set_perform_part(&cr, CR_PF_CHORD, !(off & (1u << CU_PF_CHORD)));
+    cr_set_perform_part(&cr, CR_PF_BASS, !(off & (1u << CU_PF_BASS)));
+    fm1_irq_on();
+}
+
+/* the beat (the SEQ layer) <-> the session's drum block. A record without it (ver 0: before the drums), or a field out
+ * of range: the defaults (cr_ui.c cu_drum_defaults: Metronome). Version 1 (0.40): each drum's one send S as Delay S and
+ * Reverb S, Chorus 0, Level 64: what 0.40 played, bit for bit (3y303); versions 1 and 2: Filter 127, Drive 0 (3y304) */
+static void css_drum_get(css_drum_t *d)
+{
+    uint32_t i, k;
+    d->ver = CSS_DRUM_VERSION;
+    d->preset = cs.beat_preset;
+    d->kit = cs.dr_kit;
+    d->level = cs.dr_level;
+    d->x = cs.dr_x;
+    d->y = cs.dr_y;
+    d->density = cs.dr_dens;
+    d->chaos = cs.dr_chaos;
+    for (i = 0; i < 3u; i++)
+        for (k = 0; k < 4u; k++)
+            d->dr[i][k] = cs.dr[i][k];
+    for (i = 0; i < 3u; i++) {
+        d->cho[i] = cs.dr_fx[i][0];
+        d->send[i] = cs.dr_fx[i][1];
+        d->rev[i] = cs.dr_fx[i][2];
+        d->lvl[i] = cs.dr_lvl[i];
+        d->flt[i] = cs.dr_flt[i];
+        d->drv[i] = cs.dr_drv[i];
+    }
+}
+static void css_drum_put(const cr_session_t *x)
+{
+    const css_drum_t *d = x ? &x->drum : 0;
+    uint32_t i, k;
+    cu_drum_defaults();
+    if (!d || !d->ver || d->ver > CSS_DRUM_VERSION)
+        return;
+    if (d->preset <= 1u) cs.beat_preset = d->preset;
+#if CR_DRUMS
+    if (d->kit < CRD_NKIT) cs.dr_kit = d->kit;
+#endif
+    if (d->level <= 100u) cs.dr_level = d->level;
+    if (d->x <= 127u) cs.dr_x = d->x;
+    if (d->y <= 127u) cs.dr_y = d->y;
+    if (d->density <= 127u) cs.dr_dens = d->density;
+    if (d->chaos <= 127u) cs.dr_chaos = d->chaos;
+    for (i = 0; i < 3u; i++)
+        for (k = 0; k < 4u; k++)
+            if (d->dr[i][k] <= (k ? 127u : 24u)) cs.dr[i][k] = d->dr[i][k];
+    for (i = 0; i < 3u; i++) {
+        uint32_t v1 = d->ver == 1u;                /* (0.40's one send: the delay and the reverb) */
+        if (d->send[i] <= 127u) cs.dr_fx[i][1] = d->send[i];
+        if (!v1 && d->cho[i] <= 127u) cs.dr_fx[i][0] = d->cho[i];
+        if (v1 ? d->send[i] <= 127u : d->rev[i] <= 127u) cs.dr_fx[i][2] = v1 ? d->send[i] : d->rev[i];
+        if (!v1 && d->lvl[i] <= 127u) cs.dr_lvl[i] = d->lvl[i];
+        if (d->ver >= 3u && d->flt[i] <= 127u) cs.dr_flt[i] = d->flt[i];   /* (version 2: 127, 0, the defaults) */
+        if (d->ver >= 3u && d->drv[i] <= 127u) cs.dr_drv[i] = d->drv[i];
+    }
+}
+
 /* the unit's state now -> *x (sealed; `bind` is the writer's: css_write) */
 static void css_capture(cr_session_t *x)
 {
@@ -1024,6 +1119,19 @@ static void css_capture(cr_session_t *x)
             cr_session_fx_set(x, CSS_FXG[i].tag, *css_fxg_p(i));
     css_part_get(0, &x->part[0]);
     css_part_get(1, &x->part[1]);
+    x->perf_x = (uint8_t)(CSS_PERF_STORED | (cu_pf_off(CU_PF_CHORD) ? CSS_PERF_CHORD_OFF : 0u) |
+                          (cu_pf_off(CU_PF_BASS) ? 0u : CSS_PERF_BASS_ON) | (cs.bass_keys ? CSS_BASS_KEYS : 0u) |
+                          (cs.bfollow ? CSS_BASS_FOLLOW : 0u));
+    x->bperf_sel = cs.bperf_sel;
+    css_drum_get(&x->drum);
+    for (i = 0; i < (uint32_t)CR_PM_COUNT * 4u; i++)
+        x->bpar[i / 4u][i % 4u] = CU_BPAR_SLOT[i / 4u][i % 4u] >= 0 ? cs.bpar[i / 4u][CU_BPAR_SLOT[i / 4u][i % 4u]] : 0;
+#if BOARD_SMK37
+    x->smk_master[0] = (uint8_t)((uint32_t)(smk_master + 1) & 0xFFu);   /* K1's level + 1 (0: not stored) */
+    x->smk_master[1] = (uint8_t)((uint32_t)(smk_master + 1) >> 8);
+    x->smk_pedal = cs.smk_pedal;                   /* Options > Pedal */
+    x->smk_trs_off = smk_ut_off;                   /* Options > TRS MIDI Out */
+#endif
     cr_session_seal(x);
 }
 
@@ -1056,6 +1164,19 @@ static void css_apply(const cr_session_t *x)
     if (x->bass_on)
         cr_set_bass(&cr, 1);
     fm1_irq_on();
+#if BOARD_SMK37
+    {                                              /* K1's level (a record without it: 724, the power-on default; master.c
+                                                    * master_poll glides to it from there, under the splash) */
+        uint32_t lv = (uint32_t)x->smk_master[0] | (uint32_t)x->smk_master[1] << 8;
+        if (lv >= 1u && lv <= 1024u)
+            smk_master = (int32_t)lv - 1;
+    }
+    cs.smk_pedal = (uint8_t)(x->smk_pedal == 1u);  /* Options > Pedal (0, an older record: Sustain; cr_ui.c cr_smk_pedal
+                                                    * takes the change) */
+    smk_ut_off = (uint8_t)(x->smk_trs_off == 1u);  /* Options > TRS MIDI Out (0, an older record: On) */
+#endif
+    css_perf_put(x);                               /* the Bass Perform, the chord's Off */
+    css_drum_put(x);                               /* the beat's preset and the drums (cu_loop_conf posts them) */
     cu.octave = x->octave;                         /* (cu_post_kbd follows: the split key's note moves with it) */
     cs.loop_rate = (uint8_t)((int)x->loop_rate + (int)CRL_RATE_1);   /* (cu_loop_conf posts it with the looper's) */
     if (x->bass_on) {                              /* v15: the bass comes back on, on its sound (ALGORITHM's place:
@@ -1141,16 +1262,21 @@ static void cr_settings_load(void)
     for (i = 0; i < (uint32_t)CRS_NPM * CRS_NPAR; i++)
         cs.par[i / CRS_NPAR][i % CRS_NPAR] = s->par[i / CRS_NPAR][i % CRS_NPAR];
     for (i = 0; i < 3u; i++)
-        cs.ch[i] = (uint8_t)(s->midi_en[i] ? s->midi_ch[i] + 1u : 0u);
+        cs.ch[i] = (uint8_t)(CRS_EN(s, i) ? s->midi_ch[i] + 1u : 0u);
     cs.raw_sound = (uint8_t)CRS_RAW(s);
     cs.midi_keys = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_KEYS(s) : 0u);
+    cs.midi_roots = (uint8_t)(CU_FN_KEYS ? CRS_MIDI_ROOTS(s) : 0u);
+    cs.midi_cc = (uint8_t)CRS_MIDI_CC(s);          /* Options > MIDI CC (0, an older record's bits: In) */
     cr_route.clock_out = o.clock_out;
     cr_route.clock_in = o.clock_in;
     cs.loop_len = s->loop_sync;
     cs.loop_quant = s->loop_quant;
     cs.loop_count_in = s->loop_count_in;
     cs.loop_level = s->loop_level;
-    cs.metro = s->metro_on;
+    cs.metro = 0;                                  /* the beat (the click or the drums) is off at every power-on, restore
+                                                    * and revert (the owner, after the drums: "the metronome and drums should
+                                                    * always default to being off when powering on"); metro_on is still
+                                                    * written, and not read */
     cs.metro_sig = s->metro_sig;
     cs.metro_vol = s->metro_vol;
     cs.loop_slot = s->loop_slot;
@@ -1337,7 +1463,6 @@ static void crs_ahead_boot(void)
             crq.off = 1;
         }
     }
-#if UP_POOL
     {   /* the sound pool's next target (storage.c sp_prep): a SAVE then programs only (0.22) */
         int rc = sp_prep();
         if (rc > 0) {
@@ -1345,7 +1470,6 @@ static void crs_ahead_boot(void)
             crq.ahead_boot++;
         }
     }
-#endif
     st_ahead_ok[3] = 0;
 #endif
 }
@@ -1380,7 +1504,6 @@ static void crs_ahead_poll(void)
             crq.off = 1;                           /* a flash error: no erase ahead until the next power-on */
         return;
     }
-#if UP_POOL
     if (!sp_ready()) {                             /* the sound pool's next target, after a SAVE used it (0.22) */
         st_when_t w;
         int rc;
@@ -1397,7 +1520,6 @@ static void crs_ahead_poll(void)
         else if (rc < 0)
             crq.off = 1;
     }
-#endif
 #endif
 }
 
@@ -1550,6 +1672,12 @@ static void crs_reinit(void)
     cs.bass_sound = 0;                             /* ALGORITHM at OFF: the bass off */
     cs.bass_on = 0;
     cs.loop_rate = CRL_RATE_1;                     /* the loop's Rate: x1 */
+    css_perf_put(NULL);                            /* the bass's Perform Off, its defaults; the chord's on */
+    css_drum_put(NULL);                            /* the beat: Metronome, the drums' defaults */
+#if BOARD_SMK37
+    cs.smk_pedal = 0;                              /* Options > Pedal: Sustain */
+    smk_ut_off = 0;                                /* Options > TRS MIDI Out: On */
+#endif
 }
 
 /* Options > Reset Settings (the owner, 2026-10-12): every option back to what a new unit has, now and in flash. The

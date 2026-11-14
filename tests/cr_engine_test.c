@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include "../firmware/src/cr_engine.h"
+#define CR_Q_OLD 8               /* the qualities up to 0.35 (CR_Q_NONE .. CR_Q_MIN4): the tables copied from then */
 
 /* ------------------------------------------------------------ harness --- */
 typedef struct { char k; uint8_t s, note, vel; uint64_t t; uint32_t ms; } logev_t;
@@ -404,11 +405,11 @@ static void s_bass(void)
     K(48, 1); cr_panic(&C);
     ok(sounding() == 0, "panic clears bass notes as well");
     R(48, 1); MU(CR_MOD_MAJ);
-    /* the bass toggle applies to the next gesture; a sounding bass finishes with its chord */
+    /* the bass toggle applies at once to a held chord (0.34) */
     MD(CR_MOD_MAJ); K(48, 1); clear();
     cr_set_bass(&C, 0);
-    expect("", "bass off while held: no change");
-    R(48, 1); expect("-48 -52 -55 -36b", "the held chord's bass ends with it");
+    expect("-36b", "bass off while held: the bass stops, the chord sounds on");
+    R(48, 1); expect("-48 -52 -55", "the held chord ends without a bass");
     K(48, 1); expect("+48 +52 +55", "bass off: the next chord has no bass");
     R(48, 1); MU(CR_MOD_MAJ); clear();
     cr_set_bass(&C, 1);
@@ -1529,8 +1530,16 @@ static void s_bassmodes(void)
     cr_set_playstyle(&C, CR_PS_SIMPLE); clear();
     cr_set_bass_mode(&C, CR_BASS_SOLO);
     MD(CR_MOD_MAJ); K(48, 1);
-    expect("+36/127b", "Solo: bass without main or raw");
-    R(48, 1); MU(CR_MOD_MAJ); expect("-36b", "Solo: release");
+    expect("+48/127b", "Solo: bass without main or raw, the root in the octave played (issues 40, 43)");
+    R(48, 1); MU(CR_MOD_MAJ); expect("-48b", "Solo: release");
+    MD(CR_MOD_MAJ); K(72, 1);
+    expect("+72/127b", "Solo: two octaves up the keys, two octaves up the bass");
+    R(72, 1); MU(CR_MOD_MAJ); clear();
+    cr_bass_voicing_step(&C, -2);
+    MD(CR_MOD_MAJ); K(60, 1);
+    expect("+36/127b", "Solo: the register moves it by octaves (-2: C4 sounds C2)");
+    R(60, 1); MU(CR_MOD_MAJ); clear();
+    cr_bass_voicing_step(&C, 2);
     cr_set_perform(&C, 1); cr_set_perform_mode(&C, CR_PM_ARP); cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
     MD(CR_MOD_MAJ); K(48, 1); step(600);
     ok(count('+', 0) == 0 && count('+', 1) == 1, "Solo: no performance output, one bass note");
@@ -2330,6 +2339,45 @@ static void s_snap(void)
     cr_set_key_plays(&C, 0); cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
 }
 
+/* a latched voice whose key, held at LATCH off, plays another note by then (Snap moved it): LATCH off left it (its key
+ * "held"), the key's release ended only the snapped note, and the voice and its Bass Perform arp sounded on for good;
+ * Free sounding the last root again over a Full-keyboard note: the note's release ended the Free copy, not the note */
+static void s_orphans(void)
+{
+    fresh("orphans");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_key_plays(&C, 1);
+    cr_set_key_snap(&C, CR_KEYSNAP_SCALE);
+    cr_set_key(&C, 1, 2, CR_SCALE_MAJOR);          /* D major: C# plays itself */
+    cr_set_sticky(&C, 1);
+    K(64, 1); K(61, 1); R(61, 1); step(300);       /* E held, C# latched */
+    cr_set_key(&C, 1, 0, CR_SCALE_MAJOR);          /* C major: C# snaps to C now */
+    K(61, 1); step(300);                           /* the same key again: C (E still held: no new gesture) */
+    cr_set_sticky(&C, 0);
+    ok(cr_voices(&C) == 2, "LATCH off with C# down (it plays C now): the latched C# goes, E and C stay");
+    R(61, 1); R(64, 1); step(1000);
+    ok(cr_voices(&C) == 0 && cr_pending(&C) == 0 && sounding() == 0, ".. every key up: nothing left, no bass arp stepping on");
+    /* Free over the Full keyboard: a chord key with only a note held sounds the last root again as a Free voice */
+    fresh("orphans, Free");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_playstyle(&C, CR_PS_FREE);
+    cr_set_keyboard(&C, 1, 58);
+    K(50, 1); K(61, 1); step(300); R(50, 1);       /* (D's voice slot is free again: the Free copy takes it, before C#'s) */
+    MD(CR_MOD_MAJ); step(300);
+    R(61, 1); step(10);
+    MU(CR_MOD_MAJ); step(1000);
+    ok(cr_voices(&C) == 0 && cr_pending(&C) == 0 && sounding() == 0, "Free over a Full-keyboard note: its release ends the note itself");
+    cr_set_keyboard(&C, 0, 65); cr_set_playstyle(&C, CR_PS_SIMPLE);
+    cr_set_perform(&C, 0);
+    clear();
+}
+
 static void s_loopvoice(void)
 {
     fresh("loop voices");
@@ -2397,7 +2445,7 @@ static void s_loopvoice(void)
 /* -------------------------- Options > 6th with 7th (0.20): Octave up --- */
 /* a copy of main's note builder (cr_engine.c at e51baa5: cr_chord_base and cr_voice_apply), which knows nothing of the
  * option: Off must give its notes, bit for bit */
-static const uint16_t M_QUALITY[CR_Q_COUNT] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303 };
+static const uint16_t M_QUALITY[CR_Q_OLD] = { 0, 0x6303, 0x7303, 0x7403, 0x7503, 0x8403, 0xC703, 0x5303 };
 static const uint8_t M_EXT_IV[4] = { 9, 10, 11, 14 };
 static void m_sort(uint8_t *a, int n)
 {
@@ -2412,7 +2460,7 @@ static int m_chord_base(int root_note, uint8_t quality, uint8_t ext, uint8_t out
 {
     uint8_t iv[CR_CHORD_MAX];
     int ni = 0, n = 0, j, k;
-    if (quality > CR_Q_NONE && quality < CR_Q_COUNT) {
+    if (quality > CR_Q_NONE && quality < CR_Q_OLD) {
         uint16_t q = M_QUALITY[quality];
         for (j = 1; j <= (int)(q & 15u); j++) iv[ni++] = (uint8_t)((q >> (j * 4)) & 15u);
         for (k = 0; k < 4; k++) {
@@ -2495,7 +2543,7 @@ static void s_sixth_tables(void)
     int bad_off = 0, bad_same = 0, bad_move = 0, bad_top = 0, bad_cnt = 0, bad_voff = 0, bad_vpc = 0, bad_vone = 0, vone = 0, bad_range = 0;
     char name[220];
     strcpy(TAG, "6th");
-    for (q = 0; q < CR_Q_COUNT; q++)
+    for (q = 0; q < CR_Q_OLD; q++)
         for (x = 0; x < 16; x++)
             for (ri = 0; ri < (int)(sizeof ROOTS / sizeof ROOTS[0]); ri++) {
                 int r = ROOTS[ri], na, nb, nm, i;
@@ -2580,11 +2628,11 @@ static void s_sixth_tables(void)
     {
         static const int RT[] = { 36, 48, 57, 60, 72 };
         static const int VK[] = { -12, -5, -2, -1, 0, 1, 2, 3, 7, 12 };
-        static const uint8_t M1[CR_Q_COUNT] = { 0, CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_MAJ, CR_MOD_DIM, CR_MOD_MIN };
+        static const uint8_t M1[CR_Q_OLD] = { 0, CR_MOD_DIM, CR_MOD_MIN, CR_MOD_MAJ, CR_MOD_SUS, CR_MOD_MAJ, CR_MOD_DIM, CR_MOD_MIN };
         int set, vi, i, bad_lv = 0, bad_fix = 0, bad_pad = 0, bad_key = 0, bad_stuck = 0, n = 0;
         memset(SND, 0, sizeof SND); dup_on = stray_off = 0;
         for (set = 0; set < 2; set++)
-            for (q = 1; q < CR_Q_COUNT; q++)
+            for (q = 1; q < CR_Q_OLD; q++)
                 for (x = 0; x < 16; x++)
                     for (ri = 0; ri < 5; ri++)
                         for (vi = 0; vi < 10; vi++) {
@@ -2798,6 +2846,285 @@ static void s_sixth(void)
     ok(sounding() == 0 && dup_on == 0 && stray_off == 0, "6th with 7th: nothing left, doubled or ended twice");
 }
 
+static void s_transport(void)                     /* MIDI Start (3y253): the Arp from its first step, now */
+{
+    int idx[256], n, r;
+    uint64_t t0;
+    for (r = 1; r >= 0; r--) {                    /* Retrig on (anchored at the press) and off (the global grid) */
+        fresh(r ? "transport retrig" : "transport grid");
+        cr_set_perform(&C, 1);
+        cr_set_perform_mode(&C, CR_PM_ARP);
+        cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0);
+        cr_set_param(&C, CR_PM_ARP, CR_P_RETRIG, r);
+        MD(CR_MOD_MAJ);
+        K(48, 1); step(630);                      /* 48 52 55 played, 48 next */
+        clear();
+        t0 = T;
+        cr_transport_start(&C);
+        step(520);
+        n = ons(idx, 256, 0);
+        ok(n == 3 && LOG[idx[0]].note == 48 && LOG[idx[1]].note == 52 && LOG[idx[2]].note == 55,
+           r ? "Start, Retrig on: the arp again from its first note (48 52 55)"
+             : "Start, Retrig off: the arp again from its first note (48 52 55)");
+        ok(n >= 2 && tms(LOG[idx[0]].t - t0) < TOL() && tms(LOG[idx[1]].t - LOG[idx[0]].t) > 250 - TOL() &&
+           tms(LOG[idx[1]].t - LOG[idx[0]].t) < 250 + TOL(), "Start: the first step at once, the next 250 ms on");
+        R(48, 1); step(300); clear();
+        cr_set_param(&C, CR_PM_ARP, CR_P_RETRIG, 1);
+    }
+    cr_set_perform(&C, 0); clear();
+}
+
+/* Chord and Bass Perform (0.34, GitHub issue 41): each part its own mode and parameters under the one switch */
+static int ons_notes(int s, int *v, int max)
+{
+    int idx[256], n = ons(idx, 256, s), i;
+    for (i = 0; i < n && i < max; i++) v[i] = LOG[idx[i]].note;
+    return n;
+}
+/* Follow (after 0.34): the bass performs the chord's mode with its parameters, step for step */
+static void s_bassfollow(void)
+{
+    int vc[64], vb[64], ic[256], ib[256], nc, nb, k, same;
+    fresh("bass follow");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);              /* the bass's own mode: Strum */
+    cr_set_perform_follow(&C, 1);
+    MD(CR_MOD_MAJ); K(48, 1); step(900);
+    nc = ons(ic, 256, 0); nb = ons(ib, 256, 1);
+    ons_notes(0, vc, 64); ons_notes(1, vb, 64);
+    for (k = 0, same = nc >= 3 && nc == nb; same && k < nc && k < 64; k++)
+        same = LOG[ic[k]].ms == LOG[ib[k]].ms && vb[k] == vc[k] - 12;
+    ok(same, "Follow: the bass arps the chord's notes in its register, each step with the chord's");
+    ok(nb >= 3 && vb[0] == 36 && vb[1] == 40 && vb[2] == 43, "Follow: 36 40 43 (the chord's Arp, not the bass's Strum)");
+    ok(cr_perform_shown(&C) == CR_PF_CHORD, "Follow: the views show the chord's");
+    R(48, 1); step(400); clear();
+    cr_set_param(&C, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    K(48, 1); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 3 && vb[0] == 43 && vb[1] == 40 && vb[2] == 36 && vc[0] == 55, "Follow: the chord's Direction Down, both go down");
+    clear();
+    cr_set_param(&C, CR_PM_ARP, CR_P_DIR, CR_DIR_UP); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 2 && vb[0] % 12 == vc[0] % 12 && vb[1] % 12 == vc[1] % 12, "Follow: a chord parameter turned while held, the bass follows it");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    ok(cr_get_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR) == CR_DIR_DOWN, "Follow: the bass's own parameters are kept");
+    clear(); step(600);
+    ons_notes(0, vc, 64); nb = ons_notes(1, vb, 64);
+    ok(nb >= 2 && vb[0] % 12 == vc[0] % 12, "Follow: the bass's own parameters are not used while it follows");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_UP);
+    /* the chord Off: the bass plays its plain note */
+    cr_set_perform_part(&C, CR_PF_CHORD, 0); step(10); clear(); step(600);
+    ok(count('+', 1) == 0 && SND[1][36] && SND[0][48] && SND[0][52] && SND[0][55], "Follow, the chord Off: no performance, the bass holds 36");
+    cr_set_perform_part(&C, CR_PF_CHORD, 1); step(10); clear(); step(600);
+    ok(count('+', 1) >= 2 && count('+', 0) >= 2, "the chord on again: both arp");
+    /* Follow off: the bass's own mode (Strum) */
+    cr_set_perform_follow(&C, 0); step(300);
+    ok(SND[1][36] && SND[1][40] && SND[1][43], "Follow off: the bass strums (its own mode)");
+    R(48, 1); step(400); clear();
+    /* the chord's Hold latches a following bass */
+    cr_set_perform_follow(&C, 1);
+    cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 1);
+    ok(cr_latching(&C), "Follow: the chord's Hold latches");
+    K(48, 1); step(100); R(48, 1); step(600);
+    ok(count('+', 1) >= 2, "Follow + Hold: the bass arps on after the keys");
+    cr_set_param(&C, CR_PM_ARP, CR_P_HOLD, 0); step(400);
+    ok(sounding() == 0, "Hold off: both stop");
+    MU(CR_MOD_MAJ); cr_set_perform_follow(&C, 0);
+}
+static void s_bassperf(void)
+{
+    int v[64], n, idx[256];
+    uint8_t note = 0;
+    fresh("bass perform");
+    ok(C.perf_parts == 1u && C.bperf_mode == CR_PM_STRUM, "default: the chord performs, the bass does not");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    MD(CR_MOD_MAJ); K(48, 1); step(10);
+    ok(SND[1][36] && count('+', 1) == 1, "default with Perform on: the chord arps, the bass holds its note (36)");
+    R(48, 1); step(300); clear();
+    /* the bass arps, the chord sustains */
+    cr_set_perform_part(&C, CR_PF_CHORD, 0);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    K(48, 1); step(900);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 3 && SND[0][48] && SND[0][52] && SND[0][55], "chord Off, bass Arp: the chord sounds as with Perform off");
+    ok(n == 4 && v[0] == 36 && v[1] == 40 && v[2] == 43 && v[3] == 36, "bass Arp: the chord in the bass register (36 40 43 36)");
+    ok(n == 4 && grid_ok((ons(idx, 256, 1), idx), 4, 250, 1), "bass Arp: 1/8 steps at 120 BPM");
+    ok(cr_perform_shown(&C) == CR_PF_BASS && cr_perform_stepping(&C), "the view shows the bass's arp (the chord's is off)");
+    ok(cr_perform_pos(&C, &note) >= 0 && note % 12 == 0, "its position is matched to the chord's notes by name");
+    /* Bass off / on under a held chord: the bass arp stops and starts at once, the chord untouched */
+    clear(); cr_set_bass(&C, 0); step(10);
+    ok(!SND[1][36] && !SND[1][40] && !SND[1][43] && count('-', 0) == 0, "Bass off, chord held: the bass arp stops");
+    step(600);
+    ok(count('+', 1) == 0 && SND[0][48] && SND[0][52] && SND[0][55], "Bass off: no bass steps, the chord sounds on");
+    cr_set_bass(&C, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 2 && v[0] == 36 && v[1] == 40 && count('+', 0) == 0, "Bass on again, chord held: the bass arps again");
+    cr_set_perform(&C, 0); step(10); clear();
+    cr_set_bass(&C, 0); step(10);
+    ok(!SND[1][36] && sounding() == 3, "Perform off: Bass off stops the held bass note");
+    cr_set_bass(&C, 1); step(10);
+    ok(SND[1][36] && count('+', 1) == 1, "Bass on: the held chord's bass note comes back");
+    cr_set_perform(&C, 1); step(10);
+    clear(); R(48, 1); step(400);
+    ok(count('+', -1) == 0 && sounding() == 0, "bass Arp: keys up, everything stops");
+    clear();
+    /* both at once: the chord strums, the bass arps */
+    cr_set_perform_part(&C, CR_PF_CHORD, 1);
+    cr_set_perform_mode(&C, CR_PM_STRUM);
+    K(48, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 3 && n >= 2 && v[0] == 36 && v[1] == 40, "both: the chord strums, the bass arps");
+    ok(cr_perform_shown(&C) == CR_PF_CHORD, "both: the view shows the chord's");
+    clear();
+    /* one switch: Perform off plays both parts plainly, on again both perform */
+    cr_set_perform(&C, 0); step(600);
+    ok(SND[1][36] && !SND[1][40] && count('+', 1) == 1, "Perform off: the bass holds its note");
+    cr_set_perform_part(&C, CR_PF_CHORD, 0); clear();
+    cr_set_perform(&C, 1); step(10);
+    ok(count('+', 0) == 0 && count('-', 0) == 0, "Perform on, chord Off: the sounding chord is not touched");
+    cr_set_perform(&C, 0); step(10); clear();
+    R(48, 1); step(300); clear();
+    cr_set_perform(&C, 1);
+    /* the bass's parameters are its own */
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_DOWN);
+    ok(cr_get_param(&C, CR_PM_ARP, CR_P_DIR) == CR_DIR_UP && cr_get_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR) == CR_DIR_DOWN,
+       "the bass's Direction is its own");
+    K(48, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 3 && v[0] == 43 && v[1] == 40 && v[2] == 36, "bass Arp Down: 43 40 36");
+    clear();
+    cr_bass_voicing_step(&C, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(n >= 2 && v[0] >= 48 && v[0] <= 55, "Register +1: the bass arp an octave up");
+    R(48, 1); step(400); clear();
+    cr_bass_voicing_step(&C, -1);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_DIR, CR_DIR_UP);
+    /* the bass Off in its Behaviour's way: a single note under Chords Only has no bass */
+    MU(CR_MOD_MAJ);
+    K(48, 1); step(600);
+    ok(count('+', 1) == 0, "Chords Only: a single note has no bass, so no bass arp");
+    R(48, 1); step(300); clear();
+    /* Solo: the chord silent, the bass arps */
+    cr_set_bass_mode(&C, CR_BASS_SOLO);
+    MD(CR_MOD_MIN); K(50, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 0 && n >= 3 && v[0] == 50 && v[1] == 53 && v[2] == 57, "Solo: no chord, the bass arps Dm where it was played (50 53 57)");
+    R(50, 1); step(300); clear(); MU(CR_MOD_MIN);
+    cr_set_bass_mode(&C, CR_BASS_CHORDS_ONLY);
+    /* Bass off: nothing on the bass */
+    cr_set_bass(&C, 0);
+    MD(CR_MOD_MAJ); K(48, 1); step(600);
+    ok(count('+', 1) == 0, "Bass off: no bass arp");
+    R(48, 1); step(300); clear();
+    cr_set_bass(&C, 1);
+    /* the bass's Hold latches the gesture */
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_STRUM);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_STRUM, CR_P_HOLD, 1);
+    ok(cr_latching(&C), "the bass's Strum Hold latches");
+    K(48, 1); step(300); R(48, 1); step(300);
+    ok(SND[0][48] && SND[1][36] && SND[1][40] && SND[1][43], "Hold: chord and bass strum sound on after the keys");
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_STRUM, CR_P_HOLD, 0); step(10);
+    ok(sounding() == 0, "Hold off: the latch goes");
+    clear();
+    /* the bass's strum follows a chord change (Advanced) */
+    cr_set_playstyle(&C, CR_PS_ADVANCED);
+    K(48, 1); step(300); clear();
+    MD(CR_MOD_MIN); step(300);
+    ok(SND[1][39] && !SND[1][40], "Advanced: a chord type changed, the bass strum follows (Eb)");
+    R(48, 1); MU(CR_MOD_MIN); step(300); clear();
+    cr_set_playstyle(&C, CR_PS_SIMPLE);
+    /* Split Bass: a bass-side key arps its own note over the range */
+    cr_set_perform_mode_ex(&C, CR_PF_BASS, CR_PM_ARP);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_RANGE, 2);
+    cr_set_single_notes(&C, CR_SINGLE_SPLIT_BASS, 5);
+    MU(CR_MOD_MAJ);
+    K(36, 1); step(600);
+    n = ons_notes(1, v, 64);
+    ok(count('+', 0) == 0 && n >= 3 && v[0] == 36 && v[1] == 48 && v[2] == 36, "Split Bass: the bass key arps 36 48 36");
+    R(36, 1); step(300); clear();
+    cr_set_single_notes(&C, CR_SINGLE_FULL, 5);
+    cr_set_param_ex(&C, CR_PF_BASS, CR_PM_ARP, CR_P_RANGE, 1);
+    /* MIDI Start: the bass's arp from its first step */
+    MD(CR_MOD_MAJ); K(48, 1); step(630); clear();
+    cr_transport_start(&C); step(520);
+    n = ons_notes(1, v, 64);
+    ok(n == 3 && v[0] == 36 && v[1] == 40 && v[2] == 43, "Start: the bass arp again from its first note");
+    /* the bass part turned off while it arps: its note comes back */
+    clear(); cr_set_perform_part(&C, CR_PF_BASS, 0); step(300);
+    ok(SND[1][36] && !SND[1][40] && !SND[1][43] && count('+', 1) == 1, "bass part Off: the plain bass note");
+    R(48, 1); MU(CR_MOD_MAJ); step(300); clear();
+    cr_set_perform(&C, 0);
+    cr_set_perform_part(&C, CR_PF_CHORD, 1);
+}
+
+/* GitHub issue 44 (trs-alt, 0.29.2-smk37): "the initial note struck when the key is pressed is longer than it should
+ * be", in every Arp mode at 1/8 and 1/16, through a chord progression. Pinned here: each chord of a progression, played
+ * legato (the next down 30 ms before the last up) and with gaps, its first step as long as its second and the second a
+ * step after it; the chord's part and the bass's Follow alike (HISTORY 3y285: not reproduced in the engine or either
+ * emulator) */
+static int s44_len(int i)                          /* LOG[i]'s note-on to its note-off, us (-1: none) */
+{
+    int k;
+    for (k = i + 1; k < nlog; k++)
+        if (LOG[k].k == '-' && LOG[k].s == LOG[i].s && LOG[k].note == LOG[i].note) return (int)(LOG[k].t - LOG[i].t);
+    return -1;
+}
+static void s_arp_first(void)
+{
+    static const int ROOT[4] = { 48, 53, 55, 48 };
+    static const int DIV[2] = { CR_DIV_1_8, CR_DIV_1_16 };
+    int d, ov, c, s, bad;
+    char name[160];
+    fresh("arp first step");
+    cr_set_bass(&C, 1);
+    cr_set_perform(&C, 1);
+    cr_set_perform_mode(&C, CR_PM_ARP);
+    cr_set_perform_part(&C, CR_PF_BASS, 1);
+    cr_set_perform_follow(&C, 1);
+    MD(CR_MOD_MAJ);
+    for (d = 0; d < 2; d++)
+        for (ov = 0; ov < 2; ov++) {               /* ov 1: legato, the next chord down before the last up */
+            double step_ms = d ? 125.0 : 250.0;
+            uint64_t tp[4];
+            cr_set_param(&C, CR_PM_ARP, CR_P_DIV, DIV[d]);
+            clear(); bad = 0;
+            for (c = 0; c < 4; c++) {
+                if (ov && c) { tp[c] = T; K(ROOT[c], 1); step(30); R(ROOT[c - 1], 1); step(970); }
+                else { if (c) { R(ROOT[c - 1], 1); step(40); } tp[c] = T; K(ROOT[c], 1); step(ov ? 1000 : 960); }
+            }
+            R(ROOT[3], 1); step(400);
+            for (s = 0; s < 2; s++)
+                for (c = 0; c < 4; c++) {          /* the chord's first two steps on this stream after its press */
+                    int k, f[2], nf = 0, pc0 = ROOT[c] % 12;
+                    for (k = 0; k < nlog && nf < 2; k++) {
+                        int pc = LOG[k].note % 12 - pc0;
+                        if (pc < 0) pc += 12;
+                        if (LOG[k].k == '+' && LOG[k].s == s && LOG[k].t >= tp[c] && (pc == 0 || pc == 4 || pc == 7) &&
+                            (c == 3 || LOG[k].t < tp[c + 1])) f[nf++] = k;
+                    }
+                    if (nf < 2) { bad++; continue; }
+                    {
+                        double gap = tms(LOG[f[1]].t - LOG[f[0]].t), l0 = s44_len(f[0]) / 1000.0, l1 = s44_len(f[1]) / 1000.0;
+                        /* (a key lands between ticks and is stamped at the tick before: the first step may come
+                         * out up to a tick SHORTER, never longer) */
+                        if (gap < step_ms - 2.0 * TOL() || gap > step_ms + TOL() || l0 < 0 || l1 < 0 ||
+                            l0 > l1 + TOL() || l0 < l1 - 2.0 * TOL() || tms(LOG[f[0]].t - tp[c]) > TOL()) bad++;
+                    }
+                }
+            snprintf(name, sizeof name, "issue 44: Arp %s, a progression %s: each chord's first step at its press, as long "
+                     "as the next, a step before it (the chord and the bass's Follow)", d ? "1/16" : "1/8",
+                     ov ? "played legato" : "with gaps");
+            ok(!bad, name);
+        }
+    MU(CR_MOD_MAJ); step(300);
+    cr_set_perform(&C, 0); clear();
+}
+
 static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 {
     strcpy(TAG, tag);
@@ -2807,8 +3134,8 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
     cr_init(&C, &OUT);
     cr_tick(&C, now_ms());
     s_keyboard(); s_sticky(); s_chords(); s_panic(); s_voicing(); s_bass(); s_keymode(); s_pads();
-    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_pattern(); s_live(); s_streams();
-    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_fixedchord(); s_quiet(); s_loopvoice(); s_queries();
+    s_secret(); s_advanced(); s_free(); s_lock(); s_strum(); s_arp(); s_arp_first(); s_transport(); s_bassperf(); s_bassfollow(); s_pattern(); s_live(); s_streams();
+    s_bassmodes(); s_transpose(); s_single(); s_keyplays(); s_snap(); s_fixedchord(); s_quiet(); s_orphans(); s_loopvoice(); s_queries();
     s_limits(); s_torture();
     s_sixth();
     s_fm1();
@@ -2819,7 +3146,7 @@ static void run_suite(uint32_t tick_us, uint32_t base_ms, const char *tag)
 /* docs/CHORD-NAMES.md's table, cell for cell: [quality][extension mask] with the mask's bits 6 = 1, 7 = 2, M7 = 4,
  * 9 = 8, the root C, the three strings read in a row. Both sevenths at once (masks 6, 7, 14, 15) have no name of
  * their own: Orchid's stands there */
-static const char *const STD_NAMES[CR_Q_COUNT][16] = {
+static const char *const STD_NAMES[CR_Q_OLD][16] = {
     /* a note */ { "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C", "C" },
     /* DIM  */ { "Cdim", "Cdim7", "Cm7b5", "Cm13b5", "CdimM7", "CdimM13", "Cdim7 M7", "CdimJAZZ",
                  "Cdimadd9", "Cdim7add9", "Cm9b5", "Cm13b5", "CdimM9", "CdimM13", "CdimJAZZ", "CdimWTF" },
@@ -2841,7 +3168,7 @@ static const char *const STD_NAMES[CR_Q_COUNT][16] = {
 static void orchid_ref(int pc, int quality, int ext, char *root, char *qual, char *sup)
 {
     static const char *const NN[12] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" };
-    static const char *const QN[CR_Q_COUNT] = { "", "dim", "m", "", "sus", "+", "", "m" };
+    static const char *const QN[CR_Q_OLD] = { "", "dim", "m", "", "sus", "+", "", "m" };
     int bits = (ext & 1) + ((ext >> 1) & 1) + ((ext >> 2) & 1) + ((ext >> 3) & 1);
     strcpy(root, NN[pc % 12]);
     strcpy(qual, QN[quality]);
@@ -2907,7 +3234,7 @@ static void s_names_std(void)
 
     /* Orchid, the default: every cell of every root is 0.19's */
     for (bad = 0, pc = 0; pc < 12; pc++)
-        for (q2 = 0; q2 < CR_Q_COUNT; q2++)
+        for (q2 = 0; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 orchid_ref(pc, q2, x, want[0], want[1], want[2]);
                 cr_chord_name((uint8_t)pc, (uint8_t)q2, (uint8_t)x, r, q, s);
@@ -2918,7 +3245,7 @@ static void s_names_std(void)
     cr_chord_names_set(1);
     ok(cr_chord_names() == 1, "Chord Names: Standard set");
     /* the table */
-    for (n = 0, q2 = 0; q2 < CR_Q_COUNT; q2++)
+    for (n = 0, q2 = 0; q2 < CR_Q_OLD; q2++)
         for (x = 0; x < 16; x++) {
             cr_chord_name(0, (uint8_t)q2, (uint8_t)x, r, q, s);
             snprintf(nm, sizeof nm, "%s%s%s", r, q, s);
@@ -2934,7 +3261,7 @@ static void s_names_std(void)
     /* the fallbacks: both sevenths, and only those, keep Orchid's three strings; count them */
     {
         int fb = 0, jazz = 0, wtf = 0, lit = 0, wrong = 0, same_other = 0;
-        for (q2 = 1; q2 < CR_Q_COUNT; q2++)
+        for (q2 = 1; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 int both = (x & 6) == 6, same;
                 orchid_ref(0, q2, x, want[0], want[1], want[2]);
@@ -2960,8 +3287,8 @@ static void s_names_std(void)
     /* what the name says is what sounds: the reader's pitch classes against cr_chord_base's */
     {
         int read = 0, wrongset = 0, unread = 0;
-        unsigned sets[CR_Q_COUNT][16];
-        for (q2 = 1; q2 < CR_Q_COUNT; q2++)
+        unsigned sets[CR_Q_OLD][16];
+        for (q2 = 1; q2 < CR_Q_OLD; q2++)
             for (x = 0; x < 16; x++) {
                 uint8_t out[CR_CHORD_MAX];
                 unsigned eng = 0, req = 0, opt = 0;
@@ -2998,8 +3325,8 @@ static void s_names_std(void)
          * with the 9th and without it (masks 3 / 11 and 5 / 13) */
         {
             int clash = 0, thirteen = 0, a, b;
-            for (a = 16; a < CR_Q_COUNT * 16; a++)
-                for (b = a + 1; b < CR_Q_COUNT * 16; b++) {
+            for (a = 16; a < CR_Q_OLD * 16; a++)
+                for (b = a + 1; b < CR_Q_OLD * 16; b++) {
                     if ((a & 6) == 6 || (b & 6) == 6 || strcmp(STD_NAMES[a / 16][a % 16], STD_NAMES[b / 16][b % 16])) continue;
                     if (sets[a / 16][a % 16] == sets[b / 16][b % 16]) continue;
                     if (a / 16 == b / 16 && (a % 16 | 8) == b % 16 && (a & 1) && (a & 6) &&
@@ -3015,7 +3342,7 @@ static void s_names_std(void)
     {
         int longq = 0, longs = 0, badq = 0, badroot = 0, single = 0, bare = 0, over = 0;
         for (pc = 0; pc < 12; pc++)
-            for (q2 = 0; q2 < CR_Q_COUNT; q2++)
+            for (q2 = 0; q2 < CR_Q_OLD; q2++)
                 for (x = 0; x < 16; x++) {
                     char g[3 + 5 + CR_SUP_MAX + 3];
                     memset(g, 0x55, sizeof g);
@@ -3197,6 +3524,122 @@ static void s_solfege(void)
        "solfege: all 2304 cells written and ended (the longest: 4 characters), each with its numeral's accidental, case and mark");
 }
 
+/* ------------------------------ more Key Mode scales (0.36, issues 34 / 45) --- */
+/* every scale's chord on each of the 12 keys in C, as Standard names spell them (tools/gen_scales.py prints the same
+ * table); then the 6-Dim chords' notes and bass, a loop's replay of one, the masks, the numerals, the clamp */
+static void s_scales(void)
+{
+    static const char *const SC_NAMES[CR_SCALE_COUNT][12] = {
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "Gsus4", "Am", "Asus4", "Bdim" },   /* Major */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Minor */
+        { "Cm", "Csus4", "Dm", "D#M", "Fsus4", "FM", "Fsus4", "Gm", "Gsus4", "Adim", "A#M", "A#sus4" },   /* Dorian */
+        { "Cm", "C#M", "D#sus4", "D#M", "D#sus4", "Fm", "Fsus4", "Gdim", "G#M", "G#sus4", "A#m", "A#sus4" },   /* Phrygian */
+        { "CM", "Dsus4", "DM", "Dsus4", "Em", "Esus4", "F#dim", "GM", "Gsus4", "Am", "Asus4", "Bm" },   /* Lydian */
+        { "CM", "Csus4", "Dm", "Dsus4", "Edim", "FM", "Fsus4", "Gm", "Gsus4", "Am", "A#M", "Csus4" },   /* Mixolydian */
+        { "Cdim", "C#M", "C#sus4", "D#m", "D#sus4", "Fm", "F#M", "G#sus4", "G#M", "G#sus4", "A#m", "A#sus4" },   /* Locrian */
+        { "Cm", "Csus4", "Ddim", "D#+", "D#sus4", "Fm", "Gsus4", "GM", "G#M", "G#sus4", "Bsus4", "Bdim" },   /* Harm Minor */
+        { "Cm", "Csus4", "Dm", "D#+", "D#sus4", "FM", "Gsus4", "GM", "Gsus4", "Adim", "Asus4", "Bdim" },   /* Mel Minor */
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "Gsus4", "Am", "Asus4", "Bdim" },   /* Maj Pent */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Min Pent */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "F#dim", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Blues */
+        { "CM", "C#M", "C#sus4", "Esus4", "Edim", "Fm", "Fsus4", "Gdim", "G#+", "G#sus4", "A#m", "Csus4" },   /* Phryg Dom */
+        { "CM", "C#M", "C#sus4", "Esus4", "Em", "Fm", "Fsus4", "GM", "G#+", "G#sus4", "Bsus4", "Bdim" },   /* Dbl Harm */
+        { "Cm", "Csus4", "Ddim", "D#M", "D#sus4", "Fm", "Fsus4", "Gm", "G#M", "A#sus4", "A#M", "A#sus4" },   /* Hirajoshi */
+        { "C+7", "C#+", "D+7", "D#+", "E+7", "F+", "F#+7", "G+", "G#+7", "A+", "A#+7", "B+" },   /* Whole Tone */
+        { "Cdim7", "C#7b9", "Ddim7", "D#dim7", "E7b9", "Fdim7", "F#dim7", "G7b9", "G#dim7", "Adim7", "A#7b9", "Bdim7" },   /* Dim W-H */
+        { "C7", "C#dim7", "D7b9", "D#7", "Edim7", "F7b9", "F#7", "Gdim7", "G#7b9", "A7", "A#dim7", "B7b9" },   /* Dim H-W */
+        { "CM", "Csus4", "Dm", "Dsus4", "Edim", "FM", "Fsus4", "Gm", "Gsus4", "Am", "A#M", "Bdim7" },   /* Bebop Dom */
+        { "CM", "Csus4", "Dm", "Dsus4", "Em", "FM", "Gsus4", "GM", "G#dim7", "Am", "Asus4", "Bdim" },   /* Bebop Maj */
+        { "Cm", "Csus4", "Dm", "D#M", "Edim7", "FM", "Fsus4", "Gm", "Gsus4", "Adim", "A#M", "A#sus4" },   /* Bebop Min */
+        { "C6", "C#7b9", "Ddim7", "D#7b9", "C6/E", "Fdim7", "F#7b9", "C6/G", "G#dim7", "Am7", "A#7b9", "Bdim7" },   /* 6-Dim */
+        { "Cm6", "C#7b9", "Ddim7", "Cm6/D#", "E7b9", "Fdim7", "F#7b9", "Cm6/G", "G#dim7", "Am7b5", "A#7b9", "Bdim7" },   /* m6-Dim */
+    };
+    cr_chord_info_t ci;
+    char nm[32], rn[CR_NUMERAL_MAX];
+    int sc, pc, bad = 0, badm = 0;
+    fresh("scales");
+    strcpy(TAG, "scales");
+    cr_chord_names_set(1);
+    for (sc = 0; sc < CR_SCALE_COUNT; sc++)
+        for (pc = 0; pc < 12; pc++) {
+            cr_set_key(&C, 1, 0, (cr_scale_t)sc);
+            K(60 + pc, 1);
+            cr_chord_info(&C, &ci);
+            snprintf(nm, sizeof nm, "%s%s%s", ci.root, ci.qual, ci.sup);
+            if (strcmp(nm, SC_NAMES[sc][pc])) {
+                bad++;
+                printf("     %s key %d: %s, want %s\n", cr_scale_name((uint8_t)sc), pc, nm, SC_NAMES[sc][pc]);
+            }
+            R(60 + pc, 1); clear();
+        }
+    cr_chord_names_set(0);
+    ok(!bad, "scales: 23 scales x 12 keys in C, each key's chord as the table");
+    cr_set_key(&C, 1, 0, CR_SCALE_6DIM);
+    K(64, 1); expect("+64 +67 +69 +72", "6-Dim: E plays C6 over E (E G A C)");
+    cr_chord_info(&C, &ci);
+    ok(ci.quality == CR_Q_6_3 && ci.root_pc == 4 && !strcmp(ci.root, "C") && !strcmp(ci.sup, "6/E"),
+       "6-Dim: E's chord is C6/E, quality 6/3 on E");
+    R(64, 1); clear();
+    K(67, 1); expect("+67 +69 +72 +76", "6-Dim: G plays C6 over G (G A C E)");
+    R(67, 1); clear();
+    K(69, 1); expect("+69 +72 +76 +79", "6-Dim: A plays Am7 (C6 over A)");
+    R(69, 1); clear();
+    K(62, 1); expect("+62 +65 +68 +71", "6-Dim: D plays Ddim7 (D F G# B)");
+    cr_chord_info(&C, &ci);
+    ok(ci.quality == CR_Q_DIM && ci.ext == CR_EXT_6, "6-Dim: D's dim7 is DIM with the scale's 6th (a loop records both)");
+    R(62, 1); clear();
+    K(61, 1); expect("+61 +62 +65 +68 +71", "6-Dim: C# (out of the scale) plays C#7b9: C# under Ddim7");
+    R(61, 1); clear();
+    cr_set_bass(&C, 1);
+    K(64, 1);
+    ok(SND[1][40] && !SND[1][36], "6-Dim: the bass of C6/E is E");
+    R(64, 1); cr_set_bass(&C, 0); clear();
+    MD(CR_MOD_MIN); K(64, 1);
+    expect("+64 +67 +71", "6-Dim: a held chord key overrides the scale's chord (Em, no 6th)");
+    R(64, 1); MU(CR_MOD_MIN); clear();
+    cr_set_key(&C, 1, 2, CR_SCALE_6DIM);
+    K(66, 1);
+    cr_chord_info(&C, &ci);
+    ok(!strcmp(ci.root, "D") && !strcmp(ci.sup, "6/F#"), "6-Dim in D: F# plays D6/F#");
+    R(66, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_M6DIM);
+    K(63, 1); expect("+63 +67 +69 +72", "m6-Dim: Eb plays Cm6 over Eb (Eb G A C)");
+    R(63, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_WHOLE_TONE);
+    K(60, 1); expect("+60 +64 +68 +70", "Whole Tone: C plays C+7");
+    R(60, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_DIM_HW);
+    K(63, 1); expect("+63 +67 +70 +73", "Dim H-W: Eb plays Eb7");
+    R(63, 1); clear();
+    cr_set_key(&C, 1, 0, CR_SCALE_6DIM);   /* a loop's replay (the recorded root, quality, extensions) */
+    cr_loop_event(&C, 0, 64, CR_Q_6_3, 0, 100, 1);
+    expect("+64 +67 +69 +72", "a loop replays C6/E as recorded");
+    cr_loop_event(&C, 0, 64, CR_Q_6_3, 0, 0, 0); clear();
+    {
+        static const uint16_t MASK_C[CR_SCALE_COUNT] = {
+            0xAB5, 0x5AD, 0x6AD, 0x5AB, 0xAD5, 0x6B5, 0x56B, 0x9AD, 0xAAD, 0x295, 0x4A9, 0x4E9, 0x5B3, 0x9B3, 0x18D,
+            0x555, 0xB6D, 0x6DB, 0xEB5, 0xBB5, 0x6BD, 0xBB5, 0xBAD };
+        for (sc = 0; sc < CR_SCALE_COUNT; sc++) {
+            cr_set_key(&C, 1, 0, (cr_scale_t)sc);
+            badm += cr_scale_mask(&C) != MASK_C[sc] || !cr_scale_name((uint8_t)sc)[0] ||
+                    strlen(cr_scale_name((uint8_t)sc)) > 10u;
+        }
+    }
+    ok(!badm, "scales: each one's notes in C, and a name of at most 10 characters");
+    ok(cr_scale_bits(2, CR_SCALE_MAJ_PENT) == ((0x295u << 2 | 0x295u >> 10) & 0xFFFu), "scale bits: D major pentatonic");
+    cr_set_key(&C, 1, 0, (cr_scale_t)99);
+    ok(C.scale == CR_SCALE_MAJOR, "an unknown scale is Major");
+    ok(cr_scale_minor(CR_SCALE_DORIAN) && cr_scale_minor(CR_SCALE_BEBOP_MIN) && !cr_scale_minor(CR_SCALE_LYDIAN) &&
+       !cr_scale_minor(CR_SCALE_6DIM) && cr_scale_minor(CR_SCALE_M6DIM) && !cr_scale_minor(99), "scales: MAJ's and MIN's");
+    cr_chord_numeral(4, CR_Q_6_3, 0, CR_SCALE_6DIM, rn);
+    ok(!strcmp(rn, "I"), "numeral: C6/E in C 6-Dim is I");
+    cr_chord_numeral(5, CR_Q_MAJ, 0, CR_SCALE_DORIAN, rn);
+    ok(!strcmp(rn, "IV"), "numeral: F in C Dorian is IV (Minor's degrees)");
+    cr_chord_numeral(9, CR_Q_DIM, 0, CR_SCALE_DORIAN, rn);
+    ok(!strcmp(rn, "#vi\260"), "numeral: Adim in C Dorian is #vi\260");
+    cr_set_key(&C, 0, 0, CR_SCALE_MAJOR);
+}
+
 int main(void)
 {
     s_tables();
@@ -3204,6 +3647,7 @@ int main(void)
     s_numerals();
     s_solfege();
     s_sixth_tables();
+    s_scales();
     run_suite(1000, 0, "1ms");
     run_suite(2902, 0, "2.9ms");
     run_suite(5000, 0, "5ms");
