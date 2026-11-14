@@ -51,6 +51,9 @@ static const char *t_upd_screen;
 static unsigned t_uboot_went;
 #define CRB_UPDATE_SCREEN(t) (t_upd_screen = (t))
 #define CRB_UBOOT_GO() (t_uboot_went++)
+#ifndef CR_DRUMS
+#define CR_DRUMS 1                      /* (this fork builds without the drums; the drum block's round trip is still upstream's) */
+#endif
 #include "../tools/emu/emu_firmware.h"
 /* 0.22: the patches live in the sound pool (upool.c); the stores' readers of before, as the checks below use them */
 #include "cr_pool_shim.h"

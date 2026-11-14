@@ -55,6 +55,9 @@ const int8_t emu_keymap[6][EMU_NCOL] = {
 static volatile int c1_plant;
 #define P5_TAP(k, x) (c1_plant += (int)(x))
 #endif
+#ifndef CR_DRUMS
+#define CR_DRUMS 1                      /* (this fork builds without the drums; this test runs them on core 1, as upstream) */
+#endif
 #include "../tools/emu/emu_firmware.h"
 
 static int fails;
