@@ -91,6 +91,7 @@ function parseScript(text) {   // -> [{ms, op, ...}] (the subset the checks use;
       at({ op: "midi", pkt: ((st >= 0xf0 ? 0x0f : st >> 4) | st << 8 | (d1 & 0x7f) << 16 | (d2 & 0x7f) << 24) >>> 0 });
     }
     else if (c === "quit") at({ op: "quit" });
+    else if (c === "keys") at({ op: "keys", v: a === "classic" ? 1 : 2 });   // (this fork: applied before the boot)
     else throw new Error(`script: ${raw}`);
   }
   return ev;
@@ -239,9 +240,11 @@ ok(true, `speed: ${secs.toFixed(2)} s of device time in ${took.toFixed(2)} s (${
 // view shows the chord: tools/emu/scripts/cr_midi_roots.txt on a fresh module (test_cr.sh checks the same dumps natively)
 {
   const exm = await load();
+  const mev = parseScript(fs.readFileSync(path.join(ROOT, "tools/emu/scripts/cr_midi_roots.txt"), "utf8"));
+  for (const e of mev) if (e.op === "keys") exm.web_keys_layout(e.v);   // (this fork: the layout the script names)
   exm.web_boot();
   const mlog = [];
-  runScript(exm, parseScript(fs.readFileSync(path.join(ROOT, "tools/emu/scripts/cr_midi_roots.txt"), "utf8")), mlog);
+  runScript(exm, mev, mlog);
   const md = mlog.filter((l) => l[0] === "dump").map((l) => l[2]);
   const nm = (i) => (/screen name: (.*)/.exec(md[i] || "") || [])[1];
   ok(md.length === 11 && /'MIDI Roots' value 'ch 3'/.test(md[0]) && nm(1) === "'C' notes C3" && nm(4) === "'Dm' notes D3 F3 A3" &&

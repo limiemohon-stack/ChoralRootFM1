@@ -135,6 +135,8 @@ WEB_EXPORT uint32_t web_ms(void) { return dev_ms; }
 /* ------------------------------------------------------------------- power-on --- */
 WEB_EXPORT uint8_t *web_flash_stage(void) { return web_stage; }
 WEB_EXPORT void web_flash_stage_len(uint32_t n) { web_stage_len = n > WEB_FLASH_SIZE ? WEB_FLASH_SIZE : n; }
+/* (this fork) the script line "keys classic|fm1" before the boot: a unit with no record takes that layout (emu_fw.c) */
+WEB_EXPORT void web_keys_layout(uint32_t v) { emu_hal.keys_classic = (uint8_t)v; }
 WEB_EXPORT void web_boot(void)
 {
     if (booted)
